@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>錢進中 · transparency spike</title>
+<!--
+  Dev-only page for the Task 2 transparency spike (build\錢進中.exe --spike).
+  Nothing paints the page background: everything outside the card, the pets and the
+  floaters must show the desktop, and clicks there must fall through.
+  Pet art: petOnlySVG('p0','hamster') and petOnlySVG('s4','hamster') from
+  docs/prototypes/shared.js, rendered once and pasted as static SVG (unused defs removed).
+  Host protocol (strings via chrome.webview): page -> host "size W H", "hits x y w h|...",
+  "drag", "topmost"; host -> page "topmost 1|0".
+-->
+<style>
+  @font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-Variable.ttf') format('truetype'); font-weight: 300 700; }
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body { font-family: 'Fredoka', 'Microsoft JhengHei UI', sans-serif; color: #3D2C24; user-select: none; }
+  #stage { position: relative; width: 520px; height: 340px; }
+
+  /* A1 sticker card */
+  .card { position: absolute; left: 14px; top: 14px; width: 250px; height: 184px; box-sizing: border-box;
+          background: #FFF8EC; border: 3px solid #3D2C24; border-radius: 28px; box-shadow: 7px 7px 0 #3D2C24;
+          padding: 14px 18px; cursor: move; }
+  .card h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  .card .money { margin: 6px 0 2px; font-size: 34px; font-weight: 700; color: #FF8A3D; white-space: nowrap; }
+  .card .money small { font-size: .5em; color: #FFB627; }
+  .card .info { font-size: 12px; font-weight: 600; color: #9A6E52; }
+  .card button { position: absolute; left: 18px; bottom: 14px; height: 30px; font: inherit; font-size: 13px; font-weight: 700; color: #3D2C24; cursor: pointer;
+                 background: #FFC857; border: 2.5px solid #3D2C24; border-radius: 99px; padding: 4px 12px; box-shadow: 2px 2px 0 #3D2C24; }
+  .card button.on { background: #8EE3B0; }
+
+  /* pets float with nothing behind them */
+  .pet { position: absolute; cursor: pointer; }
+  .pet svg { display: block; width: 100%; height: 100%; }
+  #p0 { left: 290px; top: 8px; width: 210px; height: 202px; }
+  #s4 { left: 30px; top: 218px; width: 120px; height: 116px; }
+
+  /* un-outlined, semi-transparent content: worst case for colour-key fringes */
+  .glow { position: absolute; left: 176px; top: 236px; width: 92px; height: 92px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(255,200,87,.95) 0, rgba(255,200,87,.5) 40%, rgba(255,200,87,0) 70%); }
+  .plus { position: absolute; left: 300px; top: 250px; font-size: 22px; font-weight: 700; color: #1E9E5A;
+          animation: rise 2.4s ease-out infinite; }
+  @keyframes rise { 0% { transform: translateY(40px); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-10px); opacity: 0; } }
+
+  /* pet animation (from docs/prototypes/shared.css) */
+  .pet-svg .pawL, .pet-svg .pawR { transform-box: fill-box; transform-origin: center bottom; animation: tap .3s ease-in-out infinite; }
+  .pet-svg .pawR { animation-delay: -.15s; }
+  @keyframes tap { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .pet-svg .head { transform-box: view-box; transform-origin: 118px 132px; animation: bob .6s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.6px); } }
+  .pet-svg .blink { transform-box: fill-box; transform-origin: center; animation: blink 4.6s infinite; }
+  @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 94% { transform: scaleY(.08); } 96.5% { transform: scaleY(1); } }
+  .pet-svg .look { animation: look 9s ease-in-out infinite; }
+  @keyframes look { 0%, 32% { transform: translate(0, 0); } 38%, 68% { transform: translate(3px, 1px); } 74%, 100% { transform: translate(0, 0); } }
+  .pet-svg .eyes-happy { display: none; }
+  .pet-svg.happy .eyes-open { display: none; }
+  .pet-svg.happy .eyes-happy { display: inline; }
+  .pet-svg.happy .pawL, .pet-svg.happy .pawR { animation-play-state: paused; }
+  .pet-svg.happy .head { animation: wiggle .45s ease-in-out 3; }
+  @keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+  .pet-svg .flat [stroke]:not(.keep) { stroke: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="card" data-hit>
+    <h1>錢進中 · 透明測試</h1>
+    <div class="money"><small>NT$</small> 1,231.61</div>
+    <div class="info">拖曳卡片可移動 · <span id="dpr"></span></div>
+    <button id="top" type="button">永遠在最上層</button>
+  </div>
+  <div class="pet" id="p0" data-hit><svg class="pet-svg" viewBox="38 18 160 154"><defs><radialGradient id="p0-geye" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#55423A"></stop><stop offset=".55" stop-color="#22160F"></stop><stop offset="1" stop-color="#120B08"></stop></radialGradient><clipPath id="p0-bc"><path d="M118,64 C150,64 170,84 172,108 L179,114 L171,118 L177,125 L168,128 C166,150 150,170 118,172 C86,170 70,150 68,128 L59,125 L65,118 L57,114 L64,108 C66,84 86,64 118,64 Z"></path></clipPath></defs><g class="head"><g transform="rotate(-20 86 72)"><ellipse cx="86" cy="72" rx="12.5" ry="13" fill="#DD8A34" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></ellipse><ellipse cx="86" cy="73.5" rx="7.6" ry="8.2" fill="#FFB3BE"></ellipse><ellipse cx="84.5" cy="71" rx="3" ry="3.6" fill="#fff" opacity=".45"></ellipse></g><g transform="rotate(20 150 72)"><ellipse cx="150" cy="72" rx="12.5" ry="13" fill="#DD8A34" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></ellipse><ellipse cx="150" cy="73.5" rx="7.6" ry="8.2" fill="#FFB3BE"></ellipse><ellipse cx="148.5" cy="71" rx="3" ry="3.6" fill="#fff" opacity=".45"></ellipse></g><path d="M118,64 C150,64 170,84 172,108 L179,114 L171,118 L177,125 L168,128 C166,150 150,170 118,172 C86,170 70,150 68,128 L59,125 L65,118 L57,114 L64,108 C66,84 86,64 118,64 Z" fill="#F2A54E"></path><g clip-path="url(#p0-bc)"><ellipse cx="118" cy="66" rx="40" ry="16" fill="#DD8A34" opacity=".55"></ellipse><path d="M160,78 C186,110 182,150 136,178 L198,198 L198,70 Z" fill="#DD8A34" opacity=".7"></path><path d="M72,126 C74,116 80,110 86,108 C84,118 84,128 88,138 C82,138 76,134 72,126 Z" fill="#B9773C" opacity=".75"></path><path d="M164,126 C162,116 156,110 150,108 C152,118 152,128 148,138 C154,138 160,134 164,126 Z" fill="#B9773C" opacity=".75"></path><path d="M40,200 L40,150 C56,136 76,134 92,138 C98,124 104,114 118,112 C132,114 138,124 144,138 C160,134 180,136 196,150 L196,200 Z" fill="#FFF8EE"></path><ellipse cx="118" cy="114" rx="15" ry="10" fill="#FFF8EE"></ellipse><path d="M58,148 C80,140 100,142 118,146 C136,142 156,140 178,148 L178,156 C156,150 136,152 118,156 C100,152 80,150 58,156 Z" fill="#F2A54E" opacity=".55"></path><ellipse cx="166" cy="160" rx="18" ry="26" fill="#F1E4D2"></ellipse></g><path d="M118,64 C150,64 170,84 172,108 L179,114 L171,118 L177,125 L168,128 C166,150 150,170 118,172 C86,170 70,150 68,128 L59,125 L65,118 L57,114 L64,108 C66,84 86,64 118,64 Z" fill="none" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></path><path d="M84,86 C90,76 100,71 110,70" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".8"></path><ellipse cx="90" cy="121" rx="8" ry="4.6" fill="#FF9FB0" opacity=".75"></ellipse><ellipse cx="146" cy="121" rx="8" ry="4.6" fill="#FF9FB0" opacity=".75"></ellipse><g class="look"><g class="eyes-open"><g class="blink"><ellipse cx="100" cy="100" rx="7.6" ry="8.6" fill="url(#p0-geye)"></ellipse><ellipse cx="102.4" cy="96.8" rx="3.1" ry="2.8" fill="#fff"></ellipse><circle cx="97.2" cy="103.6" r="1.4" fill="#fff"></circle><path d="M103.6,100.9 Q103.6,102.4 105.1,102.4 Q103.6,102.4 103.6,103.9 Q103.6,102.4 102.1,102.4 Q103.6,102.4 103.6,100.9 Z" fill="#fff" opacity=".9"></path></g><g class="blink"><ellipse cx="136" cy="100" rx="7.6" ry="8.6" fill="url(#p0-geye)"></ellipse><ellipse cx="138.4" cy="96.8" rx="3.1" ry="2.8" fill="#fff"></ellipse><circle cx="133.2" cy="103.6" r="1.4" fill="#fff"></circle><path d="M139.6,100.9 Q139.6,102.4 141.1,102.4 Q139.6,102.4 139.6,103.9 Q139.6,102.4 138.1,102.4 Q139.6,102.4 139.6,100.9 Z" fill="#fff" opacity=".9"></path></g></g><g class="eyes-happy"><path d="M93,103 q7,-8.75 14,0" fill="none" stroke="#3D2C24" stroke-width="3.4" stroke-linecap="round"></path><path d="M129,103 q7,-8.75 14,0" fill="none" stroke="#3D2C24" stroke-width="3.4" stroke-linecap="round"></path></g></g><path d="M114.8,109.4 q3.2,-1.6 6.4,0 q-.8,3 -3.2,3.8 q-2.4,-.8 -3.2,-3.8z" fill="#FF8090" stroke="#3D2C24" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path><path d="M118,113.4 v2.6 M118,116 q-2.6,2.8 -5.4,1.2 M118,116 q2.6,2.8 5.4,1.2" fill="none" stroke="#3D2C24" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path><path d="M108,113 Q94,108 80,107 M108,116 Q93,116 78,119 M128,113 Q142,108 156,107 M128,116 Q143,116 158,119" fill="none" stroke="#3D2C24" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"></path><path d="M100,130 L112,137 M136,130 L124,137" stroke="#4DA3FF" stroke-width="3" stroke-linecap="round"></path><rect x="110" y="135.5" width="16" height="11.5" rx="2" fill="#fff" stroke="#3D2C24" stroke-width="2"></rect><rect x="112.5" y="138" width="5" height="6.5" rx="1" fill="#FFB25B"></rect><path d="M120,139.5 h3.5 M120,142.5 h3.5" stroke="#A9B4C2" stroke-width="1.4" stroke-linecap="round"></path></g><rect x="44" y="152" width="148" height="18" rx="9" fill="#E8AE80" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></rect><path d="M72,146 H164 L171,159 H65 Z" fill="#F7F4FF" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></path><rect x="75" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="83.2" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="91.4" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="99.6" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="107.8" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="116" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="124.2" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="132.4" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="140.6" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="148.8" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="157" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="73.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="81.7" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="89.9" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="98.1" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="106.3" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="114.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="122.7" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="130.9" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="139.1" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="147.3" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="155.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><g transform="rotate(25 186 151)"><ellipse cx="186" cy="151" rx="6" ry="3.4" fill="#3A3A3A" stroke="#3D2C24" stroke-width="1.6"></ellipse><path d="M181.5,150 h9 M182,152 h8" stroke="#fff" stroke-width="1" opacity=".85"></path></g><g class="pawL"><ellipse cx="104" cy="150" rx="8.5" ry="6.5" fill="#FFB8C3" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></ellipse><path d="M100.5,147.5 v3 M104,147 v3.2 M107.5,147.5 v3" stroke="#3D2C24" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></g><g class="pawR"><ellipse cx="132" cy="150" rx="8.5" ry="6.5" fill="#FFB8C3" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></ellipse><path d="M128.5,147.5 v3 M132,147 v3.2 M135.5,147.5 v3" stroke="#3D2C24" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path></g></svg></div>
+  <div class="pet" id="s4" data-hit><svg class="pet-svg" viewBox="38 18 160 154"><defs><clipPath id="s4-b"><circle cx="118" cy="122" r="52"></circle></clipPath></defs><g class="head"><circle cx="86" cy="76" r="13" fill="#E08A3E"></circle><circle cx="86" cy="76" r="6.5" fill="#FF9FB0"></circle><circle cx="150" cy="76" r="13" fill="#E08A3E"></circle><circle cx="150" cy="76" r="6.5" fill="#FF9FB0"></circle><circle cx="118" cy="122" r="52" fill="#F2A65A"></circle><g clip-path="url(#s4-b)"><rect x="118" y="60" width="60" height="120" fill="#E08A3E" opacity=".35"></rect><circle cx="118" cy="152" r="38" fill="#FFF3E3"></circle><rect x="118" y="110" width="40" height="80" fill="#F3E2CC" opacity=".6"></rect></g><path d="M113,72 h10 l-5,12 z" fill="#E08A3E"></path><circle cx="118" cy="119" r="13" fill="#FFF3E3"></circle><circle cx="90" cy="122" r="7.5" fill="#FF9FB0" opacity=".9"></circle><circle cx="146" cy="122" r="7.5" fill="#FF9FB0" opacity=".9"></circle><g class="look"><g class="eyes-open"><g class="blink"><circle cx="101" cy="106" r="5" fill="#2B2B3A"></circle><circle cx="102.6" cy="104.4" r="1.6" fill="#fff"></circle></g><g class="blink"><circle cx="135" cy="106" r="5" fill="#2B2B3A"></circle><circle cx="136.6" cy="104.4" r="1.6" fill="#fff"></circle></g></g><g class="eyes-happy"><path d="M96,109 q5,-6.25 10,0" fill="none" stroke="#2B2B3A" stroke-width="2.6" stroke-linecap="round"></path><path d="M130,109 q5,-6.25 10,0" fill="none" stroke="#2B2B3A" stroke-width="2.6" stroke-linecap="round"></path></g></g><path d="M114.5,114 h7 l-3.5,4 z" fill="#E8607A"></path><path d="M114,121 q2,2.4 4,0 q2,2.4 4,0" fill="none" stroke="#2B2B3A" stroke-width="1.6" stroke-linecap="round"></path></g><g class="flat"><rect x="44" y="152" width="148" height="18" rx="9" fill="#E8AE80" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></rect><path d="M72,146 H164 L171,159 H65 Z" fill="#F7F4FF" stroke="#3D2C24" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"></path><rect x="75" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="83.2" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="91.4" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="99.6" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="107.8" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="116" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="124.2" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="132.4" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="140.6" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="148.8" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="157" y="149.5" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="73.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="81.7" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="89.9" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="98.1" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="106.3" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="114.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="122.7" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="130.9" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="139.1" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="147.3" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect><rect x="155.5" y="153.9" width="6" height="2.8" rx="1.2" fill="#CFC8E8"></rect></g><g transform="rotate(25 186 151)"><ellipse cx="186" cy="151" rx="6" ry="3.4" fill="#3A3A3A" stroke="#3D2C24" stroke-width="1.6"></ellipse><path d="M181.5,150 h9 M182,152 h8" stroke="#fff" stroke-width="1" opacity=".85"></path></g><g class="pawL"><circle cx="104" cy="150" r="6.5" fill="#FFB8C3"></circle></g><g class="pawR"><circle cx="132" cy="150" r="6.5" fill="#FFB8C3"></circle></g></svg></div>
+  <div class="glow"></div>
+  <div class="plus">+NT$0.42</div>
+</div>
+<script>
+(function () {
+  var wv = window.chrome && window.chrome.webview;
+  function send(s) { if (wv) wv.postMessage(s); }
+  function report() {
+    var stage = document.getElementById('stage');
+    send('size ' + stage.offsetWidth + ' ' + stage.offsetHeight);
+    var rects = [];
+    document.querySelectorAll('[data-hit]').forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      rects.push([r.left, r.top, r.width, r.height].map(Math.round).join(' '));
+    });
+    send('hits ' + rects.join('|'));
+    document.getElementById('dpr').textContent = 'DPR ' + window.devicePixelRatio;
+  }
+  document.querySelector('.card').addEventListener('mousedown', function (e) {
+    if (e.button === 0 && e.target.tagName !== 'BUTTON') send('drag');
+  });
+  document.getElementById('top').addEventListener('click', function () { send('topmost'); });
+  document.querySelectorAll('.pet').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var svg = el.querySelector('svg');
+      svg.classList.add('happy');
+      setTimeout(function () { svg.classList.remove('happy'); }, 1600);
+    });
+  });
+  if (wv) wv.addEventListener('message', function (e) {
+    var m = String(e.data).split(' ');
+    if (m[0] === 'topmost') document.getElementById('top').classList.toggle('on', m[1] === '1');
+  });
+  window.addEventListener('resize', report);
+  report();
+})();
+</script>
+</body>
+</html>
