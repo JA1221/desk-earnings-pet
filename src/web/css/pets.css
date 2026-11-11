@@ -1,0 +1,47 @@
+/* Pet + room animation, ported from docs/prototypes/shared.css ("pet animation" and the flat render mode).
+   Root element: svg.pet-svg (from QJZ.pets.compose); add .happy to switch to ^^ eyes and a little jump/wiggle.
+   Blink offset per pet: set --bd on the svg. Pausing while hidden is handled by html.paused in base.css. */
+
+/* typing paws */
+.pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom;animation:tap .3s ease-in-out infinite}
+.pet-svg .pawR{animation-delay:-.15s}
+@keyframes tap{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* body motion: head bob (outlined skins) or mochi squish (P4/H2), H2 cheek puff, cat tail */
+.pet-svg .head{transform-box:view-box;transform-origin:118px 132px;animation:bob .6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(1.6px)}}
+.pet-svg .squish{transform-box:view-box;transform-origin:118px 172px;animation:squish .6s ease-in-out infinite}
+@keyframes squish{0%,100%{transform:scale(1,1)}50%{transform:scale(1.025,.965)}}
+.pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
+@keyframes puff{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.pet-svg .tail{transform-box:view-box;transform-origin:86px 152px;animation:tail 1.8s ease-in-out infinite alternate}
+@keyframes tail{from{transform:rotate(-9deg)}to{transform:rotate(10deg)}}
+
+/* eyes: blink, glance sideways, happy ^^ */
+.pet-svg .blink{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite;animation-delay:var(--bd,0s)}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}96.5%{transform:scaleY(1)}}
+.pet-svg .look{animation:look 9s ease-in-out infinite}
+@keyframes look{0%,32%{transform:translate(0,0)}38%,68%{transform:translate(3px,1px)}74%,100%{transform:translate(0,0)}}
+.pet-svg .eyes-happy{display:none}
+.pet-svg.happy .eyes-open{display:none}
+.pet-svg.happy .eyes-happy{display:inline}
+.pet-svg.happy .pawL,.pet-svg.happy .pawR{animation-play-state:paused}
+.pet-svg.happy .head{animation:wiggle .45s ease-in-out 3}
+.pet-svg.happy .squish{animation:jump .5s ease-out 2}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}
+@keyframes jump{0%,100%{transform:translateY(0) scale(1,1)}30%{transform:translateY(-9px) scale(.96,1.05)}60%{transform:translateY(0) scale(1.05,.94)}}
+
+/* room: drifting clouds, scrolling code, mug steam, swaying plant, S5 twinkling stars */
+.pet-svg .cloud{animation:cloud 18s linear infinite}
+@keyframes cloud{from{transform:translateX(0)}to{transform:translateX(92px)}}
+.pet-svg .code{animation:code 6s linear infinite}
+@keyframes code{to{transform:translateY(-84px)}}
+.pet-svg .steam{animation:steam 2.6s ease-out infinite;opacity:0}
+@keyframes steam{0%{transform:translateY(4px);opacity:0}30%{opacity:.85}100%{transform:translateY(-12px);opacity:0}}
+.pet-svg .leaves{transform-box:view-box;transform-origin:21px 134px;animation:sway 3.4s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+.pet-svg .tw{animation:twinkle 1.6s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.25}}
+
+/* flat room mode (S4): no outlines except elements marked .keep */
+.pet-svg .flat [stroke]:not(.keep){stroke:none!important}

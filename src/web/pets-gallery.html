@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>錢進中 寵物造型</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pets.css">
+<style>
+  /* Dev page: all skins in the three compose views, laid out like docs/prototypes/converge.html for side-by-side checks.
+     ?happy=1 shows the happy eyes, ?paused=1 freezes animation. */
+  body { min-height: 100vh; background: #ECE8E1; background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0); background-size: 22px 22px; padding: 0 20px 60px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 30px; padding: 32px 0 6px; }
+  .tools { display: flex; gap: 14px; align-items: center; font-size: 14px; font-weight: 600; color: var(--sub); }
+  h2 { margin: 34px 0 14px; font-size: 24px; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; }
+  .card { background: #fff; border: 2px solid #DDD5CA; border-radius: 22px; padding: 12px 12px 14px; }
+  .frame { border: 3px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 4px 4px 0 var(--line); }
+  .scene { width: 100%; aspect-ratio: 3/2; }
+  .petonly { aspect-ratio: 160/154; }
+  .scene svg, .petonly svg { display: block; width: 100%; height: 100%; }
+  .av { border-radius: 50%; background: #FFE6C7; border: 2.5px solid var(--line); overflow: hidden; flex: none; }
+  .av svg { display: block; width: 100%; height: 100%; }
+  .meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .meta b { font-size: 16px; }
+  .meta small { font-size: 12px; color: var(--sub); margin-left: auto; }
+  .tag { font-weight: 800; font-size: 12px; padding: 4px 11px; border-radius: 99px; background: #2A2420; color: #fff; }
+  .subrow { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .subrow .av.s { width: 42px; height: 42px; }
+  .subrow .petonly.s { width: 76px; }
+  .subrow .av.l { width: 96px; height: 96px; margin-left: auto; }
+  .subrow .petonly.l { width: 120px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>寵物造型</h1>
+  <div class="tools"><label><input type="checkbox" id="happy"> 開心眼（.happy）</label><span>每張：房間 scene ・ 大頭照 avatar ・ 桌面寵物 petonly</span></div>
+  <h2>黃金鼠</h2>
+  <div class="pgrid" id="hamster"></div>
+  <h2>貓咪</h2>
+  <div class="pgrid" id="cat"></div>
+</div>
+<script src="js/pets/common.js"></script>
+<script src="js/pets/room.js"></script>
+<script src="js/pets/expressions.js"></script>
+<script src="js/pets/registry.js"></script>
+<script src="js/pets/skins/hamster-p0.js"></script>
+<script src="js/pets/skins/hamster-p4.js"></script>
+<script src="js/pets/skins/hamster-h2.js"></script>
+<script src="js/pets/skins/hamster-s4.js"></script>
+<script src="js/pets/skins/hamster-s5.js"></script>
+<script src="js/pets/skins/cat-p0.js"></script>
+<script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-s5.js"></script>
+<script src="js/pets/compose.js"></script>
+<script>
+(function () {
+  var q = location.search;
+  if (/[?&]paused=1/.test(q)) document.documentElement.classList.add('paused');
+  function card(d) {
+    var c = QJZ.pets.compose;
+    return '<div class="card"><div class="frame"><div class="scene">' + c(d.id, 'scene') + '</div></div>' +
+      '<div class="meta"><span class="tag">' + d.skin.toUpperCase() + '</span><b>' + d.name + '</b><small>' + d.id + ' ・ ' + d.room + '</small></div>' +
+      '<div class="subrow"><div class="av s">' + c(d.id, 'avatar') + '</div><div class="petonly s">' + c(d.id, 'petonly') + '</div>' +
+      '<div class="av l">' + c(d.id, 'avatar') + '</div><div class="petonly l">' + c(d.id, 'petonly') + '</div></div></div>';
+  }
+  ['hamster', 'cat'].forEach(function (kind) {
+    document.getElementById(kind).innerHTML = QJZ.pets.list(kind).map(card).join('');
+  });
+  var box = document.getElementById('happy');
+  function setHappy(on) {
+    var svgs = document.querySelectorAll('.pet-svg');
+    for (var i = 0; i < svgs.length; i++) svgs[i].classList.toggle('happy', on);
+  }
+  box.onchange = function () { setHappy(box.checked); };
+  if (/[?&]happy=1/.test(q)) { box.checked = true; setHappy(true); }
+})();
+</script>
+</body>
+</html>
