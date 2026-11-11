@@ -34,6 +34,7 @@ public static class TestRunner
             }
         }
         Console.WriteLine("HOST: " + pass + " passed, " + fail + " failed");
+        if (pass + fail == 0) { Console.WriteLine("HOST: no tests were discovered"); return 1; }
         return fail == 0 ? 0 : 1;
     }
 }

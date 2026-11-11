@@ -1,5 +1,14 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>tests</title></head>
+<html><head><meta charset="utf-8"><title>tests</title>
+<script>
+// Must run before any other script: a script error or failed load counts as a test failure.
+window.scriptErrors = [];
+window.onerror = function (msg, src, line) { window.scriptErrors.push(msg + ' (' + String(src).split('/').pop() + ':' + line + ')'); };
+window.addEventListener('error', function (e) {
+  if (e.target && e.target !== window && e.target.src) window.scriptErrors.push('failed to load ' + e.target.src.split('/').pop());
+}, true);
+</script>
+</head>
 <body><pre id="results">TESTS NOT RUN</pre>
 <script src="harness.js"></script>
 <!-- core modules: add src/web/js/core/*.js here as tasks create them -->
