@@ -5,7 +5,7 @@ window.QJZ = window.QJZ || {};
 //  - Today's in-progress record lives in history.days[today.day] with earned === null while open.
 //  - A record is "open" when startMs is a number and earned === null.
 //  - Older open records are closed on init / rollover: records that never started (startMs null) are DROPPED
-//    (they carry nothing worth keeping); started ones ask QJZ.day.earlyLeaveQuestion first. Only the most recent
+//    unless they carry an off-day marker (kept, closed with earned 0); started ones ask QJZ.day.earlyLeaveQuestion first. Only the most recent
 //    such question is asked (state.pendingQuestion); older ones are closed directly. Until answered the record
 //    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save.
 //  - Money is always computed from the wall clock (Date.now() + dev offset), never accumulated from tick counts.
@@ -20,9 +20,10 @@ QJZ.app = (function () {
   var tickTimer = null, saveTimer = null, lastSec = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
-  var started = false;
+  var started = false, unloadBound = false, tickEnabled = true;
+  var bridge = null, nowFn = Date.now;
 
-  function nowMs() { return Date.now() + clockOffset; }
+  function nowMs() { return nowFn() + clockOffset; }
 
   function emit(name, arg) {
     var l = listeners[name].slice();
@@ -46,8 +47,8 @@ QJZ.app = (function () {
   function flush() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (!state.ready) return;   // never save before init has been received
-    if (dirtySettings) { dirtySettings = false; QJZ.bridge.send('saveSettings', { text: JSON.stringify(state.settings) }); }
-    if (dirtyHistory) { dirtyHistory = false; QJZ.bridge.send('saveHistory', { text: JSON.stringify(state.history) }); }
+    if (dirtySettings) { dirtySettings = false; bridge.send('saveSettings', { text: JSON.stringify(state.settings) }); }
+    if (dirtyHistory) { dirtyHistory = false; bridge.send('saveHistory', { text: JSON.stringify(state.history) }); }
   }
 
   // ---- derived values ----
@@ -78,7 +79,12 @@ QJZ.app = (function () {
   }
   // rec is an older, still open record. allowQuestion: this is the most recent one, so ask the early-leave question.
   function retire(rec, allowQuestion) {
-    if (typeof rec.startMs !== 'number') { delete state.history.days[rec.day]; markHistory(); return; }
+    if (typeof rec.startMs !== 'number') {
+      // Never started: an off-day marker is kept (closeDay -> earned 0, flags preserved); anything else is dropped.
+      if (rec.offDay) closeRecord(rec);
+      else { delete state.history.days[rec.day]; markHistory(); }
+      return;
+    }
     if (allowQuestion) {
       var q = QJZ.day.earlyLeaveQuestion(rec, state.settings);
       if (q) {
@@ -117,13 +123,14 @@ QJZ.app = (function () {
 
   // ---- init ----
   function onInit(msg) {
+    if (state.ready) flush();   // a repeated init: do not lose unsaved changes to the host copy
     var sp = QJZ.settings.parse(msg.settings === undefined ? null : msg.settings);
     var hp = QJZ.history.parse(msg.history === undefined ? null : msg.history);
     // Back up unreadable files before anything can overwrite them.
-    if (sp.corrupted) QJZ.bridge.send('backupCorrupt', { file: 'settings' });
-    if (hp.corrupted) QJZ.bridge.send('backupCorrupt', { file: 'history' });
+    if (sp.corrupted) bridge.send('backupCorrupt', { file: 'settings' });
+    if (hp.corrupted) bridge.send('backupCorrupt', { file: 'history' });
 
-    if (QJZ.bridge.mock && typeof msg.nowMs === 'number') clockOffset = msg.nowMs - Date.now();
+    if (bridge.mock && typeof msg.nowMs === 'number') clockOffset = msg.nowMs - nowFn();
     var now = typeof msg.nowMs === 'number' ? msg.nowMs : nowMs();
 
     state.settings = sp.settings;
@@ -175,7 +182,7 @@ QJZ.app = (function () {
     if (sec !== lastSec) { lastSec = sec; emit('second', state.snap); }
   }
   function startTick() {
-    if (tickTimer) return;
+    if (tickTimer || !tickEnabled) return;
     tickTimer = setInterval(tick, TICK_MS);   // only a trigger: every value is recomputed from the wall clock
   }
   function stopTick() {
@@ -259,18 +266,35 @@ QJZ.app = (function () {
   }
   function answerEarlyLeave(accept) { return answerQuestion(accept, false); }
 
-  function start() {
+  // opts (tests): {bridge, now, tick:false}. Loading this file has no side effects; start() wires everything.
+  function start(opts) {
     if (started) return;
     started = true;
-    QJZ.bridge.on('init', onInit);
-    QJZ.bridge.on('session', onSession);
-    QJZ.bridge.on('visibility', onVisibility);
-    window.addEventListener('beforeunload', flush);
-    QJZ.bridge.boot();
+    opts = opts || {};
+    bridge = opts.bridge || QJZ.bridge;
+    nowFn = opts.now || Date.now;
+    tickEnabled = opts.tick !== false;
+    bridge.on('init', onInit);
+    bridge.on('session', onSession);
+    bridge.on('visibility', onVisibility);
+    if (!unloadBound) { unloadBound = true; window.addEventListener('beforeunload', function () { flush(); }); }
+    if (bridge.boot) bridge.boot();
+  }
+
+  // Tests only: back to the state before start().
+  function reset() {
+    stopTick();
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    dirtySettings = dirtyHistory = false;
+    clockOffset = 0; lastSec = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
+    listeners.tick = []; listeners.second = []; listeners.change = [];
+    state.settings = state.history = state.today = state.snap = state.rates = null;
+    state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
+    document.documentElement.classList.remove('paused');
   }
 
   return {
-    state: state, start: start, on: on, nowMs: nowMs, flush: flush,
+    state: state, start: start, tickNow: tick, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, setOffDay: setOffDay,
     feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave
   };

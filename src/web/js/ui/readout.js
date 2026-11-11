@@ -45,14 +45,21 @@ QJZ.readout = (function () {
       $('rate').textContent = '每秒 NT$ ' + st.rates.perSecond.toFixed(4) + '　可領零食 ' + st.snacks;
       $('hint').textContent = st.startHint === 'appstart' ? '開工時間依開啟程式推算（可手動調整）' : '';
     }
+    var shownQ = null;
     function renderQuestion() {
       var box = $('q'), q = app.state.pendingQuestion;
-      if (!q) { box.hidden = true; box.innerHTML = ''; return; }
-      if (!box.hidden) return;
+      var key = q ? q.day + '|' + q.lockMs : null;
+      if (key === shownQ) return;
+      shownQ = key;
+      box.innerHTML = '';
+      if (!q) { box.hidden = true; return; }
       box.hidden = false;
       var t = new Date(q.lockMs);
-      box.innerHTML = '<div>' + q.day + ' ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ' 鎖定後就沒再開機，那是下班時間嗎？</div>' +
-        '<button type="button" data-a="1">是，那時下班</button> <button type="button" data-a="0">不是</button>';
+      var msg = document.createElement('div');
+      msg.textContent = q.day + ' ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ' 鎖定後就沒再開機，那是下班時間嗎？';
+      var yes = document.createElement('button'); yes.type = 'button'; yes.setAttribute('data-a', '1'); yes.textContent = '是，那時下班';
+      var no = document.createElement('button'); no.type = 'button'; no.setAttribute('data-a', '0'); no.textContent = '不是';
+      box.appendChild(msg); box.appendChild(yes); box.appendChild(no);
     }
     root.addEventListener('click', function (e) {
       var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');

@@ -1,0 +1,167 @@
+// QJZ.app lifecycle with a fake bridge and a fake clock. Dates: 2026-11-12 is a Thursday, 11-11 a Wednesday.
+(function () {
+  function at(d, h, m) { return new Date(2026, 10, d, h, m, 0, 0).getTime(); }
+  var SETTINGS = JSON.stringify({ salary: { mode: 'monthly', amount: 50000, divisor: 22 } });
+
+  function mk(nowMs) {
+    QJZ.app._reset();
+    var sent = [], handlers = {}, clock = { ms: nowMs };
+    var bridge = {
+      send: function (t, p) { sent.push({ type: t, p: p }); },
+      on: function (t, f) { handlers[t] = f; },
+      emit: function (m) { handlers[m.type](m); }
+    };
+    QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
+    return { bridge: bridge, sent: sent, clock: clock };
+  }
+  function init(env, o) {
+    env.bridge.emit({
+      type: 'init', settings: o.settings === undefined ? SETTINGS : o.settings,
+      history: o.history === undefined ? null : o.history,
+      probeMs: o.probeMs === undefined ? null : o.probeMs, nowMs: env.clock.ms, version: 't'
+    });
+  }
+  function hist(recs) {
+    var h = { version: 1, days: {} };
+    recs.forEach(function (r) { h.days[r.day] = r; });
+    return JSON.stringify(h);
+  }
+  function rec(day, startMin, extra) {
+    var r = QJZ.day.empty(day);
+    if (startMin !== null) r.startMs = QJZ.time.atMinutes(day, startMin);
+    for (var k in extra) r[k] = extra[k];
+    return r;
+  }
+  function typesOf(sent) { return sent.map(function (s) { return s.type; }); }
+  function lastSave(sent, type) {
+    for (var i = sent.length - 1; i >= 0; i--) if (sent[i].type === type) return sent[i];
+    return null;
+  }
+
+  test('app init: probe from today sets the start', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { probeMs: at(12, 8, 30) });
+    eq(QJZ.app.state.today.startMs, at(12, 8, 30));
+    eq(QJZ.app.state.startHint, null);
+    QJZ.app._reset();
+  });
+  test('app init: no probe starts at nowMs with the appstart hint', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    eq(QJZ.app.state.today.startMs, at(12, 10, 0));
+    eq(QJZ.app.state.startHint, 'appstart');
+    QJZ.app._reset();
+  });
+  test('app init: a probe from yesterday is ignored', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { probeMs: at(11, 8, 30) });
+    eq(QJZ.app.state.today.startMs, at(12, 10, 0));
+    eq(QJZ.app.state.startHint, 'appstart');
+    QJZ.app._reset();
+  });
+  test('app init: corrupt settings are backed up before any saveSettings', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { settings: '{not json' });
+    QJZ.app.saveSettings({ milestone: 50 });
+    QJZ.app.flush();
+    var t = typesOf(e.sent);
+    ok(t.indexOf('backupCorrupt') >= 0, 'backupCorrupt sent');
+    eq(e.sent[t.indexOf('backupCorrupt')].p, { file: 'settings' });
+    ok(t.indexOf('saveSettings') > t.indexOf('backupCorrupt'), 'save after backup');
+    QJZ.app._reset();
+  });
+  test('app: nothing is saved before init', function () {
+    var e = mk(at(12, 10, 0));
+    QJZ.app.startWork();
+    QJZ.app.saveSettings({ milestone: 50 });
+    QJZ.app.endWork();
+    QJZ.app.flush();
+    eq(e.sent.length, 0);
+    QJZ.app._reset();
+  });
+  test('app init: older open record with an early lock raises the question', function () {
+    var e = mk(at(12, 10, 0));
+    var y = rec('2026-11-11', 540, { lastLockMs: at(11, 15, 0) });
+    init(e, { history: hist([y]) });
+    var s = QJZ.app.state;
+    eq(s.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 0) });
+    eq(s.history.days['2026-11-11'].earned, null, 'stays open until answered');
+    eq(QJZ.app.answerEarlyLeave(true), true);
+    var done = s.history.days['2026-11-11'];
+    eq(done.endMs, at(11, 15, 0));
+    ok(done.earned > 0, 'closed with earnings');
+    eq(s.pendingQuestion, null);
+    eq(QJZ.app.answerEarlyLeave(true), false, 'second answer is a no-op');
+    ok(lastSave(e.sent, 'saveHistory') !== null, 'answer flushes a save');
+    QJZ.app._reset();
+  });
+  test('app init: older open record without a question is closed, today stays open', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]) });
+    var s = QJZ.app.state;
+    eq(s.pendingQuestion, null);
+    ok(s.history.days['2026-11-11'].earned > 0);
+    eq(s.history.days['2026-11-12'].earned, null);
+    QJZ.app._reset();
+  });
+  test('app init: unstarted older record is dropped, an off-day marker is kept as earned 0', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-09', null, {}), rec('2026-11-10', null, { offDay: true })]) });
+    var d = QJZ.app.state.history.days;
+    eq(d['2026-11-09'], undefined);
+    eq(d['2026-11-10'].earned, 0);
+    eq(d['2026-11-10'].offDay, true);
+    QJZ.app._reset();
+  });
+  test('app: lock 11-11 17:00, unlock 11-12 08:30 retires the old day and starts the new one', function () {
+    var e = mk(at(11, 16, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]) });
+    e.clock.ms = at(11, 17, 0);
+    e.bridge.emit({ type: 'session', kind: 'lock', ms: at(11, 17, 0) });
+    eq(QJZ.app.state.today.lastLockMs, at(11, 17, 0));
+    e.clock.ms = at(12, 8, 30);
+    e.bridge.emit({ type: 'session', kind: 'unlock', ms: at(12, 8, 30) });
+    var s = QJZ.app.state;
+    eq(s.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 17, 0) });
+    eq(s.history.days['2026-11-11'].lastLockMs, at(11, 17, 0));
+    eq(s.today.day, '2026-11-12');
+    eq(s.today.startMs, at(12, 8, 30));
+    QJZ.app._reset();
+  });
+  test('app: a second init loses and duplicates nothing', function () {
+    var e = mk(at(12, 10, 0));
+    var text = hist([rec('2026-11-10', 540, {}), rec('2026-11-11', 540, { lastLockMs: at(11, 15, 0) })]);
+    init(e, { history: text });
+    QJZ.app.adjustStart(at(12, 9, 0));
+    init(e, { history: text });
+    var s = QJZ.app.state;
+    eq(Object.keys(s.history.days).sort(), ['2026-11-10', '2026-11-11', '2026-11-12']);
+    ok(s.history.days['2026-11-10'].earned > 0);
+    eq(s.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 0) });
+    ok(lastSave(e.sent, 'saveHistory') !== null, 'unsaved changes were flushed before re-parsing');
+    QJZ.app._reset();
+  });
+  test('app: saved history parses and keeps today open', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    QJZ.app.flush();
+    var saved = lastSave(e.sent, 'saveHistory');
+    ok(saved, 'saveHistory sent');
+    var parsed = QJZ.history.parse(saved.p.text);
+    eq(parsed.corrupted, false);
+    eq(parsed.history.days['2026-11-12'].earned, null);
+    eq(parsed.history.days['2026-11-12'].startMs, at(12, 10, 0));
+    QJZ.app._reset();
+  });
+  test('app: tickNow recomputes from the clock, no accumulation', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    e.clock.ms = at(12, 11, 0);
+    QJZ.app.tickNow();
+    near(QJZ.app.state.snap.workedSec, 3600, 0.001);
+    e.clock.ms = at(12, 11, 30);
+    QJZ.app.tickNow();
+    near(QJZ.app.state.snap.workedSec, 5400, 0.001);
+    QJZ.app._reset();
+  });
+})();
