@@ -1,7 +1,7 @@
 ﻿# Runs JS tests (headless Edge) and host tests (csc). Exits 0 only when both pass.
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$HostTestSources = @()   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
+$HostTestSources = @('src\host\AppPaths.cs', 'src\host\TextStore.cs', 'src\host\AutoStart.cs', 'src\host\SessionWatcher.cs', 'src\host\EventLogProbe.cs', 'src\host\Bridge.cs')   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
 $exit = 0
 
 # ---- WEB ----
@@ -39,7 +39,10 @@ $srcs = @(Get-ChildItem (Join-Path $root 'tests\host') -Filter *.cs | ForEach-Ob
 foreach ($s in $HostTestSources) { $srcs += (Join-Path $root $s) }
 $testExe = Join-Path $buildDir 'tests-host.exe'
 if (Test-Path $testExe) { Remove-Item $testExe -Force }
-$cscArgs = @('/nologo', '/codepage:65001', '/target:exe', '/debug', "/out:$testExe") + $srcs
+$wv = Join-Path $root 'vendor\webview2'
+$cscArgs = @('/nologo', '/codepage:65001', '/target:exe', '/debug', "/out:$testExe",
+    "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')", '/reference:System.Web.Extensions.dll', '/reference:System.Windows.Forms.dll') + $srcs
+Copy-Item (Join-Path $wv 'Microsoft.Web.WebView2.Core.dll') $buildDir -Force
 & $csc @cscArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $testExe)) {
     Write-Host 'HOST: compile failed'
