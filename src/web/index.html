@@ -2,19 +2,37 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>錢進中</title>
+<link rel="stylesheet" href="css/base.css">
 <style>
-  @font-face {
-    font-family: 'Fredoka';
-    src: url('fonts/Fredoka-Variable.ttf') format('truetype');
-    font-weight: 300 700;
-    font-stretch: 75% 125%;
-  }
-  html, body { margin: 0; height: 100%; background: #FFF8EC; color: #3D2C24; }
-  body { display: flex; align-items: center; justify-content: center;
-         font-family: 'Fredoka', 'Microsoft JhengHei UI', sans-serif; }
-  h1 { font-size: 48px; font-weight: 600; margin: 0; }
+  html, body { background: transparent; }
+  body { padding: 12px; }
+  .ro { max-width: 380px; }
+  .ro-body { padding: 14px 16px 16px; display: grid; gap: 8px; }
+  .ro-row { display: flex; align-items: center; justify-content: space-between; }
+  .ro .odo { font-size: inherit; }
+  .ro-q { font-size: 13px; font-weight: 600; display: grid; gap: 6px; }
+  .ro-q button { font: inherit; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 12px; cursor: pointer; }
 </style>
 </head>
-<body><h1>錢進中</h1></body>
+<body>
+<div id="root"></div>
+<script src="js/core/time.js"></script>
+<script src="js/core/earnings.js"></script>
+<script src="js/core/day.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/history.js"></script>
+<script src="js/core/rewards.js"></script>
+<script src="js/ui/bridge.js"></script>
+<script src="js/ui/odometer.js"></script>
+<script src="js/ui/fx.js"></script>
+<script src="js/ui/sound.js"></script>
+<script src="js/ui/app.js"></script>
+<script src="js/ui/readout.js"></script>
+<script>
+  QJZ.readout.mount(document.getElementById('root'));
+  QJZ.app.start();
+</script>
+</body>
 </html>

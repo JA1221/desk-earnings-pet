@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>錢進中 dev</title>
+<link rel="stylesheet" href="css/base.css">
+<style>
+  html, body { background: #ECE8E1; min-height: 100%; }
+  body { padding: 14px; background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0); background-size: 22px 22px; }
+  .ro { max-width: 380px; }
+  .ro-body { padding: 14px 16px 16px; display: grid; gap: 8px; }
+  .ro-row { display: flex; align-items: center; justify-content: space-between; }
+  .ro-q { font-size: 13px; font-weight: 600; display: grid; gap: 6px; }
+  button { font: inherit; font-size: 13px; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 12px; cursor: pointer; }
+  .tools { max-width: 380px; margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .note { max-width: 380px; margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="tools">
+  <button type="button" id="snd">聲音：關</button>
+  <button type="button" id="feed">餵零食</button>
+  <button type="button" id="end">下班</button>
+  <button type="button" id="fxb">特效</button>
+</div>
+<p class="note">Dev mock: 資料存在 localStorage（qjz.settings / qjz.history）。網址加 <code>?start=HH:MM</code> 可指定今天的開工時間；預設假時間 14:32、薪水 50000。</p>
+<script>
+  // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
+  window.QJZ_DEV = { nowHM: '14:32:07', start: '09:12', settings: { salary: { mode: 'monthly', amount: 50000, divisor: 22 } } };
+</script>
+<script src="js/core/time.js"></script>
+<script src="js/core/earnings.js"></script>
+<script src="js/core/day.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/history.js"></script>
+<script src="js/core/rewards.js"></script>
+<script src="js/ui/bridge.js"></script>
+<script src="js/ui/odometer.js"></script>
+<script src="js/ui/fx.js"></script>
+<script src="js/ui/sound.js"></script>
+<script src="js/ui/app.js"></script>
+<script src="js/ui/readout.js"></script>
+<script>
+  var view = QJZ.readout.mount(document.getElementById('root'));
+  QJZ.app.start();
+  var snd = document.getElementById('snd');
+  snd.onclick = function () {
+    var on = !QJZ.sound.isEnabled();
+    QJZ.app.saveSettings({ sound: { enabled: on } });   // also drives QJZ.sound.setEnabled
+    snd.textContent = '聲音：' + (on ? '開' : '關');
+    if (on) QJZ.sound.coin();
+  };
+  document.getElementById('feed').onclick = function () {
+    var ok = QJZ.app.feed();
+    if (ok) QJZ.fx.hearts(view.fxHost, 190, 120, 6); else QJZ.fx.banner(view.fxHost, '還沒有零食');
+  };
+  document.getElementById('end').onclick = function () { QJZ.app.endWork(); };
+  document.getElementById('fxb').onclick = function () {
+    QJZ.fx.confetti(view.fxHost, 190, 140);
+    QJZ.fx.banner(view.fxHost, '下班啦！');
+    QJZ.sound.jingle();
+  };
+</script>
+</body>
+</html>
