@@ -18,7 +18,7 @@ $cscArgs = @('/nologo', '/codepage:65001', '/target:winexe', '/platform:anycpu',
     "/win32manifest:$(Join-Path $root 'src\host\app.manifest')",
     "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')",
     "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.WinForms.dll')",
-    '/reference:System.Web.Extensions.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll') + $srcs
+    '/reference:System.Web.Extensions.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll') + $srcs
 if (-not $Release) { $cscArgs += '/debug' }
 & $csc @cscArgs
 if ($LASTEXITCODE -ne 0) { Write-Host 'BUILD FAILED'; exit 1 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
+using System.Globalization;
 
 public class ProbeRecord
 {
@@ -18,18 +19,22 @@ public static class EventLogProbe
         try
         {
             var records = new List<ProbeRecord>();
-            using (var log = new EventLog("System"))
+            var query = new EventLogQuery("System", PathType.LogName, BuildQuery(dayStartLocal));
+            using (var reader = new EventLogReader(query))
             {
-                for (int i = log.Entries.Count - 1; i >= 0; i--)
+                EventRecord e;
+                while ((e = reader.ReadEvent()) != null)
                 {
-                    EventLogEntry e = log.Entries[i];
-                    if (e.TimeGenerated < dayStartLocal) break; // entries are chronological
-                    records.Add(new ProbeRecord
+                    using (e)
                     {
-                        Source = e.Source,
-                        EventId = (int)(e.InstanceId & 0xFFFF),
-                        TimeLocal = e.TimeGenerated
-                    });
+                        if (!e.TimeCreated.HasValue) continue;
+                        records.Add(new ProbeRecord
+                        {
+                            Source = e.ProviderName,
+                            EventId = e.Id,
+                            TimeLocal = e.TimeCreated.Value
+                        });
+                    }
                 }
             }
             return Earliest(records, dayStartLocal);
@@ -38,6 +43,14 @@ public static class EventLogProbe
         {
             return null;
         }
+    }
+
+    public static string BuildQuery(DateTime dayStartLocal)
+    {
+        string t = dayStartLocal.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        return "*[System[((Provider[@Name='Microsoft-Windows-Winlogon'] and EventID=7001)"
+            + " or (Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1))"
+            + " and TimeCreated[@SystemTime>='" + t + "']]]";
     }
 
     public static long? Earliest(IEnumerable<ProbeRecord> records, DateTime dayStartLocal)

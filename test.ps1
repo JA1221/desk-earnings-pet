@@ -41,7 +41,7 @@ $testExe = Join-Path $buildDir 'tests-host.exe'
 if (Test-Path $testExe) { Remove-Item $testExe -Force }
 $wv = Join-Path $root 'vendor\webview2'
 $cscArgs = @('/nologo', '/codepage:65001', '/target:exe', '/debug', "/out:$testExe",
-    "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')", '/reference:System.Web.Extensions.dll', '/reference:System.Windows.Forms.dll') + $srcs
+    "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')", '/reference:System.Web.Extensions.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll') + $srcs
 Copy-Item (Join-Path $wv 'Microsoft.Web.WebView2.Core.dll') $buildDir -Force
 & $csc @cscArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $testExe)) {

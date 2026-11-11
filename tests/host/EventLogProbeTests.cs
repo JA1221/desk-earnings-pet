@@ -54,8 +54,18 @@ public static class EventLogProbeTests
         Assert.Eq(Ms(Start), EventLogProbe.Earliest(recs, Start).Value, "at start");
     }
 
-    public static void Test_EarliestToday_DoesNotThrow()
+    public static void Test_EarliestToday_NullOrNotBeforeDayStart()
     {
-        EventLogProbe.EarliestToday(DateTime.Today.AddHours(4)); // null or a value, never throws
+        DateTime start = DateTime.Today.AddHours(4);
+        long? r = EventLogProbe.EarliestToday(start);
+        if (r.HasValue) Assert.True(r.Value >= Ms(start), "result before dayStart");
+    }
+
+    public static void Test_BuildQuery_FormatsUtcTimestamp()
+    {
+        string q = EventLogProbe.BuildQuery(new DateTime(2026, 11, 12, 4, 0, 0, DateTimeKind.Utc));
+        Assert.True(q.Contains("TimeCreated[@SystemTime>='2026-11-12T04:00:00.000Z']"), "timestamp: " + q);
+        Assert.True(q.Contains("Provider[@Name='Microsoft-Windows-Winlogon'] and EventID=7001"), "winlogon: " + q);
+        Assert.True(q.Contains("Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1"), "power: " + q);
     }
 }
