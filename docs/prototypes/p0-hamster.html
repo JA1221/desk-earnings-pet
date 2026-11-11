@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>薪跳｜P0 黃金鼠修改</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.col{background:#fff;border:2px solid #DDD5CA;border-radius:22px;padding:16px}
+.col.new{border-color:#FF8A3D;box-shadow:0 0 0 3px #FFD9BF}
+.col h3{font-size:18px;margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.frame{border:3px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:4px 4px 0 var(--line)}
+.row{display:flex;gap:16px;align-items:flex-end;margin-top:16px}
+.row .av{width:96px;height:96px;border-width:3px}
+.row .petonly{width:220px}
+.desk{flex:1;border-radius:16px;border:3px solid var(--line);background:linear-gradient(180deg,#9ED8FF 0%,#CDEBFF 60%,#BFE6C4 61%,#9FD6A6 100%);display:flex;justify-content:center;align-items:flex-end;padding-top:10px;overflow:hidden}
+ul{margin:12px 0 0 18px;font-size:13.5px;color:#6B6158;line-height:1.8}
+@media (max-width:900px){.cmp{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap intro">
+  <div class="kicker">P0 HAMSTER · REVISION</div>
+  <h1>P0 Q版大眼鼠：修改前後</h1>
+  <p>往真正的<b>黃金鼠（敘利亞倉鼠）</b>靠，並且<b>不露牙齒</b>。點寵物會開心。</p>
+</div>
+<div class="wrap cmp">
+  <div class="col"><h3><span class="tag">修改前</span></h3><div class="frame"><div class="scene" data-ps="p0old"></div></div>
+    <div class="row"><div class="av" data-av="p0old"></div><div class="desk"><div class="petonly" data-po="p0old"></div></div></div></div>
+  <div class="col new"><h3><span class="tag liked">修改後</span></h3><div class="frame"><div class="scene" data-ps="p0"></div></div>
+    <div class="row"><div class="av" data-av="p0"></div><div class="desk"><div class="petonly" data-po="p0"></div></div></div>
+    <ul><li>眼睛改成倉鼠的黑亮大眼（保留 Q 版反光和星星）</li><li>金色背毛、頭頂與背後顏色較深；口鼻、下巴、胸口是白的</li><li>臉頰兩側加上黃金鼠特有的深色頰斑，胸前有一圈金色毛帶</li><li>拿掉額頭條紋和門牙，嘴巴改成倉鼠的 Y 字嘴</li><li>耳朵改成深色外圈、粉紅內耳的圓倉鼠耳</li></ul></div>
+</div>
+<script src="shared.js"></script>
+<script>
+$$('.scene[data-ps]').forEach(el=>{const ps=el.dataset.ps;stage(el,()=>'hamster',()=>sceneSVG(ps,'hamster'))});
+$$('[data-av]').forEach(el=>el.innerHTML=avatarSVG(el.dataset.av,'hamster'));
+$$('[data-po]').forEach(el=>{const ps=el.dataset.po;stage(el,()=>'hamster',()=>petOnlySVG(ps,'hamster'),{bubble:false,tapX:20,tapY:64})});
+startLoop();
+</script>
+</body>
+</html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>薪跳｜介面版型第 2 輪</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+.picker{position:sticky;top:0;z-index:50;margin:0 -20px;padding:10px 20px;background:rgba(236,232,225,.94);backdrop-filter:blur(8px);border-bottom:1.5px solid #D9D2C8}
+.picker .wrap{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.picker .lbl{font-size:13px;font-weight:800;color:#6B6158;margin-right:2px}
+.picker .chipbtn{font-size:12px;padding:5px 10px}
+.picker .sep{width:1.5px;height:22px;background:#D0C8BC;margin:0 4px}
+.fam{margin-bottom:34px}
+.fam h3{font-size:18px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.fam h3 small{font-size:12.5px;color:#9A8F84;font-weight:600}
+.lrow{display:flex;flex-wrap:wrap;gap:38px 32px;align-items:flex-start}
+.lcard{display:flex;flex-direction:column;gap:12px}
+.lcard .lhead{max-width:440px}
+.lcard .lhead b{font-size:17px;margin-left:6px}
+.lcard .lhead p{font-size:13px;color:#7A7067;margin-top:6px;line-height:1.65}
+
+/* U1 */
+.u1{width:340px}
+.u1 .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.row-top{display:flex;justify-content:space-between;align-items:center}
+.u1 .money-box{text-align:center}
+/* U1-B big room */
+.u1b{width:340px}
+.u1b .sceneb{position:relative;border-bottom:3px solid var(--line)}
+.u1b .scene{aspect-ratio:256/240}
+.ov-top{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;pointer-events:none}
+.u1b .plate{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:18px;box-shadow:4px 4px 0 var(--shadow);text-align:center;padding:6px 8px 4px}
+.u1b .plate .money{font-size:36px}
+.u1b .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.u1b .bubble{top:15%}
+.chips.c4{grid-template-columns:1fr 1fr}
+/* U1-C ring */
+.u1c{width:340px}
+.u1c .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.ringbig{position:relative;width:276px;height:276px;margin:2px auto 0;border-radius:50%;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(var(--money) calc(var(--p)*1%),#fff 0)}
+.ringbig .in{position:absolute;inset:20px;border-radius:50%;border:3px solid var(--line);background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.ringbig .petonly{width:148px;margin-top:-14px}
+.ringbig .money{font-size:30px}
+.ringbig .money-label{font-size:12px;margin-top:2px}
+.ringbig .tick{position:absolute;left:50%;top:50%;width:3px;height:10px;background:var(--line);border-radius:2px;transform:rotate(calc(var(--a)*30deg)) translateY(-131px);transform-origin:0 0;margin-left:-1.5px}
+.ringbig .knob{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px;border-radius:50%;background:#fff;border:3px solid var(--line);transform:rotate(calc(var(--p)*3.6deg)) translateY(-128px)}
+
+/* U3 family */
+.u3{width:500px}
+.u3 .scene{aspect-ratio:300/236}
+.hud{position:absolute;inset:0;pointer-events:none;padding:12px}
+.hud .pill,.hud .status{pointer-events:auto}
+.u3 .hud-top{display:flex;gap:8px;align-items:center}
+.u3 .hud-top .gear{margin-left:auto;width:34px;height:34px;justify-content:center;padding:0;font-size:16px}
+.u3 .hud-bottom{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:20px;box-shadow:4px 4px 0 var(--shadow);padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.coin{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1A8,#FFC857 55%,#F0A020);border:3px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:20px;box-shadow:2px 2px 0 var(--shadow);animation:coinspin 2.4s ease-in-out infinite;flex:none}
+@keyframes coinspin{0%,70%,100%{transform:scaleX(1)}80%{transform:scaleX(.1)}90%{transform:scaleX(1)}}
+.u3 .hud-bottom .coin{grid-row:span 2}
+.u3 .money{font-size:34px}
+.u3 .xp{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--sub)}
+.u3 .xp .track{flex:1;height:14px}
+.u3 .side{position:absolute;right:12px;top:58px;display:flex;flex-direction:column;gap:6px}
+.u3 .side .pill{font-size:11.5px;padding:3px 10px}
+.u3 .bubble{left:44%;top:16%}
+/* U3-B score */
+.u3b .score{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#E8AE80;border:3px solid var(--line);border-radius:16px;box-shadow:4px 4px 0 var(--shadow);padding:4px 18px 6px;text-align:center}
+.u3b .score::before,.u3b .score::after{content:"";position:absolute;top:-14px;width:3px;height:14px;background:var(--line)}
+.u3b .score::before{left:22px}.u3b .score::after{right:22px}
+.u3b .score .lbl{font-size:11px;font-weight:700;letter-spacing:.2em;color:#7A4A28}
+.u3b .score .money{font-size:32px}
+.u3b .tl{position:absolute;left:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.u3b .bl{position:absolute;right:52px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.u3b .bl .pill{font-size:11.5px;padding:3px 10px}
+.vbar{position:absolute;right:12px;top:80px;bottom:12px;width:28px;border:3px solid var(--line);border-radius:99px;background:#fff;box-shadow:3px 3px 0 var(--shadow);overflow:hidden;display:flex;align-items:flex-end}
+.vbar .vfill{width:100%;background:repeating-linear-gradient(45deg,var(--f1) 0 8px,var(--f2) 8px 16px);border-top:2.5px solid var(--line)}
+.vbar .vpct{position:absolute;left:0;right:0;top:6px;text-align:center;font-size:10px;font-weight:700}
+.u3b .bubble{top:28%}
+/* U3-C dialog */
+.u3c .tl{position:absolute;left:12px;top:12px;display:flex;gap:8px}
+.u3c .coinbox{position:absolute;right:12px;top:10px;display:flex;align-items:center;gap:8px;background:var(--bg);border:3px solid var(--line);border-radius:99px;box-shadow:3px 3px 0 var(--shadow);padding:4px 14px 4px 5px}
+.u3c .coinbox .coin{width:36px;height:36px;font-size:16px}
+.u3c .coinbox .money{font-size:26px}
+.u3c .dialog{position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border:3px solid var(--line);border-radius:18px;box-shadow:4px 4px 0 var(--shadow);padding:16px 14px 10px;min-height:96px}
+.u3c .dialog .name{position:absolute;left:14px;top:-15px;background:var(--bar);border:3px solid var(--line);border-radius:10px;padding:1px 12px;font-weight:700;font-size:13px}
+.u3c .dialog .txt{font-size:14px;font-weight:600;min-height:22px}
+.u3c .dialog .txt::after{content:"▼";font-size:9px;margin-left:6px;color:var(--sub);animation:twinkle 1s steps(1) infinite}
+@keyframes twinkle{50%{opacity:0}}
+.u3c .exp{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;font-weight:700;color:var(--sub)}
+.u3c .exp .track{flex:1;height:12px}
+
+/* U5 family */
+.u5{width:320px;padding:16px 20px 0}
+.mtop{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sub)}
+.mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite}
+.mtop .x{margin-left:auto;font-size:18px;color:var(--text)}
+.u5 .lbl{margin-top:18px;font-size:13px;font-weight:600;color:var(--sub)}
+.u5 .money{font-size:54px;margin-top:2px}
+.thin{height:10px;border:2.5px solid var(--line);border-radius:99px;overflow:hidden;background:#fff}
+.thin .fill{border-right-width:2px}
+.u5 .thin{margin-top:16px}
+.meta{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--sub);margin-top:6px}
+.u5 .petrow{display:flex;align-items:flex-end;gap:8px;margin-top:10px}
+.u5 .petonly{width:120px;flex:none}
+.say{font-size:12px;font-weight:600;background:#fff;border:2.5px solid var(--line);border-radius:12px 12px 12px 3px;padding:6px 10px;box-shadow:2px 2px 0 var(--shadow);min-height:30px}
+.u5 .say{margin-bottom:34px}
+/* U5-B horizontal */
+.u5b{width:480px;display:flex;align-items:center;gap:6px;padding:8px 18px 12px 6px}
+.u5b .petonly{width:132px;flex:none}
+.u5b .mid{flex:1}
+.u5b .money{font-size:46px;margin-top:4px}
+.u5b .thin{margin-top:8px}
+/* U5-C peek */
+.u5c{width:320px;padding:16px 20px 18px}
+.u5c .lbl{margin-top:14px;font-size:13px;font-weight:600;color:var(--sub)}
+.u5c .money{font-size:52px}
+.u5c .peekzone{position:relative;height:96px;margin-top:6px}
+.u5c .peek{position:absolute;left:50%;bottom:-18px;width:132px;height:120px;transform:translateX(-50%);cursor:pointer}
+.u5c .peek svg{width:100%;height:100%}
+.u5c .ledge{position:relative;z-index:2}
+.u5c .ledge .thin{height:14px}
+.u5c .pawq{position:absolute;top:-8px;width:22px;height:14px;border-radius:50%;background:#FFF3DF;border:2.5px solid var(--line);z-index:3}
+.u5c .say{position:absolute;right:0;top:0;max-width:130px}
+
+/* U6 console */
+.console{width:340px;background:#FFB25B;border:3px solid var(--line);border-radius:26px 26px 60px 26px;box-shadow:7px 7px 0 var(--shadow);padding:18px 18px 22px;font-family:var(--font);position:relative;user-select:none}
+.console .bezel{background:#4A3A32;border:3px solid var(--line);border-radius:14px 14px 30px 14px;padding:14px 16px 10px;position:relative}
+.console .led{position:absolute;left:7px;top:44px;width:7px;height:7px;border-radius:50%;background:#7CF0A0;box-shadow:0 0 6px #7CF0A0}
+.console .screen{position:relative;border:3px solid var(--line);border-radius:6px;overflow:hidden}
+.console .screen .scene{aspect-ratio:4/3}
+.console .mhud{position:absolute;left:6px;right:6px;top:6px;display:flex;justify-content:space-between;pointer-events:none}
+.console .mhud .pill{font-size:12px;padding:2px 9px}
+.console .mhud .pill .odo{font-weight:700}
+.console .brand{color:#F3E6D8;font-size:11px;font-weight:700;letter-spacing:.18em;margin-top:8px;text-align:center}
+.console .ctrl{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding:0 6px}
+.dpad{position:relative;width:76px;height:76px}
+.dpad i{position:absolute;background:#3D2C24;border-radius:5px}
+.dpad i:nth-child(1){left:26px;top:0;width:24px;height:76px}
+.dpad i:nth-child(2){top:26px;left:0;width:76px;height:24px}
+.abtn{display:flex;gap:12px;transform:rotate(-20deg)}
+.abtn button{width:56px;height:56px;border-radius:50%;border:3px solid var(--line);background:#FF5C7C;color:#fff;font:700 13px var(--font);box-shadow:3px 3px 0 var(--shadow);cursor:pointer;transition:transform .08s}
+.abtn button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow)}
+.abtn button.b{background:#4DA3FF;margin-top:22px}
+.console .ss{display:flex;gap:16px;justify-content:center;margin-top:14px}
+.console .ss span{font-size:11px;font-weight:700;color:#7A4A28;display:flex;flex-direction:column;align-items:center;gap:4px}
+.console .ss span::before{content:"";width:34px;height:9px;border-radius:9px;background:#7A4A28;transform:rotate(-20deg)}
+.console .speaker{position:absolute;right:26px;bottom:24px;display:grid;grid-template-columns:repeat(3,6px);gap:6px;transform:rotate(-20deg)}
+.console .speaker i{width:6px;height:22px;border-radius:3px;background:#C9802F}
+
+/* U7 desktop pet */
+.wallp{width:520px;height:360px;border-radius:18px;border:3px solid var(--line);box-shadow:7px 7px 0 var(--shadow);position:relative;overflow:hidden;
+  background:radial-gradient(circle at 75% 25%,#FFE9B0 0 40px,transparent 41px),linear-gradient(180deg,#9ED8FF 0%,#CDEBFF 55%,#BFE6C4 56%,#9FD6A6 100%)}
+.wallp .hill{position:absolute;bottom:40px;width:300px;height:140px;border-radius:50%;background:#8FCB97}
+.wallp .tb{position:absolute;left:0;right:0;bottom:0;height:40px;background:rgba(255,255,255,.75);backdrop-filter:blur(6px);border-top:1.5px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;gap:10px}
+.wallp .tb i{width:24px;height:24px;border-radius:6px;background:rgba(61,44,36,.18)}
+.dpet{position:absolute;right:26px;bottom:46px;width:190px;display:flex;flex-direction:column;align-items:center}
+.dpet .petonly{width:170px}
+.dpet .tag{background:var(--bg);border:3px solid var(--line);border-radius:16px;box-shadow:3px 3px 0 var(--shadow);padding:4px 12px 7px;text-align:center;position:relative;margin-bottom:-4px;z-index:2;letter-spacing:0;font-family:var(--font);color:var(--text)}
+.dpet .tag::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bg);border-right:3px solid var(--line);border-bottom:3px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+.dpet .tag .money{font-size:24px}
+.dpet .tag .thin{height:7px;margin-top:3px;border-width:2px}
+.dpet .tools{position:absolute;right:-6px;top:-10px;display:flex;gap:4px;opacity:0;transition:opacity .2s}
+.dpet:hover .tools{opacity:1}
+.dpet .tools span{width:24px;height:24px;border-radius:50%;background:#fff;border:2.5px solid var(--line);display:grid;place-items:center;font-size:12px}
+
+/* minis */
+.mrow{display:flex;flex-wrap:wrap;gap:34px 38px;align-items:flex-end}
+.mcard{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.mcard .lhead{font-size:13px;color:#7A7067}
+.mcard .lhead b{color:#2A2420;font-size:15px;margin:0 6px}
+.mini-top{font-size:11px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:5px}
+.mini-top i{width:7px;height:7px;border-radius:50%;background:var(--st-dot)}
+.mmoney{font-family:var(--font);font-size:25px;font-weight:700;color:var(--money);line-height:1.1;white-space:nowrap;text-shadow:-1.5px -1.5px 0 var(--line),1.5px -1.5px 0 var(--line),-1.5px 1.5px 0 var(--line),1.5px 1.5px 0 var(--line),2px 3px 0 var(--line)}
+.mmoney small{font-size:13px;color:var(--cur)}
+.m1{width:280px;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 8px;background:var(--bg);border:3px solid var(--line);border-radius:99px;box-shadow:5px 5px 0 var(--shadow);font-family:var(--font);position:relative;overflow:hidden}
+.m1 .av{width:52px;height:52px}
+.m1 .mbar{position:absolute;left:0;bottom:0;height:5px;background:var(--f1);border-top:2px solid var(--line);border-right:2px solid var(--line)}
+.m1b{width:280px;position:relative;margin-top:40px;background:var(--bg);border:3px solid var(--line);border-radius:99px;box-shadow:5px 5px 0 var(--shadow);padding:8px 18px 9px 96px;font-family:var(--font)}
+.m1b .pop{position:absolute;left:4px;bottom:8px;width:90px;height:90px;cursor:pointer;filter:drop-shadow(2px 2px 0 rgba(61,44,36,.25))}
+.m1b .pop svg{width:100%;height:100%}
+.m1b .mbar{height:6px;border:2px solid var(--line);border-radius:9px;margin-top:4px;overflow:hidden;background:#fff}
+.m1b .mbar i{display:block;height:100%;background:var(--f1)}
+.m1c{width:300px;background:var(--bg);border:3px solid var(--line);border-radius:24px;box-shadow:5px 5px 0 var(--shadow);font-family:var(--font);overflow:hidden}
+.m1c .r{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px}
+.m1c .av{width:54px;height:54px}
+.m1c .sub2{font-size:11px;font-weight:600;color:var(--sub);margin-top:2px}
+.m1c .bb{height:8px;border-top:2.5px solid var(--line);background:#fff}
+.m1c .bb i{display:block;height:100%;background:repeating-linear-gradient(-45deg,var(--f1) 0 6px,var(--f2) 6px 12px)}
+.m1d{width:236px;height:42px;border:3px solid var(--line);border-radius:99px;box-shadow:4px 4px 0 var(--shadow);display:flex;align-items:center;gap:8px;padding:0 14px 0 4px;font-family:var(--font);background:linear-gradient(90deg,#FFE3A6 calc(var(--p)*1%),var(--bg) 0)}
+.m1d .av{width:30px;height:30px;border-width:2px}
+.m1d .mmoney{font-size:18px}
+.m1d .pp{margin-left:auto;font-size:11px;font-weight:700;color:var(--sub)}
+.m3{display:flex;flex-direction:column;align-items:center;font-family:var(--font)}
+.m3 .ring{width:118px;height:118px;border-radius:50%;padding:9px;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(var(--money) calc(var(--p)*1%),#fff 0)}
+.m3 .ring .av{width:100%;height:100%;border-width:3px}
+.m3 .tagm{margin-top:-14px;position:relative;background:var(--bar);border:3px solid var(--line);border-radius:12px;padding:3px 12px;box-shadow:3px 3px 0 var(--shadow)}
+.m3 .tagm .mmoney{font-size:21px}
+.m3 .sub{font-size:11px;font-weight:700;color:var(--sub);margin-top:6px}
+.m3b .clockring{position:relative;width:130px;height:130px;border-radius:50%;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(#FFC857 calc(var(--p)*1%),#FFF8EC 0)}
+.m3b .clockring .av{position:absolute;inset:16px;border-width:3px}
+.m3b .clockring .tick{position:absolute;left:50%;top:50%;width:3px;height:8px;background:var(--line);border-radius:2px;margin-left:-1.5px;transform-origin:0 0;transform:rotate(calc(var(--a)*30deg)) translateY(-61px)}
+.m3b .ribbon{margin-top:-12px;position:relative;background:#FF8A3D;border:3px solid var(--line);padding:3px 22px;clip-path:polygon(0 0,100% 0,92% 50%,100% 100%,0 100%,8% 50%);filter:drop-shadow(3px 3px 0 var(--shadow))}
+.m3b .ribbon .mmoney{color:#fff;font-size:20px}
+.m3c .bigring{position:relative;width:150px;height:150px;border-radius:50%;padding:8px;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(var(--money) calc(var(--p)*1%),#fff 0)}
+.m3c .bigring .inner{width:100%;height:100%;border-radius:50%;border:3px solid var(--line);background:#FFE6C7;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
+.m3c .bigring .petonly{width:122px;margin-bottom:-6px}
+.m3d{display:flex;align-items:center;font-family:var(--font)}
+.m3d .ring{width:76px;height:76px;padding:6px;border-width:3px;position:relative;z-index:2}
+.m3d .pillm{margin-left:-14px;background:var(--bg);border:3px solid var(--line);border-left:none;border-radius:0 99px 99px 0;padding:6px 14px 6px 22px;box-shadow:4px 4px 0 var(--shadow)}
+.m3d .pillm .mmoney{font-size:20px}
+.m5wall{width:300px;height:190px;border-radius:16px;border:3px solid var(--line);box-shadow:5px 5px 0 var(--shadow);position:relative;overflow:hidden;background:linear-gradient(180deg,#9ED8FF,#D9F0FF)}
+.m5wall .petonly{position:absolute;right:10px;bottom:0;width:130px}
+.m5wall .bub{position:absolute;right:118px;bottom:96px;background:#fff;border:3px solid var(--line);border-radius:14px 14px 3px 14px;box-shadow:3px 3px 0 var(--shadow);padding:3px 10px 5px;font-family:var(--font)}
+.m5wall .bub .mmoney{font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap intro">
+  <div class="kicker">ROUND 2 · LAYOUTS</div>
+  <h1>介面版型第 2 輪</h1>
+  <p>以你喜歡的 <b>U1、U3、U5</b> 和 <b>M1、M3</b> 為基礎，各做了幾種變化（橘色標籤 ★ 是你喜歡的原版，放著對照），另外加了兩個新點子：<b>U6 掌上遊戲機</b>、<b>U7 桌面寵物</b>。
+  頂端選單可以切換任何寵物（包含第 3 輪新造型），點寵物會有反應，U6 的按鈕也可以按。</p>
+</div>
+<div class="picker"><div class="wrap" id="picker"></div></div>
+<div class="wrap">
+  <h2 class="sec">主視窗 <span>MAIN WINDOW</span></h2>
+  <div class="fam"><h3>U1 系列 <small>直式・放螢幕側邊</small></h3><div class="lrow" id="famU1"></div></div>
+  <div class="fam"><h3>U3 系列 <small>遊戲畫面・整個視窗是房間</small></h3><div class="lrow" id="famU3"></div></div>
+  <div class="fam"><h3>U5 系列 <small>極簡・不干擾工作</small></h3><div class="lrow" id="famU5"></div></div>
+  <div class="fam"><h3>新點子 <small>更好玩的呈現方式</small></h3><div class="lrow" id="famNew"></div></div>
+  <h2 class="sec">迷你浮窗 <span>MINI WIDGET</span></h2>
+  <div class="fam"><h3>M1 系列 <small>膠囊條</small></h3><div class="mrow" id="famM1"></div></div>
+  <div class="fam"><h3>M3 系列 <small>圓形徽章</small></h3><div class="mrow" id="famM3"></div></div>
+  <div class="fam"><h3>新點子</h3><div class="mrow" id="famM5"></div></div>
+  <div class="note"><b>怎麼回覆我：</b>例如「主視窗 U3-C、迷你 M1-B，寵物 S3」。可以選一個以上，我最後也可以做成<b>主視窗版型可在設定裡切換</b>。</div>
+</div>
+<script src="shared.js"></script>
+<script>
+const st={ps:'h1',kind:'hamster'};
+const NAME={cat:'小橘',hamster:'金金'};
+const picker=$('#picker');
+picker.innerHTML='<span class="lbl">寵物：</span>'+Object.entries(STYLES).map(([k,v])=>`<button class="chipbtn${k===st.ps?' on':''}" data-ps="${k}">${v.name}</button>`).join('')+
+ '<span class="sep"></span><button class="chipbtn" data-kind="cat">🐱 貓咪</button><button class="chipbtn on" data-kind="hamster">🐹 黃金鼠</button>';
+const vit=`<div class="vitals"><span>心情 <span class="hearts">♥♥♥♥♡</span></span><span>體力 <span class="bolt"><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span></span></div>`;
+const barT=`<div class="bar"><span class="logo">$</span><span>薪跳</span><div class="dots"><i></i><i></i></div></div>`;
+const moneyH=(cls='')=>`<div class="money ${cls}"><span class="cur">NT$</span><span class="odo" data-odo></span></div>`;
+const ticks=n=>Array.from({length:n},(_,i)=>`<i class="tick" style="--a:${i}"></i>`).join('');
+const L=(tag,name,desc,html,liked)=>`<div class="lcard"><div class="lhead"><span class="tag${liked?' liked':''}">${liked?'★ ':''}${tag}</span><b>${name}</b><p>${desc}</p></div>${html}</div>`;
+const M=(tag,name,desc,html,liked)=>`<div class="mcard"><div class="lhead"><span class="tag${liked?' liked':''}">${liked?'★ ':''}${tag}</span><b>${name}</b>${desc}</div>${html}</div>`;
+
+$('#famU1').innerHTML=
+ L('U1','經典直式','你喜歡的原版。','<div class="win u1">'+barT+`<div class="body"><div class="row-top"><div><div class="date" data-date></div><div class="clock" data-clock></div></div><div class="status"><i></i>上班中</div></div>
+   <div class="scene-wrap"><div class="scene" data-stage="scene"></div></div><div class="money-box" data-plus><div class="money-label">今天已經賺到</div>${moneyH()}<div class="rate">每秒 +NT$ 0.079 ・ 月薪 50,000 ÷ 22 天</div></div>
+   <div><div class="prog-top"><span>今日進度 <b data-pct></b></span><span>距離下班 <b data-remain></b></span></div><div class="track"><div class="fill" data-fill></div></div></div>
+   <div class="chips"><div class="chip"><small>已上班</small><b data-worked></b></div><div class="chip"><small data-item-label></small><b data-item></b></div><div class="chip"><small>本月累計</small><b data-month></b></div></div>${vit}</div></div>`,true)+
+ L('U1-B','直式・大房間','房間放大到幾乎整個上半部，金額做成貼在桌前的名牌，寵物更大更有存在感。','<div class="win u1b">'+barT+`<div class="sceneb"><div class="scene" data-stage="scene43"></div><div class="ov-top"><div class="status"><i></i>上班中</div><div class="pill"><span data-clock></span></div></div>
+   <div class="plate money-box" data-plus><div class="money-label">今天已經賺到</div>${moneyH()}</div></div>
+   <div class="body"><div><div class="prog-top"><span>今日進度 <b data-pct></b></span><span>距離下班 <b data-remain></b></span></div><div class="track"><div class="fill" data-fill></div></div></div>
+   <div class="chips c4"><div class="chip"><small>已上班</small><b data-worked></b></div><div class="chip"><small data-item-label></small><b data-item></b></div><div class="chip"><small>本月累計</small><b data-month></b></div><div class="chip"><small>時薪</small><b>NT$284</b></div></div></div></div>`)+
+ L('U1-C','直式・圓環進度','大圓環就是今天的進度（跑滿一圈 = 下班），寵物和金額在圓環中間，旋鈕跟著走。','<div class="win u1c">'+barT+`<div class="body"><div class="row-top"><div><div class="date" data-date></div><div class="clock" data-clock></div></div><div class="status"><i></i>上班中</div></div>
+   <div class="ringbig" data-ring style="--p:50">${ticks(12)}<div class="in"><div class="petonly" data-stage="petonly" data-bubble="0"></div><div class="money-box" data-plus style="text-align:center">${moneyH()}<div class="money-label">今天已賺 · 進度 <span data-pct0></span> · 還有 <span data-remain-hm></span></div></div></div><i class="knob"></i></div>
+   <div class="chips"><div class="chip"><small>已上班</small><b data-worked></b></div><div class="chip"><small data-item-label></small><b data-item></b></div><div class="chip"><small>本月累計</small><b data-month></b></div></div>${vit}</div></div>`);
+
+$('#famU3').innerHTML=
+ L('U3','遊戲畫面 HUD','你喜歡的原版。',`<div class="win u3"><div class="scene" data-stage="hud"></div><div class="hud">
+   <div class="hud-top"><div class="status"><i></i>上班中</div><div class="pill"><span data-clock></span></div><div class="pill gear">⚙</div></div>
+   <div class="side"><div class="pill">⏱ <span data-worked></span></div><div class="pill"><span data-item></span></div><div class="pill">📅 <span data-month></span></div></div>
+   <div class="hud-bottom money-box" data-plus><div class="coin">$</div>${moneyH()}<div class="xp"><span data-pct></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-remain></b></span></div></div></div></div>`,true)+
+ L('U3-B','遊戲畫面・計分板','金額掛在頂端的木牌上像遊戲分數，右邊直立的進度條像溫度計慢慢漲滿，畫面中間留給寵物。',`<div class="win u3 u3b"><div class="scene" data-stage="hud"></div><div class="hud">
+   <div class="score money-box" data-plus><div class="lbl">TODAY</div>${moneyH()}</div>
+   <div class="tl"><div class="status"><i></i>上班中</div><div class="pill"><span data-clock></span></div></div>
+   <div class="bl"><div class="pill">⏱ <span data-worked></span></div><div class="pill"><span data-item></span></div><div class="pill">🏁 下班 <span data-remain-hm></span></div></div>
+   <div class="vbar"><div class="vfill" data-fillh></div><span class="vpct" data-pct0></span></div></div></div>`)+
+ L('U3-C','遊戲畫面・RPG 對話框','寵物說的話出現在下方的遊戲對話框裡（有名字牌），金額做成右上角的金幣計數器。最有養成遊戲的感覺。',`<div class="win u3 u3c"><div class="scene" data-stage="hud" data-bubble="0"></div><div class="hud">
+   <div class="tl"><div class="status"><i></i>上班中</div><div class="pill"><span data-clock></span></div></div>
+   <div class="coinbox money-box" data-plus><span class="coin">$</span>${moneyH()}</div>
+   <div class="dialog"><div class="name" data-name></div><div class="txt" data-say></div><div class="exp"><span>今日進度</span><div class="track"><div class="fill" data-fill></div></div><b data-pct0></b><span>・還有 <b data-remain-hm></b></span></div></div></div></div>`);
+
+$('#famU5').innerHTML=
+ L('U5','極簡專注','你喜歡的原版。',`<div class="win u5"><div class="mtop"><span class="dot"></span>上班中 ・ <span data-clock></span><span class="x">⋯</span></div>
+   <div class="lbl">今天已經賺到</div><div class="money-box" data-plus>${moneyH()}</div><div class="thin"><div class="fill" data-fill></div></div><div class="meta"><span data-pct></span><span>還有 <span data-remain></span> 下班</span></div>
+   <div class="petrow"><div class="petonly" data-stage="petonly" data-bubble="0"></div><div class="say" data-say></div></div></div>`,true)+
+ L('U5-B','極簡・橫向','扁長的一條，左邊寵物、右邊大金額，可以放在螢幕上緣或下緣。',`<div class="win u5b"><div class="petonly" data-stage="petonly" data-bubble="0"></div><div class="mid"><div class="mtop"><span class="dot"></span>上班中 ・ <span data-hm></span><span class="x">⋯</span></div>
+   <div class="money-box" data-plus>${moneyH()}</div><div class="thin"><div class="fill" data-fill></div></div><div class="meta"><span data-pct></span><span>還有 <span data-remain-hm></span> 下班</span></div></div></div>`)+
+ L('U5-C','極簡・趴在進度條上','寵物從下面探出頭、兩隻手趴在進度條上，好像在一起等下班。',`<div class="win u5c"><div class="mtop"><span class="dot"></span>上班中 ・ <span data-clock></span><span class="x">⋯</span></div>
+   <div class="lbl">今天已經賺到</div><div class="money-box" data-plus>${moneyH()}</div>
+   <div class="peekzone"><div class="peek" data-stage="peek"></div><div class="say" data-say></div></div>
+   <div class="ledge"><span class="pawq" style="left:104px"></span><span class="pawq" style="left:154px"></span><div class="thin"><div class="fill" data-fill></div></div></div>
+   <div class="meta"><span data-pct></span><span>還有 <span data-remain></span> 下班</span></div></div>`);
+
+$('#famNew').innerHTML=
+ L('U6','掌上遊戲機','整個程式就是一台小遊戲機：螢幕裡是寵物的房間，按鈕真的可以按（摸摸 / 餵食）。',`<div class="console"><div class="bezel"><span class="led"></span><div class="screen"><div class="scene" data-stage="console"></div>
+   <div class="mhud"><span class="pill money-box" data-plus>NT$ <span class="odo" data-odo></span></span><span class="pill" data-pct0></span></div></div><div class="brand">薪跳 POCKET</div></div>
+   <div class="ctrl"><div class="dpad"><i></i><i></i></div><div class="abtn"><button class="b" data-act="feed">餵食</button><button class="a" data-act="pet">摸摸</button></div></div>
+   <div class="ss"><span>設定</span><span>暫停</span></div><div class="speaker"><i></i><i></i><i></i></div></div>`)+
+ L('U7','桌面寵物（無視窗）','沒有視窗框，寵物和小桌子直接站在桌面上，頭上頂著金額牌。滑鼠移過去才出現設定和關閉鈕。',`<div class="wallp"><div class="hill" style="left:-60px"></div><div class="hill" style="left:140px;bottom:30px;width:360px;background:#A3D7A9"></div>
+   <div class="dpet"><div class="tag money-box" data-plus>${moneyH()}<div class="thin"><div class="fill" data-fill></div></div></div><div class="petonly" data-stage="petonly"></div><div class="tools"><span>⚙</span><span>✕</span></div></div>
+   <div class="tb"><i></i><i></i><i></i><i></i></div></div>`);
+
+$('#famM1').innerHTML=
+ M('M1','膠囊條','原版',`<div class="m1"><div class="av" data-av></div><div><div class="mini-top"><i></i>上班中 · <span data-pct></span></div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="mbar" data-fill></div></div>`,true)+
+ M('M1-B','探頭膠囊','寵物從膠囊左邊探出頭',`<div class="m1b"><div class="pop" data-av-pop></div><div class="mini-top"><i></i>上班中 · <span data-pct></span></div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div><div class="mbar"><i data-fill></i></div></div>`)+
+ M('M1-C','雙行膠囊','多一行時間與下班倒數',`<div class="m1c"><div class="r"><div class="av" data-av></div><div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div><div class="sub2"><span data-hm></span> ・ 還有 <span data-remain-hm></span> 下班 ・ <span data-pct0></span></div></div></div><div class="bb"><i data-fill></i></div></div>`)+
+ M('M1-D','細長條','最小，背景就是進度',`<div class="m1d" data-ring style="--p:50"><div class="av" data-av></div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div><span class="pp" data-pct0></span></div>`);
+$('#famM3').innerHTML=
+ M('M3','圓形徽章','原版',`<div class="m3"><div class="ring" data-ring style="--p:50"><div class="av" data-av></div></div><div class="tagm"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="sub">上班中 · 還有 <span data-remain></span></div></div>`,true)+
+ M('M3-B','時鐘徽章','外圈刻度像時鐘，緞帶上寫金額',`<div class="m3 m3b"><div class="clockring" data-ring style="--p:50">${ticks(12)}<div class="av" data-av></div></div><div class="ribbon"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="sub">還有 <span data-remain-hm></span> 下班</div></div>`)+
+ M('M3-C','全身徽章','圓框裡是整隻寵物在打字',`<div class="m3 m3c"><div class="bigring" data-ring style="--p:50"><div class="inner"><div class="petonly" data-stage="petonly" data-bubble="0"></div></div></div><div class="tagm"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div></div>`)+
+ M('M3-D','迷你徽章','圓頭像 + 旁邊拉出金額',`<div class="m3d"><div class="m3"><div class="ring" data-ring style="--p:50"><div class="av" data-av></div></div></div><div class="pillm"><div class="mini-top"><i></i>上班中 · <span data-pct0></span></div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div></div>`);
+$('#famM5').innerHTML=
+ M('M5','桌面小寵物','無框，寵物旁邊的對話泡泡顯示金額',`<div class="m5wall"><div class="bub"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="petonly" data-stage="petonly" data-bubble="0"></div></div>`);
+
+/* mounting */
+function render(type){
+  if(type==='scene')return sceneSVG(st.ps,st.kind);
+  if(type==='scene43')return sceneSVG(st.ps,st.kind,'22 0 256 240');
+  if(type==='hud')return sceneSVG(st.ps,st.kind,'0 -4 300 236');
+  if(type==='console')return sceneSVG(st.ps,st.kind,'26 12 248 186');
+  if(type==='peek')return avatarSVG(st.ps,st.kind);
+  return petOnlySVG(st.ps,st.kind);
+}
+function mountAll(){
+  stages.length=0;
+  $$('[data-stage]').forEach(el=>{
+    const type=el.dataset.stage,card=el.closest('.lcard,.mcard'),sayEl=card&&$('[data-say]',card);
+    const s=stage(el,()=>st.kind,()=>render(type),{bubble:el.dataset.bubble!=='0'&&type!=='peek'&&type!=='petonly'?true:false,sayEl:sayEl||undefined,noTap:type==='peek',tapX:type==='petonly'?20:28,tapY:type==='petonly'?64:70});
+    el._s=s;
+  });
+  $$('[data-av]').forEach(el=>el.innerHTML=avatarSVG(st.ps,st.kind));
+  $$('[data-av-pop]').forEach(el=>el.innerHTML=avatarSVG(st.ps,st.kind));
+  $$('[data-name]').forEach(el=>el.textContent=NAME[st.kind]);
+  stages.forEach(s=>say(s,LINES[st.kind][0]));
+}
+mountAll();
+$$('[data-act]').forEach(b=>b.onclick=()=>{const s=$('.console [data-stage]')._s;if(b.dataset.act==='feed')feed(s);else{const r=s.el.getBoundingClientRect();poke(s,{clientX:r.left+r.width*.42,clientY:r.top+r.height*.45})}});
+picker.onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.ps){$$('[data-ps]',picker).forEach(x=>x.classList.toggle('on',x===b));st.ps=b.dataset.ps}
+  if(b.dataset.kind){$$('[data-kind]',picker).forEach(x=>x.classList.toggle('on',x===b));st.kind=b.dataset.kind}
+  mountAll()};
+startLoop();
+</script>
+</body>
+</html>

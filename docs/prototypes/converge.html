@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>薪跳｜收斂總表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+body{padding-bottom:200px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px}
+.card{background:#fff;border:2px solid #DDD5CA;border-radius:22px;padding:12px 12px 14px;transition:border-color .2s,box-shadow .2s,transform .2s;position:relative}
+.card.keep{border-color:#FF8A3D;box-shadow:0 0 0 3px #FFD9BF;transform:translateY(-2px)}
+.card .frame{border:3px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:4px 4px 0 var(--line)}
+.card .meta{display:flex;align-items:center;gap:8px;margin-top:12px}
+.card .meta b{font-size:16px}
+.card .meta small{font-size:12px;color:#9A8F84}
+.card .desc{font-size:12.5px;color:#7A7067;line-height:1.6;margin-top:4px}
+.keepbtn{margin-left:auto;font:inherit;font-size:13px;font-weight:800;border:2px solid #2A2420;background:#fff;border-radius:99px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+.card.keep .keepbtn{background:#FF8A3D;border-color:#FF8A3D;color:#fff}
+.card .round{position:absolute;right:14px;top:14px;z-index:5;font-size:11px;font-weight:800;background:#2A2420;color:#fff;border-radius:99px;padding:3px 9px}
+.subrow{display:flex;gap:8px;margin-top:8px;align-items:center;font-size:11.5px;color:#9A8F84}
+.subrow .av{width:42px;height:42px}
+.subrow .petmini{width:76px}
+.lgrid{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.lcard{background:#fff;border:2px solid #DDD5CA;border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s,box-shadow .2s}
+.lcard.keep{border-color:#FF8A3D;box-shadow:0 0 0 3px #FFD9BF}
+.lcard .meta{display:flex;align-items:center;gap:8px}
+.lcard .meta b{font-size:16px}
+.lcard .meta small{font-size:12px;color:#9A8F84}
+.lcard .stage-wrap{transform-origin:top left}
+.picker{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.picker .lbl{font-size:13px;font-weight:800;color:#6B6158}
+.summary{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(42,36,32,.96);color:#fff;padding:14px 20px}
+.summary .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.summary .txt{flex:1;min-width:280px;font-size:14px;line-height:1.7}
+.summary .txt b{color:#FFC857}
+.summary button{font:inherit;font-weight:800;font-size:14px;border:none;background:#FFC857;color:#2A2420;border-radius:99px;padding:10px 18px;cursor:pointer}
+/* layout CSS (from round 2) */
+.u1{width:340px}
+.u1 .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.row-top{display:flex;justify-content:space-between;align-items:center}
+.u1 .money-box{text-align:center}
+.u3{width:500px}
+.u3 .scene{aspect-ratio:300/236}
+.hud{position:absolute;inset:0;pointer-events:none;padding:12px}
+.hud .pill,.hud .status{pointer-events:auto}
+.u3 .hud-top{display:flex;gap:8px;align-items:center}
+.u3 .hud-top .gear{margin-left:auto;width:34px;height:34px;justify-content:center;padding:0;font-size:16px}
+.u3 .hud-bottom{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:20px;box-shadow:4px 4px 0 var(--shadow);padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.coin{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1A8,#FFC857 55%,#F0A020);border:3px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:20px;box-shadow:2px 2px 0 var(--shadow);animation:coinspin 2.4s ease-in-out infinite;flex:none;grid-row:span 2}
+@keyframes coinspin{0%,70%,100%{transform:scaleX(1)}80%{transform:scaleX(.1)}90%{transform:scaleX(1)}}
+.u3 .money{font-size:34px}
+.u3 .xp{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--sub)}
+.u3 .xp .track{flex:1;height:14px}
+.u3 .side{position:absolute;right:12px;top:58px;display:flex;flex-direction:column;gap:6px}
+.u3 .side .pill{font-size:11.5px;padding:3px 10px}
+.u3 .bubble{left:44%;top:16%}
+.u5{width:320px;padding:16px 20px 0}
+.mtop{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sub)}
+.mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite}
+.mtop .x{margin-left:auto;font-size:18px;color:var(--text)}
+.u5 .lbl{margin-top:18px;font-size:13px;font-weight:600;color:var(--sub)}
+.u5 .money{font-size:54px;margin-top:2px}
+.thin{height:10px;border:2.5px solid var(--line);border-radius:99px;overflow:hidden;background:#fff}
+.thin .fill{border-right-width:2px}
+.u5 .thin{margin-top:16px}
+.meta2{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--sub);margin-top:6px}
+.u5 .petrow{display:flex;align-items:flex-end;gap:8px;margin-top:10px}
+.u5 .petonly{width:120px;flex:none}
+.say{font-size:12px;font-weight:600;background:#fff;border:2.5px solid var(--line);border-radius:12px 12px 12px 3px;padding:6px 10px;box-shadow:2px 2px 0 var(--shadow);min-height:30px}
+.u5 .say{margin-bottom:34px}
+.u5b{width:480px;display:flex;align-items:center;gap:6px;padding:8px 18px 12px 6px}
+.u5b .petonly{width:132px;flex:none}
+.u5b .mid{flex:1}
+.u5b .money{font-size:46px;margin-top:4px}
+.u5b .thin{margin-top:8px}
+.wallp{width:480px;height:330px;border-radius:18px;border:3px solid var(--line);box-shadow:7px 7px 0 var(--shadow);position:relative;overflow:hidden;
+  background:radial-gradient(circle at 75% 25%,#FFE9B0 0 40px,transparent 41px),linear-gradient(180deg,#9ED8FF 0%,#CDEBFF 55%,#BFE6C4 56%,#9FD6A6 100%)}
+.wallp .hill{position:absolute;bottom:40px;width:300px;height:140px;border-radius:50%;background:#8FCB97}
+.wallp .tb{position:absolute;left:0;right:0;bottom:0;height:40px;background:rgba(255,255,255,.75);display:flex;align-items:center;justify-content:center;gap:10px}
+.wallp .tb i{width:24px;height:24px;border-radius:6px;background:rgba(61,44,36,.18)}
+.dpet{position:absolute;right:30px;bottom:46px;width:200px;display:flex;flex-direction:column;align-items:center}
+.dpet .petonly{width:190px}
+.dpet .mtag{background:var(--bg);border:3px solid var(--line);border-radius:16px;box-shadow:3px 3px 0 var(--shadow);padding:4px 12px 7px;text-align:center;position:relative;margin-bottom:-6px;z-index:2;font-family:var(--font);color:var(--text)}
+.dpet .mtag::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bg);border-right:3px solid var(--line);border-bottom:3px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+.dpet .mtag .money{font-size:24px}
+.dpet .mtag .thin{height:7px;margin-top:3px;border-width:2px}
+.mini-top{font-size:11px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:5px}
+.mini-top i{width:7px;height:7px;border-radius:50%;background:var(--st-dot)}
+.mmoney{font-family:var(--font);font-size:25px;font-weight:700;color:var(--money);line-height:1.1;white-space:nowrap;text-shadow:-1.5px -1.5px 0 var(--line),1.5px -1.5px 0 var(--line),-1.5px 1.5px 0 var(--line),1.5px 1.5px 0 var(--line),2px 3px 0 var(--line)}
+.mmoney small{font-size:13px;color:var(--cur)}
+.m1{width:280px;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 8px;background:var(--bg);border:3px solid var(--line);border-radius:99px;box-shadow:5px 5px 0 var(--shadow);font-family:var(--font);position:relative;overflow:hidden}
+.m1 .av{width:52px;height:52px}
+.m1 .mbar{position:absolute;left:0;bottom:0;height:5px;background:var(--f1);border-top:2px solid var(--line);border-right:2px solid var(--line)}
+.m3{display:flex;flex-direction:column;align-items:center;font-family:var(--font)}
+.m3 .ring{width:118px;height:118px;border-radius:50%;padding:9px;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(var(--money) calc(var(--p)*1%),#fff 0)}
+.m3 .ring .av{width:100%;height:100%;border-width:3px}
+.m3 .tagm{margin-top:-14px;position:relative;background:var(--bar);border:3px solid var(--line);border-radius:12px;padding:3px 12px;box-shadow:3px 3px 0 var(--shadow)}
+.m3 .tagm .mmoney{font-size:21px}
+.m3 .sub{font-size:11px;font-weight:700;color:var(--sub);margin-top:6px}
+.m5wall{width:300px;height:190px;border-radius:16px;border:3px solid var(--line);box-shadow:5px 5px 0 var(--shadow);position:relative;overflow:hidden;background:linear-gradient(180deg,#9ED8FF,#D9F0FF)}
+.m5wall .petonly{position:absolute;right:10px;bottom:0;width:130px}
+.m5wall .bub{position:absolute;right:118px;bottom:96px;background:#fff;border:3px solid var(--line);border-radius:14px 14px 3px 14px;box-shadow:3px 3px 0 var(--shadow);padding:3px 10px 5px;font-family:var(--font)}
+.m5wall .bub .mmoney{font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap intro">
+  <div class="kicker">SHORTLIST</div>
+  <h1>收斂總表</h1>
+  <p>這頁放的是<b>你前面說過 OK / 還行 / 不錯的全部</b>，每張卡片右上角標了是第幾輪選的。
+  想保留的就按「<b>保留</b>」，可以複選，這些會做成程式裡可以切換的造型和版型。
+  頁面最下面會自動整理你勾了哪些，按「複製」貼給我就好。</p>
+</div>
+<div class="wrap">
+  <h2 class="sec">① 黃金鼠 <span>HAMSTER</span></h2>
+  <div class="pgrid" id="hams"></div>
+  <h2 class="sec">② 貓咪 <span>CAT</span></h2>
+  <div class="pgrid" id="cats"></div>
+  <h2 class="sec">③ 主視窗 <span>MAIN WINDOW</span></h2>
+  <div class="picker" id="lpick"></div>
+  <div class="lgrid" id="mains"></div>
+  <h2 class="sec">④ 迷你浮窗 <span>MINI</span></h2>
+  <div class="lgrid" id="minis"></div>
+</div>
+<div class="summary"><div class="wrap"><div class="txt" id="sumtxt"></div><button id="copy">複製</button></div></div>
+<script src="shared.js"></script>
+<script>
+const PETS=[
+ {k:'hamster',ps:'p0',code:'P0',name:'Q版大眼鼠',r:'第 3 輪',d:'大頭、動漫大眼、掛識別證，粗描邊貼紙風。'},
+ {k:'hamster',ps:'p4',code:'P4',name:'圓滾麻糬鼠',r:'第 3 輪',d:'整隻是一顆麻糬，五官小小的，打字時 Q 彈擠壓。'},
+ {k:'hamster',ps:'h2',code:'H2',name:'鼓鼓頰鼠',r:'第 4 輪',d:'麻糬身體 + 塞滿瓜子的鼓鼓臉頰，嘴角叼瓜子。'},
+ {k:'hamster',ps:'s4',code:'S4',name:'扁平幾何鼠',r:'第 4 輪',d:'無描邊、圓形拼成、左右雙色。'},
+ {k:'hamster',ps:'s5',code:'S5',name:'蠟筆手繪鼠',r:'第 4 輪',d:'蠟筆顆粒、抖抖的線、塗鴉腮紅。'},
+ {k:'cat',ps:'p0',code:'P0',name:'Q版大眼貓',r:'第 3 輪',d:'虎斑小橘、動漫大眼、掛識別證。'},
+ {k:'cat',ps:'p4',code:'P4',name:'圓滾麻糬貓',r:'第 3 輪',d:'吐司形的麻糬貓，打字時 Q 彈擠壓。'},
+ {k:'cat',ps:'s3',code:'S3',name:'大頭軟Q貓',r:'第 4 輪',d:'超大頭吉祥物比例、閃亮大眼、張嘴笑。'},
+ {k:'cat',ps:'s5',code:'S5',name:'蠟筆手繪貓',r:'第 4 輪',d:'蠟筆顆粒、塗鴉條紋和腮紅。'}
+];
+const pc=p=>`<div class="card" data-id="${p.k}:${p.code}"><span class="round">${p.r}</span><div class="frame"><div class="scene" data-ps="${p.ps}" data-k="${p.k}"></div></div>
+  <div class="meta"><span class="tag">${p.code}</span><b>${p.name}</b><button class="keepbtn">保留</button></div><div class="desc">${p.d}</div>
+  <div class="subrow"><div class="av" data-av="${p.ps}" data-k="${p.k}"></div><div class="petmini petonly" data-po="${p.ps}" data-k="${p.k}"></div>大頭照 / 桌面寵物的樣子</div></div>`;
+$('#hams').innerHTML=PETS.filter(p=>p.k==='hamster').map(pc).join('');
+$('#cats').innerHTML=PETS.filter(p=>p.k==='cat').map(pc).join('');
+$$('.scene[data-ps]').forEach(el=>{const ps=el.dataset.ps,k=el.dataset.k;stage(el,()=>k,()=>sceneSVG(ps,k))});
+$$('[data-av]').forEach(el=>el.innerHTML=avatarSVG(el.dataset.av,el.dataset.k));
+$$('[data-po]').forEach(el=>el.innerHTML=petOnlySVG(el.dataset.po,el.dataset.k));
+
+/* layouts */
+const lp={ps:'h2',kind:'hamster'};
+const opts=PETS.map(p=>`<button class="chipbtn${p.ps===lp.ps&&p.k===lp.kind?' on':''}" data-ps="${p.ps}" data-k="${p.k}">${p.k==='cat'?'🐱':'🐹'} ${p.code}</button>`).join('');
+$('#lpick').innerHTML='<span class="lbl">版型裡放哪隻：</span>'+opts;
+const barT=`<div class="bar"><span class="logo">$</span><span>薪跳</span><div class="dots"><i></i><i></i></div></div>`;
+const moneyH=`<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>`;
+const vit=`<div class="vitals"><span>心情 <span class="hearts">♥♥♥♥♡</span></span><span>體力 <span class="bolt"><i></i><i></i><i></i><i class="off"></i><i class="off"></i></span></span></div>`;
+const LC=(id,code,name,r,desc,html)=>`<div class="lcard" data-id="${id}:${code}"><div class="meta"><span class="tag">${code}</span><b>${name}</b><small>${r}</small><button class="keepbtn">保留</button></div><div style="font-size:12.5px;color:#7A7067;max-width:480px">${desc}</div>${html}</div>`;
+$('#mains').innerHTML=
+ LC('main','U1','經典直式','第 3 輪','窄長，上面房間、中間大金額、下面進度與小卡。','<div class="win u1">'+barT+`<div class="body"><div class="row-top"><div><div class="date" data-date></div><div class="clock" data-clock></div></div><div class="status"><i></i>上班中</div></div>
+   <div class="scene-wrap"><div class="scene" data-stage="scene"></div></div><div class="money-box" data-plus><div class="money-label">今天已經賺到</div>${moneyH}<div class="rate">每秒 +NT$ 0.079 ・ 月薪 50,000 ÷ 22 天</div></div>
+   <div><div class="prog-top"><span>今日進度 <b data-pct></b></span><span>距離下班 <b data-remain></b></span></div><div class="track"><div class="fill" data-fill></div></div></div>
+   <div class="chips"><div class="chip"><small>已上班</small><b data-worked></b></div><div class="chip"><small data-item-label></small><b data-item></b></div><div class="chip"><small>本月累計</small><b data-month></b></div></div>${vit}</div></div>`)+
+ LC('main','U3','遊戲畫面 HUD','第 3 輪','整個視窗是房間，數字像遊戲介面浮在上面。',`<div class="win u3"><div class="scene" data-stage="hud"></div><div class="hud">
+   <div class="hud-top"><div class="status"><i></i>上班中</div><div class="pill"><span data-clock></span></div><div class="pill gear">⚙</div></div>
+   <div class="side"><div class="pill">⏱ <span data-worked></span></div><div class="pill"><span data-item></span></div><div class="pill">📅 <span data-month></span></div></div>
+   <div class="hud-bottom money-box" data-plus><div class="coin">$</div>${moneyH}<div class="xp"><span data-pct></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-remain></b></span></div></div></div></div>`)+
+ LC('main','U5','極簡專注','第 3 輪','超大金額 + 細進度條，寵物在下面陪你。',`<div class="win u5"><div class="mtop"><span class="dot"></span>上班中 ・ <span data-clock></span><span class="x">⋯</span></div>
+   <div class="lbl">今天已經賺到</div><div class="money-box" data-plus>${moneyH}</div><div class="thin"><div class="fill" data-fill></div></div><div class="meta2"><span data-pct></span><span>還有 <span data-remain></span> 下班</span></div>
+   <div class="petrow"><div class="petonly" data-stage="petonly"></div><div class="say" data-say></div></div></div>`)+
+ LC('main','U5-B','極簡・橫向','第 4 輪','扁長一條，左邊寵物、右邊大金額。',`<div class="win u5b"><div class="petonly" data-stage="petonly"></div><div class="mid"><div class="mtop"><span class="dot"></span>上班中 ・ <span data-hm></span><span class="x">⋯</span></div>
+   <div class="money-box" data-plus>${moneyH}</div><div class="thin"><div class="fill" data-fill></div></div><div class="meta2"><span data-pct></span><span>還有 <span data-remain-hm></span> 下班</span></div></div></div>`)+
+ LC('main','U7','桌面寵物（無視窗）','第 4 輪','沒有視窗框，寵物和小桌子直接站在桌面上，頭上頂著金額牌。',`<div class="wallp"><div class="hill" style="left:-60px"></div><div class="hill" style="left:140px;bottom:30px;width:360px;background:#A3D7A9"></div>
+   <div class="dpet"><div class="mtag money-box" data-plus>${moneyH}<div class="thin"><div class="fill" data-fill></div></div></div><div class="petonly" data-stage="petonly"></div></div><div class="tb"><i></i><i></i><i></i><i></i></div></div>`);
+$('#minis').innerHTML=
+ LC('mini','M1','膠囊條','第 3 輪','最省空間的膠囊。',`<div class="m1"><div class="av" data-lav></div><div><div class="mini-top"><i></i>上班中 · <span data-pct></span></div><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="mbar" data-fill></div></div>`)+
+ LC('mini','M3','圓形徽章','第 3 輪','外圈是今日進度。',`<div class="m3"><div class="ring" data-ring style="--p:50"><div class="av" data-lav></div></div><div class="tagm"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="sub">上班中 · 還有 <span data-remain></span></div></div>`)+
+ LC('mini','M5','桌面小寵物','第 4 輪','無框，寵物旁邊的泡泡顯示金額。',`<div class="m5wall"><div class="bub"><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div><div class="petonly" data-stage="petonly"></div></div>`);
+
+const layoutStages=[];
+function mountLayouts(){
+  layoutStages.splice(0).forEach(unstage);
+  $$('#mains [data-stage],#minis [data-stage]').forEach(el=>{
+    const t=el.dataset.stage,card=el.closest('.lcard'),sayEl=card&&$('[data-say]',card);
+    const render=t==='scene'?()=>sceneSVG(lp.ps,lp.kind):t==='hud'?()=>sceneSVG(lp.ps,lp.kind,'0 -4 300 236'):()=>petOnlySVG(lp.ps,lp.kind);
+    layoutStages.push(stage(el,()=>lp.kind,render,{bubble:t!=='petonly',sayEl:sayEl||undefined,tapX:t==='petonly'?20:28,tapY:t==='petonly'?64:70}));
+  });
+  $$('[data-lav]').forEach(el=>el.innerHTML=avatarSVG(lp.ps,lp.kind));
+}
+mountLayouts();
+$('#lpick').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#lpick button').forEach(x=>x.classList.toggle('on',x===b));lp.ps=b.dataset.ps;lp.kind=b.dataset.k;mountLayouts()};
+
+/* keep toggles + summary */
+const keep=new Set();
+document.addEventListener('click',e=>{const b=e.target.closest('.keepbtn');if(!b)return;const c=b.closest('[data-id]'),id=c.dataset.id;
+  keep.has(id)?keep.delete(id):keep.add(id);c.classList.toggle('keep',keep.has(id));b.textContent=keep.has(id)?'✓ 已保留':'保留';sum()});
+function sum(){
+  const g=t=>[...keep].filter(x=>x.startsWith(t+':')).map(x=>x.split(':')[1]);
+  const fmtL=(n,a)=>`${n}：<b>${a.length?a.join('、'):'（未選）'}</b>`;
+  $('#sumtxt').innerHTML=[fmtL('黃金鼠',g('hamster')),fmtL('貓咪',g('cat')),fmtL('主視窗',g('main')),fmtL('迷你浮窗',g('mini'))].join('　');
+}
+sum();
+$('#copy').onclick=async()=>{const t=$('#sumtxt').innerText.replace(/\s{2,}/g,'；');try{await navigator.clipboard.writeText(t);$('#copy').textContent='已複製 ✓'}catch(e){$('#copy').textContent='請手動複製'}setTimeout(()=>$('#copy').textContent='複製',1800)};
+startLoop();
+</script>
+</body>
+</html>
