@@ -4,3 +4,6 @@
 /obj/
 *.user
 
+/build/
+tests/web/.edge-profile/
+/src/web/fonts/
