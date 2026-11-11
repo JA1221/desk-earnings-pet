@@ -52,7 +52,7 @@ QJZ.settings = (function () {
         var w = s.workDays[i];
         if (isNum(w) && w >= 0 && w <= 6 && Math.floor(w) === w && days.indexOf(w) < 0) days.push(w);
       }
-      out.workDays = days.sort();
+      if (days.length || !s.workDays.length) out.workDays = days.sort(function (a, b) { return a - b; });
     }
 
     var pet = isObj(s.pet) ? s.pet : {};

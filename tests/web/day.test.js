@@ -35,4 +35,5 @@ test('functions are pure', function(){
 test('activity on a non-start day still clears lastLockMs', function(){
   var r=QJZ.day.onLock(QJZ.day.empty('2026-11-14'),123); r=QJZ.day.onActivity(r,{type:'unlock',ms:456},S); eq(r.lastLockMs,null); eq(r.startMs,null); });
 test('rollover returns the same day unchanged', function(){ var r=started(510); var x=QJZ.day.rollover(r,T(600)); eq(x.closed,null); eq(x.current.startMs,T(510)); });
+test('clock moving backwards does not roll over', function(){ var r=started(510); var x=QJZ.day.rollover(r,new Date(2026,10,10,10,0).getTime()); eq(x.closed,null); eq(x.current.startMs,T(510)); eq(x.current.day,D); });
 })();

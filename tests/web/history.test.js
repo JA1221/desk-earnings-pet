@@ -31,4 +31,8 @@ test('rewards edge cases', function(){
   eq(QJZ.rewards.milestones(99.99,100),0); eq(QJZ.rewards.milestones(-5,100),0); eq(QJZ.rewards.milestones(500,0),0);
   eq(QJZ.rewards.snacksAvailable({snacksEaten:20},1231.61,100),0); eq(QJZ.rewards.snacksAvailable({},250,100),2);
   eq(QJZ.rewards.itemCount(0,{price:65}),'0.0'); eq(QJZ.rewards.itemCount(100,{price:0}),'0.0'); });
+test('history parse ignores __proto__ keys', function(){
+  var p=QJZ.history.parse('{"version":1,"days":{"__proto__":{"day":"x"},"2026-11-10":{"day":"2026-11-10","earned":5,"__proto__":{"startMs":123}}}}');
+  eq(Object.keys(p.history.days),['2026-11-10']); var rec=p.history.days['2026-11-10'];
+  eq(rec.startMs===123,false); ok(Object.getPrototypeOf(rec)===Object.prototype); eq(rec.earned,5); });
 })();

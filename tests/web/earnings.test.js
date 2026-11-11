@@ -39,4 +39,8 @@ test('no start gives zero and status before', function(){ var s=snap(null,null,T
 test('weekday and parseHM', function(){ eq(QJZ.time.weekday('2026-11-11'),3); eq(QJZ.time.weekday('2026-11-15'),0);
   eq(QJZ.time.parseHM('12:30'),750); eq(QJZ.time.parseHM('xx'),NaN); eq(QJZ.time.parseHM(''),NaN); });
 test('dayKey with custom boundary', function(){ eq(QJZ.time.dayKey(new Date(2026,10,12,5,0).getTime(),6),'2026-11-11'); });
+test('snapshot exact boundaries', function(){
+  eq(snap(T(540),null,T(12*60)).status,'lunch'); eq(snap(T(540),null,T(13*60)).status,'working');
+  var end=QJZ.earn.endAtMs(T(540),D,8,L); eq(snap(T(540),null,end).status,'done'); eq(snap(T(540),null,end-1).status,'working'); });
+test('endAtMs with start 12:30 is 21:00', function(){ eq(QJZ.earn.endAtMs(T(12*60+30),D,8,L),T(21*60)); });
 })();

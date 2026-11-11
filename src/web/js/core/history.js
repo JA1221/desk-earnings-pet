@@ -16,9 +16,9 @@ QJZ.history = (function () {
     var h = emptyHistory();
     if (isObj(raw) && isObj(raw.days)) {
       for (var k in raw.days) {
-        if (!Object.prototype.hasOwnProperty.call(raw.days, k) || !DAY_RE.test(k) || !isObj(raw.days[k])) continue;
+        if (k === '__proto__' || !Object.prototype.hasOwnProperty.call(raw.days, k) || !DAY_RE.test(k) || !isObj(raw.days[k])) continue;
         var rec = {};
-        for (var f in raw.days[k]) if (Object.prototype.hasOwnProperty.call(raw.days[k], f)) rec[f] = raw.days[k][f];
+        for (var f in raw.days[k]) if (f !== '__proto__' && Object.prototype.hasOwnProperty.call(raw.days[k], f)) rec[f] = raw.days[k][f];
         rec.day = k;
         if (typeof rec.earned !== 'number' || !isFinite(rec.earned)) rec.earned = null;
         h.days[k] = rec;

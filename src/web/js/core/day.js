@@ -56,7 +56,7 @@ QJZ.day = (function () {
 
   function rollover(rec, nowMs) {
     var key = QJZ.time.dayKey(nowMs);
-    if (key !== rec.day) return { closed: rec, current: empty(key) };
+    if (key > rec.day) return { closed: rec, current: empty(key) };
     return { closed: null, current: rec };
   }
 
