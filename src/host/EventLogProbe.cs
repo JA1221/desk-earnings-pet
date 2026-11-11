@@ -49,7 +49,9 @@ public static class EventLogProbe
     {
         string t = dayStartLocal.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
         return "*[System[((Provider[@Name='Microsoft-Windows-Winlogon'] and EventID=7001)"
-            + " or (Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1))"
+            + " or (Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1)"
+            + " or (Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=507)"
+            + " or (Provider[@Name='Microsoft-Windows-Kernel-General'] and EventID=12))"
             + " and TimeCreated[@SystemTime>='" + t + "']]]";
     }
 
@@ -70,6 +72,8 @@ public static class EventLogProbe
     {
         if (r.EventId == 7001) return SourceIs(r.Source, "Winlogon");
         if (r.EventId == 1) return SourceIs(r.Source, "Power-Troubleshooter");
+        if (r.EventId == 507) return SourceIs(r.Source, "Kernel-Power");   // exit from connected (modern) standby
+        if (r.EventId == 12) return SourceIs(r.Source, "Kernel-General");  // OS start
         return false;
     }
 
