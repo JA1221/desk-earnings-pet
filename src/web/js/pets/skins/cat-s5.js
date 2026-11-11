@@ -1,33 +1,80 @@
 // Cat S5 蠟筆手繪貓 — crayon grain, scribbled stripes and blush, twinkling stars. Port of docs/prototypes/shared.js s5Cat.
+// Poses (crayon filter on everything): lie = head resting on its paws, back and tail behind; dangle = held by the
+// scruff, round-bottomed body with dangling legs and tail.
 (function (P) {
-  var C = P.common, ST = C.ST, LC = '#4A3A30', O = '#FFB347';
+  var C = P.common, ST = C.ST, LC = '#4A3A30', O = '#FFB347', CR = '#FFF8EE';
   var HD = 'M70,92 C70,62 90,50 118,50 C146,50 166,62 166,92 C166,118 146,130 118,130 C90,130 70,118 70,92 Z';
+  var PAW_L = `<g class="pawL"><ellipse cx="102" cy="151" rx="10" ry="6.5" fill="${CR}" ${ST(2.6, LC)}/></g>`;
+  var PAW_R = `<g class="pawR"><ellipse cx="134" cy="151" rx="10" ry="6.5" fill="${CR}" ${ST(2.6, LC)}/></g>`;
+
+  function paw(x, y, rot) {
+    return `<ellipse cx="${x}" cy="${y}" rx="8.5" ry="6.5" fill="${CR}" ${ST(2.6, LC)}${rot ? ' transform="rotate(' + rot + ' ' + x + ' ' + y + ')"' : ''}/>`;
+  }
+  function tail(d, origin) {
+    return `<g class="tail"${origin ? ' style="transform-origin:' + origin + '"' : ''}><path d="${d}" fill="none" stroke="${LC}" stroke-width="17" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${O}" stroke-width="11.5" stroke-linecap="round"/></g>`;
+  }
+  function limb(a, b) {
+    var d = `M${a[0]},${a[1]} L${b[0]},${b[1]}`;
+    return `<path d="${d}" fill="none" stroke="${LC}" stroke-width="15.2" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${O}" stroke-width="10" stroke-linecap="round"/>`;
+  }
 
   P.register({
     id: 'cat:s5', kind: 'cat', skin: 's5', name: '蠟筆手繪貓', room: 'crayon', wrap: 'crayon',
     build: function (uid) {
       var st = ST(2.6, LC);
+      var head = `<path d="M76,70 L74,34 L102,54 Z" fill="${O}" ${st}/><path d="M160,70 L162,34 L134,54 Z" fill="${O}" ${st}/><path d="M80,62 L79,42 L96,55 Z" fill="#FF9FB0"/><path d="M156,62 L157,42 L140,55 Z" fill="#FF9FB0"/>
+    <path d="${HD}" fill="${O}"/><g clip-path="url(#${uid}-h)"><ellipse cx="118" cy="112" rx="16" ry="10" fill="${CR}"/><path d="M150,104 l8,-8 M152,110 l9,-9 M155,115 l8,-8" stroke="#E8902E" stroke-width="1.6" stroke-linecap="round"/></g><path d="${HD}" fill="none" ${st}/>
+    <path d="M106,54 l3,9 M118,52 v10 M130,54 l-3,9" stroke="#E07B2E" stroke-width="3" stroke-linecap="round"/>
+    <path d="${C.star4(62, 44, 5)}" fill="#FFE066" class="tw" ${ST(1.2, LC)}/><path d="${C.star4(176, 40, 4)}" fill="#FFE066" class="tw" style="animation-delay:-.8s" ${ST(1.2, LC)}/>
+    ${C.scribble(88, 106)}${C.scribble(150, 106)}
+    <!--EYES-->
+    <path d="M115.5,103 h5 l-2.5,3 z" fill="#FF7F9A" ${ST(1.2, LC)}/><!--MOUTH-->
+    <path d="M72,100 l-12,-2 M72,105 l-12,2 M164,100 l12,-2 M164,105 l12,2" ${ST(1.6, LC)}/><!--OVER-->`;
+      var bodyD = 'M86,168 C84,142 94,126 118,126 C142,126 152,142 150,168 C148,180 88,180 86,168 Z';
       return {
         crop: '54 20 128 120',
         seed: false,
         defs: `<clipPath id="${uid}-h"><path d="${HD}"/></clipPath>`,
         layers: {
           back: `<g class="tail"><path d="M88,156 C60,160 48,134 60,114" fill="none" stroke="${LC}" stroke-width="17" stroke-linecap="round"/><path d="M88,156 C60,160 48,134 60,114" fill="none" stroke="${O}" stroke-width="11.5" stroke-linecap="round"/></g>
-     <path d="M86,176 C84,146 94,128 118,128 C142,128 152,146 150,176 Z" fill="${O}" ${st}/><ellipse cx="118" cy="154" rx="16" ry="18" fill="#FFF8EE"/>`,
+     <path d="M86,176 C84,146 94,128 118,128 C142,128 152,146 150,176 Z" fill="${O}" ${st}/><ellipse cx="118" cy="154" rx="16" ry="18" fill="${CR}"/>`,
           pre: '',
-          front: `<g class="pawL"><ellipse cx="102" cy="151" rx="10" ry="6.5" fill="#FFF8EE" ${st}/></g><g class="pawR"><ellipse cx="134" cy="151" rx="10" ry="6.5" fill="#FFF8EE" ${st}/></g>`,
-          post: `<g class="head"><path d="M76,70 L74,34 L102,54 Z" fill="${O}" ${st}/><path d="M160,70 L162,34 L134,54 Z" fill="${O}" ${st}/><path d="M80,62 L79,42 L96,55 Z" fill="#FF9FB0"/><path d="M156,62 L157,42 L140,55 Z" fill="#FF9FB0"/>
-    <path d="${HD}" fill="${O}"/><g clip-path="url(#${uid}-h)"><ellipse cx="118" cy="112" rx="16" ry="10" fill="#FFF8EE"/><path d="M150,104 l8,-8 M152,110 l9,-9 M155,115 l8,-8" stroke="#E8902E" stroke-width="1.6" stroke-linecap="round"/></g><path d="${HD}" fill="none" ${st}/>
-    <path d="M106,54 l3,9 M118,52 v10 M130,54 l-3,9" stroke="#E07B2E" stroke-width="3" stroke-linecap="round"/>
-    <path d="${C.star4(62, 44, 5)}" fill="#FFE066" class="tw" ${ST(1.2, LC)}/><path d="${C.star4(176, 40, 4)}" fill="#FFE066" class="tw" style="animation-delay:-.8s" ${ST(1.2, LC)}/>
-    ${C.scribble(88, 106)}${C.scribble(150, 106)}
-    <!--EYES-->
-    <path d="M115.5,103 h5 l-2.5,3 z" fill="#FF7F9A" ${ST(1.2, LC)}/><!--MOUTH-->
-    <path d="M72,100 l-12,-2 M72,105 l-12,2 M164,100 l12,-2 M164,105 l12,2" ${ST(1.6, LC)}/></g>`
+          front: PAW_L + PAW_R,
+          post: `<g class="head">${head}</g>`
         },
         face: {
           eyes: [[100, 92], [136, 92]], eyeR: 4.4, eyeStyle: 'crayon', hl: 1.5, ink: LC, arc: [5, 2.6],
           mouth: [118, 107], mouthStyle: 'w', mouthSize: [4.5, 2.6], mouthSW: 2
+        },
+        rig: {
+          mode: 'crayon', line: [LC, 2.6], pivot: [118, 128], grab: [118, 30],
+          top: [118, 46], qm: [126, 34], zzz: [158, 50], side: [[70, 86], [166, 86]], nose: [119.5, 104], anger: [146, 66],
+          cheeks: [[88, 107, 10], [150, 107, 10]], hold: [118, 122, 1], smoke: 38,
+          fire: [[72, 152, 1.15], [164, 152, 1.15]], bento: [154, 149, 1],
+          bag: { x: 162, y: 128, s: 0.95, rot: 16, straps: [[102, 132, 104, 146], [134, 132, 132, 146]] },
+          paw: paw, limb: { w: 10, fill: O }, pawL: PAW_L, pawR: PAW_R,
+          up: { slot: 'front', arms: [[[100, 140], [60, 80], -25], [[136, 140], [176, 80], 25]] },
+          holdArm: { paws: [[106, 127, 20], [130, 127, -20]] },
+          scratch: { slot: 'front', arm: [[100, 140], [60, 106], [74, 70]], paw: [82, 58, -30] },
+          strap: [[103, 140, 0], [133, 140, 0]]
+        },
+        poses: {
+          lie: {
+            front: `<ellipse cx="118" cy="162" rx="58" ry="5" fill="${LC}" opacity=".12"/>` +
+              tail('M140,156 C168,160 180,140 170,120', '140px 156px') +
+              `<path d="M100,160 C100,136 116,124 138,126 C158,128 166,144 164,160 Z" fill="${O}" ${st}/>` +
+              `<g transform="translate(-4 30) rotate(-11 118 130)"><g class="breath" style="transform-origin:118px 130px">${head}</g></g>` +
+              paw(104, 160, -6) + paw(132, 160, 6),
+            anchors: { zzz: [156, 74], top: [112, 74] }
+          },
+          dangle: {
+            front: `<g class="swing"><g transform="translate(118 30) scale(.95) translate(-118 -46)">` + tail('M104,170 C90,180 78,168 78,152', '104px 170px') +
+              `<g class="legs" style="transform-origin:118px 166px">${limb([108, 166], [106, 180])}${limb([128, 166], [130, 180])}${paw(106, 184, 180)}${paw(130, 184, 180)}</g>` +
+              `<path d="${bodyD}" fill="${O}" ${st}/><ellipse cx="118" cy="152" rx="16" ry="17" fill="${CR}"/>` +
+              `<g class="limp" style="transform-origin:118px 134px">${limb([96, 134], [90, 154])}${limb([140, 134], [146, 154])}${paw(90, 158, 170)}${paw(146, 158, -170)}</g>` +
+              head + `</g></g>`,
+            anchors: { top: [118, 30], side: [[70, 68], [166, 68]] }
+          }
         }
       };
     }

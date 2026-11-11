@@ -1,7 +1,13 @@
-// Pets: slot-based renderer (Task 9). Every skin in every view must give a well-formed SVG with its
-// eye/mouth slots filled, typing paws, the happy-eyes layer, and ids that never collide between SVGs.
+// Pets: slot-based renderer (Task 9) and the pet states (Task 12). Every skin in every view and every state must
+// give a well-formed SVG with its slots filled, the state class on the root, references that resolve inside the
+// same SVG, and ids that never collide between SVGs.
 (function () {
   var VIEWS = ['scene', 'petonly', 'avatar'];
+  var STATES = ['idle', 'doze', 'typing', 'stretch', 'yawn', 'coffee', 'stare', 'scratch', 'sprint', 'lunchSleep', 'lunchEat',
+    'celebrate', 'waitBag', 'petted', 'angry', 'eat', 'hop', 'dangle'];
+  var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised'];
+  var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout'];
+  var SLOTS = ['<!--EYES-->', '<!--MOUTH-->', '<!--OVER-->'];
 
   function all() { return QJZ.pets.list('hamster').concat(QJZ.pets.list('cat')); }
   function idsOf(defs) { return defs.map(function (d) { return d.id; }); }
@@ -12,6 +18,23 @@
     return out;
   }
   function hasClass(el, name) { return (' ' + (el.getAttribute('class') || '') + ' ').indexOf(' ' + name + ' ') >= 0; }
+  // every url(#x) and href="#x" must point at an id defined in the same SVG
+  function unresolved(svg) {
+    var ids = svgIds(svg), out = [], re = /url\(#([^)]+)\)|href="#([^"]+)"/g, m;
+    while ((m = re.exec(svg))) { var r = m[1] || m[2]; if (ids.indexOf(r) < 0) out.push(r); }
+    return out;
+  }
+  function inBody(el) {
+    var p = el.parentNode;
+    while (p && p.nodeType === 1) {
+      if (hasClass(p, 'head') || hasClass(p, 'squish') || hasClass(p, 'breath') || hasClass(p, 'swing')) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+  function slotCount(layers, slot) {
+    return ((layers.back || '') + (layers.pre || '') + (layers.front || '') + (layers.post || '')).split(slot).length - 1;
+  }
 
   test('pets: list gives 5 hamsters and 3 cats in skin order', function () {
     eq(QJZ.pets.list('hamster').length, 5);
@@ -31,9 +54,13 @@
       ok(typeof b.crop === 'string' && b.crop.split(' ').length === 4, d.id + ' crop');
       ok(typeof b.seed === 'boolean', d.id + ' seed');
       ok(b.layers && (b.layers.pre || b.layers.post), d.id + ' layers');
-      var body = (b.layers.pre || '') + (b.layers.post || '');
-      eq(body.split('<!--EYES-->').length, 2, d.id + ' one EYES slot');
-      eq(body.split('<!--MOUTH-->').length, 2, d.id + ' one MOUTH slot');
+      // one of each slot across all four layers, and in each special pose
+      [['layers', b.layers], ['lie', b.poses.lie], ['dangle', b.poses.dangle]].forEach(function (e) {
+        SLOTS.forEach(function (slot) { eq(slotCount(e[1], slot), 1, d.id + ' ' + e[0] + ' one ' + slot); });
+      });
+      ok(b.rig.pivot.length === 2 && b.rig.grab.length === 2 && b.rig.top.length === 2 && b.rig.hold.length === 3, d.id + ' rig anchors');
+      ok(typeof b.rig.paw === 'function' && b.rig.pawL.indexOf('class="pawL"') >= 0 && b.rig.pawR.indexOf('class="pawR"') >= 0, d.id + ' rig paws');
+      eq(b.layers.front, b.rig.pawL + b.rig.pawR, d.id + ' front layer is the two paws');
       eq(b.face.eyes.length, 2, d.id + ' two eyes');
       ok(b.face.eyeR > 0 && b.face.mouth.length === 2 && typeof b.face.ink === 'string', d.id + ' face');
       ok(['q', 'ham', 'gloss', 'dot', 'flat', 'crayon'].indexOf(b.face.eyeStyle) >= 0, d.id + ' eyeStyle');
@@ -93,7 +120,9 @@
     var crop = QJZ.pets.get('hamster:p0').build('t1').crop;
     ok(QJZ.pets.compose('hamster:p0', 'scene', {}).indexOf('viewBox="0 0 300 200"') > 0, 'scene');
     ok(QJZ.pets.compose('hamster:p0', 'scene', { viewBox: '0 -4 300 236' }).indexOf('viewBox="0 -4 300 236"') > 0, 'scene custom');
-    ok(QJZ.pets.compose('hamster:p0', 'petonly', {}).indexOf('viewBox="38 18 160 154"') > 0, 'petonly');
+    // petonly: the prototype's 38 18 160 154 widened for jumps, coins and the dangling pose (same for all skins)
+    ok(QJZ.pets.compose('hamster:p0', 'petonly', {}).indexOf('viewBox="30 4 176 170"') > 0, 'petonly');
+    ok(QJZ.pets.compose('cat:s5', 'petonly', { state: 'dangle' }).indexOf('viewBox="30 4 176 170"') > 0, 'petonly dangle');
     ok(QJZ.pets.compose('hamster:p0', 'avatar', {}).indexOf('viewBox="' + crop + '"') > 0, 'avatar');
   });
 
@@ -108,9 +137,90 @@
     var mouth = QJZ.pets.expr.mouth(face, 'neutral');
     ok(mouth.indexOf('<path') === 0 && mouth.indexOf('stroke="' + face.ink + '"') > 0, 'mouth path in ink');
     ok(mouth.indexOf('M118,113.4 ') > 0, 'P0 hamster Y mouth starts at its anchor');
-    // expressions/mouths that later tasks add fall back to the skin's own look for now
+    // the full sets are published; unknown names fall back to the skin's own look
+    eq(QJZ.pets.expr.EXPRESSIONS, EXPRESSIONS);
+    eq(QJZ.pets.expr.MOUTHS, MOUTHS);
     eq(QJZ.pets.expr.eyes(face, 'nope', 'u9'), open);
+    eq(QJZ.pets.expr.eyes(face, undefined, 'u9'), open);
     eq(QJZ.pets.expr.mouth(face, 'nope'), mouth);
+    eq(QJZ.pets.expr.mouth(face, undefined), mouth);
+  });
+
+  test('pets: every expression and mouth differs from open / neutral for every skin', function () {
+    all().forEach(function (d) {
+      var face = d.build('u5').face, open = QJZ.pets.expr.eyes(face, 'open', 'u5'), neutral = QJZ.pets.expr.mouth(face, 'neutral');
+      EXPRESSIONS.slice(1).forEach(function (x) {
+        var m = QJZ.pets.expr.eyes(face, x, 'u5');
+        ok(m.length > 0 && m !== open, d.id + ' eyes ' + x + ' differ from open');
+        eq(parse('<svg xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="u5-geye"/></defs>' + m + '</svg>').getElementsByTagName('parsererror').length, 0, d.id + ' eyes ' + x + ' parse');
+        eq(unresolved('<svg><radialGradient id="u5-geye"/>' + m + '</svg>'), [], d.id + ' eyes ' + x + ' refs');
+      });
+      MOUTHS.slice(1).forEach(function (x) {
+        var m = QJZ.pets.expr.mouth(face, x);
+        ok(m.length > 0 && m !== neutral, d.id + ' mouth ' + x + ' differs from neutral');
+        eq(parse('<svg xmlns="http://www.w3.org/2000/svg">' + m + '</svg>').getElementsByTagName('parsererror').length, 0, d.id + ' mouth ' + x + ' parse');
+      });
+      // flat skins draw closed eyes without strokes; crayon skins add a second pencil pass
+      if (face.eyeStyle === 'flat') ok(QJZ.pets.expr.eyes(face, 'closed', 'u5').indexOf('stroke') < 0, d.id + ' flat closed eyes');
+      if (face.eyeStyle === 'crayon') ok(QJZ.pets.expr.eyes(face, 'closed', 'u5').split('<path').length > 3, d.id + ' crayon closed eyes');
+    });
+  });
+
+  test('pets: 18 states in review order, each with a label and known parts', function () {
+    eq(QJZ.pets.states.NAMES, STATES);
+    STATES.forEach(function (s) {
+      var st = QJZ.pets.states.get(s);
+      ok(st && st.label && st.group, s + ' label');
+      ok(EXPRESSIONS.indexOf(st.eyes) >= 0 && MOUTHS.indexOf(st.mouth) >= 0, s + ' face');
+      st.props.forEach(function (p) { ok(QJZ.pets.props.NAMES.indexOf(p) >= 0, s + ' prop ' + p); });
+      if (st.alt && st.alt.eyes) ok(EXPRESSIONS.indexOf(st.alt.eyes) >= 0, s + ' alt eyes');
+      if (st.alt && st.alt.mouth) ok(MOUTHS.indexOf(st.alt.mouth) >= 0, s + ' alt mouth');
+    });
+    eq(QJZ.pets.states.get('nope'), null);
+    eq(QJZ.pets.states.get('hasOwnProperty'), null);
+  });
+
+  all().forEach(function (d) {
+    STATES.forEach(function (s) {
+      test('pets: ' + d.id + ' ' + s + ' composes in every view', function () {
+        VIEWS.forEach(function (view) {
+          var svg = QJZ.pets.compose(d.id, view, { state: s }), doc = parse(svg), at = view + ': ';
+          eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parsererror');
+          ok(!/<!--[A-Z]+-->/.test(svg), at + 'no leftover slot');
+          ok(hasClass(doc.documentElement, 'pet-svg') && hasClass(doc.documentElement, 'st-' + s), at + 'root classes');
+          ok(/--hx:[\d.]+px;--hy:[\d.]+px;--gx:[\d.]+px;--gy:[\d.]+px/.test(doc.documentElement.getAttribute('style')), at + 'pivots');
+          eq(unresolved(svg), [], at + 'unresolved references');
+          var ids = svgIds(svg);
+          eq(ids.length, ids.filter(function (x, i, a) { return a.indexOf(x) === i; }).length, at + 'duplicate id');
+          var other = svgIds(QJZ.pets.compose(d.id, view, { state: s }));
+          ids.forEach(function (x) { ok(other.indexOf(x) < 0, at + 'id shared between two SVGs: ' + x); });
+          var look = doc.querySelector('.look');
+          ok(look && inBody(look), at + 'eyes ride on the head');
+        });
+      });
+    });
+  });
+
+  test('pets: compose state defaults and overrides', function () {
+    function el(svg, sel) { return parse(svg).querySelector(sel); }
+    ok(hasClass(parse(QJZ.pets.compose('cat:p0', 'avatar', { state: 'nope' })).documentElement, 'st-typing'), 'unknown state falls back to typing');
+    ok(hasClass(parse(QJZ.pets.compose('cat:p0', 'avatar', {})).documentElement, 'st-typing'), 'default state is typing');
+    // second-frame eyes come from the state, and go away when the caller picks the eyes
+    ok(el(QJZ.pets.compose('cat:p0', 'avatar', { state: 'doze' }), '.eyes-alt'), 'doze has a second frame');
+    var happy = parse(QJZ.pets.compose('cat:p0', 'avatar', { state: 'doze', expression: 'happy' }));
+    eq(happy.querySelector('.eyes-alt'), null, 'expression override drops the second frame');
+    eq(happy.querySelector('.eyes-open').getElementsByTagName('path').length, 2, 'expression override fills eyes-open');
+    ok(QJZ.pets.compose('hamster:s4', 'avatar', { state: 'yawn' }).indexOf('class="mouth-b"') > 0, 'yawn mouth frame');
+    ok(QJZ.pets.compose('hamster:s4', 'avatar', { state: 'yawn', mouth: 'smile' }).indexOf('mouth-b') < 0, 'mouth override drops it');
+    // props: state defaults, replaced by opts.props, held props bring their paws
+    ok(QJZ.pets.compose('hamster:p0', 'petonly', { state: 'coffee' }).indexOf('class="held"') > 0, 'coffee is held');
+    ok(QJZ.pets.compose('hamster:p0', 'petonly', { state: 'coffee', props: [] }).indexOf('steam2') < 0, 'props [] removes the mug');
+    ok(QJZ.pets.compose('hamster:p0', 'petonly', { state: 'typing', props: ['hearts'] }).indexOf('class="hrt"') > 0, 'extra props');
+    ok(QJZ.pets.compose('cat:p4', 'petonly', { state: 'typing', props: ['snack'] }).indexOf('class="held"') > 0, 'a held prop brings holding paws');
+    // special poses draw the pet in front of the desk; the avatar keeps the portrait
+    ok(QJZ.pets.compose('hamster:h2', 'petonly', { state: 'dangle' }).indexOf('class="swing"') > 0, 'dangle swings');
+    ok(QJZ.pets.compose('hamster:h2', 'petonly', { state: 'lunchSleep' }).indexOf('class="breath"') > 0, 'lunchSleep breathes');
+    ok(QJZ.pets.compose('hamster:h2', 'avatar', { state: 'dangle' }).indexOf('class="swing"') < 0, 'avatar has no dangling body');
   });
 
   test('pets: compose expression option fills eyes-open', function () {

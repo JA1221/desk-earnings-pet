@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>寵物狀態審稿</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pets.css">
+<style>
+  /* Review page for Task 12: 8 skins x 18 states. Not shipped in the app.
+     URL params: ?t=<ms> freeze every animation at that time; ?view=scene|avatar; ?rows=hamster:p0,cat:p0 (or hamster / cat);
+     ?cols=typing,idle; ?size=<px> cell width; ?open=<skin id>/<state> open the enlarged view; ?rm=1 reduced motion. */
+  :root{--cell:124px}
+  html{background:#FFF8EC}
+  body{min-height:100vh;background:#FFF8EC;color:var(--text);font-family:"Microsoft JhengHei UI","Microsoft JhengHei",sans-serif;padding:0 0 70px}
+  .num,.en{font-family:Fredoka,"Microsoft JhengHei UI",sans-serif}
+  html.rm .pet-svg{--m:.3}
+
+  /* header */
+  .top{padding:26px 28px 18px;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end}
+  .title{display:flex;align-items:center;gap:14px}
+  .logo{width:54px;height:54px;border-radius:50%;background:#FFC857;border:3px solid var(--line);box-shadow:3px 3px 0 var(--line);display:grid;place-items:center;overflow:hidden;flex:none}
+  .logo svg{width:100%;height:100%}
+  h1{font-size:28px;font-weight:800;letter-spacing:.02em;line-height:1.15}
+  h1 small{display:block;font-size:13px;font-weight:700;color:var(--sub);letter-spacing:.04em;margin-top:3px}
+  .lede{max-width:640px;font-size:14px;line-height:1.75;color:#6B5446}
+  .lede b{color:var(--text)}
+  .ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .seg{display:inline-flex;border:3px solid var(--line);border-radius:99px;box-shadow:3px 3px 0 var(--line);overflow:hidden;background:#fff}
+  .seg button{font:inherit;font-weight:800;font-size:13.5px;border:0;background:transparent;padding:7px 15px;cursor:pointer;color:var(--text)}
+  .seg button+button{border-left:3px solid var(--line)}
+  .seg button.on{background:#FFC857}
+  .chip{font:inherit;font-weight:800;font-size:13.5px;border:3px solid var(--line);background:#fff;border-radius:99px;padding:6px 14px;box-shadow:3px 3px 0 var(--line);cursor:pointer;color:var(--text)}
+  .chip.on{background:#8EE3B0}
+  .chip:active,.seg button:active{transform:translate(1px,1px)}
+
+  /* board */
+  .board{padding:0 28px;width:max-content}
+  .grid{display:grid;gap:8px;align-items:stretch}
+  .gh,.sh{position:sticky;z-index:3;background:#FFF8EC}
+  .gh{top:0;height:30px;display:flex;align-items:flex-end}
+  .gh span{display:block;width:100%;font-size:12px;font-weight:800;letter-spacing:.12em;color:#fff;background:var(--line);border-radius:9px 9px 0 0;padding:4px 10px 3px}
+  .gh.g1 span{background:#9A6E52}.gh.g2 span{background:#FF8A3D}.gh.g3 span{background:#E5534B}.gh.g4 span{background:#4DA3FF}.gh.g5 span{background:#1E9E5A}.gh.g6 span{background:#B65FCF}
+  .sh{top:30px;padding:6px 2px 8px;text-align:center;border-bottom:3px solid var(--line)}
+  .sh b{display:block;font-size:15px;font-weight:800;line-height:1.2}
+  .sh i{display:block;font-style:normal;font-size:11px;font-weight:600;color:var(--sub);margin-top:2px}
+  .corner{position:sticky;left:0;top:0;z-index:5;background:#FFF8EC}
+  .rh{position:sticky;left:0;z-index:2;background:#FFF8EC;display:flex;align-items:center;gap:9px;padding-right:6px}
+  .rh .av{width:46px;height:46px;border-radius:50%;background:#FFE6C7;border:3px solid var(--line);overflow:hidden;flex:none;box-shadow:2px 2px 0 var(--line)}
+  .rh .av svg{display:block}
+  .rh .tag{font-family:Fredoka,sans-serif;font-weight:700;font-size:12px;padding:2px 9px;border-radius:99px;background:var(--line);color:#fff;display:inline-block}
+  .rh .tag.cat{background:#FF8A3D}
+  .rh b{display:block;font-size:14.5px;font-weight:800;margin-top:3px;white-space:nowrap}
+  .rh small{display:block;font-family:Fredoka,sans-serif;font-size:11px;color:var(--sub)}
+
+  /* cells: the pet on a desktop wallpaper (U7 floats on the desktop) */
+  .cell{position:relative;border:3px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:4px 4px 0 var(--line);cursor:zoom-in;transition:transform .15s}
+  .cell:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--line)}
+  .cell:focus-visible{outline:3px solid #4DA3FF;outline-offset:3px}
+  .wall{background:radial-gradient(circle at 80% 20%,#FFE9B0 0 9%,transparent 9.5%),linear-gradient(180deg,#9ED8FF 0%,#CDEBFF 58%,#BFE6C4 58.5%,#9FD6A6 100%)}
+  .wall::before{content:"";position:absolute;left:-30%;bottom:6%;width:90%;height:38%;border-radius:50%;background:#8FCB97}
+  .wall::after{content:"";position:absolute;left:0;right:0;bottom:0;height:7%;background:rgba(255,255,255,.72)}
+  .cell .po{position:relative;z-index:1;aspect-ratio:176/170}
+  .cell .po svg,.cell .sc svg{display:block;width:100%;height:100%}
+  .cell .sc{aspect-ratio:3/2}
+  .cell.scene{background:#FFE6C7}
+  .cell.avatar{background:#FFF1DC;display:grid;place-items:center;padding:12%}
+  .cell .avc{width:100%;aspect-ratio:1;border-radius:50%;background:#FFE6C7;border:3px solid var(--line);overflow:hidden;box-shadow:3px 3px 0 var(--line)}
+  .cell .avc svg{display:block}
+
+  /* enlarged view */
+  .ov{position:fixed;inset:0;z-index:20;background:rgba(61,44,36,.55);display:grid;place-items:center;padding:20px}
+  .ov[hidden]{display:none}
+  .sheet{background:#FFF8EC;border:3px solid var(--line);border-radius:26px;box-shadow:8px 8px 0 var(--line);width:min(980px,100%);max-height:100%;overflow:auto;padding:18px 20px 16px}
+  .sheet-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .sheet-top .tag{font-family:Fredoka,sans-serif;font-weight:700;font-size:13px;padding:3px 11px;border-radius:99px;background:var(--line);color:#fff}
+  .sheet-top .tag.cat{background:#FF8A3D}
+  .sheet-top b{font-size:20px;font-weight:800}
+  .sheet-top .st{font-size:20px;font-weight:800;background:#FFC857;border:3px solid var(--line);border-radius:12px;padding:1px 12px;box-shadow:2px 2px 0 var(--line)}
+  .sheet-top .en{font-size:13px;color:var(--sub);font-weight:600}
+  .sheet-top .x{margin-left:auto;width:38px;height:38px;border-radius:50%;border:3px solid var(--line);background:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:2px 2px 0 var(--line)}
+  .sheet-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;margin-top:14px;align-items:start}
+  .bigpet{position:relative;border:3px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:5px 5px 0 var(--line)}
+  .bigpet .po{position:relative;z-index:1;aspect-ratio:176/170}
+  .bigpet svg,.bigscene svg,.bigav svg{display:block;width:100%;height:100%}
+  .bigscene{border:3px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:4px 4px 0 var(--line);aspect-ratio:3/2}
+  .row2{display:flex;gap:16px;align-items:center;margin-top:16px}
+  .bigav{width:112px;height:112px;border-radius:50%;background:#FFE6C7;border:3px solid var(--line);overflow:hidden;flex:none;box-shadow:3px 3px 0 var(--line)}
+  .desc{font-size:14.5px;line-height:1.8;color:#5C463A}
+  .cap{font-size:11.5px;font-weight:800;letter-spacing:.1em;color:var(--sub);margin:0 0 6px 4px}
+  .nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center;font-size:12.5px;color:var(--sub);font-weight:700}
+  .nav button{font:inherit;font-weight:800;font-size:13px;border:3px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;cursor:pointer;box-shadow:2px 2px 0 var(--line);color:var(--text)}
+  .nav kbd{font-family:Fredoka,sans-serif;background:#fff;border:2px solid var(--line);border-radius:6px;padding:0 5px;font-size:12px}
+  @media (max-width:760px){.sheet-body{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="title"><div class="logo" id="logo"></div><h1>寵物狀態審稿<small><span class="num">8</span> 個造型 × <span class="num">18</span> 個狀態 ・ 桌面寵物 U7 的樣子</small></h1></div>
+  <p class="lede">每一格都是會動的寵物，背景是桌面桌布（U7 直接站在桌面上）。<b>點任何一格放大</b>，可以同時看桌面寵物、房間場景和大頭照；放大後用方向鍵切換狀態和造型。有想改的地方，記下「造型＋狀態」告訴我就好。</p>
+  <div class="ctrl">
+    <div class="seg" id="viewSeg"><button data-v="petonly" class="on">桌面寵物</button><button data-v="scene">房間場景</button><button data-v="avatar">大頭照</button></div>
+    <button class="chip" id="pauseBtn">暫停動畫</button>
+    <button class="chip" id="rmBtn" title="模擬 Windows「減少動畫」設定">減少動態</button>
+  </div>
+</header>
+<main class="board"><div class="grid" id="grid"></div></main>
+
+<div class="ov" id="ov" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-top"><span class="tag" id="sTag"></span><b id="sheetTitle"></b><span class="st" id="sState"></span><span class="en" id="sCode"></span><button class="x" id="sClose" aria-label="關閉">✕</button></div>
+    <div class="sheet-body">
+      <div><p class="cap">桌面寵物 U7</p><div class="bigpet wall"><div class="po" id="sPet"></div></div></div>
+      <div><p class="cap">房間場景</p><div class="bigscene" id="sScene"></div>
+        <div class="row2"><div class="bigav" id="sAv"></div><p class="desc" id="sDesc"></p></div></div>
+    </div>
+    <div class="nav"><button id="pS">← 上一個狀態</button><button id="nS">下一個狀態 →</button><button id="pK">↑ 上一個造型</button><button id="nK">↓ 下一個造型</button>
+      <span>鍵盤 <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> 切換、<kbd>Esc</kbd> 關閉</span></div>
+  </div>
+</div>
+
+<script src="js/pets/common.js"></script>
+<script src="js/pets/room.js"></script>
+<script src="js/pets/expressions.js"></script>
+<script src="js/pets/props.js"></script>
+<script src="js/pets/rig.js"></script>
+<script src="js/pets/states.js"></script>
+<script src="js/pets/registry.js"></script>
+<script src="js/pets/skins/hamster-p0.js"></script>
+<script src="js/pets/skins/hamster-p4.js"></script>
+<script src="js/pets/skins/hamster-h2.js"></script>
+<script src="js/pets/skins/hamster-s4.js"></script>
+<script src="js/pets/skins/hamster-s5.js"></script>
+<script src="js/pets/skins/cat-p0.js"></script>
+<script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-s5.js"></script>
+<script src="js/pets/compose.js"></script>
+<script>
+(function () {
+  var P = QJZ.pets, $ = function (id) { return document.getElementById(id); };
+  var q = new URLSearchParams(location.search);
+  var GROUPS = { '未上班': 'g1', '上班中': 'g2', '衝刺': 'g3', '午休': 'g4', '下班': 'g5', '互動': 'g6' };
+  var DESC = {
+    idle: '慢慢左右晃，眼睛四處亂看、偶爾眨眼。',
+    doze: '半睜眼，頭一點一點往下垂，突然驚醒睜大眼，又繼續垂下去。冒小 z。',
+    typing: '兩手輪流敲鍵盤，頭跟著節奏點（原本的打字動作）。',
+    stretch: '先縮一下，再把雙手舉高、眼睛瞇起來、嘴巴「喔～」，身體拉長抖一抖，放鬆後休息一下再來一次。',
+    yawn: '頭往後仰、閉眼張大嘴，嘴巴越張越大，打完眼角掛一滴淚。',
+    coffee: '雙手捧著愛心馬克杯，舉起來閉眼啜一口再放下，杯子一直冒熱氣。',
+    stare: '身體往螢幕那邊湊過去，眼睛盯住、很少眨，頭上一顆一顆冒出「…」。',
+    scratch: '歪著頭、一隻手在頭上抓抓抓，嘟著嘴，旁邊跳出問號。',
+    sprint: '下班前衝刺：打字變超快、身體微震，眼神專注，噴汗、背後冒火。',
+    lunchSleep: '整隻趴在鍵盤上睡著，身體隨呼吸起伏，鼻涕泡泡一大一小，Zzz 往上飄。',
+    lunchEat: '桌上放著便當，雙手捧著飯糰一口一口咬，嘴巴嚼嚼嚼。',
+    celebrate: '可以下班了！雙手舉高連續彈跳，落地會壓扁一下，彩帶從上面灑下來。',
+    waitBag: '背上藍色背包、抓著背帶，原地小跳催你下班，眼睛偶爾瞄門口。',
+    petted: '被摸摸：瞇眼笑、頭左右蹭你的手，愛心一顆顆往上飄。',
+    angry: '連點太多下：臉頰鼓起來（整顆頭變寬）、氣到發抖，雙手搥桌，頭上冒煙和生氣符號。',
+    eat: '餵零食：捧著零食小口小口啃（貓是小魚乾、鼠是瓜子），一邊掉渣。',
+    hop: '里程碑：蹲一下、舉手跳起來，頭上彈出金幣閃閃，落地休息一下再跳。',
+    dangle: 'U7 拖曳時：被捏住後頸拎起來，整隻左右晃，腳跟著甩，嚇到圓眼還冒汗。'
+  };
+
+  // rows: ?rows=hamster:p0,cat:s5 or a kind
+  var skins = P.list('hamster').concat(P.list('cat'));
+  if (q.get('rows')) {
+    var want = q.get('rows').split(',');
+    skins = skins.filter(function (d) { return want.indexOf(d.id) >= 0 || want.indexOf(d.kind) >= 0; });
+  }
+  var states = P.states.NAMES.slice();
+  if (q.get('cols')) { var wc = q.get('cols').split(','); states = states.filter(function (s) { return wc.indexOf(s) >= 0; }); }
+  if (q.get('size')) document.documentElement.style.setProperty('--cell', parseInt(q.get('size'), 10) + 'px');
+  if (q.get('rm') === '1') document.documentElement.classList.add('rm');
+  var view = q.get('view') === 'scene' || q.get('view') === 'avatar' ? q.get('view') : 'petonly';
+  var frozenAt = q.has('t') ? parseFloat(q.get('t')) || 0 : null;
+
+  function label(d) { return d.skin.toUpperCase(); }
+  function blink(i) { return '-' + ((i * 1.37) % 4.6).toFixed(2) + 's'; }
+
+  function cellHtml(d, s, i) {
+    var svg = P.compose(d.id, view, { state: s });
+    var inner = view === 'scene' ? '<div class="sc">' + svg + '</div>' : view === 'avatar' ? '<div class="avc">' + svg + '</div>' : '<div class="po">' + svg + '</div>';
+    return '<div class="cell ' + (view === 'petonly' ? 'wall' : view) + '" tabindex="0" data-k="' + d.id + '" data-s="' + s + '" style="--bd:' + blink(i) + '" title="' + label(d) + ' ' + d.name + ' ・ ' + P.states.get(s).label + '">' + inner + '</div>';
+  }
+
+  function render() {
+    var g = $('grid'), cw = view === 'scene' ? 'calc(var(--cell) * 1.45)' : 'var(--cell)';
+    g.style.gridTemplateColumns = '168px repeat(' + states.length + ', ' + cw + ')';
+    var h = '<div class="corner gh"></div>', last = null;
+    // group bands (one cell per state so the sticky header stays a single grid row)
+    states.forEach(function (s) {
+      var st = P.states.get(s), first = st.group !== last;
+      h += '<div class="gh ' + GROUPS[st.group] + '">' + '<span' + (first ? '' : ' style="border-radius:0;color:transparent"') + '>' + (first ? st.group : '・') + '</span></div>';
+      last = st.group;
+    });
+    h += '<div class="corner sh" style="top:30px"></div>';
+    states.forEach(function (s) { h += '<div class="sh"><b>' + P.states.get(s).label + '</b><i class="en">' + s + '</i></div>'; });
+    var i = 0;
+    skins.forEach(function (d) {
+      h += '<div class="rh"><div class="av">' + P.compose(d.id, 'avatar', { state: 'idle' }) + '</div><div><span class="tag' + (d.kind === 'cat' ? ' cat' : '') + '">' + label(d) + '</span><b>' + d.name + '</b><small>' + d.id + '</small></div></div>';
+      states.forEach(function (s) { h += cellHtml(d, s, i++); });
+    });
+    g.innerHTML = h;
+    if (frozenAt !== null) freeze(document, frozenAt);
+  }
+
+  // Freeze every animation at time t (ms): shift each animation's own delay by -t and pause.
+  // Headless screenshots need this because virtual time does not advance CSS animations.
+  function freeze(root, t) {
+    document.documentElement.classList.add('paused');
+    var els = root.querySelectorAll('.pet-svg, .pet-svg *'), todo = [];
+    for (var i = 0; i < els.length; i++) {
+      var cs = getComputedStyle(els[i]);
+      if (!cs.animationName || cs.animationName === 'none') continue;
+      todo.push([els[i], cs.animationName.split(','), cs.animationDelay.split(',')]);
+    }
+    todo.forEach(function (e) {
+      e[0].style.animationDelay = e[1].map(function (_, k) {
+        var d = e[2][k % e[2].length].trim(), ms = parseFloat(d) * (/ms$/.test(d) ? 1 : 1000);
+        return (ms - t) + 'ms';
+      }).join(',');
+    });
+  }
+
+  // enlarged view
+  var cur = null;
+  function open(k, s) {
+    var d = P.get(k);
+    cur = { k: k, s: s };
+    $('sTag').textContent = label(d);
+    $('sTag').className = 'tag' + (d.kind === 'cat' ? ' cat' : '');
+    $('sheetTitle').textContent = d.name;
+    $('sState').textContent = P.states.get(s).label;
+    $('sCode').textContent = d.id + ' ・ ' + s;
+    $('sDesc').textContent = DESC[s] || '';
+    $('sPet').innerHTML = P.compose(k, 'petonly', { state: s });
+    $('sScene').innerHTML = P.compose(k, 'scene', { state: s });
+    $('sAv').innerHTML = P.compose(k, 'avatar', { state: s });
+    $('ov').hidden = false;
+    if (frozenAt !== null) freeze($('ov'), frozenAt);
+  }
+  function close() { $('ov').hidden = true; cur = null; }
+  function step(ds, dk) {
+    if (!cur) return;
+    var all = P.list('hamster').concat(P.list('cat')).map(function (d) { return d.id; }), names = P.states.NAMES;
+    var si = (names.indexOf(cur.s) + ds + names.length) % names.length, ki = (all.indexOf(cur.k) + dk + all.length) % all.length;
+    open(all[ki], names[si]);
+  }
+
+  $('grid').addEventListener('click', function (e) {
+    var c = e.target.closest('.cell');
+    if (c) open(c.getAttribute('data-k'), c.getAttribute('data-s'));
+  });
+  $('grid').addEventListener('keydown', function (e) {
+    var c = e.target.closest('.cell');
+    if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c.getAttribute('data-k'), c.getAttribute('data-s')); }
+  });
+  $('ov').addEventListener('click', function (e) { if (e.target === $('ov')) close(); });
+  $('sClose').onclick = close;
+  $('pS').onclick = function () { step(-1, 0); };
+  $('nS').onclick = function () { step(1, 0); };
+  $('pK').onclick = function () { step(0, -1); };
+  $('nK').onclick = function () { step(0, 1); };
+  document.addEventListener('keydown', function (e) {
+    if (!cur) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') step(-1, 0);
+    else if (e.key === 'ArrowRight') step(1, 0);
+    else if (e.key === 'ArrowUp') { e.preventDefault(); step(0, -1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); step(0, 1); }
+  });
+
+  // controls
+  var seg = $('viewSeg').querySelectorAll('button');
+  function setView(v) {
+    view = v;
+    for (var i = 0; i < seg.length; i++) seg[i].classList.toggle('on', seg[i].getAttribute('data-v') === v);
+    render();
+  }
+  for (var i = 0; i < seg.length; i++) seg[i].onclick = function () { setView(this.getAttribute('data-v')); };
+  $('pauseBtn').onclick = function () {
+    if (frozenAt !== null) return;
+    var on = document.documentElement.classList.toggle('paused');
+    this.classList.toggle('on', on);
+    this.textContent = on ? '繼續播放' : '暫停動畫';
+  };
+  $('rmBtn').onclick = function () { this.classList.toggle('on', document.documentElement.classList.toggle('rm')); };
+  if (q.get('rm') === '1') $('rmBtn').classList.add('on');
+
+  // pause cells that are scrolled out of view (144 animated SVGs are a lot for one page)
+  if ('IntersectionObserver' in window && frozenAt === null) {
+    var io = new IntersectionObserver(function (list) {
+      list.forEach(function (en) { en.target.classList.toggle('off', !en.isIntersecting); });
+    }, { rootMargin: '120px' });
+    new MutationObserver(function () { var c = document.querySelectorAll('.cell'); for (var j = 0; j < c.length; j++) io.observe(c[j]); }).observe($('grid'), { childList: true });
+  }
+
+  $('logo').innerHTML = P.compose('hamster:p0', 'avatar', { state: 'petted', props: [] });
+  setView(view);
+  if (q.get('open')) { var o = q.get('open').split('/'); if (P.get(o[0]) && P.states.get(o[1])) open(o[0], o[1]); }
+})();
+</script>
+<style>.cell.off *{animation-play-state:paused!important}</style>
+</body>
+</html>

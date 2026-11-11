@@ -1,0 +1,38 @@
+window.QJZ = window.QJZ || {};
+QJZ.pets = QJZ.pets || {};
+// The pet states (spec §5.1). Each state picks a body pose, default eyes and mouth, an arm pose and props;
+// compose puts .st-<name> on the root <svg> and pets.css animates the state from there.
+//   pose:  'desk' (sitting behind the desk, the Task 9 art), 'lie' (asleep on the desk), 'dangle' (held up)
+//   arms:  'type' | 'rest' | 'up' | 'hold' | 'scratch' | 'strap'   (see rig.js); a held prop forces 'hold'
+//   alt:   a second frame {eyes, mouth, arms} that pets.css swaps in for part of the loop (.eyes-alt,
+//          .mouth-b, .pose-b); dropped when the caller passes its own expression / mouth
+// label / group are the Chinese names used on the review page.
+QJZ.pets.states = (function () {
+  var LIST = [
+    ['idle', { group: '未上班', label: '發呆', eyes: 'open', mouth: 'neutral', arms: 'rest', props: [] }],
+    ['doze', { group: '未上班', label: '打瞌睡', eyes: 'sleepy', mouth: 'neutral', arms: 'rest', props: ['z'], alt: { eyes: 'open' } }],
+    ['typing', { group: '上班中', label: '打字', eyes: 'open', mouth: 'neutral', arms: 'type', props: [] }],
+    ['stretch', { group: '上班中', label: '伸懶腰', eyes: 'open', mouth: 'neutral', arms: 'rest', props: ['sparkle'], alt: { eyes: 'closed', mouth: 'open', arms: 'up' } }],
+    ['yawn', { group: '上班中', label: '打哈欠', eyes: 'open', mouth: 'neutral', arms: 'rest', props: ['tear'], alt: { eyes: 'closed', mouth: 'yawn' } }],
+    ['coffee', { group: '上班中', label: '喝咖啡', eyes: 'open', mouth: 'neutral', arms: 'hold', props: ['coffee'], alt: { eyes: 'closed' } }],
+    ['stare', { group: '上班中', label: '盯螢幕', eyes: 'open', mouth: 'neutral', arms: 'rest', props: ['dots'] }],
+    ['scratch', { group: '上班中', label: '抓頭', eyes: 'open', mouth: 'pout', arms: 'scratch', props: ['question'] }],
+    ['sprint', { group: '衝刺', label: '衝刺', eyes: 'angry', mouth: 'neutral', arms: 'type', props: ['fire', 'sweat'] }],
+    ['lunchSleep', { group: '午休', label: '趴桌睡', pose: 'lie', eyes: 'closed', mouth: 'neutral', arms: 'none', props: ['zzz', 'bubble'] }],
+    ['lunchEat', { group: '午休', label: '吃便當', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['bento', 'onigiri'] }],
+    ['celebrate', { group: '下班', label: '慶祝', eyes: 'happy', mouth: 'smile', arms: 'up', props: ['confetti'] }],
+    ['waitBag', { group: '下班', label: '背包包等你', eyes: 'open', mouth: 'smile', arms: 'strap', props: ['bag'] }],
+    ['petted', { group: '互動', label: '被摸摸', eyes: 'happy', mouth: 'smile', arms: 'rest', props: ['hearts'] }],
+    ['angry', { group: '互動', label: '生氣', eyes: 'angry', mouth: 'pout', arms: 'rest', props: ['smoke', 'anger', 'puff'] }],
+    ['eat', { group: '互動', label: '吃零食', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['snack', 'crumbs'] }],
+    ['hop', { group: '互動', label: '里程碑', eyes: 'happy', mouth: 'smile', arms: 'rest', props: ['coin'], alt: { arms: 'up' } }],
+    ['dangle', { group: '互動', label: '被拎起來', pose: 'dangle', eyes: 'surprised', mouth: 'open', arms: 'none', props: ['sweat'] }]
+  ];
+  var BY = {};
+  LIST.forEach(function (e) { BY[e[0]] = e[1]; });
+
+  return {
+    NAMES: LIST.map(function (e) { return e[0]; }),
+    get: function (name) { return BY.hasOwnProperty(name) ? BY[name] : null; }
+  };
+})();
