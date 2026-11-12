@@ -386,7 +386,7 @@ QJZ.panels = (function () {
           textIn('hotkey', 'hk', ' readonly aria-label="快速隱藏快捷鍵"') +
           '<button type="button" class="btn sm ghost" data-pa="hkDefault">還原 ' + DEFAULT_HOTKEY + '</button></div>' + err('hotkey') +
           '<div class="warn" data-o="hkFail" hidden><b data-o="hkFailText"></b><small data-o="hkFailSub"></small></div>' +
-          hint('按一下全部隱藏，再按一下恢復。要換的話，點上面的框，再按下新的組合鍵（要有 Ctrl 或 Alt）。')) +
+          hint('按一下隱藏，再按一下恢復；視窗被其他視窗蓋住時，第一下先把它移到最前面。要換的話，點上面的框，再按下新的組合鍵（要有 Ctrl 或 Alt）。')) +
         '</div>';
     },
     about: function () {
@@ -396,7 +396,8 @@ QJZ.panels = (function () {
       });
       return '<div class="card">' +
         line(row('錢進中', '<b data-o="version"></b>') + hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
-        line(hint('薪資和紀錄只存在這台電腦裡，不會上傳。')) +
+        line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
+          '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
         '</div><div class="card">' + line('<span class="lbl">使用說明</span>' +
           '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') + '</div>' +
         '<div class="card">' + line('<span class="lbl">第三方授權</span>') + lic + '</div>';

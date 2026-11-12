@@ -463,6 +463,8 @@
       ok(visible($(e, '[data-sec=about]')));
       eq(text(e, '[data-o=version]'), '版本 t', 'the version the host sent with init');
       ok(text(e, '[data-sec=about]').indexOf('不會上傳') >= 0, 'the data stays on this PC');
+      ok(text(e, '[data-sec=about]').indexOf('漫遊設定檔') >= 0 && text(e, '[data-sec=about]').indexOf('%AppData%\\錢進中') >= 0,
+        'with the roaming exception, as in the guide');
       eq(calls, ['guide.txt', 'licenses/WebView2-SDK.txt', 'fonts/OFL.txt']);
       var pres = $$(e, '[data-doc]');
       eq(pres.map(function (p) { return p.textContent; }), ['<b>guide.txt</b>', '<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>'], 'as text');

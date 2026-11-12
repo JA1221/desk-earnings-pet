@@ -39,13 +39,24 @@ public class HostSettings
         return new Dictionary<string, bool>(topmost);
     }
 
-    // Whether the start may re-point the autostart Run value at this exe from the settings: on a first run (no
-    // settings.json, the defaults apply) or from settings that parse. Not when settings.json exists but could not be
-    // read, or does not parse: its defaults (autostart on) would re-add a Run value the user had turned off.
-    public static bool SyncAutostart(string settingsJson, bool readFailed)
+    // The settings text the host goes by: settings.json when it parses as an object, else settings.json.bak when that
+    // does (the page does the same: a power cut can leave settings.json blank or zero-filled), else null (defaults).
+    public static string Effective(string main, string bak)
+    {
+        if (JsonObject(main) != null) return main;
+        if (JsonObject(bak) != null) return bak;
+        return null;
+    }
+
+    // Whether the start may re-point the autostart Run value at this exe from the settings: from settings that parse
+    // (settings.json, or its .bak: Effective), or on a first run (neither file exists, the defaults apply). Not when
+    // settings.json exists but could not be read, nor when nothing parses: the defaults (autostart on) would re-add a
+    // Run value the user had turned off. A missing settings.json beside a .bak is not a first run.
+    public static bool SyncAutostart(string main, bool readFailed, string bak)
     {
         if (readFailed) return false;
-        return settingsJson == null || JsonObject(settingsJson) != null;
+        if (Effective(main, bak) != null) return true;
+        return main == null && bak == null;
     }
 
     public static HostSettings Parse(string settingsJson)

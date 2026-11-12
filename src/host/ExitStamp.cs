@@ -5,8 +5,8 @@ using System.Web.Script.Serialization;
 
 // %AppData%\錢進中\session.json = {"lastExitMs": <epoch ms>}: when the app last ended (結束, a close from outside, or
 // Windows ending the session). Written synchronously and flushed to the disk (TextStore, no .bak) while the app
-// shuts down; read once at the next start and handed to the page in init, which treats a shutdown without a lock as
-// leaving work.
+// shuts down; read once at the next start (then cleared) and handed to the page in init, which treats a shutdown
+// without a lock as leaving work.
 public class ExitStamp
 {
     readonly TextStore store;
@@ -27,6 +27,15 @@ public class ExitStamp
     public void Write(long ms)
     {
         store.Write(Format(ms));
+    }
+
+    // Consumes the recorded time once the start has read it: {"lastExitMs":null}, flushed. A later abnormal end (a
+    // crash, a kill, a power cut) then leaves nothing stale for the next start. No file, nothing to do. Throws when the
+    // file cannot be written.
+    public void Clear()
+    {
+        if (store.Read() == null) return;
+        store.Write("{\"lastExitMs\":null}");
     }
 
     public static string Format(long ms)

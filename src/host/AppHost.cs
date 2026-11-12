@@ -119,18 +119,22 @@ public class AppHost
         ui = SynchronizationContext.Current;
         uiThread = Native.GetCurrentThreadId();
         if (ErrorLog.Tracing)
-            ErrorLog.Trace("start: domain " + AppDomain.CurrentDomain.FriendlyName + " base " + AppDomain.CurrentDomain.BaseDirectory +
-                "; WebView2 assemblies " + typeof(CoreWebView2).Assembly.Location + ", " + typeof(Microsoft.Web.WebView2.WinForms.WebView2).Assembly.Location);
+            ErrorLog.Trace("start: WebView2 assemblies " + typeof(CoreWebView2).Assembly.Location + ", " +
+                typeof(Microsoft.Web.WebView2.WinForms.WebView2).Assembly.Location);
         exitStamp = new ExitStamp(System.IO.Path.Combine(AppPaths.DataDir, "session.json"));
         lastExitMs = exitStamp.Read();
+        try { exitStamp.Clear(); }   // consumed: a later crash or kill must not leave this exit time for the next start
+        catch (Exception ex) { ErrorLog.Write("clearing the exit time in session.json", ex); }
         files.LoadAll();
         placer.Load();
-        HostSettings settings = HostSettings.Parse(files.Settings.Text);
+        // settings.json, or its .bak when settings.json is blank or does not parse (as the page reads it)
+        HostSettings settings = HostSettings.Parse(HostSettings.Effective(files.Settings.Text, files.SettingsBackup));
         topmost = settings.TopmostByLayout();
         configuredHotkey = settings.Hotkey;
         captureGuard = settings.CaptureGuard;   // applied when the window handle exists, before the page loads
         // re-points a stale Run value; never from settings that could not be read or parsed (their defaults)
-        if (!devPage && HostSettings.SyncAutostart(files.Settings.Text, files.Settings.ReadFailed)) SetAutoStart(settings.Autostart);
+        if (!devPage && HostSettings.SyncAutostart(files.Settings.Text, files.Settings.ReadFailed, files.SettingsBackup))
+            SetAutoStart(settings.Autostart);
 
         tray.ItemClicked += OnMenu;
         tray.IconDoubleClick += delegate { ShowAndRaise(true); };   // always shows, never hides

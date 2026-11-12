@@ -43,11 +43,15 @@ test('resume clears the end and keeps the start (繼續上班)', function(){
   eq([r.startMs,r.endMs,r.endSource],[T(510),null,null]); });
 test('no early-leave question for an off day', function(){
   eq(QJZ.day.earlyLeaveQuestion(QJZ.day.setOffDay(QJZ.day.onLock(started(510),T(900)),true),S),null); });
-test('onExit: the host exit counts as a lock on that day, after the start, the later of the two', function(){
+test('onExit: the host exit counts as a lock on that day, after the start, only while there is no lock', function(){
   var r=started(540);
   eq(QJZ.day.onExit(r,T(900)).lastLockMs,T(900),'no lock yet');
-  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(960)),T(900)).lastLockMs,T(960),'a later lock stays');
-  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(840)),T(900)).lastLockMs,T(900),'a later exit wins');
+  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(960)),T(900)).lastLockMs,T(960),'a lock stays');
+  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(840)),T(900)).lastLockMs,T(840),'locked before the exit: the lock is when the user left');
+  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(900)),new Date(2026,10,12,3,0).getTime()).lastLockMs,T(900),
+     'locked at 15:00, Windows Update restarts at 03:00 (still the day): the 15:00 lock stays');
+  var back=QJZ.day.onActivity(QJZ.day.onLock(r,T(720)),{type:'unlock',ms:T(780)},S);
+  eq(QJZ.day.onExit(back,T(900)).lastLockMs,T(900),'a lock the user came back from (unlock clears it) does not count');
   eq(QJZ.day.onExit(r,T(500)).lastLockMs,null,'before the start');
   eq(QJZ.day.onExit(r,new Date(2026,10,12,9,0).getTime()).lastLockMs,null,'another day');
   eq(QJZ.day.onExit(r,new Date(2026,10,12,2,0).getTime()).lastLockMs,new Date(2026,10,12,2,0).getTime(),'02:00 still belongs to the day');

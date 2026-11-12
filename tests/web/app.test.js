@@ -333,14 +333,19 @@
     eq(QJZ.app.state.history.days['2026-11-11'].endMs, at(11, 15, 0));
     QJZ.app._reset();
   });
-  test('app init: lastExitMs takes the later of lock and exit; after the planned end there is no question', function () {
+  test('app init: lastExitMs counts only without a lock; after the planned end there is no question', function () {
     var e = mk(at(12, 10, 0));
     init(e, { history: hist([rec('2026-11-11', 540, { lastLockMs: at(11, 16, 0) })]), lastExitMs: at(11, 15, 0) });
-    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 16, 0) }, 'the later lock');
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 16, 0) }, 'the lock');
     QJZ.app._reset();
     e = mk(at(12, 10, 0));
     init(e, { history: hist([rec('2026-11-11', 540, { lastLockMs: at(11, 14, 0) })]), lastExitMs: at(11, 15, 30) });
-    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 30) }, 'the later exit');
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 14, 0) }, 'locked at 14:00, still locked at the exit');
+    QJZ.app._reset();
+    e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, { lastLockMs: at(11, 15, 0) })]), lastExitMs: at(12, 3, 0) });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 0) },
+      'locked at 15:00 and left; Windows Update restarts the PC at 03:00 (still that day): the question is about 15:00');
     QJZ.app._reset();
     e = mk(at(12, 10, 0));
     init(e, { history: hist([rec('2026-11-11', 540, {})]), lastExitMs: at(11, 18, 30) });

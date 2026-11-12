@@ -64,23 +64,18 @@ public static class Payload
         return dir;
     }
 
-    // The folder Ensure() unpacks to (it may not exist yet), without unpacking anything; null for a dev build.
-    // Program runs a release build in an AppDomain based there, so the WebView2 assemblies bind from there.
-    public static string ExpectedDir()
-    {
-        byte[] webZip = ReadResource(typeof(Payload).Assembly, WebZip);
-        return webZip == null ? null : TargetDir(Root(), webZip);
-    }
-
     // root\<id>: where Install puts the files of this web.zip.
     public static string TargetDir(string root, byte[] webZip)
     {
         return Path.Combine(root, FolderName(webZip));
     }
 
-    // The two WebView2 assemblies found beside the exe (exeDir) that are not byte-identical to the embedded copies
-    // (embedded: resource name -> bytes): another program's files, which the app must never load. A release build
-    // never binds them (it runs in an AppDomain based in the unpacked folder); Program logs them.
+    // The start-up decision for a release exe (Program refuses to start when the list is not empty): the two WebView2
+    // assemblies found beside the exe (exeDir) that are not byte-identical (SHA-256) to the embedded copies
+    // (embedded: resource name -> bytes, null when not embedded). The runtime loads a same-named assembly from the
+    // exe's folder before AssemblyResolve can hand out the unpacked copy, so another program's file there would be
+    // used instead, or break the start. Identical copies are harmless. A dev build embeds nothing and keeps its own
+    // copies beside the exe: never foreign.
     public static List<string> ForeignCopies(string exeDir, Func<string, byte[]> embedded)
     {
         var foreign = new List<string>();
@@ -91,8 +86,9 @@ public static class Payload
             string path = Path.Combine(exeDir, name);
             if (!File.Exists(path)) continue;
             byte[] ours = embedded(name);
+            if (ours == null) continue;
             byte[] there = File.ReadAllBytes(path);
-            if (ours == null || there.Length != ours.Length || Sha256Hex(there) != Sha256Hex(ours)) foreign.Add(name);
+            if (there.Length != ours.Length || Sha256Hex(there) != Sha256Hex(ours)) foreign.Add(name);
         }
         return foreign;
     }

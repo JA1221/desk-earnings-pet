@@ -9,17 +9,23 @@ public static class Program
 {
     static AppHost host;   // for the fatal path: its tray icon must not outlive the process
     const string UnpackFailed = "錢進中無法準備執行所需的檔案（可能是磁碟空間不足，或被防毒軟體擋住），需要關閉。\n\n詳細資訊已記錄在：\n";
+    public const string ForeignWebView2 = "錢進中.exe 旁邊有其他版本的 WebView2 元件，請把 錢進中.exe 放到單獨的資料夾再開啟。";
 
     [STAThread]
     public static int Main(string[] args)
     {
-        if (AppDomain.CurrentDomain.IsDefaultAppDomain())
-        {
-            RestrictDllSearch();
-            string appBase = ReleaseAppBase();
-            if (appBase != null) return RunIsolated(appBase, args);
-        }
-        return Run(args);
+        RestrictDllSearch();
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        // A bug in one UI event handler is logged and the app keeps running; anything else is fatal.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { ErrorLog.Write("unhandled exception on the UI thread", e.Exception); };
+        AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
+
+        if (ForeignWebView2Beside()) return 0;
+        if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
+        if (!Unpack()) return 1;
+        return Start(args);
     }
 
     // DLLs named without a path load from the exe's folder, System32 and folders added with AddDllDirectory only:
@@ -35,73 +41,31 @@ public static class Program
         catch (Exception ex) { ErrorLog.Write("SetDefaultDllDirectories", ex); }   // a Windows without it (before KB2533623)
     }
 
-    // Release build: the unpacked folder (Payload.ExpectedDir, which may not exist yet); dev build: null.
-    static string ReleaseAppBase()
+    // A release exe: is there a Microsoft.Web.WebView2.Core.dll or .WinForms.dll beside it that is not byte-identical
+    // to its own embedded copy (another program's, left in Downloads, say)? The runtime looks in the exe's folder
+    // first, before the AssemblyResolve handler (Payload) can hand out the unpacked copy, so such a file would be
+    // loaded instead, or crash the start when it is another version. Then the user is told to move the exe, one line
+    // goes to error.log, and the app ends (true). Identical copies are fine. Runs before any WebView2 type is touched.
+    // (A second AppDomain based in the unpacked folder would avoid the question, but AppDomain.ExecuteAssembly refuses
+    // an exe that carries the Mark of the Web, which every downloaded or mailed copy does.)
+    static bool ForeignWebView2Beside()
     {
-        try { return Payload.ExpectedDir(); }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("finding the app folder", ex);
-            return null;
-        }
-    }
-
-    // A release exe runs the app in a second AppDomain whose ApplicationBase is its unpacked folder
-    // (%LocalAppData%\錢進中\app\<id>), not the exe's folder. The runtime looks for the WebView2 assemblies in the
-    // ApplicationBase first, before any AssemblyResolve handler can answer, so a Microsoft.Web.WebView2.Core.dll or
-    // .WinForms.dll that another program left beside the exe (in Downloads, say) would otherwise be loaded instead of
-    // the app's own copy, or crash it when it is a different version. This domain loads nothing but the exe and
-    // mscorlib; the app domain runs Main again (Run) on this same STA thread. A foreign copy is logged.
-    static int RunIsolated(string appBase, string[] args)
-    {
-        string exe = typeof(Program).Assembly.Location;
-        LogForeignCopies(Path.GetDirectoryName(exe), appBase);
-        AppDomain app;
+        List<string> foreign;
+        string exeDir;
         try
         {
-            AppDomainSetup setup = new AppDomainSetup();
-            setup.ApplicationBase = appBase;
-            setup.ApplicationName = "錢進中";
-            setup.DisallowCodeDownload = true;
-            app = AppDomain.CreateDomain("錢進中", null, setup);
+            exeDir = Path.GetDirectoryName(typeof(Program).Assembly.Location);
+            foreign = Payload.ForeignCopies(exeDir, Payload.Embedded);
         }
         catch (Exception ex)
         {
-            ErrorLog.Write("could not create the app domain; running in the default one", ex);
-            return Run(args);
+            ErrorLog.Write("checking the DLLs beside the exe", ex);
+            return false;
         }
-        try { return app.ExecuteAssembly(exe, args); }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("fatal error in the app domain", ex);
-            return 1;
-        }
-    }
-
-    static void LogForeignCopies(string exeDir, string appBase)
-    {
-        try
-        {
-            List<string> foreign = Payload.ForeignCopies(exeDir, Payload.Embedded);
-            foreach (string name in foreign)
-                ErrorLog.Write("ignored " + Path.Combine(exeDir, name) + ": not the app's own copy; the app uses " + Path.Combine(appBase, name));
-        }
-        catch (Exception ex) { ErrorLog.Write("checking the DLLs beside the exe", ex); }
-    }
-
-    // The app itself: in the app domain (release) or the default domain (dev build).
-    static int Run(string[] args)
-    {
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        // A bug in one UI event handler is logged and the app keeps running; anything else is fatal.
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { ErrorLog.Write("unhandled exception on the UI thread", e.Exception); };
-        AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
-
-        if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
-        if (!Unpack()) return 1;
-        return Start(args);
+        if (foreign.Count == 0) return false;
+        ErrorLog.Write("refused to start: " + string.Join(", ", foreign.ToArray()) + " in " + exeDir + " differ from the app's own copies");
+        MessageBox.Show(ForeignWebView2, "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        return true;
     }
 
     // Release build: the files embedded in the exe go to %LocalAppData%\錢進中\app\ (one process at a time, after
@@ -110,9 +74,7 @@ public static class Program
     {
         try
         {
-            string dir = Payload.Ensure();
-            if (dir != null && !SameFolder(dir, AppDomain.CurrentDomain.BaseDirectory))
-                ErrorLog.Write("the app runs outside its unpacked folder: " + AppDomain.CurrentDomain.BaseDirectory + " (expected " + dir + ")");
+            Payload.Ensure();
             return true;
         }
         catch (Exception ex)
@@ -123,13 +85,9 @@ public static class Program
         }
     }
 
-    static bool SameFolder(string a, string b)
-    {
-        return string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
-    }
-
     // Apart from Main (and never inlined into it), so nothing WebView2-related is compiled or loaded before
-    // Payload.Ensure has run: a release build resolves those assemblies only from the unpacked folder.
+    // Payload.Ensure has run: a release build resolves those assemblies from the unpacked folder (or from identical
+    // copies beside the exe; ForeignWebView2Beside has refused any other).
     [MethodImpl(MethodImplOptions.NoInlining)]
     static int Start(string[] args)
     {

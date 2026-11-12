@@ -70,13 +70,35 @@ public static class HostSettingsTests
     // user turned off.
     public static void Test_AutostartSelfHealOnlyFromParsedSettings()
     {
-        Assert.True(HostSettings.SyncAutostart(null, false), "first run (no settings.json): defaults apply");
-        Assert.True(HostSettings.SyncAutostart("{\"autostart\":false}", false), "parsed settings");
-        Assert.True(HostSettings.SyncAutostart("{}", false), "an empty object parses (autostart defaults on)");
+        Assert.True(HostSettings.SyncAutostart(null, false, null), "first run (no settings.json, no .bak): defaults apply");
+        Assert.True(HostSettings.SyncAutostart("{\"autostart\":false}", false, null), "parsed settings");
+        Assert.True(HostSettings.SyncAutostart("{}", false, null), "an empty object parses (autostart defaults on)");
         string[] corrupt = { "", "   ", "\0\0\0", "{bad", "[]", "42", "null", "\"x\"" };
         foreach (string text in corrupt)
-            Assert.True(!HostSettings.SyncAutostart(text, false), "settings that exist but do not parse: <" + text + ">");
-        Assert.True(!HostSettings.SyncAutostart(null, true), "settings.json exists but could not be read");
-        Assert.True(!HostSettings.SyncAutostart("{\"autostart\":true}", true), "read failure wins");
+        {
+            Assert.True(!HostSettings.SyncAutostart(text, false, null), "settings that exist but do not parse, no .bak: <" + text + ">");
+            Assert.True(!HostSettings.SyncAutostart(text, false, "{bad"), "nor a .bak that parses: <" + text + ">");
+            Assert.True(HostSettings.SyncAutostart(text, false, "{\"autostart\":false}"), "the .bak parses: its settings count: <" + text + ">");
+        }
+        Assert.True(!HostSettings.SyncAutostart(null, true, null), "settings.json exists but could not be read");
+        Assert.True(!HostSettings.SyncAutostart("{\"autostart\":true}", true, null), "read failure wins");
+        Assert.True(!HostSettings.SyncAutostart(null, true, "{\"autostart\":true}"), "read failure wins over a .bak too");
+        Assert.True(HostSettings.SyncAutostart(null, false, "{\"autostart\":false}"), "settings.json gone but its .bak is there: not a first run, the .bak counts");
+        Assert.True(!HostSettings.SyncAutostart(null, false, "   "), "settings.json gone and a blank .bak: not a first run either");
+    }
+
+    // The host's own reading of settings (hotkey, capture guard, topmost, start layout, autostart) falls back to
+    // settings.json.bak like the page does when the main text is blank or does not parse.
+    public static void Test_EffectiveSettingsFallBackToTheBak()
+    {
+        string good = "{\"autostart\":false,\"privacy\":{\"hotkey\":\"Ctrl+Alt+J\"}}";
+        string bak = "{\"autostart\":false,\"privacy\":{\"hotkey\":\"Ctrl+Alt+K\"}}";
+        Assert.Eq(good, HostSettings.Effective(good, bak), "the main text when it parses");
+        foreach (string main in new[] { null, "", "  \n", "\0\0", "{bad", "[]" })
+            Assert.Eq(bak, HostSettings.Effective(main, bak), "the .bak for <" + main + ">");
+        Assert.True(HostSettings.Effective("{bad", "{worse") == null, "neither parses: null (defaults)");
+        Assert.True(HostSettings.Effective(null, null) == null, "nothing at all");
+        Assert.Eq("Ctrl+Alt+K", HostSettings.Parse(HostSettings.Effective("", bak)).Hotkey, "settings read from the .bak");
+        Assert.True(!HostSettings.Parse(HostSettings.Effective("", bak)).Autostart, "autostart from the .bak");
     }
 }

@@ -41,6 +41,29 @@ public static class ExitStampTests
         finally { Directory.Delete(dir, true); }
     }
 
+    // Read once at start, then consumed: a later abnormal end (a crash, a kill, power loss) leaves no stale exit time
+    // for the next start to apply.
+    public static void Test_ClearConsumesTheExitTime()
+    {
+        string dir = NewDir();
+        try
+        {
+            string p = Path.Combine(dir, "session.json");
+            var s = new ExitStamp(p);
+            s.Clear();
+            Assert.True(!File.Exists(p), "nothing to clear: no file is made");
+            s.Write(1794470182499L);
+            Assert.Eq((long?)1794470182499L, s.Read(), "recorded");
+            s.Clear();
+            Assert.True(s.Read() == null, "consumed");
+            Assert.Eq("{\"lastExitMs\":null}", File.ReadAllText(p), "on disk, flushed through TextStore");
+            Assert.True(!File.Exists(p + ".bak") && !File.Exists(p + ".tmp"), "no .bak, no tmp");
+            s.Write(1794470190302L);
+            Assert.Eq((long?)1794470190302L, s.Read(), "the next exit is recorded as before");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     public static void Test_ReadOfABrokenOrLockedFileIsNull()
     {
         string dir = NewDir();

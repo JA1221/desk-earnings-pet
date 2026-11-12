@@ -35,12 +35,15 @@ QJZ.day = (function () {
   // Lock or suspend.
   function onLock(rec, ms) { return copy(rec, { lastLockMs: ms }); }
 
-  // The host's last shutdown / sign-out (init.lastExitMs) counts as a lock of that day's record: the later of the
-  // two, when it falls on the record's day (QJZ.time.dayKey) after its start. Anything else leaves rec as it is.
+  // The host's last shutdown / sign-out (init.lastExitMs) counts as a lock of that day's record when it falls on the
+  // record's day (QJZ.time.dayKey) after its start, and only while the record has no lock: every logon / unlock /
+  // resume / app start clears lastLockMs, so a lock that is still there means the session was already locked or asleep
+  // when the app ended (locked at 15:00, restarted by Windows Update at 03:00): that lock is when the user left.
+  // Anything else leaves rec as it is.
   function onExit(rec, ms) {
     if (typeof ms !== 'number' || !isFinite(ms) || typeof rec.startMs !== 'number' || !(ms > rec.startMs) ||
         QJZ.time.dayKey(ms) !== rec.day) return rec;
-    if (typeof rec.lastLockMs === 'number' && rec.lastLockMs >= ms) return rec;
+    if (typeof rec.lastLockMs === 'number') return rec;
     return copy(rec, { lastLockMs: ms });
   }
 

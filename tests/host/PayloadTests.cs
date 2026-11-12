@@ -118,11 +118,6 @@ public static class PayloadTests
         Assert.True(!Payload.IsRelease, "dev switches (QJZ_WEB_ROOT, QJZ_DEVTOOLS) count");
     }
 
-    public static void Test_ExpectedDirIsNullInABuildWithoutResources()
-    {
-        Assert.True(Payload.ExpectedDir() == null, "dev build (and this test exe): the app runs in its own folder's domain");
-    }
-
     public static void Test_TargetDirIsWhereInstallUnpacks()
     {
         string root = NewDir();
@@ -135,8 +130,9 @@ public static class PayloadTests
         finally { Directory.Delete(root, true); }
     }
 
-    // M10: a Microsoft.Web.WebView2.*.dll beside the exe that is not byte-identical to the embedded copy (another
-    // program's, in Downloads) is reported; the app never loads it.
+    // M10: the start-up decision. A Microsoft.Web.WebView2.*.dll beside a release exe that is not byte-identical to
+    // its embedded copy (another program's, in Downloads) makes Program refuse to start (the runtime would load it
+    // first); identical copies and anything else beside the exe are fine; a dev build (nothing embedded) never refuses.
     public static void Test_ForeignCopiesAreTheManagedDllsBesideTheExeThatDiffer()
     {
         string exeDir = NewDir();
@@ -144,16 +140,20 @@ public static class PayloadTests
         {
             var res = Resources(SampleWeb(), "v1");
             Func<string, byte[]> embedded = delegate(string name) { return res[name]; };
-            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "nothing beside the exe");
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "nothing beside the exe: start");
             File.WriteAllBytes(Path.Combine(exeDir, "Microsoft.Web.WebView2.Core.dll"), res["Microsoft.Web.WebView2.Core.dll"]);
-            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "an identical copy is not foreign");
+            File.WriteAllBytes(Path.Combine(exeDir, "Microsoft.Web.WebView2.WinForms.dll"), res["Microsoft.Web.WebView2.WinForms.dll"]);
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "identical copies: start");
             File.WriteAllText(Path.Combine(exeDir, "Microsoft.Web.WebView2.WinForms.dll"), "someone else's");
             File.WriteAllText(Path.Combine(exeDir, "WebView2Loader.dll"), "native, found only through the loader folder");
-            Assert.Eq("Microsoft.Web.WebView2.WinForms.dll", string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()), "the different one");
+            Assert.Eq("Microsoft.Web.WebView2.WinForms.dll", string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()), "the different one: refuse");
             File.WriteAllText(Path.Combine(exeDir, "Microsoft.Web.WebView2.Core.dll"), "garbage");
             Assert.Eq("Microsoft.Web.WebView2.Core.dll,Microsoft.Web.WebView2.WinForms.dll",
                 string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()), "both");
             Assert.Eq(0, Payload.ForeignCopies(null, embedded).Count, "no exe folder: nothing");
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, delegate(string name) { return null; }).Count,
+                "a dev build embeds nothing and keeps its DLLs beside the exe: start");
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, Payload.Embedded).Count, "this test exe embeds nothing either");
         }
         finally { Directory.Delete(exeDir, true); }
     }

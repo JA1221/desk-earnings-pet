@@ -169,6 +169,38 @@ public static class TextStoreTests
         finally { Directory.Delete(dir, true); }
     }
 
+    // A blank main file (empty, whitespace or NULs, as a power cut leaves it) is never rotated into the .bak: the page
+    // restores from the .bak, and the next write keeps that .bak.
+    public static void Test_Write_ABlankMainNeverBecomesTheBak()
+    {
+        string dir = NewDir();
+        try
+        {
+            string p = Path.Combine(dir, "settings.json");
+            var s = new TextStore(p);
+            foreach (string blank in new[] { "", "  \r\n\t ", "\0\0\0\0", "﻿ \n" })
+            {
+                s.Write("good");
+                s.Write("good2");
+                Assert.Eq("good", s.ReadBackup(), "the .bak before");
+                File.WriteAllText(p, blank, new UTF8Encoding(false));
+                s.Write("restored");
+                Assert.Eq("restored", s.Read(), "written");
+                Assert.Eq("good", s.ReadBackup(), "the existing .bak is kept for blank <" + blank.Replace("\0", "\\0") + ">");
+                Assert.True(!File.Exists(p + ".tmp"), "no tmp left behind");
+                File.Delete(p);
+                File.Delete(p + ".bak");
+            }
+            s.Write("one");
+            File.WriteAllText(p, "   ");
+            s.Write("two");
+            Assert.True(s.ReadBackup() == null, "a blank main and no .bak: still no .bak (nothing worth keeping)");
+            s.Write("three");
+            Assert.Eq("two", s.ReadBackup(), "a main with content is rotated as usual");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     public static void Test_Write_LockedTargetThrowsAndKeepsTheOldText()
     {
         string dir = NewDir();
