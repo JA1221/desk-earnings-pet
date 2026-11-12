@@ -51,8 +51,9 @@ window.QJZ = window.QJZ || {};
 // timers run only while a bubble shows. Bubble ranks: chatter < pet events < the user's own actions and anything
 // other modules say (those always show).
 // 1.1 prompts (Task 11, spec §4.2, §5.1-5.3): QJZ.care's prompt events draw its bubble through QJZ.promptView (show /
-// update: render, show also knocks once; hide: clear; wave: the pet's knock and one more knock), and a layout switch
-// draws the one that shows; care.setPanel follows PANEL. Its cue is the Brain's cue (the SVG is redrawn on a knock
+// update: render, show also knocks once; hide: clear; wave: the pet's knock and one more knock), a layout switch
+// draws the one that shows, and a care change redraws it only when its view changed (a cup logged elsewhere: its
+// 「今天 N/8 杯」); care.setPanel follows PANEL. Its cue is the Brain's cue (the SVG is redrawn on a knock
 // while it holds the cup, which replays the wave). drank plays sip (the cup that reaches the goal: petted and hearts),
 // 「+1」 on the cups and a line; standup from 起來了 plays petted 2 s and a line (from 喝了, a break or a lock, nothing:
 // 喝了 already sips, Ruling M9). While a prompt shows the speech bubble is hidden and says nothing (chatter and pet
@@ -299,6 +300,7 @@ QJZ.layouts = (function () {
   var lunchCache = { key: null, s: null };
   var focusPoked = null; // the start of the focus whose poke was answered (「專心中～」 once per focus)
   var cupPlus = false;   // a cup was logged: pop 「+1」 on the cups once care's change has them on screen
+  var drawnView = '';    // the prompt view drawn last (JSON), '' for none: a care change redraws it only when it differs
 
   function app() { return QJZ.app; }
   function ready() { return !!(QJZ.app && QJZ.app.state.ready); }
@@ -889,9 +891,12 @@ QJZ.layouts = (function () {
     if (QJZ.care) QJZ.care.setPanel(cur === 'PANEL');   // bubbles wait while the panel is open (Ruling C1)
     return true;
   }
-  function drawPrompt() {
-    var v = prompting() && QJZ.care.view ? QJZ.care.view() : null;
-    if (QJZ.promptView && view) { if (v) QJZ.promptView.render(view.el, view.name, v); else QJZ.promptView.clear(view.el); }
+  function drawPrompt() { drawView(prompting() && QJZ.care.view ? QJZ.care.view() : null); }
+  // The prompt view v (null: none) in this layout's slot.
+  function drawView(v) {
+    drawnView = v ? JSON.stringify(v) : '';
+    if (!QJZ.promptView || !view) return;
+    if (v) QJZ.promptView.render(view.el, view.name, v); else QJZ.promptView.clear(view.el);
   }
   function current() { return cur; }
   // The first layout, and where a panel shown first (nothing before it) goes back to: opts.first (dev), the layout
@@ -931,8 +936,8 @@ QJZ.layouts = (function () {
     return anchorBubble(view.bubble, view.pet.el, view.pet.view, petId(app().state.settings), view.petState, view.el);
   }
   // A click's own line (a poke, a lift) only where it can be said in the bubble: never a banner for every click, so
-  // none while a prompt shows either.
-  function clickSays() { return !!(view && view.bubble) && !prompting(); }
+  // none while a prompt shows either; none during a focus (§4.3 「不講話」: a poke has its one 「專心中～」).
+  function clickSays() { return !!(view && view.bubble) && !prompting() && !focusing(); }
   // The speech bubble goes away at once (a prompt shows).
   function hideSay() {
     stopSay();
@@ -1148,6 +1153,10 @@ QJZ.layouts = (function () {
   // next second. Its countdowns do not fire this; they follow onSecond.
   function onCare() {
     if (!view || !ready()) return;
+    if (prompting()) {   // a cup logged elsewhere while it shows: its 「今天 N/8 杯」 (Review Focus #5)
+      var v = QJZ.care.view();
+      if (v && JSON.stringify(v) !== drawnView) drawView(v);
+    }
     render();
     sync(false);
   }
@@ -1164,7 +1173,7 @@ QJZ.layouts = (function () {
     if (!ev || !view || !ready()) return;
     var pv = QJZ.promptView, now = app().nowMs();
     if (ev.type === 'hide') {
-      if (pv) pv.clear(view.el);
+      drawView(null);
     } else if (ev.type === 'wave') {
       if (brain) brain.knock(now);   // the pet waves again (holdCup: redrawn, updatePet)
       petTick(now);
@@ -1172,10 +1181,8 @@ QJZ.layouts = (function () {
       return;
     } else {
       hideSay();
-      if (pv) {
-        pv.render(view.el, view.name, ev.view);
-        if (ev.type === 'show') pv.wave(view.el, view.name);
-      }
+      drawView(ev.view);
+      if (pv && ev.type === 'show') pv.wave(view.el, view.name);
     }
     sync(false);   // U7 and M3 grow right while it shows; its buttons join the hit rects
   }
@@ -1378,7 +1385,7 @@ QJZ.layouts = (function () {
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '' };
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
-    lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false;
+    lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
   }
 

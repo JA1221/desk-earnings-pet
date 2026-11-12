@@ -366,8 +366,10 @@
       eq(document.activeElement, input, 'show');
       e.tick(at(9, 52));
       eq(document.activeElement, input, 're-wave');
-      C.drink();   // from the tray: the bubble updates (both -> water asked; here still both)
+      C.drink();   // from the tray: the bubble updates (still both: its count)
       e.tick(at(9, 52, 1));
+      ok($(e, '[data-prompt] .rb-s').textContent.indexOf('今天 1/8 杯') > 0, 'the count: ' + $(e, '[data-prompt] .rb-s').textContent);
+      eq(document.activeElement, input, 'update');
       e.menu('layout:U7');
       eq(document.activeElement, input, 'a layout switch');
       e.menu('mini');
@@ -375,6 +377,55 @@
       eq(calls, 0, 'focus() is never called');
       $$(e, '[data-answer]').forEach(function (b) { ok(!b.hasAttribute('autofocus'), b.textContent); });
     } finally { HTMLElement.prototype.focus = focus; input.remove(); done(); }
+  });
+
+  // Review Focus #5: a cup logged while the bubble is open, from anywhere but the bubble, shows in it at once.
+  test('promptView: a cup logged elsewhere updates the count in the bubble; nothing else redraws it', function () {
+    ['U1', 'M3'].forEach(function (name) {
+      var e = remind({ first: name });
+      function sub() { return $(e, '[data-prompt] .rb-s').textContent; }
+      eq(sub(), '已經坐 50 分鐘囉・今天 0/8 杯', name);
+      var btn = $(e, '[data-answer=up]');
+      e.tick(at(9, 50, 1));
+      e.tick(at(9, 50, 2));
+      ok($(e, '[data-answer=up]') === btn, name + ': not redrawn while what it shows is the same');
+      if (name === 'U1') clickOn($(e, '.u1 [data-act=drink]'));   // the cups pill beside it
+      else e.menu('drink');   // the menu or the tray
+      eq(C.state.prompt.kind, 'both', name + ': still asks both');
+      eq(sub(), '已經坐 50 分鐘囉・今天 1/8 杯', name + ': the count follows');
+      e.menu('drink');
+      eq(sub(), '已經坐 50 分鐘囉・今天 2/8 杯', name);
+      eq(buttons($(e, '[data-prompt]')), ['drink 喝了', 'up 起來了', 'later 等一下']);
+      btn = $(e, '[data-answer=up]');
+      e.tick(at(9, 50, 3));
+      ok($(e, '[data-answer=up]') === btn && sub() === '已經坐 50 分鐘囉・今天 2/8 杯', name + ': then left alone');
+      done();
+    });
+  });
+
+  test('promptView: lifting the pet during a focus says nothing (§4.3 不講話)', function () {
+    said(function (lines) {
+      var e = mk(at(9, 0), { first: 'U7' }), pet = $(e, '[data-pet]');
+      C.toggleFocus();
+      e.tick(at(9, 1));
+      lines.length = 0;
+      mouse(pet, 'mousedown', 100, 100);
+      mouse(pet, 'mousemove', 110, 100);
+      eq(of(e.sent, 'dragStart').length, 1, 'lifted');
+      eq(brain().state, 'dangle', 'it still dangles');
+      eq(lines, [], 'no dangle line');
+      ok(!bubbleShows(e));
+      e.bridge.emit({ type: 'dragEnd' });
+      eq(brain().state, 'focus');
+      C.toggleFocus();   // no focus: the lift speaks again
+      e.tick(at(9, 2));
+      lines.length = 0;   // (back to typing has its own line)
+      mouse(pet, 'mousedown', 100, 100);
+      mouse(pet, 'mousemove', 110, 100);
+      eq(lines, ['dangle']);
+      e.bridge.emit({ type: 'dragEnd' });
+      done();
+    });
   });
 
   test('promptView: a poke during focus says 專心中～ once', function () {
