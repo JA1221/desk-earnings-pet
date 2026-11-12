@@ -1,4 +1,5 @@
-/* Panels inside the PANEL layout (onboarding / settings / history / early-leave question), built by js/ui/panels.js.
+/* Panels inside the PANEL layout (onboarding / settings / history / early-leave question / reminder question), built by
+   js/ui/panels.js (健康, onboarding step 3 and the reminder question: js/ui/panels-health.js).
    The A1 sticker look of layouts.css: cream window, 2.5-3px #3D2C24 lines, hard offset shadows, #FFC857 accents.
    The root is .win.panel.lay.p-<kind>; tall panels get their height from panels.js (≈633px, 640 with the shadow). */
 .panel{width:400px;display:flex;flex-direction:column;--ok:#8EE3B0;--err:#C8284A;--soft:#F1E6D6;--dash:#EADCC6;--warn:#FFE3E8}
@@ -96,8 +97,10 @@
 .panel .tabs button.alert::after{content:"";display:inline-block;width:8px;height:8px;margin-left:5px;border-radius:50%;background:var(--heart);border:1.5px solid var(--line);vertical-align:1px}
 .panel .stepper{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px}
 .panel .stepper b{font-family:"Fredoka",var(--font);font-size:20px;min-width:34px;text-align:center}
+.panel .stepper > span{min-width:28px}   /* 分鐘 / 杯 / 顆: the − buttons line up */
 .panel .stepper button,.panel .x{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:#fff;box-shadow:2px 2px 0 var(--shadow);
   font-size:15px;font-weight:700;display:grid;place-items:center;padding:0;line-height:1}
+.panel .stepper button:disabled{opacity:.35;cursor:default;box-shadow:none}
 .panel .times{display:inline-flex;align-items:center;gap:6px;font-weight:700}
 .panel .days{display:flex;gap:6px;margin-top:8px}
 .panel .days button{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:#fff;font-size:14px;font-weight:700;box-shadow:2px 2px 0 var(--shadow);padding:0}
@@ -140,6 +143,24 @@
 .panel .stepdots{display:inline-flex;gap:5px}
 .panel .stepdots i{width:10px;height:10px;border-radius:50%;border:2px solid var(--line);background:#fff}
 .panel .stepdots i.on{background:var(--money)}
+
+/* ---------- 健康 (js/ui/panels-health.js; mockup D_settings / D_onboard) ---------- */
+.panel .card .ttl{display:flex;align-items:center;gap:6px;font-size:14.5px;font-weight:700}
+.panel .card .ttl svg.ic{width:18px;height:18px;flex:none}
+.panel .aside{flex:none;font-size:11.5px;font-weight:700;color:var(--sub)}
+.panel .ck:focus-visible{outline:3px solid var(--money);outline-offset:2px}
+/* onboarding step 3 and healthAsk: two ticks, a note, a still preview of the bubble */
+.panel .ckrow{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.panel .ckrow .lbl{padding-top:3px}
+.panel .ck{flex:none;width:26px;height:26px;border-radius:8px;border:2.5px solid var(--line);background:#fff;box-shadow:2px 2px 0 var(--shadow);
+  display:grid;place-items:center;font-size:15px;font-weight:800;padding:0;line-height:1}
+.panel .ck[aria-checked=true]{background:var(--ok)}
+.panel .ck[aria-checked=true]::before{content:"✓"}
+.panel .ob-prev{flex:none;background:#FFF1DC;border:2px dashed var(--dash);border-radius:16px;padding:8px 12px 10px;pointer-events:none}
+.panel .ob-prev .cap2{font-size:11.5px;font-weight:700;color:var(--sub)}
+.panel .ob-row{display:flex;align-items:center;justify-content:center;gap:14px}
+.panel .ob-row .po{--pw:104px;cursor:default}
+.p-healthAsk .pfoot{justify-content:flex-end}
 
 /* ---------- history ---------- */
 .panel .hist{padding:10px 12px 12px}

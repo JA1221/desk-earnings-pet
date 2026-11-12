@@ -1,28 +1,34 @@
 window.QJZ = window.QJZ || {};
-// The content of the PANEL layout (spec §5.3 設定, §5.4 紀錄, §4.4 忘記按下班, §4.8 first run):
+// The content of the PANEL layout (spec §5.3 設定, §5.4 紀錄, §4.4 忘記按下班, §4.8 first run; 1.1 §4.6, §5.5):
 //   onboarding  step 1 salary (月薪/時薪, the amount checked by QJZ.settings.validateSalary, ÷22/÷30), step 2 the
-//               pet (all 10 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
-//               settings.salary.amount is 0 or settings.onboarded is false.
+//               pet (all 10 skins) and its name, step 3 whether to remind (QJZ.panelsHealth: 起來動 and 喝水, both
+//               ticked); 開始 saves {salary, pet, health:{asked, sit, water}, onboarded:true}. It is the first panel
+//               while settings.salary.amount is 0 or settings.onboarded is false.
 //   settings    the sections of §5.3 plus 關於 (version; 使用說明 and the third-party licence texts behind a
-//               disclosure button each, loaded the first time they open), in four tabs (simplification #9):
-//               薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效), 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於).
+//               disclosure button each, loaded the first time they open), in five tabs (simplification #9, 1.1 #9):
+//               薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效), 健康 (QJZ.panelsHealth), 畫面 (版型, 動力加成),
+//               其他 (開機, 隱私, 關於).
 //               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;
 //               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
 //               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
-//               shown on and locked while the host forces it, init.forceOpaque).
+//               shown on and locked while the host forces it, init.forceOpaque) and 省電模式 (display.powerSaver).
 //   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
 //               totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
 //               after onboarding, is asked when another panel closes, and when a new one comes up on a main layout.
+//   healthAsk   onboarding's step 3 alone, for a 1.0 user who never saw it (§5.5, QJZ.panelsHealth): 確定 saves
+//               health {asked, sit, water}. It comes after the early-leave question: first, or when that one closes;
+//               once a session. Gone without 確定, nothing is saved and the next start asks again; until then both
+//               reminders stay off (QJZ.reminders.ask).
 // layouts.js owns the window (title bar, size, hit rects): it calls _mount(winEl, kind) when it builds PANEL and
 // _update() on every render (each second and on every change). Host notices (hotkeyFailed, storageError) show on
 // the panels, and as a pet line on a main layout.
 // User text (pet names, item names) only ever goes into input values or textContent.
 QJZ.panels = (function () {
-  var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定' };
+  var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定', healthAsk: '提醒' };
   // [id, label, its sections (SECTIONS keys, in order)]
   var TABS = [['time', '薪水和時間', ['today', 'salary', 'hours', 'start']], ['pet', '寵物', ['pet', 'sound']],
-    ['display', '畫面', ['layout', 'boost']], ['other', '其他', ['autostart', 'privacy', 'about']]];
+    ['health', '健康', ['health']], ['display', '畫面', ['layout', 'boost']], ['other', '其他', ['autostart', 'privacy', 'about']]];
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
   // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
@@ -51,10 +57,13 @@ QJZ.panels = (function () {
   function monthTitle(month) { return month.slice(0, 4) + ' 年 ' + parseInt(month.slice(5, 7), 10) + ' 月'; }
 
   function needsOnboarding(s) { return !s || !s.salary || !(s.salary.amount > 0) || !s.onboarded; }
+  // The reminder question was never answered (a 1.0 user): asked once a session, after the early-leave question.
+  function needsHealthAsk(s) { return !needsOnboarding(s) && !(s.health && s.health.asked); }
   function initialPanel(st) {
     if (!st || !st.settings) return null;
     if (needsOnboarding(st.settings)) return 'onboarding';
-    return st.pendingQuestion ? 'question' : null;
+    if (st.pendingQuestion) return 'question';
+    return needsHealthAsk(st.settings) ? 'healthAsk' : null;
   }
 
   // 'cat:p4' -> {kind, skin} when it is one of the skins settings accept, else null.
@@ -62,7 +71,8 @@ QJZ.panels = (function () {
     var m = /^(cat|hamster):(\w+)$/.exec(typeof id === 'string' ? id : '');
     return m && QJZ.settings.skinsFor(m[1]).indexOf(m[2]) >= 0 ? { kind: m[1], skin: m[2] } : null;
   }
-  // form: {mode, amountText, divisor, pet:'kind:skin', name} -> {ok, patch} | {ok:false, error (validateSalary's)}.
+  // form: {mode, amountText, divisor, pet:'kind:skin', name, sit, water (step 3's ticks)} -> {ok, patch} |
+  // {ok:false, error (validateSalary's)}. Step 3 is the answer to the reminder question: health.asked.
   function onboardingPatch(f) {
     var r = QJZ.settings.validateSalary(f.amountText);
     if (!r.ok) return { ok: false, error: r.error };
@@ -73,6 +83,7 @@ QJZ.panels = (function () {
       var name = typeof f.name === 'string' ? f.name.trim() : '';
       if (name) { patch.pet.names = {}; patch.pet.names[p.kind] = name; }
     }
+    patch.health = { asked: true, sit: { on: !!f.sit }, water: { on: !!f.water } };
     patch.onboarded = true;
     return { ok: true, patch: patch };
   }
@@ -268,6 +279,11 @@ QJZ.panels = (function () {
   }
   function line(inner, attrs) { return '<div class="line"' + (attrs || '') + '>' + inner + '</div>'; }
   function row(label, ctrl) { return '<div class="row"><span class="lbl">' + label + '</span>' + ctrl + '</div>'; }
+  // − n ＋: attrs go on the stepper, btn(d) on its − (d '-') and ＋ (d '+') buttons; n shows in data-o=out.
+  function stepper(attrs, btn, out, unit, less, more) {
+    return '<span class="stepper"' + (attrs || '') + '><button type="button" ' + btn('-') + ' aria-label="' + less + '">−</button>' +
+      '<b data-o="' + out + '"></b><span>' + unit + '</span><button type="button" ' + btn('+') + ' aria-label="' + more + '">＋</button></span>';
+  }
   function textIn(field, cls, extra) {
     return '<input type="text" class="' + cls + '" data-f="' + field + '" autocomplete="off" spellcheck="false"' + (extra || '') + '>';
   }
@@ -319,8 +335,7 @@ QJZ.panels = (function () {
     },
     hours: function () {
       return '<div class="card">' +
-        line(row('每日工時', '<span class="stepper"><button type="button" data-hstep="-" aria-label="少半小時">−</button>' +
-          '<b data-o="hours"></b><span>小時</span><button type="button" data-hstep="+" aria-label="多半小時">＋</button></span>')) +
+        line(row('每日工時', stepper('', function (d) { return 'data-hstep="' + d + '"'; }, 'hours', '小時', '少半小時', '多半小時'))) +
         line(row('午休時間', '<span class="times">' + textIn('lunchStart', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休開始"') +
           '<span>–</span>' + textIn('lunchEnd', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休結束"') + '</span>') +
           err('lunch') + hint('午休不算錢，狀態會顯示「午休中」。')) +
@@ -353,12 +368,14 @@ QJZ.panels = (function () {
         '</div>';
     },
     // No start-layout picker and no topmost switches (simplification #12): the app opens in the layout used last, and
-    // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout.
+    // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout. Two switches only (1.1 #12): 相容模式 and 省電模式.
     layout: function () {
       return hint('下次開啟會用你最後用的版型。要不要永遠在最上層，在右鍵選單的「版型」裡切換（每個版型各自記住）。') +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
-          hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) + '</div>';
+          hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
+          line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。')) + '</div>';
     },
+    health: function () { return QJZ.panelsHealth.section(); },
     boost: function () {
       return '<div class="card">' +
         line('<label class="lbl">里程碑金額</label>' + moneyIn('milestone', '') + err('milestone') +
@@ -424,7 +441,7 @@ QJZ.panels = (function () {
           '<p>先告訴我你的薪水，我就能一秒一秒幫你算今天賺了多少。</p></div></div>' +
           '<div class="card">' + SALARY_ROWS + '</div>' +
           '<p class="pnote">🔒 薪資只存在這台電腦裡，不會上傳。</p>' +
-          '<div class="pfoot"><span class="stepdots"><i class="on"></i><i></i></span>' +
+          '<div class="pfoot"><span class="stepdots"><i class="on"></i><i></i><i></i></span>' +
           '<button type="button" class="btn" data-pa="next">下一步 →</button></div>' +
         '</div>' +
         '<div class="ob-step" data-step="2" hidden>' +
@@ -433,9 +450,9 @@ QJZ.panels = (function () {
           '<div class="card">' + line(row('牠的名字', textIn('petName', 'name', ' maxlength="8"'))) + '</div>' +
           '<p class="pnote">' + esc(rest) + '</p>' +
           '<div class="pfoot"><button type="button" class="btn ghost" data-pa="prev">← 上一步</button>' +
-          '<span class="stepdots"><i></i><i class="on"></i></span>' +
-          '<button type="button" class="btn go" data-pa="go">開始！</button></div>' +
-        '</div>';
+          '<span class="stepdots"><i></i><i class="on"></i><i></i></span>' +
+          '<button type="button" class="btn" data-pa="toHealth">下一步 →</button></div>' +
+        '</div>' + QJZ.panelsHealth.onboardingStep();
       q(c, '[data-o=heroAv]').innerHTML = avatar(petId(s), 'celebrate');
       q(c, '[data-f=amount]').value = c.ob.amountText;
       obName(c);
@@ -483,7 +500,8 @@ QJZ.panels = (function () {
       out(c, 'qnote', m.planned ? '最後一次鎖定螢幕是 ' + m.lock + '，原本會算到 ' + m.planned + '。' : '');
       out(c, 'qyes', m.yes ? '算到 ' + m.lock + ' ・ NT$ ' + m.yes : '');
       out(c, 'qno', m.no ? '算到 ' + m.planned + ' ・ NT$ ' + m.no : '');
-    }
+    },
+    healthAsk: function (c) { QJZ.panelsHealth.askBuild(c); }
   };
 
   // ================= runtime =================
@@ -491,6 +509,7 @@ QJZ.panels = (function () {
   var cur = null;        // the mounted panel: {kind, win, body, nodes, ...}
   var tab = 'time';      // the settings tab, kept for the session
   var lastQ = null;      // the pending question already shown
+  var askShown = false;  // the reminder question (healthAsk) was shown this session
 
   function app() { return QJZ.app; }
   function st() { return QJZ.app.state; }
@@ -539,6 +558,7 @@ QJZ.panels = (function () {
     var k = kind === 'adjust' ? 'settings' : (has(BUILD, kind) ? kind : 'settings');
     if (kind === 'adjust') tab = 'time';
     cur = { kind: k, win: win, body: body, nodes: {}, cache: {} };
+    if (k === 'healthAsk') askShown = true;
     win.classList.add('p-' + k);
     if (k !== 'question') win.style.height = tallHeight() + 'px';
     BUILD[k](cur);
@@ -566,6 +586,8 @@ QJZ.panels = (function () {
       var ob = c.ob;
       show(q(c, '[data-step="1"]'), ob.step === 1);
       show(q(c, '[data-step="2"]'), ob.step === 2);
+      show(q(c, '[data-step="3"]'), ob.step === 3);
+      if (ob.step === 3) QJZ.panelsHealth.askUpdate(c);
       segOn(c, 'mode', ob.mode);
       segOn(c, 'divisor', ob.divisor);
       show(q(c, '[data-only=monthly]'), ob.mode === 'monthly');
@@ -611,11 +633,14 @@ QJZ.panels = (function () {
         '今天還沒開始。填時間按「套用」，就從那時開始算。');
       // 寵物
       skinsOn(c, petId(s));
+      // 健康
+      QJZ.panelsHealth.update(c);
       // 版型
       var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
       tglOn(c, 'opaque', s.display.opaque || forced);
       if (op && op.disabled !== forced) op.disabled = forced;
       out(c, 'opaqueNote', forced ? '這台電腦目前無法顯示透明背景，已自動開啟。' : '');
+      tglOn(c, 'powerSaver', s.display.powerSaver);
       // 音效 / 開機 / 隱私
       tglOn(c, 'sound', s.sound.enabled);
       var vol = q(c, '[data-f=volume]'), pct = Math.round(s.sound.volume * 100);
@@ -649,7 +674,8 @@ QJZ.panels = (function () {
         c.cache.months = count;
         renderMonths(c, previousMonths(s.history, m.month));
       }
-    }
+    },
+    healthAsk: function (c) { QJZ.panelsHealth.askUpdate(c); }
   };
 
   // The guide or the licence texts in el (an opened disclosure of 關於), fetched as plain text from the files beside the
@@ -796,8 +822,9 @@ QJZ.panels = (function () {
     else if (a && c.win.contains(a) && a.blur) a.blur();   // the focused 下一步 is hidden now
   }
   function obGo(c) {
-    var ob = c.ob, kind = (petParts(ob.pet) || { kind: 'hamster' }).kind;
-    var r = onboardingPatch({ mode: ob.mode, amountText: ob.amountText, divisor: ob.divisor, pet: ob.pet, name: ob.names[kind] });
+    var ob = c.ob, kind = (petParts(ob.pet) || { kind: 'hamster' }).kind, a = QJZ.panelsHealth.readStep(c);
+    var r = onboardingPatch({ mode: ob.mode, amountText: ob.amountText, divisor: ob.divisor, pet: ob.pet, name: ob.names[kind],
+      sit: a.sit, water: a.water });
     if (!r.ok) { obStep(c, 1); setErr(c, 'amount', r.error); return; }
     save(r.patch);
     app().flush();
@@ -818,6 +845,7 @@ QJZ.panels = (function () {
     var c = cur;
     if (!c || !c.win.contains(e.target)) return;
     var t = e.target, v;
+    if (QJZ.panelsHealth.click(c, t)) return;   // its switches, steppers and ticks
     if ((v = attr(t, '[data-seg] [data-v]', 'data-v')) !== null) { pickSeg(c, t.closest('[data-seg]').getAttribute('data-seg'), v); return; }
     if ((v = attr(t, '[data-skin]', 'data-skin')) !== null) { pickSkin(c, v); return; }
     if ((v = attr(t, '[data-tab]', 'data-tab')) !== null) { tab = v; _update(); var sc = q(c, '.pscroll'); if (sc) sc.scrollTop = 0; return; }
@@ -885,7 +913,8 @@ QJZ.panels = (function () {
       if (st().settings.sound.enabled && QJZ.sound) QJZ.sound.coin();
     } else if (name === 'opaque') {
       if (!st().forceOpaque) save({ display: { opaque: !s.display.opaque } });
-    } else if (name === 'autostart') app().setAutostart(!s.autostart);
+    } else if (name === 'powerSaver') save({ display: { powerSaver: !s.display.powerSaver } });
+    else if (name === 'autostart') app().setAutostart(!s.autostart);
     else if (name === 'capture') app().setCaptureGuard(!s.privacy.hideFromCapture);
   }
   function action(c, a, b) {
@@ -896,13 +925,21 @@ QJZ.panels = (function () {
         if (obAmountCheck(c, true).ok) obStep(c, 2);
         else { var f = q(c, '[data-f=amount]'); try { f.focus(); } catch (e) {} }
         break;
-      case 'prev': obStep(c, 1); break;
+      case 'toHealth': obStep(c, 3); break;
+      case 'prev': obStep(c, Math.max(1, c.ob.step - 1)); break;
       case 'go': obGo(c); break;
       case 'yes': case 'no':
         app().answerEarlyLeave(a === 'yes');
         close();
         if (lay().current() !== 'PANEL') lay().say(a === 'yes' ? '收到！紀錄改好了。' : '收到！照原本的時間算。');
         break;
+      case 'askOk': {
+        var ans = QJZ.panelsHealth.readStep(c);
+        save({ health: { asked: true, sit: { on: ans.sit }, water: { on: ans.water } } });
+        app().flush();
+        close();
+        break;
+      }
       case 'applyStart': {
         var r = startAt(s.today.day, q(c, '[data-f=startAt]').value, app().nowMs());
         setErr(c, 'startAt', r.ok ? '' : r.error);
@@ -1003,7 +1040,7 @@ QJZ.panels = (function () {
     if (isHotkeyField(el)) { hotkeyKey(c, el, e); return; }
     var f = el.getAttribute && el.getAttribute('data-f');
     if (e.key === 'Enter' && f) {
-      if (c.kind === 'onboarding') { e.preventDefault(); action(c, f === 'petName' ? 'go' : 'next'); return; }
+      if (c.kind === 'onboarding') { e.preventDefault(); action(c, f === 'petName' ? 'toHealth' : 'next'); return; }
       if (f === 'startAt') { e.preventDefault(); action(c, 'applyStart'); return; }
       if (el.type === 'text') { e.preventDefault(); el.blur(); }
       return;
@@ -1072,10 +1109,12 @@ QJZ.panels = (function () {
   // The panel to show before anything else (layouts.js asks once, at the first layout); null until start().
   function initial(state) { return started ? initialPanel(state) : null; }
   function open(kind) { return lay().openPanel(kind); }
-  // Back to the layout the panel came from, unless an early-leave question is waiting.
+  // Back to the layout the panel came from, unless an early-leave question is waiting, or the early-leave question
+  // closes before the reminder question was shown this session.
   function close() {
     var s = st();
     if (cur && cur.kind !== 'question' && s.ready && s.pendingQuestion && !needsOnboarding(s.settings)) return open('question');
+    if (cur && cur.kind === 'question' && s.ready && !askShown && needsHealthAsk(s.settings)) return open('healthAsk');
     if (s.ready) app().flush();
     return lay().closePanel();
   }
@@ -1089,12 +1128,17 @@ QJZ.panels = (function () {
   function reset() {
     offs.forEach(function (f) { try { f(); } catch (e) {} });
     offs = [];
-    started = false; cur = null; tab = 'time'; lastQ = null;
+    started = false; cur = null; tab = 'time'; lastQ = null; askShown = false;
   }
 
   return {
     start: start, open: open, close: close, initial: initial, has: hasKind, title: title,
     _mount: _mount, _update: _update, _reset: reset,
+    // The markup and runtime helpers, for the sections other modules draw (QJZ.panelsHealth). c: the mounted panel.
+    kit: {
+      line: line, row: row, tgl: tgl, seg: seg, hint: hint, esc: esc, stepper: stepper, disclosure: disclosure, WARN: WARN,
+      out: out, q: q, qa: qa, show: show, tglOn: tglOn, segOn: segOn, save: save, st: st, avatar: avatar, petId: petId
+    },
     util: {
       needsOnboarding: needsOnboarding, initialPanel: initialPanel, onboardingPatch: onboardingPatch, checkAmount: checkAmount,
       amountInputText: amountInputText, checkItem: checkItem, normHM: normHM, checkLunch: checkLunch, startAt: startAt,

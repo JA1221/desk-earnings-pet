@@ -56,9 +56,10 @@
 網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3|U10|U12|U13</code>、
 <code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
-<code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust</code>、
-<code>?tab=time|pet|display|other</code>、<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
-<code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」。<br>
+<code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust|healthAsk</code>
+（healthAsk：升級後問一次要不要提醒）、<code>?tab=time|pet|health|display|other</code>、<code>?disc=adv|guide|lic</code> 點開設定裡那個摺疊區並捲到最下面（adv = 健康 → 進階）、
+<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
+<code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」、<code>?obstep=2|3</code> 直接到歡迎畫面第 2 / 3 步（沒填薪資就填 50,000）。<br>
 寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。<br>
 健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒，
 <code>?pomo=focus|break|breakOver</code> 番茄鐘正在專心（還剩 13 分）/ 休息 / 休息結束（番茄鐘存在 localStorage，要清掉加 <code>?fresh=1</code>），
@@ -72,8 +73,9 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   if (devQ.get('fresh') === '1' || devFirstRun) { try { localStorage.removeItem('qjz.settings'); localStorage.removeItem('qjz.history'); } catch (e) {} }
   if (devQ.get('bg') === 'wall') document.documentElement.classList.add('wall');
   if (devQ.get('bar') === '0') document.body.classList.add('hidebar');
+  // The dev user has answered the reminder question (reminders off); ?panel=healthAsk shows it.
   window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12',
-    settings: devFirstRun ? null : { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true } };
+    settings: devFirstRun ? null : { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true, health: { asked: true } } };
 </script>
 <script src="js/core/time.js"></script>
 <script src="js/core/earnings.js"></script>
@@ -118,6 +120,7 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
 <script src="js/ui/promptview.js"></script>
 <script src="js/ui/layouts.js"></script>
 <script src="js/ui/panels.js"></script>
+<script src="js/ui/panels-health.js"></script>
 <script>
   // Show what the page tells the host: the last setLayout, and (?hits=1 / button) the hit rects as dashed boxes.
   var showHits = devQ.get('hits') === '1', lastRects = [], lastLayout = null, sentEl = document.getElementById('sent');
@@ -217,9 +220,9 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
     }
     try { localStorage.setItem('qjz.history', JSON.stringify(hist)); } catch (e) {}
   }
-  var devTab = devQ.get('tab'), devNotice = devQ.get('notice');
+  var devTab = devQ.get('tab'), devNotice = devQ.get('notice'), devDisc = devQ.get('disc'), devObStep = devQ.get('obstep');
   var devPanel = devQ.get('panel') || (devTab ? 'settings' : devSeed === 'history' ? 'history' : null);
-  if (devPanel || devNotice || devQ.get('amount') !== null || devQ.get('step')) {
+  if (devPanel || devNotice || devQ.get('amount') !== null || devQ.get('step') || devDisc || devObStep) {
     var offDev = QJZ.app.on('change', function () {
       offDev();
       setTimeout(function () {
@@ -228,9 +231,18 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
         if (devPanel) QJZ.panels.open(devPanel);
         var tb = devTab && document.querySelector('[data-tab="' + devTab + '"]');
         if (tb) tb.click();
+        var dc = devDisc && document.querySelector('[data-disc="' + devDisc + '"]'), dsc = dc && dc.closest('.pscroll');
+        if (dc) dc.click();
+        if (dsc) dsc.scrollTop = dsc.scrollHeight;   // what it opened, in view
         var amt = devQ.get('amount'), f = document.querySelector('[data-f=amount]'), nx = document.querySelector('[data-pa=next]');
         if (amt !== null && f) { f.value = amt; f.dispatchEvent(new Event('input', { bubbles: true })); }
         if (devQ.get('step') === '2' && nx) nx.click();   // blocked (and the error shows) unless the amount is valid
+        if ((devObStep === '2' || devObStep === '3') && f && nx) {   // ?obstep: on through the real buttons
+          if (!f.value) { f.value = '50,000'; f.dispatchEvent(new Event('input', { bubbles: true })); }
+          nx.click();
+          var th = document.querySelector('[data-pa=toHealth]');
+          if (devObStep === '3' && th) th.click();
+        }
       }, 0);
     });
   }

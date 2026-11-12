@@ -5,7 +5,9 @@
   var U = QJZ.panels.util;
   function at(d, h, m, s) { return new Date(2026, 10, d, h, m, s || 0, 0).getTime(); }
   function defaults(patch) { return QJZ.settings.parse(JSON.stringify(patch || {})).settings; }
+  // READY: a 1.0 user (salary, onboarded) who has not answered the reminder question yet; SET_UP: one who has.
   var READY = { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true };
+  var SET_UP = { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true, health: { asked: true } };
 
   // ---------- gating ----------
   test('panels: onboarding shows until a salary is set and 開始 was pressed', function () {
@@ -15,11 +17,13 @@
     ok(!U.needsOnboarding(defaults(READY)));
   });
 
-  test('panels: the first panel: onboarding, else a pending early-leave question, else none', function () {
+  test('panels: the first panel: onboarding, else the question, else the health question once', function () {
     var q = { day: '2026-11-11', lockMs: at(11, 15, 0) };
     eq(U.initialPanel({ settings: defaults(), pendingQuestion: q }), 'onboarding', 'onboarding first');
-    eq(U.initialPanel({ settings: defaults(READY), pendingQuestion: q }), 'question');
-    eq(U.initialPanel({ settings: defaults(READY), pendingQuestion: null }), null);
+    eq(U.initialPanel({ settings: defaults(READY), pendingQuestion: q }), 'question', 'then the early-leave question');
+    eq(U.initialPanel({ settings: defaults(READY), pendingQuestion: null }), 'healthAsk', 'then the reminder question');
+    eq(U.initialPanel({ settings: defaults(SET_UP), pendingQuestion: q }), 'question');
+    eq(U.initialPanel({ settings: defaults(SET_UP), pendingQuestion: null }), null, 'answered: none');
     eq(U.initialPanel(null), null);
   });
 
@@ -27,16 +31,19 @@
   test('panels: onboarding form -> settings patch, or the validateSalary error', function () {
     eq(U.onboardingPatch({ mode: 'monthly', amountText: 'abc', divisor: 22 }), { ok: false, error: '請輸入數字' });
     eq(U.onboardingPatch({ mode: 'monthly', amountText: '', divisor: 22 }), { ok: false, error: '請輸入薪資' });
-    eq(U.onboardingPatch({ mode: 'monthly', amountText: '50,000', divisor: 22, pet: 'cat:p4', name: '阿橘' }), {
+    eq(U.onboardingPatch({ mode: 'monthly', amountText: '50,000', divisor: 22, pet: 'cat:p4', name: '阿橘', sit: true, water: true }), {
       ok: true,
-      patch: { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, pet: { kind: 'cat', skin: 'p4', names: { cat: '阿橘' } }, onboarded: true }
+      patch: { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, pet: { kind: 'cat', skin: 'p4', names: { cat: '阿橘' } },
+        health: { asked: true, sit: { on: true }, water: { on: true } }, onboarded: true }
     });
-    eq(U.onboardingPatch({ mode: 'hourly', amountText: '１８３.５', divisor: 30, pet: 'hamster:h2', name: '  ' }), {
+    eq(U.onboardingPatch({ mode: 'hourly', amountText: '１８３.５', divisor: 30, pet: 'hamster:h2', name: '  ', sit: false, water: true }), {
       ok: true,
-      patch: { salary: { mode: 'hourly', amount: 183.5, divisor: 30 }, pet: { kind: 'hamster', skin: 'h2' }, onboarded: true }
+      patch: { salary: { mode: 'hourly', amount: 183.5, divisor: 30 }, pet: { kind: 'hamster', skin: 'h2' },
+        health: { asked: true, sit: { on: false }, water: { on: true } }, onboarded: true }
     }, 'full-width digits; a blank name keeps the default');
     var p = U.onboardingPatch({ mode: 'weekly', amountText: '1000', divisor: 7, pet: 'dog:x' });
-    eq(p.patch, { salary: { mode: 'monthly', amount: 1000, divisor: 22 }, onboarded: true }, 'unknown values fall back');
+    eq(p.patch, { salary: { mode: 'monthly', amount: 1000, divisor: 22 }, health: { asked: true, sit: { on: false }, water: { on: false } }, onboarded: true },
+      'unknown values fall back; a reminder not ticked is off');
   });
 
   test('panels: other money fields reuse validateSalary with neutral wording', function () {
@@ -202,11 +209,13 @@
     }
     return el;
   }
-  // o: {settings (object, used as is), history (object), start (today's start ms, null = not started), first}
+  // o: {settings (object, used as is; default SET_UP), history (object), start (today's start ms, null = not started),
+  // first, care (true: QJZ.care runs too)}
   function mk(nowMs, o) {
     o = o || {};
     QJZ.panels._reset();
     QJZ.layouts._reset();
+    QJZ.care._reset();
     QJZ.app._reset();
     var sent = [], handlers = {}, clock = { ms: nowMs };
     var bridge = {
@@ -220,16 +229,17 @@
     var root = fixture();
     QJZ.layouts.start(root, { bridge: bridge, first: o.first, session: o.session });
     QJZ.panels.start();
+    if (o.care) QJZ.care.start({ bridge: bridge, now: function () { return clock.ms; }, heartbeat: false });
     QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
     var h = o.history || { version: 1, days: {} }, day = QJZ.time.dayKey(nowMs);
     if (o.start !== null && !h.days[day]) h.days[day] = QJZ.day.manualStart(QJZ.day.empty(day), o.start === undefined ? at(12, 9, 0) : o.start);
-    bridge.emit({ type: 'init', settings: JSON.stringify(o.settings === undefined ? READY : o.settings), history: JSON.stringify(h),
+    bridge.emit({ type: 'init', settings: JSON.stringify(o.settings === undefined ? SET_UP : o.settings), history: JSON.stringify(h),
       probeMs: null, nowMs: nowMs, version: 't', forceOpaque: !!o.forceOpaque });
     return { bridge: bridge, sent: sent, clock: clock, root: root,
       menu: function (a) { bridge.emit({ type: 'menu', action: a }); },
       tick: function (ms) { clock.ms = ms; QJZ.app.tickNow(); } };
   }
-  function done() { QJZ.panels._reset(); QJZ.layouts._reset(); QJZ.app._reset(); }
+  function done() { QJZ.panels._reset(); QJZ.layouts._reset(); QJZ.care._reset(); QJZ.app._reset(); }
   function of(sent, type) { return sent.filter(function (s) { return s.type === type; }); }
   function last(sent, type) { var l = of(sent, type); return l.length ? l[l.length - 1].p : null; }
   function $(e, sel) { return e.root.querySelector(sel); }
@@ -293,10 +303,14 @@
     $(e, '[data-skin="cat:p4"]').click();
     eq($(e, '[data-f=petName]').value, '小橘', 'the default name of the picked kind');
     type($(e, '[data-f=petName]'), '<b>阿橘</b>');
+    $(e, '[data-pa=toHealth]').click();
+    ok(visible($(e, '[data-step="3"]')), 'the reminder step');
+    eq(QJZ.app.state.settings.onboarded, false, 'nothing saved before 開始');
     $(e, '[data-pa=go]').click();
     var s = QJZ.app.state.settings;
     eq(s.salary, { mode: 'monthly', amount: 50000, divisor: 30 });
     eq([s.pet.kind, s.pet.skin, s.pet.names.cat, s.onboarded], ['cat', 'p4', '<b>阿橘</b>', true]);
+    eq([s.health.asked, s.health.sit.on, s.health.water.on], [true, true, true], 'both reminders, ticked by default');
     eq(savedSettings(e).onboarded, true, 'persisted');
     eq(QJZ.layouts.current(), 'U1', 'the start layout');
     done();
@@ -312,6 +326,122 @@
     ok(visible($(e, '[data-step="1"]')));
     eq(QJZ.layouts.current(), 'PANEL');
     done();
+  });
+
+  // §4.6, §4.9 #6: step 3 asks about the one reminder (起來動, and 喝水 with it); both ticked; a tick off is a reminder off.
+  function checks(e, scope) {
+    return $$(e, scope + ' [role=checkbox]').map(function (c) { return c.getAttribute('aria-checked'); });
+  }
+  test('panels: onboarding has the reminder step; unticking water saves water off', function () {
+    var e = mk(at(12, 10, 0), { settings: null });
+    type($(e, '[data-f=amount]'), '50,000');
+    $(e, '[data-pa=next]').click();
+    ok(visible($(e, '[data-step="2"]')));
+    eq(text(e, '[data-step="2"] .pfoot .btn:last-child'), '下一步 →', 'step 2 goes on to step 3');
+    eq($(e, '[data-step="2"] [data-pa=go]'), null, 'and does not finish');
+    eq($$(e, '[data-step="2"] .stepdots i').length, 3, 'three steps');
+    $(e, '[data-skin="cat:p4"]').click();
+    $(e, '[data-pa=toHealth]').click();
+    var s3 = $(e, '[data-step="3"]');
+    ok(visible(s3), 'step 3');
+    ok(!visible($(e, '[data-step="2"]')));
+    eq(text(e, '[data-step="3"] .ptitle'), '要不要提醒你起來動、喝水？');
+    ok(s3.textContent.indexOf('上班一坐就是一整天，我可以幫你記著。') >= 0);
+    eq(checks(e, '[data-step="3"]'), ['true', 'true'], 'both ticked');
+    eq(text(e, '[data-ck=sit] .lbl'), '每 50 分鐘提醒我起來動一動');
+    eq(text(e, '[data-ck=sit] .hint'), '我會跳起來揮手，按「起來了」或「等一下」。', 'no cup for 起來動 (Ruling C8)');
+    eq(text(e, '[data-ck=water] .lbl'), '順便提醒我喝水');
+    eq(text(e, '[data-ck=water] .hint'), '我會捧著水杯來，一天目標 8 杯，喝了就按「喝了」記一杯。');
+    eq(text(e, '[data-step="3"] .pnote'), '🍅 想專心的時候，可以從右鍵選單開始番茄鐘（25 分鐘專心、5 分鐘休息）。這些都能在 設定 → 健康 裡改。');
+    eq(text(e, '[data-step="3"] .ob-prev .cap2'), '時間到會像這樣：');
+    eq(text(e, '[data-step="3"] .ob-prev .rb-t'), QJZ.prompt.LINES.both[0], 'the preview: the reminder that asks both');
+    eq($$(e, '[data-step="3"] .ob-prev .rb-btns button').map(function (b) { return b.textContent; }), ['喝了', '起來了', '等一下']);
+    eq($$(e, '[data-step="3"] .ob-prev [data-answer]').length, 0, 'a picture: its buttons answer nothing');
+    ok($(e, '[data-step="3"] .ob-prev .po svg') && $(e, '[data-step="3"] .hero .av svg'), 'the pet');
+    ok($(e, '[data-step="3"] .ob-prev .po svg').classList.contains('kind-cat'), 'the pet picked on step 2');
+    eq($$(e, '[data-step="3"] .stepdots i').map(function (i) { return i.className; }), ['', '', 'on'], 'the third of three');
+    eq(text(e, '[data-step="3"] [data-pa=prev]'), '← 上一步');
+    eq(text(e, '[data-step="3"] [data-pa=go]'), '開始！');
+    $(e, '[data-ck=water]').click();
+    eq(checks(e, '[data-step="3"]'), ['true', 'false'], 'water unticked');
+    eq(text(e, '[data-step="3"] .ob-prev .rb-t'), QJZ.prompt.LINES.sit[0], 'the preview follows: 起來動 only');
+    eq($$(e, '[data-step="3"] .ob-prev .rb-btns button').map(function (b) { return b.textContent; }), ['起來了', '等一下']);
+    $(e, '[data-step="3"] [data-pa=prev]').click();
+    ok(visible($(e, '[data-step="2"]')), 'back to the pet');
+    $(e, '[data-pa=toHealth]').click();
+    eq(checks(e, '[data-step="3"]'), ['true', 'false'], 'the ticks are kept');
+    eq(QJZ.app.state.settings.onboarded, false);
+    $(e, '[data-step="3"] [data-pa=go]').click();
+    var h = QJZ.app.state.settings.health;
+    eq([h.asked, h.sit.on, h.water.on], [true, true, false]);
+    eq(savedSettings(e).health.water.on, false, 'persisted');
+    eq(QJZ.reminders.ask(h, 0), { sit: true, water: false }, '起來動 only');
+    eq(QJZ.layouts.current(), 'U1');
+    done();
+  });
+
+  test('panels DOM: the health question comes after the early-leave question, once a session', function () {
+    var e = mk(at(12, 10, 0), { settings: READY, history: yesterdayOpen([15, 0]) });
+    ok($(e, '.panel.p-question'), 'the early-leave question first');
+    $(e, '[data-pa=no]').click();
+    ok($(e, '.panel.p-healthAsk'), 'then the reminder question');
+    e.menu('layout:U3');   // away without an answer
+    eq(QJZ.layouts.current(), 'U3');
+    e.menu('settings');
+    $(e, '[data-act=back]').click();
+    eq(QJZ.layouts.current(), 'U3', 'not again this session');
+    eq(QJZ.app.state.settings.health.asked, false, 'nothing answered');
+    done();
+    var f = mk(at(12, 10, 0), { settings: READY });
+    ok($(f, '.panel.p-healthAsk'), 'asked again at the next start');
+    done();
+    var g = mk(at(12, 10, 0));
+    eq(QJZ.layouts.current(), 'U1', 'answered: never asked');
+    done();
+  });
+
+  // §5.5: a 1.0 user is asked once, alone; both reminders stay off and nothing is saved until the answer.
+  test('panels: the upgrade question saves only when answered', function () {
+    function onlyKeysOf(v, shape) {   // v restricted to the keys of the 1.0 file
+      if (!shape || typeof shape !== 'object' || Array.isArray(shape)) return v;
+      var o = {}; for (var k in shape) o[k] = onlyKeysOf(v[k], shape[k]); return o;
+    }
+    var simple = JSON.parse(V10.settings);
+    simple.layout.mini = true;   // the simplified 1.0 (§4.10): left as the mini badge
+    [['1.0', JSON.parse(V10.settings), 'U3'], ['simplified 1.0', simple, 'M3']].forEach(function (c) {
+      var e = mk(at(12, 10, 0), { settings: c[1], history: JSON.parse(V10.history) });
+      ok($(e, '.panel.p-healthAsk'), c[0] + ': asked at the first start');
+      eq(text(e, '.p-healthAsk .ptitle'), '要不要提醒你起來動、喝水？');
+      ok(text(e, '.p-healthAsk .hero').indexOf('上班一坐就是一整天，我可以幫你記著。') >= 0);
+      eq(checks(e, '.p-healthAsk'), ['true', 'true'], c[0] + ': ticked');
+      eq(text(e, '.p-healthAsk [data-ck=sit] .lbl'), '每 50 分鐘提醒我起來動一動');
+      ok($(e, '.p-healthAsk .ob-prev .rbub'), 'the preview');
+      eq([$(e, '.p-healthAsk .stepdots'), $(e, '.p-healthAsk [data-pa=prev]')], [null, null], 'one question, not a step');
+      eq($$(e, '.p-healthAsk .pfoot button').map(function (b) { return b.textContent; }), ['確定']);
+      eq(QJZ.reminders.ask(QJZ.app.state.settings.health, 0), { sit: false, water: false }, c[0] + ': off until answered');
+      e.menu('settings');   // gone without an answer
+      $(e, '[data-act=back]').click();
+      eq(QJZ.layouts.current(), c[2], c[0] + ': back to its layout');
+      eq(QJZ.app.state.settings.health.asked, false);
+      QJZ.app.flush();
+      of(e.sent, 'saveSettings').forEach(function (m) { eq(JSON.parse(m.p.text).health.asked, false, c[0] + ': never saved as asked'); });
+      done();
+
+      var f = mk(at(12, 10, 0), { settings: c[1], history: JSON.parse(V10.history) });
+      ok($(f, '.panel.p-healthAsk'), c[0] + ': asked again at the next start');
+      $(f, '.p-healthAsk [data-ck=sit]').click();
+      eq(checks(f, '.p-healthAsk'), ['false', 'true']);
+      $(f, '[data-pa=askOk]').click();
+      eq(QJZ.layouts.current(), c[2], c[0] + ': answered, back to its layout');
+      var s = savedSettings(f);
+      eq([s.health.asked, s.health.sit.on, s.health.water.on], [true, false, true], c[0] + ': the answer is saved');
+      eq(onlyKeysOf(s, c[1]), c[1], c[0] + ': every 1.0 value kept');
+      eq(QJZ.reminders.ask(QJZ.app.state.settings.health, 0), { sit: false, water: true });
+      f.menu('settings');
+      $(f, '[data-act=back]').click();
+      eq(QJZ.layouts.current(), c[2], 'never asked again');
+      done();
+    });
   });
 
   test('panels DOM: a pending early-leave question asks first; 對 uses the lock time', function () {
@@ -359,15 +489,16 @@
     done();
   });
 
-  // #9: the ten sections of spec 5.3 plus 關於, in four tabs: 薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效),
-  // 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於).
-  var PANES = { time: ['today', 'salary', 'hours', 'start'], pet: ['pet', 'sound'], display: ['layout', 'boost'], other: ['autostart', 'privacy', 'about'] };
-  test('panels DOM: settings has four tabs (薪水和時間, 寵物, 畫面, 其他) and remembers the tab', function () {
+  // #9: the ten sections of spec 5.3 plus 關於 in the four tabs of 1.0: 薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效),
+  // 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於); 1.1 adds 健康 after 寵物.
+  var PANES = { time: ['today', 'salary', 'hours', 'start'], pet: ['pet', 'sound'], health: ['health'], display: ['layout', 'boost'],
+    other: ['autostart', 'privacy', 'about'] };
+  test('panels DOM: settings has five tabs (薪水和時間, 寵物, 健康, 畫面, 其他) and remembers the tab', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     ok($(e, '.panel.p-settings'));
     eq(text(e, '.ptitle'), '設定');
-    eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }), ['薪水和時間', '寵物', '畫面', '其他']);
+    eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }), ['薪水和時間', '寵物', '健康', '畫面', '其他']);
     ok(visible($(e, '[data-pane=time]')), 'the first tab first');
     eq(last(e.sent, 'setLayout').layout, 'PANEL');
     var h = last(e.sent, 'setLayout').height;
@@ -654,6 +785,131 @@
     ok(!root.classList.contains('opaque'));
   });
 
+  // §4.9 #7, §5.4: five controls in sight (起來動, 喝水, 每隔, 一天幾杯, 專心); 進階 holds the other four.
+  test('panels: 健康 has two cards and a closed 進階', function () {
+    var e = mk(at(12, 10, 0), { care: true });
+    e.menu('settings');
+    $(e, '[data-tab=health]').click();
+    ok(visible($(e, '[data-pane=health]')));
+    eq($$(e, '[data-pane=health] .card:not(.disc) .ttl').map(function (t) { return t.textContent; }), ['休息提醒', '番茄鐘'], 'two cards');
+    function shown() {
+      return $$(e, '[data-pane=health] [data-tgl], [data-pane=health] [data-num]').filter(visible).map(function (n) {
+        return n.getAttribute('data-tgl') || n.getAttribute('data-num');
+      });
+    }
+    eq(shown(), ['sit', 'water', 'every', 'water.goal', 'pomodoro.focus'], 'five controls');
+    function row(sel) { return $(e, sel).closest('.line'); }
+    function lbl(sel) { return row(sel).querySelector('.lbl').textContent; }
+    eq([lbl('[data-tgl=sit]'), lbl('[data-tgl=water]'), lbl('[data-num=every]'), lbl('[data-num="water.goal"]'), lbl('[data-num="pomodoro.focus"]')],
+      ['起來動', '喝水', '每隔', '一天幾杯', '專心']);
+    eq(row('[data-tgl=sit]').querySelector('.hint').textContent, '坐好久了，寵物會跳起來揮手叫你。', 'no cup (Ruling C8)');
+    eq(row('[data-tgl=water]').querySelector('.hint').textContent, '寵物會捧著水杯提醒你喝水。');
+    eq(row('[data-num=every]').querySelector('.hint').textContent, '按「等一下」會晚一點再提醒；番茄鐘的休息也算一次起身。');
+    eq(row('[data-num="water.goal"]').querySelector('.hint').textContent, '喝滿目標寵物會很開心。');
+    eq(row('[data-num="pomodoro.focus"]').querySelector('.hint').textContent, '專心時寵物戴上耳機、不聊天，提醒會等到休息時再說。');
+    ok(text(e, '[data-pane=health]').indexOf('從右鍵或 🍅 按鈕開始') >= 0);
+    eq($$(e, '[data-num] [data-o]').filter(visible).map(function (b) { return b.textContent; }), ['50', '8', '25'], 'the defaults');
+    eq($$(e, '[data-num] b + span').filter(visible).map(function (b) { return b.textContent; }), ['分鐘', '杯', '分鐘'], 'units');
+    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 9 次（工時 ÷ 間隔，自動算）', '8 h / 50 min');
+
+    // switches
+    eq([$(e, '[data-tgl=sit]').getAttribute('aria-checked'), $(e, '[data-tgl=water]').getAttribute('aria-checked')], ['false', 'false']);
+    $(e, '[data-tgl=water]').click();
+    eq([QJZ.app.state.settings.health.water.on, $(e, '[data-tgl=water]').getAttribute('aria-checked')], [true, 'true']);
+    $(e, '[data-tgl=sit]').click();
+    eq(QJZ.app.state.settings.health.sit.on, true);
+
+    // steppers: by HEALTH_RANGES, never past its ends
+    function plus(k) { $(e, '[data-num="' + k + '"] [data-dir="+"]').click(); }
+    function minus(k) { $(e, '[data-num="' + k + '"] [data-dir="-"]').click(); }
+    function hs() { return QJZ.app.state.settings.health; }
+    plus('every');
+    eq(hs().every, 55, 'every 5');
+    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 8 次（工時 ÷ 間隔，自動算）', 'follows: 480 / 55');
+    QJZ.app.saveSettings({ health: { every: 120 } });
+    plus('every');
+    eq(hs().every, 120, '＋ at 120 stays 120');
+    ok($(e, '[data-num=every] [data-dir="+"]').disabled, 'and cannot be pressed');
+    QJZ.app.saveSettings({ health: { every: 20 } });
+    minus('every');
+    eq(hs().every, 20, '− at 20 stays 20');
+    ok($(e, '[data-num=every] [data-dir="-"]').disabled);
+    plus('every');
+    eq([hs().every, text(e, '[data-o="num.every"]')], [25, '25']);
+    minus('water.goal');
+    plus('pomodoro.focus');
+    eq([hs().water.goal, hs().pomodoro.focus], [7, 30]);
+    eq(savedSettings(e).health.pomodoro.focus, 30, 'saved at once');
+
+    // 進階
+    var adv = $(e, '[data-disc=adv]');
+    ok(adv.textContent.indexOf('進階') >= 0);
+    eq(adv.getAttribute('aria-expanded'), 'false', 'closed');
+    adv.click();
+    eq(shown(), ['sit', 'water', 'every', 'water.goal', 'pomodoro.focus', 'pomodoro.short', 'pomodoro.long', 'pomodoro.longEvery', 'cups'],
+      'the other four');
+    eq([lbl('[data-num="pomodoro.short"]'), lbl('[data-num="pomodoro.long"]'), lbl('[data-num="pomodoro.longEvery"]'), lbl('[data-num=cups]')],
+      ['短休息', '長休息', '每幾顆番茄長休息一次', '今天已喝']);
+    eq(['pomodoro.short', 'pomodoro.long', 'pomodoro.longEvery', 'cups'].map(function (k) { return text(e, '[data-o="num.' + k + '"]'); }),
+      ['5', '15', '4', '0']);
+    eq(row('[data-num="pomodoro.longEvery"]').querySelector('[data-o=roundGoal]').textContent, '每天目標就是一輪：4 顆。');
+    plus('pomodoro.long');
+    plus('pomodoro.longEvery');
+    minus('pomodoro.short');
+    eq([hs().pomodoro.long, hs().pomodoro.longEvery, hs().pomodoro.short], [20, 5, 4]);
+    eq(text(e, '[data-o=roundGoal]'), '每天目標就是一輪：5 顆。');
+
+    // 今天已喝: a correction of today's cups, never below 0
+    function cups() { return QJZ.health.of(QJZ.app.state.today).cups; }
+    minus('cups');
+    eq([cups(), text(e, '[data-o="num.cups"]')], [0, '0'], '− at 0 stays 0');
+    plus('cups');
+    eq([cups(), text(e, '[data-o="num.cups"]')], [1, '1'], '＋ → 1 cup');
+    eq(JSON.parse(last(e.sent, 'saveHistory').text).days['2026-11-12'].health.cups, 1, 'saved at once');
+    $(e, '[data-tab=pet]').click();
+    $(e, '[data-tab=health]').click();
+    eq(adv.getAttribute('aria-expanded'), 'true', '進階 stays open while the panel is');
+    done();
+
+    // a 1.0 user who has not answered: the switches show off; one press is the answer
+    var f = mk(at(12, 10, 0), { settings: { salary: READY.salary, onboarded: true, health: { sit: { on: true } } } });
+    f.menu('settings');
+    $(f, '[data-tab=health]').click();
+    eq([$(f, '[data-tgl=sit]').getAttribute('aria-checked'), $(f, '[data-tgl=water]').getAttribute('aria-checked')], ['false', 'false'],
+      'off until answered, whatever sit.on says');
+    $(f, '[data-tgl=water]').click();
+    var h = QJZ.app.state.settings.health;
+    eq([h.asked, h.sit.on, h.water.on], [true, false, true], 'what the switches showed, now answered');
+    done();
+  });
+
+  test('panels: five tabs in order; the 版型 card in 畫面 has exactly 相容模式 and 省電模式; 動力加成 is unchanged', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }), ['薪水和時間', '寵物', '健康', '畫面', '其他']);
+    $(e, '[data-tab=display]').click();
+    eq($$(e, '[data-sec=layout] .card').length, 1, 'one 版型 card');
+    eq($$(e, '[data-sec=layout] .card [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque', 'powerSaver']);
+    eq($$(e, '[data-sec=layout] .card .row .lbl').map(function (l) { return l.textContent; }), ['相容模式（不透明背景）', '省電模式']);
+    eq($$(e, '[data-sec=layout] .card [data-f], [data-sec=layout] .card [data-seg], [data-sec=layout] .card [data-num]').length, 0, 'nothing else');
+    eq($(e, '[data-tgl=powerSaver]').closest('.line').querySelector('.hint').textContent, '金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。');
+    ok(text(e, '[data-pane=display]').indexOf('膠囊') < 0, 'no capsule position (§4.9 #12)');
+    var ps = $(e, '[data-tgl=powerSaver]');
+    eq(ps.getAttribute('aria-checked'), 'false', 'off by default');
+    ps.click();
+    eq([QJZ.app.state.settings.display.powerSaver, ps.getAttribute('aria-checked')], [true, 'true']);
+    eq(savedSettings(e).display, { opaque: false, powerSaver: true });
+    ps.click();
+    eq(QJZ.app.state.settings.display.powerSaver, false);
+    eq(QJZ.app.state.settings.display.opaque, false, '相容模式 untouched');
+    // 動力加成: 里程碑金額 and 換算物品, as in 1.0
+    eq($$(e, '[data-sec=boost] .card').length, 2);
+    eq($$(e, '[data-sec=boost] [data-tgl], [data-sec=boost] [data-num]').length, 0);
+    ok($(e, '[data-sec=boost] [data-f=milestone]') && $(e, '[data-sec=boost] [data-items]') && $(e, '[data-sec=boost] [data-pa=addItem]'));
+    eq($$(e, '[data-sec=boost] .lbl').map(function (l) { return l.textContent; }), ['里程碑金額', '換算物品']);
+    done();
+  });
+
   test('panels DOM: after a reload a pending question still comes first; closing it goes to the remembered layout', function () {
     var m = {}, s = { getItem: function (k) { return m.hasOwnProperty(k) ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } };
     var e = mk(at(12, 10, 0), { session: s });
@@ -698,10 +954,10 @@
     eq(QJZ.app.state.settings.pet.names.hamster, '<img src=x onerror=alert(1)>');
     eq($(e, 'img'), null, 'names are never markup');
 
-    // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式
+    // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式 and 1.1's 省電模式
     $(e, '[data-tab=display]').click();
     eq([$(e, '[data-seg=layoutStart]'), $(e, '[data-tgl^="top."]')], [null, null]);
-    eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque']);
+    eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque', 'powerSaver']);
     ok(text(e, '[data-sec=layout]').indexOf('最後用的版型') >= 0 && text(e, '[data-sec=layout]').indexOf('右鍵選單') >= 0, 'says where they went');
 
     $(e, '[data-tab=display]').click();
