@@ -130,6 +130,26 @@ public static class PayloadTests
         finally { Directory.Delete(root, true); }
     }
 
+    // §5.10: a WebView2 DLL beside the exe that exists but cannot be read is foreign too (fail closed).
+    public static void Test_ForeignCopies_UnreadableBesideIsForeign()
+    {
+        string exeDir = NewDir();
+        try
+        {
+            var res = Resources(SampleWeb(), "v1");
+            Func<string, byte[]> embedded = delegate(string name) { return res[name]; };
+            string path = Path.Combine(exeDir, "Microsoft.Web.WebView2.Core.dll");
+            File.WriteAllBytes(path, res["Microsoft.Web.WebView2.Core.dll"]);
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.Eq("Microsoft.Web.WebView2.Core.dll", string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()),
+                    "held open, unreadable: listed as foreign");
+            }
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "released and identical: start");
+        }
+        finally { Directory.Delete(exeDir, true); }
+    }
+
     // M10: the start-up decision. A Microsoft.Web.WebView2.*.dll beside a release exe that is not byte-identical to
     // its embedded copy (another program's, in Downloads) makes Program refuse to start (the runtime would load it
     // first); identical copies and anything else beside the exe are fine; a dev build (nothing embedded) never refuses.

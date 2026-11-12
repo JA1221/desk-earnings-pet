@@ -74,7 +74,8 @@ public static class Payload
     // assemblies found beside the exe (exeDir) that are not byte-identical (SHA-256) to the embedded copies
     // (embedded: resource name -> bytes, null when not embedded). The runtime loads a same-named assembly from the
     // exe's folder before AssemblyResolve can hand out the unpacked copy, so another program's file there would be
-    // used instead, or break the start. Identical copies are harmless. A dev build embeds nothing and keeps its own
+    // used instead, or break the start. Identical copies are harmless. A copy that exists but cannot be read (locked, no access) is listed too: it may be
+    // loaded by the runtime all the same. A dev build embeds nothing and keeps its own
     // copies beside the exe: never foreign.
     public static List<string> ForeignCopies(string exeDir, Func<string, byte[]> embedded)
     {
@@ -87,7 +88,10 @@ public static class Payload
             if (!File.Exists(path)) continue;
             byte[] ours = embedded(name);
             if (ours == null) continue;
-            byte[] there = File.ReadAllBytes(path);
+            byte[] there;
+            try { there = File.ReadAllBytes(path); }
+            catch (IOException) { foreign.Add(name); continue; }                  // it exists but cannot be read: fail closed
+            catch (UnauthorizedAccessException) { foreign.Add(name); continue; }
             if (there.Length != ours.Length || Sha256Hex(there) != Sha256Hex(ours)) foreign.Add(name);
         }
         return foreign;

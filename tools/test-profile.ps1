@@ -34,8 +34,8 @@ $localDir = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) $fo
 $utf8 = New-Object Text.UTF8Encoding $false
 
 # Physical px (window.json), all on DISPLAY1: -1080,-445 1080x1920 at 150 %, work-area bottom 1403.
-$DefaultWindow = '{"U1":{"x":-599,"y":463},"U3":{"x":-1000,"y":700},"U5B":{"x":-1000,"y":1100},"U7":{"x":-470,"y":960},' +
-    '"M3":{"x":-372,"y":1082},"PANEL":{"x":-1000,"y":300},"U10":{"x":-900,"y":-400},"U12":{"x":-1000,"y":300},"U13":{"x":-1000,"y":300}}'
+$DefaultWindow = '{"U1":{"x":-800,"y":463},"U3":{"x":-1000,"y":700},"U5B":{"x":-1000,"y":1100},"U7":{"x":-800,"y":960},' +
+    '"M3":{"x":-800,"y":1082},"PANEL":{"x":-1000,"y":300},"U10":{"x":-900,"y":-400},"U12":{"x":-1000,"y":300},"U13":{"x":-1000,"y":300}}'
 $BaseSettings = '{"version":1,"salary":{"mode":"monthly","amount":50000,"divisor":22},"onboarded":true,"health":{"asked":true},' +
     '"autostart":false,"privacy":{"hideFromCapture":false,"hotkey":"Ctrl+Alt+F11"}}'
 

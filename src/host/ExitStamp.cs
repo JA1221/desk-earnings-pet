@@ -38,6 +38,13 @@ public class ExitStamp
         store.Write("{\"lastExitMs\":null}");
     }
 
+    // session.json is cleared only when the stamp was read, the page has been sent init and its history has been
+    // written to the disk since (so a shutdown in between still has the stamp for the next start).
+    public static bool ShouldClear(bool stampRead, bool initSent, bool historySaved)
+    {
+        return stampRead && initSent && historySaved;
+    }
+
     public static string Format(long ms)
     {
         return "{\"lastExitMs\":" + ms.ToString(CultureInfo.InvariantCulture) + "}";

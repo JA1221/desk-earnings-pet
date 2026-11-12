@@ -17,6 +17,14 @@ public static class ExitStampTests
         Assert.Eq((long?)5L, ExitStamp.Parse("{\"lastExitMs\":5,\"other\":true}"), "other keys are ignored");
     }
 
+    public static void Test_ShouldClear()
+    {
+        foreach (bool a in new[] { false, true })
+            foreach (bool b in new[] { false, true })
+                foreach (bool c in new[] { false, true })
+                    Assert.Eq(a && b && c, ExitStamp.ShouldClear(a, b, c), "only (true,true,true) clears: " + a + "," + b + "," + c);
+    }
+
     public static void Test_ParseRefusesAnythingElse()
     {
         string[] bad = { null, "", "   ", "{bad", "[]", "42", "null", "{}", "{\"lastExitMs\":null}", "{\"lastExitMs\":\"1762934400123\"}",

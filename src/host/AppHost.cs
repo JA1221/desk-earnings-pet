@@ -85,6 +85,8 @@ public class AppHost
     bool quitting;
     bool fatalShown;
     ExitStamp exitStamp;         // session.json
+    bool initSent;               // init has gone to the page (the exit time in session.json is still there until history is saved)
+    bool stampCleared;           // session.json's exit time is consumed
     long? lastExitMs;            // the previous run's end, read at start (init lastExitMs)
     bool exitRecorded;           // this run's end is in session.json
     DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
@@ -137,9 +139,7 @@ public class AppHost
             ErrorLog.Trace("start: WebView2 assemblies " + typeof(CoreWebView2).Assembly.Location + ", " +
                 typeof(Microsoft.Web.WebView2.WinForms.WebView2).Assembly.Location);
         exitStamp = new ExitStamp(System.IO.Path.Combine(AppPaths.DataDir, "session.json"));
-        lastExitMs = exitStamp.Read();
-        try { exitStamp.Clear(); }   // consumed: a later crash or kill must not leave this exit time for the next start
-        catch (Exception ex) { ErrorLog.Write("clearing the exit time in session.json", ex); }
+        lastExitMs = exitStamp.Read();   // cleared on the first saveHistory after init (ClearStampAfterSave), not here
         files.LoadAll();
         placer.Load();
         // settings.json, or its .bak when settings.json is blank or does not parse (as the page reads it)
@@ -280,6 +280,7 @@ public class AppHost
             nowMs = NowMs(),
             version = Version
         });
+        initSent = true;
         ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
@@ -313,7 +314,10 @@ public class AppHost
                     topmost = HostSettings.Parse(text).TopmostByLayout();   // the page's own copy of layout.topmost
                     break;
                 }
-            case "saveHistory": files.Save(files.History, Bridge.Str(d, "text")); break;
+            case "saveHistory":
+                files.Save(files.History, Bridge.Str(d, "text"));
+                ClearStampAfterSave();
+                break;
             case "backupCorrupt": files.BackupCorrupt(Bridge.Str(d, "file")); break;
             case "setLayout": SetLayout(d); break;
             case "hitRects": window.SetHitRects(Bridge.Rects(d, "rects", MaxHitRects), Dpr(d)); break;
@@ -803,6 +807,18 @@ public class AppHost
     {
         files.FlushAll();
         RecordExit();
+    }
+
+    // The previous exit time is consumed once the page has it AND its history is on the disk (§5.10): a crash or kill
+    // from then on must not hand the same stamp over again, but a shutdown before that still finds it (the page's
+    // QJZ.day.onExit is idempotent, so applying it twice is harmless). Called after each saveHistory.
+    void ClearStampAfterSave()
+    {
+        if (stampCleared || exitStamp == null) return;
+        if (!ExitStamp.ShouldClear(lastExitMs.HasValue, initSent, !files.History.Pending)) return;
+        stampCleared = true;
+        try { exitStamp.Clear(); }
+        catch (Exception ex) { ErrorLog.Write("clearing the exit time in session.json", ex); }
     }
 
     // The exit time for the next start (init lastExitMs). Synchronous and flushed; once per run.

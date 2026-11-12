@@ -65,8 +65,11 @@ public static class Program
         }
         catch (Exception ex)
         {
+            // fail closed (§5.10): a check that could not finish must not let an unknown DLL load. A dev build embeds
+            // nothing, so it never throws from here and is never refused.
             ErrorLog.Write("checking the DLLs beside the exe", ex);
-            return false;
+            MessageBox.Show(ForeignWebView2, "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
         }
         if (foreign.Count == 0) return false;
         ErrorLog.Write("refused to start: " + string.Join(", ", foreign.ToArray()) + " in " + exeDir + " differ from the app's own copies");
