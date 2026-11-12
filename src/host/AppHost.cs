@@ -814,7 +814,8 @@ public class AppHost
     // QJZ.day.onExit is idempotent, so applying it twice is harmless). Called after each saveHistory.
     void ClearStampAfterSave()
     {
-        if (stampCleared || exitStamp == null) return;
+        // once this run's own exit is recorded, a late saveHistory must not overwrite the fresh stamp with null
+        if (stampCleared || exitRecorded || exitStamp == null) return;
         if (!ExitStamp.ShouldClear(lastExitMs.HasValue, initSent, !files.History.Pending)) return;
         stampCleared = true;
         try { exitStamp.Clear(); }
