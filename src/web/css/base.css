@@ -53,6 +53,12 @@ html.opaque,html.opaque body{background:#FFF8EC}
   background:#fff;border:2.5px solid var(--sline);border-radius:14px;box-shadow:2px 2px 0 var(--sline);font-weight:700;font-family:var(--font);color:var(--text);z-index:3}
 .bubble.show{opacity:1;transform:none}
 .bubble::after{content:"";position:absolute;left:10px;bottom:-8px;width:11px;height:11px;background:#fff;border-right:2.5px solid var(--sline);border-bottom:2.5px solid var(--sline);transform:rotate(45deg) skew(10deg,10deg)}
+/* beside the pet's head (layouts.js anchorBubble): --tx / --ty is where the tail ends, just right of the face, in px
+   of the bubble's box. The bubble grows upwards from there as the text types in, at most --bw wide (and never past the
+   box's right edge), lines balanced; the tail on its left points back down at the face. */
+.bubble.side{left:calc(var(--tx) + 8px);top:auto;bottom:calc(100% - var(--ty) - 17px);width:max-content;
+  max-width:min(var(--bw,118px),calc(100% - var(--tx) - 12px));padding:6px 7px;text-wrap:balance;overflow-wrap:anywhere}
+.bubble.side::after{left:-6.5px;bottom:8px;width:12px;height:10px;border-right:0;border-left:2.5px solid var(--sline);transform:rotate(36deg) skew(-14deg,-4deg)}
 .heart{position:absolute;font-size:17px;pointer-events:none;color:var(--heart);text-shadow:-1.5px -1.5px 0 var(--sline),1.5px -1.5px 0 var(--sline),-1.5px 1.5px 0 var(--sline),1.5px 1.5px 0 var(--sline);z-index:4}
 .snack{position:absolute;font-size:22px;pointer-events:none;z-index:5}
 .confetti{position:absolute;width:8px;height:12px;border:2px solid var(--line);border-radius:2px;pointer-events:none;z-index:6}

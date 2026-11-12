@@ -163,6 +163,37 @@ QJZ.layouts = (function () {
     return [x, y, Math.ceil(r.left + r.width) - x, Math.ceil(r.top + r.height) - y];
   }
 
+  // ---- speech bubble beside the pet ----
+  // The viewBox of each pet holder view; the room views fill their box (slice), petonly fits it (meet).
+  var VIEWBOX = { petonly: PETONLY_VB, scene: [0, 0, 300, 200], hud: HUD_VB.split(' ').map(Number) };
+  // Where point pt of viewBox vb lands in a box {width, height} that shows it centred: px from the box's left / top.
+  function vbPoint(box, vb, pt, slice) {
+    var sx = box.width / vb[2], sy = box.height / vb[3], s = slice ? Math.max(sx, sy) : Math.min(sx, sy);
+    return { x: (box.width - vb[2] * s) / 2 + (pt[0] - vb[0]) * s, y: (box.height - vb[3] * s) / 2 + (pt[1] - vb[1]) * s };
+  }
+  // Puts bubble b beside the pet's head: --tx / --ty = where its tail ends (QJZ.pets.speechAt for pet id in state,
+  // just right of the head at eye height), --clear = 6 px below the [data-bubble-clear] elements in scope (a bubble
+  // that grows downwards stays under them), all in px of the bubble's own box (its offsetParent, the .fx layer);
+  // layouts.css lays the bubble out from them (.side). Without a drawn pet it keeps its plain corner place.
+  // -> {x, y, clear} or null.
+  function anchorBubble(b, holder, petView, id, state, scope) {
+    var box = b ? b.offsetParent : null, svg = holder ? holder.querySelector('svg') : null;
+    var pt = svg && box && VIEWBOX[petView] && QJZ.pets && QJZ.pets.speechAt ? QJZ.pets.speechAt(id, state) : null;
+    if (!pt) { if (b) b.classList.remove('side'); return null; }
+    var br = box.getBoundingClientRect(), hr = holder.getBoundingClientRect();
+    var p = vbPoint(hr, VIEWBOX[petView], pt, petView !== 'petonly');
+    var at = { x: Math.round(hr.left - br.left + p.x), y: Math.round(hr.top - br.top + p.y), clear: 0 };
+    Array.prototype.forEach.call((scope || box.parentNode).querySelectorAll('[data-bubble-clear]'), function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.height > 0) at.clear = Math.max(at.clear, Math.ceil(r.bottom - br.top) + 6);
+    });
+    b.style.setProperty('--tx', at.x + 'px');
+    b.style.setProperty('--ty', at.y + 'px');
+    b.style.setProperty('--clear', at.clear + 'px');
+    b.classList.add('side');
+    return at;
+  }
+
   // ================= markup =================
   var BAR = '<div class="bar"><span class="logo">$</span><span data-b="title">錢進中</span><div class="dots">' +
     '<i data-act="mini" title="縮成迷你"></i><i data-act="hide" title="隱藏"></i></div></div>';
@@ -190,7 +221,7 @@ QJZ.layouts = (function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' +
         '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + feedBtn('pill feed') +
           '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
-        '<div class="side"><div class="pill">⏱ <span data-b="worked"></span></div><div class="pill"><span data-b="item"></span></div>' +
+        '<div class="side" data-bubble-clear><div class="pill">⏱ <span data-b="worked"></span></div><div class="pill"><span data-b="item"></span></div>' +
           '<div class="pill">📅 <span data-b="month"></span></div></div>' +
         '<div class="hud-bottom money-box" data-plus><div class="coin">$</div>' + MONEY +
           '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div></div>' +
@@ -302,6 +333,7 @@ QJZ.layouts = (function () {
     h.el.innerHTML = svgText;
     var svg = h.el.firstElementChild;
     if (svg) svg.style.setProperty('--bd', (-Math.random() * 4.6).toFixed(2) + 's');   // blinks out of step
+    if (view.bubble && view.bubble.classList.contains('show')) placeBubble();   // the head moved (dangle, lie, sit up)
     if (view.live && h.view === 'petonly' && petHit(state) !== hitBefore) sync(false);   // hop / dangle: the hit area follows at once
   }
 
@@ -528,6 +560,11 @@ QJZ.layouts = (function () {
     timers.type = timers.say = 0;
     bubbleRank = 0;
   }
+  // The bubble beside the current pet's head (anchorBubble).
+  function placeBubble() {
+    if (!view || !view.bubble || !view.pet || !ready()) return null;
+    return anchorBubble(view.bubble, view.pet.el, view.pet.view, petId(app().state.settings), view.petState, view.el);
+  }
   // A speech bubble where the layout has one (U1, U3, U7), else a short banner. Never interactive (no hit rect).
   // rank (layouts-internal): RANK of the line; other modules' lines rank with the user's own actions.
   function say(text, ms, rank) {
@@ -537,6 +574,7 @@ QJZ.layouts = (function () {
     stopSay();
     bubbleRank = rank || RANK.user;
     b.textContent = '';
+    placeBubble();
     b.classList.add('show');
     var chars = Array.from(text), i = 0;   // code points: an emoji never shows half drawn
     timers.type = setInterval(function () {
@@ -890,7 +928,7 @@ QJZ.layouts = (function () {
       hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox,
-      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit
+      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX
     }
   };
 })();

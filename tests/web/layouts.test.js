@@ -326,6 +326,112 @@
     done();
   });
 
+  // ---------- the speech bubble beside the pet's head ----------
+  test('layouts: vbPoint maps a viewBox point into the box that shows it (meet / slice)', function () {
+    var PO = U.PETONLY_VB;
+    eq(U.vbPoint({ width: 176, height: 170 }, PO, [118, 98], false), { x: 88, y: 94 });
+    eq(U.vbPoint({ width: 352, height: 340 }, PO, [118, 98], false), { x: 176, y: 188 }, 'twice the size');
+    eq(U.vbPoint({ width: 400, height: 170 }, PO, [30, 4], false), { x: 112, y: 0 }, 'meet: centred in a wider box');
+    eq(U.vbPoint({ width: 300, height: 400 }, [0, 0, 300, 200], [150, 100], true), { x: 150, y: 200 }, 'slice: fills a taller box');
+    eq(U.vbPoint({ width: 300, height: 400 }, [0, 0, 300, 200], [0, 0], true), { x: -150, y: 0 }, 'slice crops the sides');
+    eq(U.VIEWBOX, { petonly: [30, 4, 176, 170], scene: [0, 0, 300, 200], hud: [0, -4, 300, 236] });
+  });
+
+  var SKINS = ['hamster:p0', 'hamster:p4', 'hamster:h2', 'hamster:s4', 'hamster:s5', 'cat:p0', 'cat:p4', 'cat:s5'];
+  var MID = '你今天很努力喔，金金都有看到吱！', LONG = '今天賺到兩杯珍奶，回家路上犒賞自己一下吧吱！';
+  function petOf(id) { var k = id.split(':'); return { settings: { pet: { kind: k[0], skin: k[1] } } }; }
+  // say a line and show all of it at once (say types it in, 55 ms a character)
+  function speak(e, text) {
+    var b = $(e, '[data-bubble]');
+    QJZ.layouts.say(text, 600000);
+    b.textContent = text;
+    return b;
+  }
+  function lines(b) {
+    var cs = getComputedStyle(b);
+    return Math.round((b.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) / parseFloat(cs.lineHeight));
+  }
+  // the tail's end (--tx / --ty) in page px
+  function tail(b) {
+    var f = b.offsetParent.getBoundingClientRect();
+    return { x: f.left + parseFloat(b.style.getPropertyValue('--tx')), y: f.top + parseFloat(b.style.getPropertyValue('--ty')) };
+  }
+  // the bubble's layout box in page px (getBoundingClientRect would include its pop-in transition)
+  function boxOf(b) {
+    var f = b.offsetParent.getBoundingClientRect(), x = f.left + b.offsetLeft, y = f.top + b.offsetTop;
+    return { left: x, top: y, right: x + b.offsetWidth, bottom: y + b.offsetHeight };
+  }
+  function headOf(e) { return $(e, '[data-pet] svg').querySelector('.head, .squish').getBoundingClientRect(); }
+  function apart(a, b) { return a.right + 3 <= b.left || b.right + 3 <= a.left || a.bottom + 3 <= b.top || b.bottom + 3 <= a.top; }
+
+  test('layouts DOM: U7 speaks beside the pet head — every skin, tail at the face, in the window, clear of the tag, 2–3 lines', function () {
+    SKINS.forEach(function (id) {
+      var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf(id).settings });
+      var win = $(e, '.u7').getBoundingClientRect(), sl = last(e.sent, 'setLayout');
+      eq([sl.width, Math.round(win.width) + 7], [327, 327], id + ' the window: 320 + the shadow');
+      var b = speak(e, MID), r = boxOf(b), t = tail(b), h = headOf(e);
+      ok(b.classList.contains('side'), id + ' beside the pet');
+      ok(t.x > h.left + h.width * 0.7 && t.x <= h.right + 1, id + ' tail end on the right of the head: ' + t.x + ' in ' + h.left + '..' + h.right);
+      ok(t.y > h.top + h.height * 0.25 && t.y < h.bottom - h.height * 0.15, id + ' tail end at eye height: ' + t.y + ' in ' + h.top + '..' + h.bottom);
+      near(r.left - t.x, 8, 1, id + ' the bubble starts just right of it');
+      near(r.bottom - t.y, 17, 1, id + ' the tail is low on its left side');
+      eq(lines(b), 2, id + ' 16 characters: two lines');
+      ok(r.left >= win.left && r.top >= win.top && r.right + 2 <= win.right && r.bottom + 2 <= win.bottom, id + ' inside the window');
+      ok(apart(r, $(e, '.mtag').getBoundingClientRect()), id + ' clear of the money tag');
+      r = boxOf(speak(e, LONG));
+      eq(lines(b), 3, id + ' 22 characters: three lines');
+      ok(r.top >= win.top && r.right + 2 <= win.right, id + ' long line inside the window');
+      ok(apart(r, $(e, '.mtag').getBoundingClientRect()), id + ' long line clear of the money tag');
+      eq(getComputedStyle(b).pointerEvents, 'none', id + ' takes no clicks');
+      done();
+    });
+  });
+
+  test('layouts DOM: U1 and U3 speak beside the head too, inside the room; U3 stays under its side pills', function () {
+    SKINS.forEach(function (id) {
+      ['U1', 'U3'].forEach(function (name) {
+        var e = mk(at(12, 10, 0), { first: name, settings: petOf(id).settings }), at2 = id + ' ' + name + ': ';
+        var b = speak(e, MID), box = b.offsetParent.getBoundingClientRect(), t = tail(b), h = headOf(e);
+        ok(b.classList.contains('side'), at2 + 'beside the pet');
+        ok(t.x > h.left + h.width * 0.7 && t.x <= h.right + 1, at2 + 'tail end on the right of the head');
+        ok(t.y > h.top + h.height * 0.25 && t.y < h.bottom - h.height * 0.15, at2 + 'tail end at eye height');
+        eq(lines(b), 2, at2 + '16 characters: two lines');
+        var r = boxOf(speak(e, LONG));
+        ok(lines(b) <= 3, at2 + '22 characters: at most three lines');
+        ok(r.left > t.x && r.left >= box.left && r.top >= box.top && r.right + 2 <= box.right && r.bottom + 2 <= box.bottom, at2 + 'inside the room');
+        if (name === 'U3') {
+          ok(r.top >= $(e, '.side').getBoundingClientRect().bottom + 3, at2 + 'under the side pills');
+          ok(apart(r, $(e, '.hud-bottom').getBoundingClientRect()), at2 + 'clear of the money box');
+        }
+        done();
+      });
+    });
+  });
+
+  test('layouts DOM: a bubble that shows follows the head when the pose changes (U7 dangle and back)', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), b = speak(e, '吱！'), y0 = tail(b).y, pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    ok(b.classList.contains('show') && tail(b).y < y0 - 5, 'up with the lifted head: ' + tail(b).y + ' < ' + y0);
+    e.bridge.emit({ type: 'dragEnd' });
+    eq(petState(e), 'typing');
+    ok(b.classList.contains('show'), 'still talking');
+    eq(tail(b).y, y0, 'back down');
+    done();
+  });
+
+  test('layouts DOM: without a drawn pet the bubble keeps its plain corner place', function () {
+    var orig = QJZ.pets.compose, oe = console.error;
+    QJZ.pets.compose = function () { throw new Error('boom'); };
+    console.error = function () {};
+    try {
+      var e = mk(at(12, 10, 0), { first: 'U7' }), b = speak(e, '吱！');
+      ok(b.classList.contains('show') && !b.classList.contains('side'), 'shown, not beside a pet');
+      eq(U.anchorBubble(null, null, 'petonly', 'hamster:p0', 'typing'), null);
+    } finally { QJZ.pets.compose = orig; console.error = oe; done(); }
+  });
+
   test('layouts DOM: speech bubbles take no clicks in any layout (pointer-events none, no data-hit)', function () {
     ['U1', 'U3', 'U7'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name });

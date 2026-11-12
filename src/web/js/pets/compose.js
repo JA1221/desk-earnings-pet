@@ -6,17 +6,54 @@ QJZ.pets = QJZ.pets || {};
 //             so jumps, coins, hearts and the dangling pose stay inside, the same for every skin and state)
 //   avatar  — portrait cropped to the skin's crop: back + pre + post layers, no desk and no front paws;
 //             shows the state's face, head motion and head props but no whole-body pose
-// opts: {state:'typing', expression, mouth, props, viewBox}
+// opts: {state:'typing', expression, mouth, props, bag, viewBox}
 //   state      — a name from QJZ.pets.states (unknown names fall back to 'typing'); picks pose, face, arms, props
 //   expression — eyes, overrides the state's (and drops its second-frame eyes); mouth likewise
 //   props      — array of prop names, replaces the state's props ([] for none); a held prop brings holding paws
-// The root <svg> carries .pet-svg, .kind-<kind> and .st-<state>, plus per-skin pivots --hx/--hy (head) and
-// --gx/--gy (dangle).
+//   bag        — backpack style 'worn' | 'desk' | 'hug' when the props have the bag (waitBag); defaults to
+//                QJZ.pets.bagStyle(). The style picks the bag's place and the paws (rig.pack), and the pet sits up
+//                rig.pack.lift units off the keyboard (scene and petonly).
+// The root <svg> carries .pet-svg, .kind-<kind> and .st-<state> (and .bag-<style> with the bag), plus per-skin pivots
+// --hx/--hy (head) and --gx/--gy (dangle).
 // Every call gets a fresh uid, so ids never collide between SVGs.
+//
+// QJZ.pets.setBagStyle(style) / bagStyle(): the backpack style for the whole page (a temporary review switch, like
+// the earlier hamster arm switch: the styles the user does not pick go away). Unknown styles fall back to 'worn'.
+// QJZ.pets.speechAt(id, state) -> [x, y]: where a speech bubble's tail points, in pet coordinates (the scene and
+// petonly views): on the right edge of the head at eye height, following the dangle / lie poses and the backpack lift.
 QJZ.pets.compose = (function () {
   var P = QJZ.pets, C = P.common, seq = 0;
   var PETONLY = '30 4 176 170';
   var SLOT = /<!--(EYES|MOUTH|OVER)-->/g;
+  var BAG_STYLES = ['worn', 'desk', 'hug'], BAG_ARMS = { worn: 'strap', desk: 'wave', hug: 'hug' }, bagStyle = 'worn';
+
+  P.BAG_STYLES = BAG_STYLES.slice();
+  P.setBagStyle = function (style) { bagStyle = BAG_STYLES.indexOf(style) >= 0 ? style : 'worn'; };
+  P.bagStyle = function () { return bagStyle; };
+
+  // the backpack style of a compose call: null when its props have no bag
+  function bagOf(names, opt) {
+    if (names.indexOf('bag') < 0) return null;
+    return BAG_STYLES.indexOf(opt) >= 0 ? opt : bagStyle;
+  }
+  // units the pet sits up off the keyboard (the backpack styles, desk pose, not in the avatar)
+  function liftOf(rig, bag, pose, view) {
+    return bag && pose === 'desk' && view !== 'avatar' && rig.pack ? rig.pack.lift || 0 : 0;
+  }
+
+  var rigs = {};   // id -> {rig, poses} (anchors only: built once, the markup is not kept)
+  P.speechAt = function (id, state) {
+    var def = P.get(id);
+    if (!def) return null;
+    if (!rigs[id]) { var b0 = def.build('speech'); rigs[id] = { rig: b0.rig, poses: b0.poses }; }
+    var rig = rigs[id].rig, st = P.states.get(state) || P.states.get('typing'), pose = st.pose || 'desk';
+    var a = pose !== 'desk' && rigs[id].poses[pose] ? rigs[id].poses[pose].anchors || {} : {};
+    var side = (a.side || rig.side)[1];
+    // a pose that only moves the top of the head moves the face as much
+    var dy = !a.side && a.top ? a.top[1] - rig.top[1] : 0;
+    var lift = liftOf(rig, bagOf(st.props, null), pose, 'petonly');
+    return [side[0], side[1] + dy - lift + 4];
+  };
 
   // skin render wrapper around each pet layer (prototype PW): crayon skins get grain + wobble, on the parts that
   // stand still (C.filterStatic: a filter above a moving part would be redrawn every frame)
@@ -61,9 +98,10 @@ QJZ.pets.compose = (function () {
       P.expr.mouth(face, mo);
 
     // props, sorted into their slots
-    var names = Array.isArray(opts.props) ? opts.props : st.props;
-    var ctx = { uid: uid, mode: def.room, L: line[0], kind: def.kind, rig: pl && pl.anchors ? merge(rig, pl.anchors) : rig, face: face };
-    var pr = { back: '', desk: '', held: '', over: '', face: '', top: '' }, held = false;
+    var names = Array.isArray(opts.props) ? opts.props : st.props, bag = bagOf(names, opts.bag);
+    var lift = liftOf(rig, bag, pose, view);
+    var ctx = { uid: uid, mode: def.room, L: line[0], kind: def.kind, rig: pl && pl.anchors ? merge(rig, pl.anchors) : rig, face: face, bag: bag };
+    var pr = { back: '', desk: '', front: '', held: '', over: '', face: '', top: '' }, held = false;
     names.forEach(function (nm) {
       var d = P.props.draw(nm, ctx);
       for (var k in d) pr[k] += d[k];
@@ -71,7 +109,7 @@ QJZ.pets.compose = (function () {
     });
 
     // arms (desk pose only: the lying and dangling drawings bring their own)
-    var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : st.arms;
+    var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : bag ? BAG_ARMS[bag] : st.arms;
     if (pose === 'desk') {
       var a = P.rig.arms(rig, mode), z = alt.arms ? P.rig.arms(rig, alt.arms) : null;
       ['back', 'front', 'over'].forEach(function (k) {
@@ -85,7 +123,7 @@ QJZ.pets.compose = (function () {
     function extra(m) { return wrap(def.wrap, uid, m); }
 
     var style = '--hx:' + rig.pivot[0] + 'px;--hy:' + rig.pivot[1] + 'px;--gx:' + rig.grab[0] + 'px;--gy:' + rig.grab[1] + 'px';
-    var open = '<svg xmlns="http://www.w3.org/2000/svg" class="pet-svg kind-' + def.kind + ' st-' + name + '" ';
+    var open = '<svg xmlns="http://www.w3.org/2000/svg" class="pet-svg kind-' + def.kind + ' st-' + name + (bag ? ' bag-' + bag : '') + '" ';
     var defs = C.defs(uid) + (b.defs || '');
     var L = b.layers;
 
@@ -96,12 +134,13 @@ QJZ.pets.compose = (function () {
 
     var seed = b.seed ? wrap(def.wrap, uid, C.seed(line[0])) : '';
     var behind, front;   // pet parts behind the desk / in front of it
+    function up(m) { return lift && m ? '<g transform="translate(0 ' + -lift + ')">' + m + '</g>' : m; }
     if (pl) {
       behind = '';
-      front = layer(pr.back + (pl.back || '')) + layer(pl.pre) + layer(pl.front) + layer(pl.post);
+      front = layer(pr.back + (pl.back || '')) + layer(pl.pre) + layer(pl.front) + layer(pr.front) + layer(pl.post);
     } else {
-      behind = bod(layer(pr.back + arms.back + (L.back || '')) + layer(L.pre));
-      front = bod(layer(arms.front) + layer(L.post));
+      behind = bod(up(layer(pr.back + arms.back + (L.back || '')) + layer(L.pre)));
+      front = bod(up(layer(pr.front + arms.front) + layer(L.post)));
     }
     var desk = seed + extra(pr.desk);
 
