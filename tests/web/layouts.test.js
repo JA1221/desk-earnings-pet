@@ -332,12 +332,13 @@
     eq(QJZ.layouts.current(), 'PANEL');
     eq(last(e.sent, 'setLayout').layout, 'PANEL');
     eq(QJZ.app.state.settings.layout.current, 'U5B');
-    eq(text(e, '[data-b=ptitle]'), '設定');
+    eq(text(e, '.ptitle'), '設定');
+    eq(text(e, '[data-b=title]'), '錢進中 · 設定');
     e.menu('history');
-    eq(text(e, '[data-b=ptitle]'), '紀錄');
+    eq(text(e, '.ptitle'), '紀錄');
     e.menu('adjust');
-    eq(text(e, '[data-b=ptitle]'), '調整起算時間');
-    ok(text(e, '[data-panel-msg]').indexOf('09:00') >= 0, 'shows today\'s start');
+    eq(text(e, '.ptitle'), '設定');
+    ok(text(e, '[data-o=todayStart]').indexOf('09:00') >= 0, 'opens 起算 with today\'s start');
     $(e, '[data-act=back]').click();
     eq(QJZ.layouts.current(), 'U5B');
     e.menu('mini');

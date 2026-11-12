@@ -1,7 +1,9 @@
 window.QJZ = window.QJZ || {};
 // The visible layouts, built after docs/prototypes/converge.html: main windows U1 經典直式, U3 遊戲畫面,
-// U5B 極簡橫向, U7 桌面寵物; the temporary mini badge M3 and PANEL (settings / history / adjust; a placeholder
-// until the panels task).
+// U5B 極簡橫向, U7 桌面寵物; the temporary mini badge M3 and PANEL. PANEL is the window frame (title bar, size,
+// hit rects); its content is QJZ.panels (onboarding / settings / history / question, 'adjust' = settings at 起算),
+// mounted when PANEL is built and updated on every render. The first layout is a panel when QJZ.panels.initial
+// asks for one (onboarding, an early-leave question); closing it goes to the start layout.
 //
 // Host protocol (page -> host; sizes and rects in CSS px, dpr = window.devicePixelRatio):
 //   setLayout {layout, width, height, dpr}  width / height reach the layout root's right / bottom edge plus the 7px
@@ -11,7 +13,8 @@ window.QJZ = window.QJZ || {};
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
 //                                           through. Sent with every setLayout and whenever the rects change
 //                                           (bubble, hover tools, text growing, resize).
-//   setTopmost {on}                         after every layout change, from settings.layout.topmost.
+//   setTopmost {on}                         after every layout change, from settings.layout.topmost (and when the
+//                                           settings panel changes the setting of the layout PANEL came from).
 //   dragStart {}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click, so
 //                 pets can be poked and M3 double-clicked).
 //   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
@@ -201,23 +204,12 @@ QJZ.layouts = (function () {
         '<div class="sub" data-hit data-b="m3sub"></div><div class="fx" data-fx data-fxwin></div></div>';
     },
     PANEL: function () {
-      return '<div class="win panel lay" data-hit>' + BAR + '<div class="pbody"><div class="ptitle" data-b="ptitle"></div>' +
-        '<div class="pmsg" data-panel-msg></div><button type="button" class="btn" data-act="back">返回</button></div>' +
+      return '<div class="win panel lay" data-hit>' + BAR + '<div class="pbody" data-panel></div>' +
         '<div class="fx" data-fx data-fxwin></div></div>';
     }
   };
-  var PANELS = { settings: '設定', history: '紀錄', adjust: '調整起算時間' };
-  function panelMsg(kind, st) {
-    if (kind === 'history') {
-      var m = model(st, app().nowMs());
-      return '本月累計 <b>NT$ ' + m.month + '</b><br>每天的紀錄和長條圖很快就會出現在這裡。';
-    }
-    if (kind === 'adjust') {
-      var t = st.today && typeof st.today.startMs === 'number' ? clockText(st.today.startMs).slice(0, 5) : null;
-      return (t ? '今天從 <b>' + t + '</b> 開始計算。' : '今天還沒開始計算。') + '<br>調整起算時間的功能很快就會出現在這裡。';
-    }
-    return '設定面板準備中，很快就會出現在這裡。';
-  }
+  function panels() { return QJZ.panels || null; }
+  function panelTitle(kind) { return panels() ? panels().title(kind) : ''; }
 
   // ================= runtime =================
   var root = null, bridge = null, first = null;
@@ -298,8 +290,10 @@ QJZ.layouts = (function () {
     if (!view || !ready()) return;
     var st = app().state, m = model(st, app().nowMs()), i;
     for (var k in view.b) if (Object.prototype.hasOwnProperty.call(view.b, k) && k in m) setText(k, m[k]);
-    if (view.b.ptitle) setText('ptitle', PANELS[panelKind] || '');
-    if (view.b.title && view.name === 'PANEL') setText('title', '錢進中 · ' + (PANELS[panelKind] || ''));
+    if (view.name === 'PANEL') {
+      setText('title', '錢進中 · ' + panelTitle(panelKind));
+      if (panels()) panels()._update();
+    }
     if (view.statusKey !== m.key) {
       if (view.statusKey) view.el.classList.remove('s-' + view.statusKey);
       view.el.classList.add('s-' + m.key);
@@ -383,15 +377,12 @@ QJZ.layouts = (function () {
   // ================= layouts =================
   function show(name) {
     if (ALL.indexOf(name) < 0 || !root || !ready()) return false;
-    if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur;
+    if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     stopSay();
     cur = name;
     view = build(name);
     try {
-      if (name === 'PANEL') {
-        var msg = view.el.querySelector('[data-panel-msg]');
-        if (msg) msg.innerHTML = panelMsg(panelKind, app().state);
-      }
+      if (name === 'PANEL' && panels()) panels()._mount(view.el, panelKind);
       render();
     } catch (e) {
       if (window.console) console.error('[layouts] render ' + name + ' failed', e);   // still size and show the window
@@ -403,14 +394,20 @@ QJZ.layouts = (function () {
     return true;
   }
   function current() { return cur; }
+  // Where a panel shown first (nothing before it) goes back to.
+  function startLayout() {
+    return first && first !== 'PANEL' && ALL.indexOf(first) >= 0 ? first : app().state.settings.layout.start;
+  }
   function openPanel(kind) {
-    panelKind = PANELS[kind] ? kind : 'settings';
+    panelKind = panels() && panels().has(kind) ? kind : 'settings';
     return show('PANEL');
   }
   function closePanel() {
     var to = panelFrom && panelFrom !== 'PANEL' ? panelFrom : backTarget(app().state.settings);
     return show(to);
   }
+  // A topmost setting changed in the settings panel: PANEL follows the layout it came from.
+  function refreshTopmost() { if (cur) send('setTopmost', { on: topmostFor(cur) }); }
 
   // ================= reactions =================
   function stopSay() {
@@ -531,7 +528,7 @@ QJZ.layouts = (function () {
       case 'mini': show('M3'); break;
       case 'hide': send('hide', {}); break;
       case 'menu': send('contextMenu', {}); break;
-      case 'back': closePanel(); break;
+      case 'back': if (panels()) panels().close(); else closePanel(); break;
     }
   }
 
@@ -557,8 +554,9 @@ QJZ.layouts = (function () {
     if (!ready()) return;
     if (!shown) {
       shown = true;
-      var s = app().state.settings;
-      show(ALL.indexOf(first) >= 0 ? first : s.layout.start);
+      var p = !first && panels() ? panels().initial(app().state) : null;
+      if (p) openPanel(p);
+      else show(ALL.indexOf(first) >= 0 ? first : app().state.settings.layout.start);
       return;
     }
     render();
@@ -574,7 +572,8 @@ QJZ.layouts = (function () {
 
   // ---- pointer ----
   function inRoot(t) { return root && t && t.nodeType === 1 && root.contains(t); }
-  function isButton(t) { return !!t.closest('[data-act],button,input,select,textarea,a,label'); }
+  // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar).
+  function isButton(t) { return !!t.closest('[data-act],button,input,select,textarea,a,label,[data-nodrag]'); }
   function onDown(e) {
     drag = null;
     if (e.button !== 0 || !inRoot(e.target) || isButton(e.target)) return;
@@ -687,6 +686,7 @@ QJZ.layouts = (function () {
 
   return {
     show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
+    refreshTopmost: refreshTopmost,
     dragging: function () { return dragging; },
     MAIN: MAIN, ALL: ALL,
     util: {

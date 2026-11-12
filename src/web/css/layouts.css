@@ -1,4 +1,4 @@
-/* Layouts U1 / U3 / U5-B / U7 / M3 and the PANEL placeholder, ported from docs/prototypes/converge.html
+/* Layouts U1 / U3 / U5-B / U7 / M3 and the PANEL frame (content: panels.css), ported from docs/prototypes/converge.html
    (layout CSS) and the atoms of docs/prototypes/shared.css that base.css does not have.
    Built by js/ui/layouts.js: every layout root is .lay plus a status class s-working|s-lunch|s-done|s-ended|s-before|s-off.
    Keyframe names start with lay- so they never collide with pets.css. */
@@ -105,10 +105,5 @@
   min-width:136px;text-align:center}
 .m3 .banner{font-size:12px;padding:4px 10px;top:30%;white-space:normal;width:150px;text-align:center}
 
-/* ---------- PANEL (placeholder until the real panels exist) ---------- */
-.panel{width:400px}
-.panel .pbody{padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
-.panel .ptitle{font-size:20px;font-weight:700}
-.panel .pmsg{font-size:14px;font-weight:600;line-height:1.7;color:var(--sub)}
-.panel .pmsg b{color:var(--text)}
+/* ---------- PANEL: the frame only; its content (and its width) is in panels.css ---------- */
 .btn{font-size:14px;font-weight:700;border:2.5px solid var(--line);background:var(--bar);border-radius:99px;padding:6px 18px;box-shadow:2px 2px 0 var(--shadow)}

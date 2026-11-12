@@ -12,16 +12,21 @@ window.QJZ = window.QJZ || {};
 // Events (on): tick (every 100 ms, snap), second (snap), change (state), milestone ({count}) when the clock
 // carries today's earnings past another settings.milestone step. Record / settings changes (adjustStart, a new
 // step, init, a new day) only move the baseline, so they never celebrate by themselves.
-// Host notices the page cannot act on yet are kept for the panels: state.hotkeyFailed, state.storageError.
+// Host notices are kept for the panels and announced with the notice event (the message itself):
+//   hotkeyFailed {combo, reason, active}  state.hotkeyFailed, until the next setHotkey. When the combo that failed
+//                                         is the saved one and the host still has a working one (active), the
+//                                         saved privacy.hotkey goes back to active, so the next start registers it.
+//   storageError {file, reason}           state.storageError (the last one), state.storageErrors (each file once).
+// Host settings the page changes (saved and sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
 QJZ.app = (function () {
   var SAVE_DELAY = 1000, TICK_MS = 100;
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0,
     pendingQuestion: null, startHint: null, ready: false, paused: false,
-    hotkeyFailed: null, storageError: null
+    hotkeyFailed: null, storageError: null, storageErrors: []
   };
-  var listeners = { tick: [], second: [], change: [], milestone: [] };
+  var listeners = { tick: [], second: [], change: [], milestone: [], notice: [] };
   var tickTimer = null, saveTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
@@ -282,8 +287,40 @@ QJZ.app = (function () {
     flush();
     bridge.send('quit', {});
   }
-  function onHotkeyFailed(msg) { state.hotkeyFailed = msg; }
-  function onStorageError(msg) { state.storageError = msg; }
+
+  // ---- host settings (saved in settings.json, which the host reads at start, and applied now) ----
+  function setAutostart(on) {
+    if (!state.ready) return;
+    saveSettings({ autostart: !!on });
+    bridge.send('setAutostart', { on: !!on });
+  }
+  function setCaptureGuard(on) {
+    if (!state.ready) return;
+    saveSettings({ privacy: { hideFromCapture: !!on } });
+    bridge.send('setCaptureGuard', { on: !!on });
+  }
+  // combo: "Ctrl+Alt+H" style. The host answers only a failure (hotkeyFailed).
+  function setHotkey(combo) {
+    if (!state.ready || typeof combo !== 'string' || !combo) return;
+    state.hotkeyFailed = null;
+    saveSettings({ privacy: { hotkey: combo } });
+    bridge.send('setHotkey', { combo: combo });
+  }
+
+  function onHotkeyFailed(msg) {
+    state.hotkeyFailed = msg;
+    var s = state.settings, active = msg && msg.active;
+    if (state.ready && typeof active === 'string' && active && msg.combo === s.privacy.hotkey && active !== s.privacy.hotkey) {
+      saveSettings({ privacy: { hotkey: active } });
+    }
+    emit('notice', msg);
+  }
+  function onStorageError(msg) {
+    state.storageError = msg;
+    var f = msg && msg.file;
+    if (typeof f === 'string' && state.storageErrors.indexOf(f) < 0) state.storageErrors.push(f);
+    emit('notice', msg);
+  }
 
   // opts (tests): {bridge, now, tick:false}. Loading this file has no side effects; start() wires everything.
   function start(opts) {
@@ -308,16 +345,17 @@ QJZ.app = (function () {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     dirtySettings = dirtyHistory = false;
     clockOffset = 0; lastSec = null; lastMilestone = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
-    listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = [];
+    listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
-    state.hotkeyFailed = state.storageError = null;
+    state.hotkeyFailed = state.storageError = null; state.storageErrors = [];
     document.documentElement.classList.remove('paused');
   }
 
   return {
     state: state, start: start, tickNow: tick, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, setOffDay: setOffDay,
-    feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit
+    feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit,
+    setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey
   };
 })();

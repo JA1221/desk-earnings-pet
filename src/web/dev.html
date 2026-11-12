@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/pets.css">
 <link rel="stylesheet" href="css/layouts.css">
+<link rel="stylesheet" href="css/panels.css">
 <style>
   html, body { background: #ECE8E1; min-height: 100%; }
   body { padding: 14px; background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0); background-size: 22px 22px; }
@@ -39,6 +40,7 @@
   <button type="button" data-menu="topmost">置頂</button>
   <button type="button" data-menu="settings">設定</button>
   <button type="button" data-menu="history">紀錄</button>
+  <button type="button" id="ob">歡迎（第一次）</button>
   <button type="button" data-menu="quit">結束</button>
   <span class="sep"></span>
   <button type="button" id="snd">聲音：關</button>
@@ -46,15 +48,21 @@
 </div>
 <p class="note">Dev mock：右鍵選單在這裡用上面的按鈕代替（送出 host 的 <code>menu</code> 訊息）。資料存在 localStorage（qjz.settings / qjz.history）。
 網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3</code>、
-<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。</p>
+<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
+面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
+<code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust</code>、
+<code>?tab=salary|hours|start|pet|layout|boost|sound|autostart|privacy</code>、<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
+<code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
   var devQ = new URLSearchParams(location.search);
-  if (devQ.get('fresh') === '1') { try { localStorage.removeItem('qjz.settings'); localStorage.removeItem('qjz.history'); } catch (e) {} }
+  var devFirstRun = devQ.get('firstrun') === '1';
+  if (devQ.get('fresh') === '1' || devFirstRun) { try { localStorage.removeItem('qjz.settings'); localStorage.removeItem('qjz.history'); } catch (e) {} }
   if (devQ.get('bg') === 'wall') document.documentElement.classList.add('wall');
   if (devQ.get('bar') === '0') document.body.classList.add('hidebar');
-  window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12', settings: { salary: { mode: 'monthly', amount: 50000, divisor: 22 } } };
+  window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12',
+    settings: devFirstRun ? null : { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true } };
 </script>
 <script src="js/core/time.js"></script>
 <script src="js/core/earnings.js"></script>
@@ -84,6 +92,7 @@
 <script src="js/pets/skins/cat-s5.js"></script>
 <script src="js/pets/compose.js"></script>
 <script src="js/ui/layouts.js"></script>
+<script src="js/ui/panels.js"></script>
 <script>
   // Show what the page tells the host: the last setLayout, and (?hits=1 / button) the hit rects as dashed boxes.
   var showHits = devQ.get('hits') === '1', lastRects = [], lastLayout = null, sentEl = document.getElementById('sent');
@@ -107,6 +116,7 @@
 
   var first = devQ.get('layout');
   QJZ.layouts.start(document.getElementById('root'), { first: first });
+  QJZ.panels.start();
   var pet = /^(cat|hamster):(\w+)$/.exec(devQ.get('pet') || '');
   if (pet) {
     var offPet = QJZ.app.on('change', function () {
@@ -117,6 +127,59 @@
   var sayText = devQ.get('say');
   if (sayText) {
     var offSay = QJZ.app.on('change', function () { offSay(); setTimeout(function () { QJZ.layouts.say(sayText, 600000); }, 0); });
+  }
+
+  // ---- panels: sample data and shortcuts (dev only; localStorage is the mock host's storage) ----
+  function devNowMs() {
+    var p = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(window.QJZ_DEV.nowHM), d = new Date();
+    if (p) d.setHours(+p[1], +p[2], p[3] ? +p[3] : 0, 0);
+    return d.getTime();
+  }
+  function devDayKey(base, back) {
+    var p = base.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2] - back);
+    return d.getFullYear() + '-' + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
+  }
+  var devSeed = devQ.get('seed');
+  if (devSeed === 'history' || devSeed === 'earlyleave') {
+    var T = QJZ.time, todayKey = T.dayKey(devNowMs()), hist = { version: 1, days: {} };
+    try { var old = JSON.parse(localStorage.getItem('qjz.history')); if (old && old.days && devSeed === 'earlyleave') hist = old; } catch (e) {}
+    if (devSeed === 'history') {
+      // about four months of work days: most full, some cut short, an off day now and then
+      var devS = QJZ.settings.parse(localStorage.getItem('qjz.settings') || JSON.stringify(window.QJZ_DEV.settings)).settings;
+      var daily = QJZ.earn.rates(devS.salary, devS.hoursPerDay).daily, share = [1, 1, 0.93, 1, 0.82, 1, 1, 0.97, 0.64, 1, 1, 0.88];
+      for (var back = 1; back <= 120; back++) {
+        var key = devDayKey(todayKey, back), wd = T.weekday(key);
+        if (wd === 0 || wd === 6) continue;
+        var rec = QJZ.day.manualStart(QJZ.day.empty(key), T.atMinutes(key, 8 * 60 + 25 + (back * 7) % 50));
+        rec.startSource = 'auto';
+        if (back % 19 === 0) { rec = QJZ.day.setOffDay(QJZ.day.empty(key), true); rec.earned = 0; }
+        else rec.earned = Math.round(daily * share[back % share.length] * 100) / 100;
+        hist.days[key] = rec;
+      }
+    } else {
+      var y = devDayKey(todayKey, 1);
+      var yrec = QJZ.day.onLock(QJZ.day.manualStart(QJZ.day.empty(y), T.atMinutes(y, 9 * 60 + 5)), T.atMinutes(y, 16 * 60 + 2));
+      yrec.startSource = 'auto';
+      hist.days[y] = yrec;
+    }
+    try { localStorage.setItem('qjz.history', JSON.stringify(hist)); } catch (e) {}
+  }
+  var devTab = devQ.get('tab'), devNotice = devQ.get('notice');
+  var devPanel = devQ.get('panel') || (devTab ? 'settings' : devSeed === 'history' ? 'history' : null);
+  if (devPanel || devNotice || devQ.get('amount') !== null || devQ.get('step')) {
+    var offDev = QJZ.app.on('change', function () {
+      offDev();
+      setTimeout(function () {
+        if (devNotice === 'hotkey' || devNotice === 'both') QJZ.bridge._dispatch({ type: 'hotkeyFailed', combo: 'Ctrl+Alt+H', reason: 'taken', active: null });
+        if (devNotice === 'storage' || devNotice === 'both') QJZ.bridge._dispatch({ type: 'storageError', file: 'settings', reason: 'unreadable' });
+        if (devPanel) QJZ.panels.open(devPanel);
+        var tb = devTab && document.querySelector('[data-tab="' + devTab + '"]');
+        if (tb) tb.click();
+        var amt = devQ.get('amount'), f = document.querySelector('[data-f=amount]'), nx = document.querySelector('[data-pa=next]');
+        if (amt !== null && f) { f.value = amt; f.dispatchEvent(new Event('input', { bubbles: true })); }
+        if (devQ.get('step') === '2' && nx) nx.click();   // blocked (and the error shows) unless the amount is valid
+      }, 0);
+    });
   }
   QJZ.app.start();
 
@@ -132,6 +195,7 @@
     if (on) QJZ.sound.coin();
   };
   document.getElementById('hits').onclick = function () { showHits = !showHits; drawHits(); };
+  document.getElementById('ob').onclick = function () { QJZ.panels.open('onboarding'); };
 </script>
 </body>
 </html>
