@@ -118,6 +118,46 @@ public static class PayloadTests
         Assert.True(!Payload.IsRelease, "dev switches (QJZ_WEB_ROOT, QJZ_DEVTOOLS) count");
     }
 
+    public static void Test_ExpectedDirIsNullInABuildWithoutResources()
+    {
+        Assert.True(Payload.ExpectedDir() == null, "dev build (and this test exe): the app runs in its own folder's domain");
+    }
+
+    public static void Test_TargetDirIsWhereInstallUnpacks()
+    {
+        string root = NewDir();
+        try
+        {
+            byte[] web = SampleWeb();
+            Assert.Eq(Path.Combine(root, Payload.FolderName(web)), Payload.TargetDir(root, web), "root\\<id>");
+            Assert.Eq(Payload.TargetDir(root, web), Payload.Install(root, Resources(web, "v1"), null), "the same folder Install fills");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    // M10: a Microsoft.Web.WebView2.*.dll beside the exe that is not byte-identical to the embedded copy (another
+    // program's, in Downloads) is reported; the app never loads it.
+    public static void Test_ForeignCopiesAreTheManagedDllsBesideTheExeThatDiffer()
+    {
+        string exeDir = NewDir();
+        try
+        {
+            var res = Resources(SampleWeb(), "v1");
+            Func<string, byte[]> embedded = delegate(string name) { return res[name]; };
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "nothing beside the exe");
+            File.WriteAllBytes(Path.Combine(exeDir, "Microsoft.Web.WebView2.Core.dll"), res["Microsoft.Web.WebView2.Core.dll"]);
+            Assert.Eq(0, Payload.ForeignCopies(exeDir, embedded).Count, "an identical copy is not foreign");
+            File.WriteAllText(Path.Combine(exeDir, "Microsoft.Web.WebView2.WinForms.dll"), "someone else's");
+            File.WriteAllText(Path.Combine(exeDir, "WebView2Loader.dll"), "native, found only through the loader folder");
+            Assert.Eq("Microsoft.Web.WebView2.WinForms.dll", string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()), "the different one");
+            File.WriteAllText(Path.Combine(exeDir, "Microsoft.Web.WebView2.Core.dll"), "garbage");
+            Assert.Eq("Microsoft.Web.WebView2.Core.dll,Microsoft.Web.WebView2.WinForms.dll",
+                string.Join(",", Payload.ForeignCopies(exeDir, embedded).ToArray()), "both");
+            Assert.Eq(0, Payload.ForeignCopies(null, embedded).Count, "no exe folder: nothing");
+        }
+        finally { Directory.Delete(exeDir, true); }
+    }
+
     public static void Test_InstallUnpacksEverythingWithTheStampLast()
     {
         string root = NewDir();

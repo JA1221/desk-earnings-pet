@@ -57,6 +57,29 @@ public static class ShowRescue
         return VisibilityAction.None;
     }
 
+    // The hide hotkey (Ctrl+Alt+H) hides the window only when the user sees it on top: visible and either the
+    // foreground window, a topmost layout, or not covered by another app's window. A hidden or covered window is
+    // shown and raised instead, so the hotkey never "hides" a window the user could not see (U1 behind Excel).
+    // covered matters for the windows that are never foreground: U7/M3 with topmost off, U1 after a raise.
+    public static bool HotkeyHides(bool shownToUser, bool foreground, bool topmost, bool covered)
+    {
+        return shownToUser && (foreground || topmost || !covered);
+    }
+
+    // Tray and menu actions the user wants to see the result of: they show and raise the window (and give it the
+    // keyboard in an activating layout). 隱藏/顯示 toggles on its own; 結束 quits; 永遠在最上層 changes only the band.
+    public static bool MenuShows(string action)
+    {
+        return action != null && action != "toggleVisible" && action != "quit" && action != "topmost";
+    }
+
+    // Of those, the ones whose result shows in the current layout, which then takes the keyboard at once (if it is
+    // an activating one). A layout switch (layout:*, mini) leaves that to the new layout's setLayout.
+    public static bool MenuActivatesNow(string action)
+    {
+        return MenuShows(action) && !action.StartsWith("layout:") && action != "mini";
+    }
+
     // U7 and M3 never take focus when clicked.
     public static bool NoActivateLayout(string layout)
     {

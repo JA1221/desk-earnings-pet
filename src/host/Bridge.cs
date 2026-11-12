@@ -20,11 +20,6 @@ public class Bridge
 
     public event Action<string, Dictionary<string, object>> Received;
 
-    public Bridge(CoreWebView2 web) : this(web.PostWebMessageAsJson, ErrorLog.Write)
-    {
-        Attach(web);
-    }
-
     // post: delivers one JSON message to the page. onError: reports a handler that threw (may be null).
     public Bridge(Action<string> post, Action<string, Exception> onError)
     {

@@ -33,27 +33,25 @@ public class HostSettings
     // Canonical combo (HotKey.Normalize).
     public string Hotkey { get; private set; }
 
-    public bool Topmost(string layout)
-    {
-        bool on;
-        return layout != null && topmost.TryGetValue(layout, out on) && on;
-    }
-
     // A copy the host can update from setTopmost.
     public Dictionary<string, bool> TopmostByLayout()
     {
         return new Dictionary<string, bool>(topmost);
     }
 
+    // Whether the start may re-point the autostart Run value at this exe from the settings: on a first run (no
+    // settings.json, the defaults apply) or from settings that parse. Not when settings.json exists but could not be
+    // read, or does not parse: its defaults (autostart on) would re-add a Run value the user had turned off.
+    public static bool SyncAutostart(string settingsJson, bool readFailed)
+    {
+        if (readFailed) return false;
+        return settingsJson == null || JsonObject(settingsJson) != null;
+    }
+
     public static HostSettings Parse(string settingsJson)
     {
         var s = new HostSettings();
-        Dictionary<string, object> d = null;
-        if (!string.IsNullOrEmpty(settingsJson))
-        {
-            try { d = new JavaScriptSerializer().DeserializeObject(settingsJson) as Dictionary<string, object>; }
-            catch (Exception) { d = null; }
-        }
+        Dictionary<string, object> d = JsonObject(settingsJson);
         if (d == null) return s;
         object v;
         if (d.TryGetValue("autostart", out v) && v is bool) s.Autostart = (bool)v;
@@ -71,6 +69,14 @@ public class HostSettings
             foreach (string l in Layouts)
                 if (top.TryGetValue(l, out v) && v is bool) s.topmost[l] = (bool)v;
         return s;
+    }
+
+    // The settings text as a JSON object, or null (empty, not JSON, or JSON that is not an object).
+    static Dictionary<string, object> JsonObject(string settingsJson)
+    {
+        if (string.IsNullOrEmpty(settingsJson)) return null;
+        try { return new JavaScriptSerializer().DeserializeObject(settingsJson) as Dictionary<string, object>; }
+        catch (Exception) { return null; }
     }
 
     static Dictionary<string, object> Child(Dictionary<string, object> d, string key)

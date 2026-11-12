@@ -80,4 +80,69 @@ public static class UserFilesTests
         }
         finally { Directory.Delete(dir, true); }
     }
+
+    public static void Test_LoadAllReadsTheBakTexts()
+    {
+        string dir = NewDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "settings.json"), "\0\0\0");   // zero-filled after a power loss
+            File.WriteAllText(Path.Combine(dir, "settings.json.bak"), "{\"s\":1}");
+            File.WriteAllText(Path.Combine(dir, "history.json.bak"), "[\"h\"]");
+            using (var f = new UserFiles(dir, null))
+            {
+                Assert.True(f.SettingsBackup == null && f.HistoryBackup == null, "nothing before LoadAll");
+                f.LoadAll();
+                Assert.Eq("{\"s\":1}", f.SettingsBackup, "settings.json.bak");
+                Assert.Eq("[\"h\"]", f.HistoryBackup, "history.json.bak, even without history.json");
+            }
+            File.Delete(Path.Combine(dir, "settings.json.bak"));
+            using (var f = new UserFiles(dir, null))
+            {
+                f.LoadAll();
+                Assert.True(f.SettingsBackup == null, "no .bak -> null");
+            }
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    public static void Test_AnUnreadableBakIsNullAndLogged()
+    {
+        string dir = NewDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "history.json"), "h");
+            File.WriteAllText(Path.Combine(dir, "history.json.bak"), "old h");
+            var errors = new List<string>();
+            using (var f = new UserFiles(dir, delegate(string what, Exception ex) { errors.Add(what); }))
+            {
+                using (Lock(Path.Combine(dir, "history.json.bak"))) f.LoadAll();
+                Assert.True(f.HistoryBackup == null, "unreadable .bak -> null");
+                Assert.Eq("h", f.History.Text, "the main file is read as usual");
+                Assert.Eq(0, f.Unreadable.Count, "a .bak never makes the main file unreadable");
+                Assert.True(errors.Count == 1 && errors[0].StartsWith("history.json.bak"), "logged with the file name");
+            }
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    public static void Test_SavesKeepThePreviousVersionAsBak()
+    {
+        string dir = NewDir();
+        try
+        {
+            using (var f = new UserFiles(dir, null))
+            {
+                f.LoadAll();
+                f.Save(f.History, "h1");
+                f.Save(f.History, "h2");
+                f.Save(f.Settings, "s1");
+                f.Save(f.Settings, "s2");
+            }
+            Assert.Eq("h2", File.ReadAllText(Path.Combine(dir, "history.json")), "history");
+            Assert.Eq("h1", File.ReadAllText(Path.Combine(dir, "history.json.bak")), "history .bak");
+            Assert.Eq("s1", File.ReadAllText(Path.Combine(dir, "settings.json.bak")), "settings .bak");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

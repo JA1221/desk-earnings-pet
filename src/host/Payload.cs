@@ -59,9 +59,53 @@ public static class Payload
         var resources = new Dictionary<string, byte[]>();
         resources[WebZip] = webZip;
         foreach (string name in Binaries) resources[name] = ReadResource(exe, name);
-        dir = Install(Path.Combine(AppPaths.LocalDir, "app"), resources, ErrorLog.Write);
+        dir = Install(Root(), resources, ErrorLog.Write);
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
         return dir;
+    }
+
+    // The folder Ensure() unpacks to (it may not exist yet), without unpacking anything; null for a dev build.
+    // Program runs a release build in an AppDomain based there, so the WebView2 assemblies bind from there.
+    public static string ExpectedDir()
+    {
+        byte[] webZip = ReadResource(typeof(Payload).Assembly, WebZip);
+        return webZip == null ? null : TargetDir(Root(), webZip);
+    }
+
+    // root\<id>: where Install puts the files of this web.zip.
+    public static string TargetDir(string root, byte[] webZip)
+    {
+        return Path.Combine(root, FolderName(webZip));
+    }
+
+    // The two WebView2 assemblies found beside the exe (exeDir) that are not byte-identical to the embedded copies
+    // (embedded: resource name -> bytes): another program's files, which the app must never load. A release build
+    // never binds them (it runs in an AppDomain based in the unpacked folder); Program logs them.
+    public static List<string> ForeignCopies(string exeDir, Func<string, byte[]> embedded)
+    {
+        var foreign = new List<string>();
+        if (string.IsNullOrEmpty(exeDir)) return foreign;
+        foreach (string name in Binaries)
+        {
+            if (name.IndexOf('/') >= 0) continue;   // the native loaders are found only through their folder
+            string path = Path.Combine(exeDir, name);
+            if (!File.Exists(path)) continue;
+            byte[] ours = embedded(name);
+            byte[] there = File.ReadAllBytes(path);
+            if (ours == null || there.Length != ours.Length || Sha256Hex(there) != Sha256Hex(ours)) foreign.Add(name);
+        }
+        return foreign;
+    }
+
+    // The embedded copy of one resource (null when the exe has none: a dev build).
+    public static byte[] Embedded(string name)
+    {
+        return ReadResource(typeof(Payload).Assembly, name);
+    }
+
+    static string Root()
+    {
+        return Path.Combine(AppPaths.LocalDir, "app");
     }
 
     // The loader folder for a process architecture (x86, x64, arm64), or null where WebView2 has no loader.
@@ -88,7 +132,7 @@ public static class Payload
         byte[] webZip = resources[WebZip];
         List<KeyValuePair<string, long>> webFiles = WebFiles(webZip);
         string id = FolderName(webZip);
-        string target = Path.Combine(root, id);
+        string target = TargetDir(root, webZip);
         string stamp = Stamp(resources, webFiles);
         if (!IsComplete(target, stamp, resources, webFiles)) Unpack(target, resources, webFiles, stamp);
         RemoveStale(root, id, log);

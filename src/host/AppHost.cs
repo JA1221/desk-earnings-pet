@@ -17,9 +17,15 @@ using Microsoft.Web.WebView2.Core;
 // - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
 //   page also gets the current state: visibility, a hotkey failure, unreadable files (storageError).
 // - U7 and M3 never take focus when clicked; the other layouts activate normally (keyboard input).
+// - Every show raises the window to the top of its band without activating it. Shows and panels the user asked
+//   for from the tray or the menu also take the keyboard in the activating layouts (U1/U3/U5B/PANEL). The hotkey
+//   hides only a window the user sees on top (ShowRescue.HotkeyHides); a covered one is raised instead.
 // - While the window is hidden or the session is locked the page gets visibility {visible:false} and the hit
 //   poll stops; showing / unlocking reverses both.
 // - Alt+F4 hides the window. Any close from outside (WM_CLOSE, Windows ending the session) shuts the app down.
+// - Every end (結束, a close from outside, Windows ending the session) records the time in session.json
+//   (ExitStamp); the next start hands it to the page as init lastExitMs, with the .bak texts (init backups) and
+//   whether the window had to go opaque (init forceOpaque).
 // Host-only menu actions: toggleVisible (a hidden page cannot show itself) and quit (sent to the page as
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs).
 public class AppHost
@@ -33,6 +39,7 @@ public class AppHost
     const int QuitWaitMs = 1500;     // how long quit waits for the page's quit {}
     const int MaxPageCrashes = 3;    // page reloads after renderer crashes allowed per minute
     const int FirstShowWaitMs = 4000;   // after navigation / init: no visible window by then -> safety net
+    const int MenuActivateMs = 3000;    // a setLayout this soon after a tray/menu action is that action's (a panel)
 
     readonly string startUrl;
     readonly bool devPage;
@@ -67,6 +74,10 @@ public class AppHost
     SynchronizationContext ui;
     bool quitting;
     bool fatalShown;
+    ExitStamp exitStamp;         // session.json
+    long? lastExitMs;            // the previous run's end, read at start (init lastExitMs)
+    bool exitRecorded;           // this run's end is in session.json
+    DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike),
     // which never touches the autostart Run value.
@@ -85,7 +96,8 @@ public class AppHost
         window.InitFailed += delegate(string message) { Fatal("window init failed", message); };
         window.WebReady += delegate { OnWebReady(); };
         window.MoveEnded += delegate { OnMoveEnded(); };
-        window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) ToggleVisible(); else menuEscape.OnHotKey(id); };
+        window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) OnHotkey(); else menuEscape.OnHotKey(id); };
+        window.SessionEnding += delegate { OnSessionEnding(); };
         menuEscape = new MenuEscape(
             delegate { return window.IsHandleCreated && Native.RegisterHotKey(window.Handle, MenuEscape.Id, Native.MOD_NOREPEAT, MenuEscape.VK_ESCAPE); },
             delegate { if (window.IsHandleCreated) Native.UnregisterHotKey(window.Handle, MenuEscape.Id); },
@@ -106,16 +118,22 @@ public class AppHost
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         ui = SynchronizationContext.Current;
         uiThread = Native.GetCurrentThreadId();
+        if (ErrorLog.Tracing)
+            ErrorLog.Trace("start: domain " + AppDomain.CurrentDomain.FriendlyName + " base " + AppDomain.CurrentDomain.BaseDirectory +
+                "; WebView2 assemblies " + typeof(CoreWebView2).Assembly.Location + ", " + typeof(Microsoft.Web.WebView2.WinForms.WebView2).Assembly.Location);
+        exitStamp = new ExitStamp(System.IO.Path.Combine(AppPaths.DataDir, "session.json"));
+        lastExitMs = exitStamp.Read();
         files.LoadAll();
         placer.Load();
         HostSettings settings = HostSettings.Parse(files.Settings.Text);
         topmost = settings.TopmostByLayout();
         configuredHotkey = settings.Hotkey;
         captureGuard = settings.CaptureGuard;   // applied when the window handle exists, before the page loads
-        if (!devPage && !files.Settings.ReadFailed) SetAutoStart(settings.Autostart);   // re-points a stale Run value
+        // re-points a stale Run value; never from settings that could not be read or parsed (their defaults)
+        if (!devPage && HostSettings.SyncAutostart(files.Settings.Text, files.Settings.ReadFailed)) SetAutoStart(settings.Autostart);
 
         tray.ItemClicked += OnMenu;
-        tray.IconDoubleClick += delegate { ToggleVisible(); };
+        tray.IconDoubleClick += delegate { ShowAndRaise(true); };   // always shows, never hides
         tray.Menu.Opened += delegate { OnMenuOpened(); };
         tray.Menu.Closed += delegate
         {
@@ -224,7 +242,20 @@ public class AppHost
         }
         catch (Exception ex) { ErrorLog.Write("event log probe", ex); }
         if (nav != navigation || quitting) return;   // the page changed meanwhile
-        bridge.Open("init", new { settings = files.Settings.Text, history = files.History.Text, probeMs = probe, nowMs = NowMs(), version = Version });
+        if (ErrorLog.Tracing)
+            ErrorLog.Trace("init lastExitMs=" + (lastExitMs.HasValue ? lastExitMs.Value.ToString() : "null") + " forceOpaque=" + window.ForceOpaque +
+                " backups settings=" + (files.SettingsBackup != null) + " history=" + (files.HistoryBackup != null));
+        bridge.Open("init", new
+        {
+            settings = files.Settings.Text,
+            history = files.History.Text,
+            backups = new { settings = files.SettingsBackup, history = files.HistoryBackup },   // for a main text that does not parse
+            lastExitMs = lastExitMs,   // the previous run's end (null: none recorded)
+            forceOpaque = window.ForceOpaque,
+            probeMs = probe,
+            nowMs = NowMs(),
+            version = Version
+        });
         ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
@@ -329,6 +360,11 @@ public class AppHost
         }
         UpdateTray();
         ApplyVisibility();   // the first setLayout shows the window
+        if (DateTime.UtcNow < activateUntil && ShownToUser())
+        {
+            activateUntil = DateTime.MinValue;
+            Raise(true);   // the panel (or layout) the user picked from the tray or the menu gets the keyboard
+        }
     }
 
     void OnMoveEnded()
@@ -345,21 +381,56 @@ public class AppHost
 
     // ---- visibility and pause ----
 
-    // Hides the window only when the user can see it; otherwise (hidden, or still starting) it means "show".
+    // The menu's 隱藏/顯示: hides the window when the user can see it; otherwise (hidden, or still starting) it
+    // shows it, raised and with the keyboard in an activating layout.
     void ToggleVisible()
     {
-        wantVisible = ShowRescue.NextWantVisible(ShownToUser());
-        ApplyVisibility();
+        if (ShowRescue.NextWantVisible(ShownToUser())) ShowAndRaise(true);
+        else { wantVisible = false; ApplyVisibility(); }
+    }
+
+    // The hide hotkey: hides only a window the user sees on top; a hidden or covered one is shown and raised (without
+    // taking the keyboard from the user's app).
+    void OnHotkey()
+    {
+        bool shown = ShownToUser();
+        bool foreground = shown && Native.GetForegroundWindow() == window.Handle;
+        bool top = window.TopMostEnabled;
+        bool covered = shown && !foreground && !top && CoverCheck.IsCovered(window.Handle);
+        if (ShowRescue.HotkeyHides(shown, foreground, top, covered)) { wantVisible = false; ApplyVisibility(); }
+        else ShowAndRaise(false);
+    }
+
+    void ShowAndRaise(bool activate)
+    {
+        if (quitting) return;
+        wantVisible = true;
+        ApplyVisibility();   // raises it if it was hidden
+        Raise(activate);
+    }
+
+    // To the top of its band (topmost or not) without activating; activate: also the foreground window, unless the
+    // layout never takes focus (U7, M3). Windows allows that right after the user's own input to this app (tray,
+    // menu) or a second start's AllowSetForegroundWindow; when it refuses, the raise still holds.
+    void Raise(bool activate)
+    {
+        if (!ShownToUser()) return;
+        window.RaiseWithoutActivation();
+        if (activate && !window.NoActivate) Native.SetForegroundWindow(window.Handle);
     }
 
     void ApplyVisibility()
     {
         switch (ShowRescue.Visibility(wantVisible, layout != null, rescued, quitting, window.Visible, ShownToUser()))
         {
-            case VisibilityAction.Show: window.Show(); break;   // never activates (PetWindow.ShowWithoutActivation)
+            case VisibilityAction.Show:
+                window.Show();   // never activates (PetWindow.ShowWithoutActivation) and keeps the old z-order place
+                Raise(false);
+                break;
             case VisibilityAction.Hide: window.Hide(); break;
             case VisibilityAction.ForceShow:   // WinForms says shown, Windows disagrees (or minimized)
                 if (window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);
+                Raise(false);
                 break;
         }
         if (gate.SetShown(window.Visible)) PauseChanged();
@@ -412,7 +483,11 @@ public class AppHost
             rescued = true;
         }
         ApplyVisibility();
-        if (!ShownToUser() && window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms thinks it is shown
+        if (!ShownToUser() && window.IsHandleCreated)
+        {
+            Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms thinks it is shown
+            Raise(false);
+        }
         firstShown = ShownToUser();
         if (!rescueLogged)
         {
@@ -435,15 +510,10 @@ public class AppHost
         Send("visibility", new { visible = gate.Running });
     }
 
+    // Activation is allowed: the second instance called AllowSetForegroundWindow.
     void OnSecondInstance()
     {
-        if (quitting) return;
-        wantVisible = true;
-        ApplyVisibility();
-        if (!window.Visible) return;
-        if (window.NoActivate)
-            Native.SetWindowPos(window.Handle, Native.HWND_TOP, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
-        else Native.SetForegroundWindow(window.Handle);   // allowed: the second instance called AllowSetForegroundWindow
+        ShowAndRaise(true);
     }
 
     void UpdateTray()
@@ -457,7 +527,14 @@ public class AppHost
     {
         if (action == "toggleVisible") { ToggleVisible(); return; }
         if (action == "quit") { BeginQuit(); return; }
-        if (action != "topmost" && !wantVisible) { wantVisible = true; ApplyVisibility(); }   // the user wants to see the result
+        if (ShowRescue.MenuShows(action))
+        {
+            // The user wants to see the result: shown and raised now, with the keyboard if the current layout takes
+            // it and stays; the layout the page switches to for it (a panel, another layout) takes the keyboard when
+            // its setLayout arrives, if it is an activating one.
+            ShowAndRaise(ShowRescue.MenuActivatesNow(action));
+            activateUntil = DateTime.UtcNow.AddMilliseconds(MenuActivateMs);
+        }
         Send("menu", new { action = action });
     }
 
@@ -567,7 +644,25 @@ public class AppHost
         }, null);
     }
 
-    // Saves and releases everything that outlives the window (files, hotkey, session events, the instance mutex).
+    // Windows is ending the session (sign-out, shutdown, restart): the page's text and the exit time go to the disk
+    // now, while the process is still sure to run. FormClosing follows (OnClosing) and ends the app.
+    void OnSessionEnding()
+    {
+        files.FlushAll();
+        RecordExit();
+    }
+
+    // The exit time for the next start (init lastExitMs). Synchronous and flushed; once per run.
+    void RecordExit()
+    {
+        if (exitRecorded || exitStamp == null) return;
+        exitRecorded = true;
+        try { exitStamp.Write(NowMs()); }
+        catch (Exception ex) { ErrorLog.Write("recording the exit time in session.json", ex); }
+    }
+
+    // Saves and releases everything that outlives the window (files, exit time, hotkey, session events, the
+    // instance mutex).
     void Shutdown()
     {
         quitting = true;
@@ -576,6 +671,7 @@ public class AppHost
         firstShowTimer.Dispose();
         menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered
         files.FlushAll();
+        RecordExit();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);
         if (session != null) session.Dispose();
         SingleInstance.Stop();

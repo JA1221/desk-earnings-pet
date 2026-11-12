@@ -19,6 +19,8 @@ using Microsoft.Web.WebView2.WinForms;
 // CSS -> physical px uses the page's devicePixelRatio (reported with SetContentSize / SetHitRects),
 // which can differ from DPI / 96 (page zoom, Windows Text size).
 // Focus: showing never activates the window; with NoActivate set (floating layouts) clicks do not either.
+// If either transparency call fails (Transparency), the window still works with an opaque #FFF8EC background
+// (ForceOpaque; the page is told in init); click-through keeps working as long as the window could be layered.
 public class PetWindow : Form
 {
     private readonly WebView2 web = new WebView2();
@@ -35,12 +37,22 @@ public class PetWindow : Form
     private bool noActivate;
     private bool topMost;
     private bool everShown;
+    private bool notLayered;          // SetLayeredWindowAttributes failed: a layered window would stay invisible
+    private bool transparencyLogged;  // the transparency failure goes to error.log once
 
     public event EventHandler WebReady;
 
-    // Transparency or WebView2 setup failed; the window cannot be shown usefully. Raised at most once. Without
-    // a subscriber the window shows the message itself and closes.
+    // WebView2 setup failed; the window cannot be shown usefully. Raised at most once. Without a subscriber the
+    // window shows the message itself and closes. (A transparency failure is not one: see ForceOpaque.)
     public event Action<string> InitFailed;
+
+    // Windows is ending the session (WM_QUERYENDSESSION, or WM_ENDSESSION with wParam TRUE). Raised synchronously,
+    // before WinForms turns it into FormClosing: the handler can still write to the disk.
+    public event EventHandler SessionEnding;
+
+    // The transparency setup failed (Transparency): the window paints an opaque #FFF8EC background instead of the
+    // desktop. Known once the handle exists.
+    public bool ForceOpaque { get; private set; }
 
     // A move or resize loop ended (WM_EXITSIZEMOVE), e.g. after BeginDrag.
     public event EventHandler MoveEnded;
@@ -92,6 +104,18 @@ public class PetWindow : Form
                 Native.SetWindowPos(Handle, value ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST, 0, 0, 0, 0,
                     Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
         }
+    }
+
+    // Brings the window to the top of its band (topmost or not) without activating it. SetWindowPos(HWND_TOP) alone
+    // does not lift it above another program's windows while this process is in the background (measured: it stays
+    // under them); passing through the topmost band does, and a window that is not topmost leaves that band at once
+    // (HWND_NOTOPMOST puts it above every other non-topmost window, the foreground one included).
+    public void RaiseWithoutActivation()
+    {
+        if (!IsHandleCreated) return;
+        const uint flags = Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE;
+        Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0, flags);
+        if (!topMost) Native.SetWindowPos(Handle, Native.HWND_NOTOPMOST, 0, 0, 0, 0, flags);
     }
 
     // True: clicking the window does not activate it, so the user's app keeps keyboard focus. WS_EX_NOACTIVATE
@@ -186,7 +210,8 @@ public class PetWindow : Form
         get
         {
             CreateParams cp = base.CreateParams;
-            cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
+            cp.ExStyle |= Native.WS_EX_TRANSPARENT;
+            if (!notLayered) cp.ExStyle |= Native.WS_EX_LAYERED;
             if (noActivate) cp.ExStyle |= Native.WS_EX_NOACTIVATE;
             if (topMost) cp.ExStyle |= Native.WS_EX_TOPMOST;
             return cp;
@@ -197,22 +222,50 @@ public class PetWindow : Form
     {
         base.OnHandleCreated(e);
         windowDpi = (int)Native.GetDpiForWindow(Handle);
-        Native.DWM_BLURBEHIND bb = new Native.DWM_BLURBEHIND();
-        bb.dwFlags = Native.DWM_BB_ENABLE | Native.DWM_BB_BLURREGION;
-        bb.fEnable = true;
-        bb.hRgnBlur = Native.CreateRectRgn(0, 0, -1, -1);   // empty region: alpha only, no blur
-        int hr = Native.DwmEnableBlurBehindWindow(Handle, ref bb);
-        Native.DeleteObject(bb.hRgnBlur);
-        string error = null;
-        if (hr < 0) error = "DwmEnableBlurBehindWindow 0x" + hr.ToString("X8");
-        else if (!Native.SetLayeredWindowAttributes(Handle, 0, 255, Native.LWA_ALPHA))
-            error = "SetLayeredWindowAttributes " + Marshal.GetLastWin32Error();
-        if (error != null)
-            BeginInvoke((MethodInvoker)delegate { Fail("透明視窗初始化失敗：" + error); });
-        else if (!webStarted)
+        SetUpTransparency();
+        if (!webStarted)
         {
             webStarted = true;
             BeginInvoke((MethodInvoker)InitWeb);
+        }
+    }
+
+    // Both calls are always made: the layered style (click-through) does not depend on blur-behind. A failure is
+    // logged once and the window goes on opaque. QJZ_FAKE_DWM_FAILURE=1 (dev builds only) skips the blur-behind call
+    // and reports it as failed, to try the opaque path on a machine where DWM works.
+    private void SetUpTransparency()
+    {
+        int hr;
+        if (!Payload.IsRelease && Environment.GetEnvironmentVariable("QJZ_FAKE_DWM_FAILURE") == "1") hr = unchecked((int)0x80004005);
+        else
+        {
+            Native.DWM_BLURBEHIND bb = new Native.DWM_BLURBEHIND();
+            bb.dwFlags = Native.DWM_BB_ENABLE | Native.DWM_BB_BLURREGION;
+            bb.fEnable = true;
+            bb.hRgnBlur = Native.CreateRectRgn(0, 0, -1, -1);   // empty region: alpha only, no blur
+            hr = Native.DwmEnableBlurBehindWindow(Handle, ref bb);
+            Native.DeleteObject(bb.hRgnBlur);
+        }
+        bool layered = notLayered || Native.SetLayeredWindowAttributes(Handle, 0, 255, Native.LWA_ALPHA);
+        int layeredError = layered ? 0 : Marshal.GetLastWin32Error();
+        string failure = Transparency.Failure(hr, layered, layeredError);
+        if (failure == null) return;
+        if (!transparencyLogged)
+        {
+            transparencyLogged = true;
+            ErrorLog.Write("transparent window setup failed, going on with an opaque background: " + failure);
+        }
+        ForceOpaque = true;
+        Color paper = Color.FromArgb(Transparency.PaperArgb);
+        BackColor = paper;                    // GDI black would show as black without blur-behind
+        web.DefaultBackgroundColor = paper;   // until the page paints its own (opaque) background
+        if (!layered)
+        {
+            // A layered window without SetLayeredWindowAttributes is never drawn: drop the style so the window shows.
+            // Clicks then reach the whole window (no click-through) but the app stays usable.
+            notLayered = true;
+            int ex = Native.GetWindowLong(Handle, Native.GWL_EXSTYLE);
+            Native.SetWindowLong(Handle, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
         }
     }
 
@@ -251,6 +304,11 @@ public class PetWindow : Form
             if (hot != null) hot((int)m.WParam.ToInt64());
             m.Result = IntPtr.Zero;
             return;
+        }
+        if ((m.Msg == Native.WM_QUERYENDSESSION || (m.Msg == Native.WM_ENDSESSION && m.WParam != IntPtr.Zero)) && SessionEnding != null)
+        {
+            try { SessionEnding(this, EventArgs.Empty); }
+            catch (Exception ex) { ErrorLog.Write("session end", ex); }   // Windows must still get its answer below
         }
         base.WndProc(ref m);
         if (m.Msg == Native.WM_EXITSIZEMOVE && MoveEnded != null) MoveEnded(this, EventArgs.Empty);
@@ -323,6 +381,8 @@ public class PetWindow : Form
             s.AreBrowserAcceleratorKeysEnabled = false;
             s.IsStatusBarEnabled = false;
             s.AreDevToolsEnabled = !Payload.IsRelease && Environment.GetEnvironmentVariable("QJZ_DEVTOOLS") == "1";   // dev builds only
+            try { s.IsReputationCheckingRequired = false; }   // no SmartScreen lookups for the app's own local pages
+            catch (Exception ex) { ErrorLog.Write("IsReputationCheckingRequired (older WebView2 runtime?)", ex); }
             web.AllowExternalDrop = false;    // a file dropped on a hit rect would navigate the page away
 
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);

@@ -1,4 +1,9 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
+
+// The app's own P/Invokes (user32, gdi32, kernel32, dwmapi, shcore) load from System32 only, never a same-named DLL
+// beside the exe (Program.RestrictDllSearch covers DLLs that Windows itself loads by name).
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
 
 // The exe's version block (Explorer: 內容 → 詳細資料; Task Manager shows the title). One version: AppHost.Version.
 // No company or copyright: coworkers pass the exe around as it is.

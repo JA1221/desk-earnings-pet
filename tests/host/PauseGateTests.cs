@@ -63,6 +63,41 @@ public static class ShowRescueTests
         Assert.Eq(VisibilityAction.Hide, ShowRescue.Visibility(true, false, false, false, true, true), "visible without a layout and not rescued: hide");
     }
 
+    // R-F3: the hotkey hides only a window the user sees on top; a covered window comes to the front instead.
+    public static void Test_HotkeyHidesOnlyWhatIsSeenOnTop()
+    {
+        // (shownToUser, foreground, topmost, covered)
+        Assert.True(!ShowRescue.HotkeyHides(false, false, false, false), "hidden (or still starting): show");
+        Assert.True(!ShowRescue.HotkeyHides(false, false, true, false), "hidden topmost layout: show");
+        Assert.True(ShowRescue.HotkeyHides(true, true, false, false), "visible and foreground: hide");
+        Assert.True(ShowRescue.HotkeyHides(true, true, false, true), "foreground wins over anything above it");
+        Assert.True(ShowRescue.HotkeyHides(true, false, true, false), "visible topmost layout: hide");
+        Assert.True(ShowRescue.HotkeyHides(true, false, true, true), "a topmost layout hides even under another topmost window");
+        Assert.True(!ShowRescue.HotkeyHides(true, false, false, true), "U1 behind Excel: show and raise, not hide");
+        Assert.True(ShowRescue.HotkeyHides(true, false, false, false),
+            "nothing covers it (U7/M3 with topmost off never become foreground; U1 after a raise): hide");
+    }
+
+    // R-F3: tray and menu actions show and raise the window (the user wants to see the result); 隱藏/顯示 toggles,
+    // 結束 quits, and 永遠在最上層 only changes the z-order band.
+    public static void Test_MenuActionsThatShowTheWindow()
+    {
+        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "feed", "start", "adjust", "end", "settings", "history" })
+            Assert.True(ShowRescue.MenuShows(a), a + " shows and raises");
+        foreach (string a in new[] { "toggleVisible", "quit", "topmost", null })
+            Assert.True(!ShowRescue.MenuShows(a), (a ?? "null") + " does not");
+    }
+
+    // The current layout takes the keyboard at once unless the action switches layouts (that one decides when its
+    // setLayout arrives: U7/M3 never take it).
+    public static void Test_MenuActionsThatActivateTheCurrentLayout()
+    {
+        foreach (string a in new[] { "feed", "start", "adjust", "end", "settings", "history" })
+            Assert.True(ShowRescue.MenuActivatesNow(a), a + " activates now");
+        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "toggleVisible", "quit", "topmost", null })
+            Assert.True(!ShowRescue.MenuActivatesNow(a), (a ?? "null") + " does not");
+    }
+
     public static void Test_StartLayoutNoActivate()
     {
         Assert.True(ShowRescue.NoActivateLayout("U7"), "U7");

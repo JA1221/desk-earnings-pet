@@ -2,6 +2,13 @@ using System;
 
 public static class HostSettingsTests
 {
+    // Topmost for one layout, as the host uses it (a copy it updates from setTopmost).
+    static bool Top(HostSettings s, string layout)
+    {
+        bool on;
+        return layout != null && s.TopmostByLayout().TryGetValue(layout, out on) && on;
+    }
+
     public static void Test_DefaultsWithoutSettings()
     {
         foreach (string text in new[] { null, "", "   " })
@@ -9,9 +16,9 @@ public static class HostSettingsTests
             HostSettings s = HostSettings.Parse(text);
             Assert.True(s.Autostart, "autostart defaults on");
             Assert.Eq("Ctrl+Alt+H", s.Hotkey, "default hotkey");
-            Assert.True(s.Topmost("U7") && s.Topmost("M3"), "floating layouts default topmost");
-            Assert.True(!s.Topmost("U1") && !s.Topmost("U3") && !s.Topmost("U5B"), "main layouts default not topmost");
-            Assert.True(!s.Topmost("spike") && !s.Topmost(null), "unknown layout not topmost");
+            Assert.True(Top(s, "U7") && Top(s, "M3"), "floating layouts default topmost");
+            Assert.True(!Top(s, "U1") && !Top(s, "U3") && !Top(s, "U5B"), "main layouts default not topmost");
+            Assert.True(!Top(s, "spike") && !Top(s, null), "unknown layout not topmost");
             Assert.True(s.CaptureGuard, "capture guard defaults on");
             Assert.Eq("U1", s.StartLayout, "start layout defaults to U1");
         }
@@ -24,10 +31,10 @@ public static class HostSettingsTests
             "\"layout\":{\"start\":\"U7\",\"topmost\":{\"U1\":true,\"U7\":false}},\"salary\":{\"amount\":50000}}");
         Assert.True(!s.Autostart, "autostart off");
         Assert.Eq("Ctrl+Alt+J", s.Hotkey, "configured hotkey, normalized");
-        Assert.True(s.Topmost("U1"), "U1 configured topmost");
-        Assert.True(!s.Topmost("U7"), "U7 configured not topmost");
-        Assert.True(s.Topmost("M3"), "M3 keeps its default");
-        Assert.True(!s.Topmost("U3"), "U3 keeps its default");
+        Assert.True(Top(s, "U1"), "U1 configured topmost");
+        Assert.True(!Top(s, "U7"), "U7 configured not topmost");
+        Assert.True(Top(s, "M3"), "M3 keeps its default");
+        Assert.True(!Top(s, "U3"), "U3 keeps its default");
         Assert.True(s.CaptureGuard, "hideFromCapture true");
         Assert.Eq("U7", s.StartLayout, "layout.start");
         Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\"}}").StartLayout, "M3 may be the start layout");
@@ -52,9 +59,24 @@ public static class HostSettingsTests
             HostSettings s = HostSettings.Parse(text);
             Assert.True(s.Autostart, "autostart default for " + text);
             Assert.Eq("Ctrl+Alt+H", s.Hotkey, "hotkey default for " + text);
-            Assert.True(!s.Topmost("U1") && s.Topmost("U7"), "topmost defaults for " + text);
+            Assert.True(!Top(s, "U1") && Top(s, "U7"), "topmost defaults for " + text);
             Assert.True(s.CaptureGuard, "capture guard default for " + text);
             Assert.Eq("U1", s.StartLayout, "start layout default for " + text);
         }
+    }
+
+    // M2: the Run value is re-pointed at start only from settings the host could read and parse (or on a first run,
+    // without settings.json). Corrupt settings give defaults (autostart on), which must not re-add a Run value the
+    // user turned off.
+    public static void Test_AutostartSelfHealOnlyFromParsedSettings()
+    {
+        Assert.True(HostSettings.SyncAutostart(null, false), "first run (no settings.json): defaults apply");
+        Assert.True(HostSettings.SyncAutostart("{\"autostart\":false}", false), "parsed settings");
+        Assert.True(HostSettings.SyncAutostart("{}", false), "an empty object parses (autostart defaults on)");
+        string[] corrupt = { "", "   ", "\0\0\0", "{bad", "[]", "42", "null", "\"x\"" };
+        foreach (string text in corrupt)
+            Assert.True(!HostSettings.SyncAutostart(text, false), "settings that exist but do not parse: <" + text + ">");
+        Assert.True(!HostSettings.SyncAutostart(null, true), "settings.json exists but could not be read");
+        Assert.True(!HostSettings.SyncAutostart("{\"autostart\":true}", true), "read failure wins");
     }
 }

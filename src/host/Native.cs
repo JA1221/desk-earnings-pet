@@ -44,6 +44,13 @@ internal static class Native
 
     public const int DWM_BB_ENABLE = 0x1;
     public const int DWM_BB_BLURREGION = 0x2;
+    public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    public const int DWMWA_CLOAKED = 14;
+
+    public const int WM_QUERYENDSESSION = 0x0011;
+    public const int WM_ENDSESSION = 0x0016;
+    public const uint GW_HWNDPREV = 3;
+    public const uint LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x00001000;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X; public int Y; }
@@ -97,6 +104,19 @@ internal static class Native
     [DllImport("dwmapi.dll")]
     public static extern int DwmEnableBlurBehindWindow(IntPtr hWnd, ref DWM_BLURBEHIND blurBehind);
 
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out int value, int size);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out RECT value, int size);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+
+    // Windows 8+ (and 7 with KB2533623). Process-wide: where LoadLibrary looks for a DLL named without a path.
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetDefaultDllDirectories(uint directoryFlags);
+
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
 
@@ -111,9 +131,6 @@ internal static class Native
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint affinity);
-
-    [DllImport("user32.dll")]
-    public static extern bool GetWindowDisplayAffinity(IntPtr hWnd, out uint affinity);
 
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
