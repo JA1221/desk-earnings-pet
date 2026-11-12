@@ -7,18 +7,21 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 // Borderless, taskbar-less window whose only content is a WebView2 page. Wherever the page is
-// transparent the desktop shows through, and outside the page's hit rects clicks fall through
-// to whatever is behind. See docs/spikes/transparency.md for why it is built this way.
+// transparent the desktop shows through (true per-pixel alpha), and outside the page's hit rects
+// clicks fall through to whatever is behind. Why it is built this way: docs/spikes/transparency.md.
+//
+// Rendering: DWM blur-behind with an empty region makes DWM honour the alpha of the window surface;
+// the GDI background is black (alpha 0) and the WebView2 page (transparent default background) is
+// composed on top with its own alpha.
+// Click-through: the window is layered with constant alpha 255 (renders the same, but makes
+// WS_EX_TRANSPARENT count for hit-testing); a ~30 Hz cursor poll sets WS_EX_TRANSPARENT whenever
+// the cursor is outside every hit rect, so the whole window, WebView2 included, is skipped.
 public class PetWindow : Form
 {
-    // Colour key: one step off the A1 outline colour #3D2C24 (61,44,36), so real outline pixels stay
-    // opaque while anti-aliased edges that blend toward the key read as outline instead of a fringe.
-    private static readonly Color KeyColor = Color.FromArgb(61, 44, 37);
-
     private readonly WebView2 web = new WebView2();
     private readonly Timer hitTimer = new Timer();
     private readonly string startUrl;
-    private RectangleF[] hitRects;   // CSS px; null until the page reports them (whole window hittable)
+    private RectangleF[] hitRects = new RectangleF[0];   // CSS px; none = everything clicks through
     private int cssWidth;
     private int cssHeight;
 
@@ -32,19 +35,19 @@ public class PetWindow : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.None;
-        BackColor = KeyColor;
-        TransparencyKey = KeyColor;
+        BackColor = Color.Black;   // GDI writes alpha 0, so black = fully transparent under blur-behind
 
         web.DefaultBackgroundColor = Color.Transparent;
         web.Dock = DockStyle.Fill;
         Controls.Add(web);
 
-        hitTimer.Interval = 33;   // ~30 Hz cursor poll
+        hitTimer.Interval = 33;
         hitTimer.Tick += delegate { UpdateClickThrough(); };
         VisibleChanged += delegate { hitTimer.Enabled = Visible; };
         Load += delegate { InitWeb(); };
     }
 
+    // Null until WebReady.
     public CoreWebView2 Web { get { return web.CoreWebView2; } }
 
     public bool TopMostEnabled
@@ -53,7 +56,7 @@ public class PetWindow : Form
         set { TopMost = value; }
     }
 
-    // Window size = page CSS size x the window's current DPI scale.
+    // Window size = page CSS size x the window's current DPI scale (kept on DPI changes).
     public void SetContentSize(int cssWidth, int cssHeight)
     {
         this.cssWidth = cssWidth;
@@ -69,7 +72,7 @@ public class PetWindow : Form
         UpdateClickThrough();
     }
 
-    // Native window move; call while the primary button is held (e.g. from a page mousedown message).
+    // Native window move; call while the primary button is held (e.g. on a page mousedown message).
     public void BeginDrag()
     {
         // Deferred so a WebView2 event handler that calls this returns before the modal move loop starts.
@@ -83,6 +86,28 @@ public class PetWindow : Form
             Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION,
                 (IntPtr)((p.Y << 16) | (p.X & 0xFFFF)));
         });
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
+            return cp;
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Native.DWM_BLURBEHIND bb = new Native.DWM_BLURBEHIND();
+        bb.dwFlags = Native.DWM_BB_ENABLE | Native.DWM_BB_BLURREGION;
+        bb.fEnable = true;
+        bb.hRgnBlur = Native.CreateRectRgn(0, 0, -1, -1);   // empty region: alpha only, no blur
+        Native.DwmEnableBlurBehindWindow(Handle, ref bb);
+        Native.DeleteObject(bb.hRgnBlur);
+        Native.SetLayeredWindowAttributes(Handle, 0, 255, Native.LWA_ALPHA);
     }
 
     protected override void WndProc(ref Message m)
@@ -113,12 +138,10 @@ public class PetWindow : Form
         return (dpi == 0 ? DeviceDpi : (int)dpi) / 96.0;
     }
 
-    // WS_EX_TRANSPARENT on a layered window makes the whole window, WebView2 child included,
-    // invisible to hit-testing; it is set whenever the cursor is outside every hit rect.
     private void UpdateClickThrough()
     {
         if (!IsHandleCreated) return;
-        bool through = hitRects != null && !CursorOnHitRect();
+        bool through = !CursorOnHitRect();
         int ex = Native.GetWindowLong(Handle, Native.GWL_EXSTYLE);
         int want = through ? ex | Native.WS_EX_TRANSPARENT : ex & ~Native.WS_EX_TRANSPARENT;
         if (want != ex) Native.SetWindowLong(Handle, Native.GWL_EXSTYLE, want);
