@@ -2017,7 +2017,7 @@
     done();
   });
 
-  test('layouts: the next stand-up is the one care publishes: after 等一下 the end of the snooze; only while working', function () {
+  test('layouts: the next stand-up is the one care publishes; after 等一下 the end of the snooze, not 0; none after work', function () {
     var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH } }));
     eq(C.state.standIn, 50);
     e.tick(at(12, 9, 42));
@@ -2030,6 +2030,30 @@
     eq(C.state.standIn, 5);
     e.tick(at(12, 18, 30));   // 可以下班
     eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'after work: no next stand-up');
+    done();
+  });
+
+  // §5.1: the timer stands still at lunch and starts again when it ends, so whatever it held at 12:00 never comes true.
+  test('layouts: no next stand-up at lunch: no line in U12, no 「0 分後」 in U13 or U10, nothing left of it', function () {
+    var e = shown(mk(at(12, 11, 9), { first: 'U12', care: true, settings: { health: BOTH } }));   // work from 09:00, the page from 11:09
+    e.tick(at(12, 11, 58, 59));
+    e.tick(at(12, 11, 59));
+    ok($(e, '.u12').classList.contains('prompting'), 'the reminder is due at 11:59 and left unanswered');
+    e.tick(at(12, 12, 0));
+    ok(!$(e, '.u12').classList.contains('prompting'), 'lunch closes it quietly');
+    e.tick(at(12, 12, 30));
+    eq([text(e, '[data-b=status]'), C.state.standIn], ['午休中', 0], 'care\'s timer stands still, past due');
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'U12: no line');
+    eq(e.root.textContent.indexOf('分鐘起來動'), -1, 'U12: not even hidden text');
+    e.menu('layout:U13');
+    eq(shownText(e.root.querySelectorAll('.u13 .pline')), ['0/8 杯'], 'U13: the cups only, no stand-up, no separator');
+    eq(e.root.textContent.indexOf('分後'), -1, 'U13: no 「0 分後」');
+    e.menu('layout:U10');
+    mouse($(e, '.isl'), 'mouseover');
+    eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['0/8 杯', '▶'], 'U10: no stand-up chip');
+    eq(e.root.textContent.indexOf('分後'), -1, 'U10: no 「0 分後」');
+    e.tick(at(12, 13, 0, 30));   // lunch is over: the timer starts again
+    eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['0/8 杯', '▶', '50 分後'], 'after lunch it is back');
     done();
   });
 
