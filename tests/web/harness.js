@@ -43,3 +43,5 @@
     out.textContent = 'TESTS PASS ' + pass + ' FAIL ' + fail + (lines.length ? '\n' + lines.join('\n') : '');
   };
 })(window);
+// Local epoch ms on 2026-11-12 (a Thursday), shared by the test files.
+window.at = function (h, m, s, ms) { return new Date(2026, 10, 12, h, m || 0, s || 0, ms || 0).getTime(); };
