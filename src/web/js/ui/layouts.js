@@ -70,7 +70,6 @@ QJZ.layouts = (function () {
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
-  var WD = '日一二三四五六';
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
@@ -85,10 +84,6 @@ QJZ.layouts = (function () {
   // hh:mm of a remaining duration, counted UP to the next whole minute: with whole-minute start and end times, 17:36:30
   // reads 還有 00:01, and 可以下班 comes exactly at 17:37:00 (never 還有 00:00 while the status is still working).
   function hm(sec) { return hms(Math.ceil(Math.max(0, sec || 0) / 60) * 60).slice(0, 5); }
-  function dateText(ms) {
-    var d = new Date(ms);
-    return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '（' + WD.charAt(d.getDay()) + '）';
-  }
   function clockText(ms) {
     var d = new Date(ms);
     return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
@@ -114,14 +109,20 @@ QJZ.layouts = (function () {
     if (!items || !items.length) return null;
     return items[Math.floor(ms / 4000) % items.length];
   }
-  function money(n) { return QJZ.odometer.format(n); }
-  function amountText(n) {
-    return n % 1 === 0 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : money(n);
+  // U3's one card (simplification #13): 可以買 and 本月累計 in turn, CARD_MS each, from the wall clock; the item
+  // moves on once a round (every 2 x CARD_MS), so the card changes calmly. -> {month: bool, item: item | null}
+  var CARD_MS = 10000;
+  function cardAt(items, ms) {
+    var n = Math.floor(ms / CARD_MS);
+    if (n % 2) return { month: true, item: null };
+    return { month: false, item: items && items.length ? items[Math.floor(n / 2) % items.length] : null };
   }
+  function itemText(it, earned) { return it ? (it.icon ? it.icon + ' ' : '') + '×' + QJZ.rewards.itemCount(earned, it) : ''; }
+  function money(n) { return QJZ.odometer.format(n); }
+  // Only the rate (simplification #4): the salary itself is never on screen, where anyone walking by can read it.
   function rateText(salary, perSec) {
     if (!salary || !(salary.amount > 0)) return '還沒設定薪資（右鍵 → 設定）';
-    return '每秒 +NT$ ' + perSec.toFixed(3) + ' ・ ' + (salary.mode === 'hourly' ? '時薪 ' + amountText(salary.amount)
-      : '月薪 ' + amountText(salary.amount) + ' ÷ ' + salary.divisor + ' 天');
+    return '每秒 +NT$ ' + perSec.toFixed(3);
   }
   function remainPhrase(key, sec) {
     if (key === 'done') return '可以下班囉！';
@@ -156,18 +157,19 @@ QJZ.layouts = (function () {
     var kind = s.pet && s.pet.kind === 'cat' ? 'cat' : 'hamster';
     var v = vitals(st, pct);
     var snacks = st.snacks > 0 ? st.snacks : 0;
-    var clock = clockText(ms);
+    var clock = clockText(ms), month = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
+    var card = cardAt(s.items, ms);
     return {
       key: key, kind: kind, status: STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
-      date: dateText(ms), clock: clock, hm: clock.slice(0, 5),
+      clock: clock, hm: clock.slice(0, 5),
       money: money(snap.earned),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
       remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec), m3sub: m3Sub(key, snap.remainingSec),
-      worked: hms(snap.workedSec),
       itemLabel: it ? '可以買' + it.name : '',
-      item: it ? (it.icon ? it.icon + ' ' : '') + '×' + QJZ.rewards.itemCount(snap.earned, it) : '',
-      month: money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned)),
+      item: itemText(it, snap.earned),
+      month: month,
+      card: card.month ? '📅 ' + month : itemText(card.item, snap.earned), cardMonth: card.month,
       rate: rateText(s.salary, perSec),
       hearts: heartsText(v.hearts), bolts: v.bolts,
       snacks: snacks, snack: SNACK[kind] + '×' + snacks,
@@ -228,13 +230,12 @@ QJZ.layouts = (function () {
   var TEMPLATES = {
     U1: function () {
       return '<div class="win u1 lay" data-hit>' + BAR + '<div class="body">' +
-        '<div class="row-top"><div><div class="date" data-b="date"></div><div class="clock" data-b="clock"></div></div>' + PILL + '</div>' +
+        '<div class="row-top"><div class="clock" data-b="clock"></div>' + PILL + '</div>' +
         '<div class="scene-wrap"><div class="scene" data-pet="scene"></div><div class="fx" data-fx><div class="bubble" data-bubble></div></div></div>' +
         '<div class="money-box" data-plus><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate" data-b="rate"></div></div>' +
         '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
           '<div class="track"><div class="fill" data-fill></div></div></div>' +
-        '<div class="chips"><div class="chip"><small>已上班</small><b data-b="worked"></b></div>' +
-          '<div class="chip"><small data-b="itemLabel"></small><b data-b="item"></b></div>' +
+        '<div class="chips"><div class="chip"><small data-b="itemLabel"></small><b data-b="item"></b></div>' +
           '<div class="chip"><small>本月累計</small><b data-b="month"></b></div></div>' +
         '<div class="vitals"><span>心情 <span class="hearts" data-b="hearts"></span></span><span>體力 <span class="bolt" data-bolts></span></span>' +
           feedBtn('feed') + '</div>' +
@@ -244,8 +245,8 @@ QJZ.layouts = (function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' +
         '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + feedBtn('pill feed') +
           '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
-        '<div class="side" data-bubble-clear><div class="pill">⏱ <span data-b="worked"></span></div><div class="pill"><span data-b="item"></span></div>' +
-          '<div class="pill">📅 <span data-b="month"></span></div></div>' +
+        '<div class="side" data-bubble-clear><div class="pill alt" data-alt><span data-b="card"></span>' +
+          '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
         '<div class="hud-bottom money-box" data-plus><div class="coin">$</div>' + MONEY +
           '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div></div>' +
         '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
@@ -322,6 +323,7 @@ QJZ.layouts = (function () {
     v.rings = all(el, '[data-ring]');
     v.bolts = all(el, '[data-bolts]');
     v.feeds = all(el, '[data-feed]');
+    v.alts = all(el, '[data-alt]');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
@@ -392,6 +394,13 @@ QJZ.layouts = (function () {
       for (i = 0; i < view.bolts.length; i++) view.bolts[i].innerHTML = h;
     }
     for (i = 0; i < view.feeds.length; i++) view.feeds[i].classList.toggle('none', m.snacks === 0);
+    if (view.alts.length && view.cache.cardMonth !== m.cardMonth) {
+      view.cache.cardMonth = m.cardMonth;
+      view.alts.forEach(function (a) {
+        var d = a.querySelectorAll('.alt-dots i');
+        if (d.length === 2) { d[0].classList.toggle('on', !m.cardMonth); d[1].classList.toggle('on', m.cardMonth); }
+      });
+    }
     renderMoney(st.snap);
     petTick(app().nowMs());
     return m;
@@ -1222,8 +1231,8 @@ QJZ.layouts = (function () {
     dragging: function () { return dragging; },
     MAIN: MAIN, ALL: ALL,
     util: {
-      hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
-      isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
+      hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
+      isMain: isMain, backTarget: backTarget, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX

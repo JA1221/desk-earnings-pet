@@ -6,9 +6,8 @@
   var SETTINGS = { salary: { mode: 'monthly', amount: 50000, divisor: 22 } };
 
   // ---------- pure helpers ----------
-  test('layouts: date and clock text', function () {
-    eq(U.dateText(at(11, 9, 0)), '2026/11/11（三）');
-    eq(U.dateText(at(15, 23, 59)), '2026/11/15（日）');
+  test('layouts: clock text (no date: the taskbar has it)', function () {
+    eq(U.dateText, undefined);
     eq(U.clockText(at(12, 9, 5, 3)), '09:05:03');
     eq(U.hms(3725.9), '01:02:05');
     eq(U.hms(-5), '00:00:00');
@@ -48,9 +47,18 @@
     eq(U.itemAt([], 0), null);
   });
 
-  test('layouts: rate line, remaining phrases, hearts', function () {
-    eq(U.rateText({ mode: 'monthly', amount: 50000, divisor: 22 }, 50000 / 22 / 8 / 3600), '每秒 +NT$ 0.079 ・ 月薪 50,000 ÷ 22 天');
-    eq(U.rateText({ mode: 'hourly', amount: 183.5, divisor: 22 }, 183.5 / 3600), '每秒 +NT$ 0.051 ・ 時薪 183.50');
+  test('layouts: U3 has one card: 可以買 and 本月累計 in turn, 10 s each; the item changes once a round', function () {
+    var items = QJZ.settings.DEFAULTS.items;
+    function c(ms) { var r = U.cardAt(items, ms); return r.month ? 'month' : r.item.name; }
+    eq(U.CARD_MS, 10000);
+    eq([0, 9999, 10000, 19999, 20000, 30000, 40000, 50000, 60000].map(c),
+      ['珍奶', '珍奶', 'month', 'month', '便當', 'month', '拿鐵', 'month', '珍奶']);
+    eq(U.cardAt([], 0), { month: false, item: null });
+  });
+
+  test('layouts: rate line (never the salary), remaining phrases, hearts', function () {
+    eq(U.rateText({ mode: 'monthly', amount: 50000, divisor: 22 }, 50000 / 22 / 8 / 3600), '每秒 +NT$ 0.079');
+    eq(U.rateText({ mode: 'hourly', amount: 183.5, divisor: 22 }, 183.5 / 3600), '每秒 +NT$ 0.051');
     eq(U.rateText({ mode: 'monthly', amount: 0, divisor: 22 }, 0), '還沒設定薪資（右鍵 → 設定）');
     eq(U.remainPhrase('working', 3600 * 2 + 59), '還有 02:01 下班', 'rounded up to the next minute');
     eq(U.remainPhrase('working', 30), '還有 00:01 下班');
@@ -81,15 +89,14 @@
     var m = U.model(fakeState(at(12, 10, 0), at(12, 9, 0)), at(12, 10, 0));
     eq(m.key, 'working');
     eq(m.status, '上班中');
-    eq(m.date, '2026/11/12（四）');
+    eq([m.date, m.worked], [undefined, undefined], 'no date, no 已上班');
     eq(m.clock, '10:00:00');
     eq(m.hm, '10:00');
     eq(m.money, '284.09');
-    eq(m.worked, '01:00:00');
     eq(m.remain, '07:00:00');
     eq(m.pct, '12.5%');
     eq(m.month, '1,284.09', 'closed days of this month + today, not October');
-    eq(m.rate, '每秒 +NT$ 0.079 ・ 月薪 50,000 ÷ 22 天');
+    eq(m.rate, '每秒 +NT$ 0.079');
     eq(m.snacks, 2);
     eq(m.snack, '🌻×2');
     eq(m.plus, '+0.08');
@@ -99,6 +106,11 @@
     var it = U.itemAt(QJZ.settings.DEFAULTS.items, at(12, 10, 0));
     eq(m.itemLabel, '可以買' + it.name);
     eq(m.item, it.icon + ' ×' + QJZ.rewards.itemCount(284.0909, it));
+    var c = U.cardAt(QJZ.settings.DEFAULTS.items, at(12, 10, 0));
+    eq(m.cardMonth, c.month);
+    eq(m.card, c.month ? '📅 ' + m.month : c.item.icon + ' ×' + QJZ.rewards.itemCount(284.0909, c.item), 'U3 card');
+    var m2 = U.model(fakeState(at(12, 10, 0, 10), at(12, 9, 0)), at(12, 10, 0, 10));
+    ok(m2.cardMonth !== m.cardMonth, '10 s later the other one');
   });
 
   test('layouts: model at 12:30 (lunch), 18:00 (done), ended, before, off', function () {
@@ -226,7 +238,6 @@
     eq(hr.dpr, window.devicePixelRatio);
     eq(last(e.sent, 'setTopmost'), { on: false });
     eq(text(e, '[data-b=status]'), '上班中');
-    eq(text(e, '[data-b=date]'), '2026/11/12（四）');
     eq(text(e, '[data-b=clock]'), '10:00:00');
     eq($(e, '[data-odo]').getAttribute('aria-label'), '284.09');
     eq(text(e, '[data-b=snack]'), '🌻×2');
@@ -277,10 +288,63 @@
     var e = mk(at(12, 10, 0));
     e.tick(at(12, 11, 0, 0));
     eq(text(e, '[data-b=clock]'), '11:00:00');
-    eq(text(e, '[data-b=worked]'), '02:00:00');
+    eq(text(e, '[data-b=remain]'), '06:00:00');
     eq($(e, '[data-odo]').getAttribute('aria-label'), '568.18');
     ok($(e, '[data-plus] .plus'), '+0.08 floats');
     done();
+  });
+
+  // Simplification #1 / #4: U1 drops the date and 已上班; time and status share the top row; the rate line has no salary.
+  test('layouts DOM: U1 has time and status in one row, two cards (可以買, 本月累計), 心情 / 體力 / 餵食 in their own row', function () {
+    var e = mk(at(12, 10, 0)), u1 = $(e, '.u1');
+    eq([$(e, '[data-b=date]'), $(e, '.date'), $(e, '[data-b=worked]')], [null, null, null], 'no date, no 已上班');
+    var top = $(e, '.row-top'), clock = $(e, '[data-b=clock]'), pill = $(e, '.status');
+    ok(top.contains(clock) && top.contains(pill), 'the clock and the status pill in one row');
+    var cr = clock.getBoundingClientRect(), pr = pill.getBoundingClientRect();
+    ok(Math.abs((cr.top + cr.bottom) / 2 - (pr.top + pr.bottom) / 2) <= 2, 'side by side, centred: ' + cr.top + '/' + pr.top);
+    var chips = e.root.querySelectorAll('.chips .chip');
+    eq(chips.length, 2);
+    eq(chips[0].querySelector('small').textContent.indexOf('可以買'), 0);
+    eq(chips[1].querySelector('small').textContent, '本月累計');
+    eq(text(e, '[data-b=month]'), '284.09');
+    ok(Math.abs(chips[0].getBoundingClientRect().width - chips[1].getBoundingClientRect().width) < 1, 'two equal cards');
+    var v = $(e, '.vitals');
+    ok(v && v.querySelector('.hearts') && v.querySelector('[data-bolts]') && v.querySelector('[data-feed]'), '心情, 體力 and 餵食 in their own row');
+    ok(!$(e, '.scene-wrap').contains(v), 'not in the room');
+    eq(text(e, '[data-b=rate]'), '每秒 +NT$ 0.079');
+    // no gap below the last row: the window ends 16 px (the body padding) under the vitals row
+    var sl = last(e.sent, 'setLayout'), body = $(e, '.u1 .body').getBoundingClientRect();
+    eq(sl.height, Math.ceil(u1.getBoundingClientRect().bottom) + 7);
+    ok(Math.abs(body.bottom - v.getBoundingClientRect().bottom - 16) <= 1, 'the body ends at the vitals row');
+    ok(sl.height <= 582, '16 px shorter than with the date row (596): ' + sl.height);
+    done();
+  });
+
+  test('layouts DOM: U3 has one card on the right, 可以買 and 本月累計 in turn; no 已上班; the clock stays', function () {
+    var e = mk(at(12, 10, 0), { first: 'U3' });
+    var side = $(e, '.u3 .side');
+    eq(side.querySelectorAll('.pill').length, 1, 'one card');
+    eq($(e, '[data-b=worked]'), null);
+    ok(side.textContent.indexOf('⏱') < 0, 'no 已上班');
+    eq(text(e, '[data-b=clock]'), '10:00:00');
+    var seen = {};
+    for (var s = 0; s <= 40; s += 10) {
+      e.tick(at(12, 10, 0, s));
+      var t = text(e, '[data-b=card]'), dots = side.querySelectorAll('.alt-dots i'), month = t.indexOf('📅') === 0;
+      seen[month ? 'month' : 'buy'] = true;
+      eq(dots.length, 2);
+      eq([dots[0].classList.contains('on'), dots[1].classList.contains('on')], [!month, month], 'the dots show which one: ' + t);
+    }
+    ok(seen.month && seen.buy, 'both show within 40 s');
+    done();
+  });
+
+  test('layouts DOM: no layout shows the salary (月薪 / 時薪 / ÷ / the amount)', function () {
+    ['U1', 'U3', 'U5B', 'U7', 'M3'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name }), t = e.root.textContent;
+      ok(t.indexOf('月薪') < 0 && t.indexOf('時薪') < 0 && t.indexOf('÷') < 0 && t.indexOf('50,000') < 0 && t.indexOf('50000') < 0, name + ': ' + t);
+      done();
+    });
   });
 
   test('layouts DOM: M3 is temporary; current keeps the main layout; double-click goes back', function () {

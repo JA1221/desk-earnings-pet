@@ -60,8 +60,8 @@ public class WindowPlacer
         if (fit != now) window.Bounds = fit;
     }
 
-    // CSS size the first-show safety net uses when the page has not reported one (about U1's size).
-    public static readonly Size DefaultRescueCss = new Size(360, 600);
+    // CSS size the first-show safety net uses when the page has not reported one: U1's (340 + the 7 px shadow wide).
+    public static readonly Size DefaultRescueCss = new Size(347, 580);
 
     // The page's size for layout as last remembered (CSS px), or null.
     public Size? SavedSize(string layout)

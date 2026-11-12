@@ -68,6 +68,10 @@
 .u3 .xp .track{flex:1;height:14px}
 .u3 .side{position:absolute;right:12px;top:58px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .u3 .side .pill{font-size:11.5px;padding:3px 10px}
+/* one card, 可以買 and 本月累計 in turn: two small dots say which one shows */
+.u3 .alt-dots{display:inline-flex;gap:3px;margin-left:2px}
+.u3 .alt-dots i{width:5px;height:5px;border-radius:50%;background:#E2CFB4;display:block}
+.u3 .alt-dots i.on{background:var(--line)}
 .u3 .bubble:not(.side){left:44%;top:16%}
 /* beside the head it grows downwards from eye height, below the side pills (--clear), with the tail at its top */
 .u3 .bubble.side{--bw:150px;bottom:auto;top:max(calc(var(--ty) - 17px),var(--clear,0px));transform-origin:0 0}
