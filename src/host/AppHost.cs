@@ -139,6 +139,8 @@ public class AppHost
         tray.ItemClicked += OnMenu;
         tray.IconDoubleClick += delegate { ShowAndRaise(true); };   // always shows, never hides
         tray.Menu.Opened += delegate { OnMenuOpened(); };
+        // A hidden page does not tick: it catches up (a new day, the snacks) and answers with menuState at once.
+        tray.Menu.Opening += delegate { if (bridge.IsOpen && !quitting) Send("menuOpening", null); };
         tray.Menu.Closed += delegate
         {
             try { menuEscape.Stop(); }   // any way the menu closes releases Esc

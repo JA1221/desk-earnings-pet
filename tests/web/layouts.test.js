@@ -679,6 +679,30 @@
     done();
   });
 
+  // Review M-3: while the window is hidden the page does not tick, so the menu could lag (a new day, new snacks). The
+  // host sends menuOpening when the menu opens: the page catches up from the wall clock and answers at once.
+  test('layouts DOM: menuOpening while hidden brings the menu up to date (a new day, the snacks earned meanwhile)', function () {
+    var e = mk(at(12, 10, 0));
+    function lastState() { var m = last(e.sent, 'menuState'); return m.work + ' ' + m.snacks; }
+    eq(lastState(), 'working 2');
+    e.bridge.emit({ type: 'visibility', visible: false });
+    e.clock.ms = at(12, 11, 0);
+    eq(lastState(), 'working 2', 'hidden: no tick, nothing new');
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(lastState(), 'working ' + QJZ.app.state.snacks);
+    ok(QJZ.app.state.snacks > 2, 'snacks earned while hidden: ' + QJZ.app.state.snacks);
+    e.menu('end');
+    eq(lastState().indexOf('ended '), 0, '下班 -> 繼續上班');
+    e.clock.ms = at(13, 9, 0);   // the next morning, still hidden, never locked
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(QJZ.app.state.today.day, '2026-11-13', 'the day rolled over');
+    eq(lastState(), 'before 0', 'a new day: 開始上班, no snacks yet');
+    var n = of(e.sent, 'menuState').length;
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(of(e.sent, 'menuState').length, n, 'nothing changed: nothing sent');
+    done();
+  });
+
   test('layouts DOM: 開始上班 after 下班 continues the day (繼續上班)', function () {
     var e = mk(at(12, 10, 0));
     e.menu('end');

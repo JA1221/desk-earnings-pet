@@ -27,6 +27,8 @@ window.QJZ = window.QJZ || {};
 //   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
 //   menuState {work, snacks}  for the menu (simplification #2), whenever either changes: work 'before' (the item
 //                 reads 開始上班), 'working' (下班; also at lunch and 可以下班) or 'ended' (繼續上班); snacks to feed.
+//                 Checked on every render and on QJZ.app's refresh (hidden: every minute, and when the host's
+//                 menuOpening asks), so the menu never shows an old day or old snacks.
 // Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
 //
 // settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. settings.layout.mini
@@ -411,13 +413,16 @@ QJZ.layouts = (function () {
       });
     }
     renderMoney(st.snap);
-    var work = WORK[m.key] || 'before';
-    if (sent.menu !== work + ' ' + m.snacks) {
-      sent.menu = work + ' ' + m.snacks;
-      send('menuState', { work: work, snacks: m.snacks });
-    }
+    sendMenu(m);
     petTick(app().nowMs());
     return m;
+  }
+  // menuState for the host's menu, when the work status or the snack count changed.
+  function sendMenu(m) {
+    var work = WORK[m.key] || 'before', k = work + ' ' + m.snacks;
+    if (sent.menu === k) return;
+    sent.menu = k;
+    send('menuState', { work: work, snacks: m.snacks });
   }
 
   // ================= the pet's behaviour =================
@@ -1066,6 +1071,10 @@ QJZ.layouts = (function () {
     petTick(ms);
     chatter(ms);
   }
+  // QJZ.app caught up while hidden (or the menu is opening): only the menu needs it now, the rest renders on re-show.
+  function onRefresh() {
+    if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs()));
+  }
   function onSecond() {
     if (!view) return;
     var m = render();
@@ -1189,7 +1198,8 @@ QJZ.layouts = (function () {
     resumeAt = recalled();
     brain = QJZ.behavior ? new QJZ.behavior.Brain(typeof opts.seed === 'number' ? QJZ.behavior.rng(opts.seed) : null) : null;
     var A = app();
-    offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone));
+    offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone),
+      A.on('refresh', onRefresh));
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });

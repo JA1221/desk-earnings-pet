@@ -249,6 +249,38 @@
     eq([got[1].count, got[1].quiet, got[1].gained], [4, false, 1]);
     QJZ.app._reset();
   });
+  // Review M-3: hidden or locked, the 100 ms tick stops; a slow refresh (every 60 s) keeps the day and the numbers the
+  // menu shows current (refresh event), without celebrating: a milestone crossed meanwhile stays quiet for the re-show.
+  test('app: while hidden a slow refresh (60 s) rolls the day over and announces it; it stops when shown', function () {
+    var calls = [], si = window.setInterval, ci = window.clearInterval;
+    window.setInterval = function (fn, ms) { var h = { fn: fn, ms: ms, live: true }; calls.push(h); return h; };
+    window.clearInterval = function (h) { if (h && h.live !== undefined) h.live = false; };
+    function live(ms) { return calls.filter(function (h) { return h.live && h.ms === ms; }); }
+    try {
+      QJZ.app._reset();
+      var handlers = {}, clock = { ms: at(12, 18, 30) }, got = [], refreshed = 0;
+      var bridge = { send: function () {}, on: function (t, f) { handlers[t] = f; }, emit: function (m) { handlers[m.type](m); } };
+      QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; } });
+      QJZ.app.on('refresh', function () { refreshed++; });
+      QJZ.app.on('milestone', function (m) { got.push(m); });
+      bridge.emit({ type: 'init', settings: SETTINGS, history: hist([rec('2026-11-12', 540, { endMs: at(12, 18, 0), endSource: 'manual' })]),
+        probeMs: null, nowMs: clock.ms, version: 't' });
+      eq([live(100).length, live(60000).length], [1, 0], 'shown: the tick, no slow refresh');
+      bridge.emit({ type: 'visibility', visible: false });
+      eq([live(100).length, live(60000).length], [0, 1], 'hidden: the slow refresh instead');
+      clock.ms = at(13, 9, 0);
+      live(60000)[0].fn();
+      eq(QJZ.app.state.today.day, '2026-11-13', 'the day rolled over while hidden');
+      eq(refreshed, 1);
+      eq(got.length, 0, 'never celebrates');
+      bridge.emit({ type: 'visibility', visible: true });
+      eq([live(100).length, live(60000).length], [1, 0], 'shown again: the tick is back, the slow refresh stopped');
+      handlers.menuOpening({ type: 'menuOpening' });
+      eq(refreshed, 2, 'menuOpening refreshes too');
+    } finally { QJZ.app._reset(); window.setInterval = si; window.clearInterval = ci; }
+    eq(calls.filter(function (h) { return h.live; }).length, 0, 'reset stops every timer');
+  });
+
   test('app: a tick gap over 5 s without a visibility event makes the milestone quiet', function () {
     var e = mk(at(12, 10, 3));
     var got = [];
