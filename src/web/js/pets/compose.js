@@ -6,8 +6,10 @@ QJZ.pets = QJZ.pets || {};
 //             so jumps, coins, hearts and the dangling pose stay inside, the same for every skin and state)
 //   avatar  — portrait cropped to the skin's crop: back + pre + post layers, no desk and no front paws;
 //             shows the state's face, head motion and head props but no whole-body pose
-// opts: {state:'typing', expression, mouth, props, viewBox}
-//   state      — a name from QJZ.pets.states (unknown names fall back to 'typing'); picks pose, face, arms, props
+// opts: {state:'typing', expression, mouth, props, viewBox, preview}
+//   state      — a name from QJZ.pets.states (unknown names fall back to 'typing'); picks pose, face, arms, props.
+//                A 1.1 pose the skin does not declare yet draws its 1.0 stand-in (QJZ.pets.poseFor, spec §5.8)
+//   preview    — true: a 1.1 pose shows before the skin declares it (the pose review page, Ruling R3)
 //   expression — eyes, overrides the state's (and drops its second-frame eyes); mouth likewise
 //   props      — array of prop names, replaces the state's props ([] for none); a held prop brings holding paws
 // (the props' backpack (waitBag) stands on the desk beside the pet, which waves and sits up rig.pack.lift units off
@@ -83,7 +85,8 @@ QJZ.pets.compose = (function () {
     if (!def) throw new Error('unknown pet: ' + id);
     if (view !== 'scene' && view !== 'petonly' && view !== 'avatar') throw new Error('unknown view: ' + view);
     opts = opts || {};
-    var name = P.states.get(opts.state) ? opts.state : 'typing', st = P.states.get(name), alt = st.alt || {};
+    var shown = P.poseFor(id, opts.state, opts.preview);
+    var name = P.states.get(shown) ? shown : 'typing', st = P.states.get(name), alt = st.alt || {};
     var uid = 'pet' + (seq++);
     var b = def.build(uid), face = b.face, rig = b.rig;
     var line = P.room.line(def.room);

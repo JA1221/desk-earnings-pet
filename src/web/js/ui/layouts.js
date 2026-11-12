@@ -66,12 +66,18 @@ QJZ.layouts = (function () {
   // serves until the bands are measured.
   var PET_REACH = { stretch: 1, celebrate: 1, waitBag: 1, yawn: 1 };
   var PET_HIT_TALL = [38, 4, 160, 168];
-  function petHit(state) {
-    if (PET_HIT_BY_STATE.hasOwnProperty(state)) return PET_HIT_BY_STATE[state];
-    return PET_REACH.hasOwnProperty(state) ? PET_HIT_TALL : PET_HIT;
+  // The pose skin id shows for state (QJZ.pets.poseFor): a 1.1 pose the skin does not draw yet shows its 1.0 stand-in.
+  // Everything here that is keyed by the pet's state goes by that pose, not by the Brain's state (Ruling M11): the hit
+  // box (petHit), the measured bands (bandKey) and the bubble anchor (anchorBubble). So a 'wave' drawn as celebrate
+  // gets celebrate's tall box and anchor.
+  function poseOf(id, state) { return QJZ.pets && QJZ.pets.poseFor ? QJZ.pets.poseFor(id, state) : state; }
+  function petHit(state, id) {
+    var pose = poseOf(id, state);
+    if (PET_HIT_BY_STATE.hasOwnProperty(pose)) return PET_HIT_BY_STATE[pose];
+    return PET_REACH.hasOwnProperty(pose) ? PET_HIT_TALL : PET_HIT;
   }
   // hop and dangle move too much for bands: their box serves the whole time.
-  function boxOnly(state) { return PET_HIT_BY_STATE.hasOwnProperty(state); }
+  function boxOnly(state, id) { return PET_HIT_BY_STATE.hasOwnProperty(poseOf(id, state)); }
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
@@ -207,14 +213,14 @@ QJZ.layouts = (function () {
     var sx = box.width / vb[2], sy = box.height / vb[3], s = slice ? Math.max(sx, sy) : Math.min(sx, sy);
     return { x: (box.width - vb[2] * s) / 2 + (pt[0] - vb[0]) * s, y: (box.height - vb[3] * s) / 2 + (pt[1] - vb[1]) * s };
   }
-  // Puts bubble b beside the pet's head: --tx / --ty = where its tail ends (QJZ.pets.speechAt for pet id in state,
-  // just right of the head at eye height), --clear = 6 px below the [data-bubble-clear] elements in scope (a bubble
-  // that grows downwards stays under them), all in px of the bubble's own box (its offsetParent, the .fx layer);
-  // layouts.css lays the bubble out from them (.side). Without a drawn pet it keeps its plain corner place.
-  // -> {x, y, clear} or null.
+  // Puts bubble b beside the pet's head: --tx / --ty = where its tail ends (QJZ.pets.speechAt for pet id in the pose
+  // it shows for state, just right of the head at eye height), --clear = 6 px below the [data-bubble-clear] elements
+  // in scope (a bubble that grows downwards stays under them), all in px of the bubble's own box (its offsetParent,
+  // the .fx layer); layouts.css lays the bubble out from them (.side). Without a drawn pet it keeps its plain corner
+  // place. -> {x, y, clear} or null.
   function anchorBubble(b, holder, petView, id, state, scope) {
     var box = b ? b.offsetParent : null, svg = holder ? holder.querySelector('svg') : null;
-    var pt = svg && box && VIEWBOX[petView] && QJZ.pets && QJZ.pets.speechAt ? QJZ.pets.speechAt(id, state) : null;
+    var pt = svg && box && VIEWBOX[petView] && QJZ.pets && QJZ.pets.speechAt ? QJZ.pets.speechAt(id, poseOf(id, state)) : null;
     if (!pt) { if (b) b.classList.remove('side'); return null; }
     var br = box.getBoundingClientRect(), hr = holder.getBoundingClientRect();
     var p = vbPoint(hr, VIEWBOX[petView], pt, petView !== 'petonly');
@@ -551,19 +557,20 @@ QJZ.layouts = (function () {
   // Bands stay inside that box.
   var BAND = 10, BAND_STEP = 2, BAND_PAD = 3, BAND_MERGE = 4, BAND_GAP = 14, BAND_SLICE_MS = 8, BAND_MAX = 30;
   var bandCache = {}, bandJobs = [], bandTimer = null;
+  // by the shown pose (poseOf): a stand-in pose shares its bands
   function bandKey(id, state) {
-    return id + '|' + state + (document.documentElement.classList.contains('calm') ? '|calm' : '');
+    return id + '|' + poseOf(id, state) + (document.documentElement.classList.contains('calm') ? '|calm' : '');
   }
   function petRects(el, box) {
-    var state = view.petState, lim = petHit(state), id = petId(app().state.settings);
-    if (boxOnly(state)) return [subRect(box, PETONLY_VB, lim)];
+    var state = view.petState, id = petId(app().state.settings), lim = petHit(state, id);
+    if (boxOnly(state, id)) return [subRect(box, PETONLY_VB, lim)];
     var bands = bandCache[bandKey(id, state)];
     if (!bands) { queueBands(id, state); return [subRect(box, PETONLY_VB, lim)]; }
-    return bandRects(bands, state, box);
+    return bandRects(bands, state, box, id);
   }
-  // Bands -> page rects inside box: padded by BAND_PAD (not towards a band they touch), kept inside petHit(state).
-  function bandRects(bands, state, box) {
-    var lim = petHit(state), L = lim[0], T = lim[1], R = lim[0] + lim[2], B = lim[1] + lim[3], out = [];
+  // Bands -> page rects inside box: padded by BAND_PAD (not towards a band they touch), kept inside petHit(state, id).
+  function bandRects(bands, state, box, id) {
+    var lim = petHit(state, id), L = lim[0], T = lim[1], R = lim[0] + lim[2], B = lim[1] + lim[3], out = [];
     if (!bands || !bands.length || bands.length > BAND_MAX) return [subRect(box, PETONLY_VB, lim)];   // (the host takes 64)
     function touches(b, edge, side) {
       return bands.some(function (c) { return c !== b && c[side] === edge && c[0] < b[2] && c[2] > b[0]; });
@@ -1257,7 +1264,8 @@ QJZ.layouts = (function () {
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
-      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX
+      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,
+      anchorBubble: anchorBubble, VIEWBOX: VIEWBOX
     }
   };
 })();

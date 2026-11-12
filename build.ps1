@@ -3,9 +3,29 @@
 #   .\build.ps1 -Release  one self-contained exe, nothing beside it: web.zip (index.html, everything it loads, the
 #                         licence texts and the guide), the two WebView2 DLLs and the x64/x86/arm64 WebView2Loader.dll are embedded
 #                         as plain resources, which Payload.cs unpacks to %LocalAppData%\錢進中\app\<id>\ at the first start.
-param([switch]$Release)
+#                         It refuses to build until every skin declares the 1.1 pet poses (below).
+#   .\build.ps1 -Release -DraftPoses  the same without that check, for measurement builds only: never handed out.
+param([switch]$Release, [switch]$DraftPoses)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+
+# The 1.1 pet poses (spec §5.8): a release ships them drawn, so each skin file must declare all four on a
+# `poses11: [...]` line. The page finds the same gaps with QJZ.pets.missingPoses() (pets/registry.js); this regex is
+# its copy here because the build cannot run JS (Ruling R5), so keep the two in step. Checked before anything is built.
+$NewPoses = @('wave', 'holdCup', 'sip', 'focus')
+if ($Release -and -not $DraftPoses) {
+    $skinFiles = @(Get-ChildItem (Join-Path $root 'src\web\js\pets\skins') -Filter *.js | Sort-Object Name)
+    $missing = @()
+    if ($skinFiles.Count -eq 0) { $missing += 'no skin files in src\web\js\pets\skins' }
+    foreach ($f in $skinFiles) {
+        # a poses11 line that is not a // comment
+        $m = [regex]::Match([IO.File]::ReadAllText($f.FullName), '(?m)^[^/\r\n]*\bposes11\s*:\s*\[([^\]]*)\]')
+        $declared = @(if ($m.Success) { [regex]::Matches($m.Groups[1].Value, '[''"](\w+)[''"]') | ForEach-Object { $_.Groups[1].Value } })
+        $lack = @($NewPoses | Where-Object { $declared -cnotcontains $_ })
+        if ($lack.Count -gt 0) { $missing += ($f.Name + ' ' + ($lack -join '/')) }
+    }
+    if ($missing.Count -gt 0) { Write-Host ('1.1 pet poses missing: ' + ($missing -join ', ')); exit 1 }
+}
 $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $buildDir = Join-Path $root 'build'
 New-Item -ItemType Directory -Force $buildDir | Out-Null
@@ -115,6 +135,7 @@ if ($Release) {
     $id = (Get-FileHash $webZip -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant()
     Write-Host ('Built {0} (release, {1:N0} bytes; web.zip {2} files: index.html + {3} it loads + {4} texts it fetches; unpacks to app\{5})' -f
         $exe, (Get-Item $exe).Length, $entries.Count, ($closure.Count - 1), $ShipExtra.Count, $id)
+    if ($DraftPoses) { Write-Host 'DRAFT BUILD (fallback poses) - not for release' }
 } else {
     # dev build: DLLs next to the exe
     Copy-Item (Join-Path $wv 'Microsoft.Web.WebView2.Core.dll') $buildDir -Force

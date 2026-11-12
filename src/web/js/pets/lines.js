@@ -2,15 +2,18 @@ window.QJZ = window.QJZ || {};
 // What the pet says (spec §4.6 對話泡泡): cheering, a little teasing, by state, time of day, money and mood.
 // pick(state, ctx) -> a filled line, or '' for a state without lines.
 //   ctx = {name, kind:'cat'|'hamster', minutesToLunch, minutesToEnd, earned, rng, items, step (milestone NT$),
-//          gained (snacks earned while hidden), hour (0..23), energy, mood, off (a day off)}; every field is optional.
+//          gained (snacks earned while hidden), hour (0..23), energy, mood, off (a day off), goal (cups a day)};
+//          every field is optional.
+// Besides the pet's states, 1.1 events (spec §5.1-5.3): drank (a cup logged; the pet sips), waterGoal (the cup that
+// reaches the goal), standOk (起來了), focusPoke (a poke during a focus, exactly 「專心中～」).
 // Templates: '{x}' placeholders, and an optional leading [tag] that limits when a line can come up.
 //   {name} pet name   {s} 喵 / 吱   {food} 小魚乾 / 瓜子   {n} minutes to lunch (1..60)   {m} minutes to the end (1..30)
 //   {left} time to the end (over 30 minutes)   {item} what today's money buys ("兩杯珍奶", " 3 個便當")
 //   {money} today's money (from NT$100)   {step} the milestone amount   {k} / {gain} snacks ('一', '兩', ' 3 ') / NT$
-//   earned while hidden
+//   earned while hidden   {goal} the cups a day
 //   [pre] a work day   [off] a day off   [am] before 11:00   [pm] 13:00–17:00   [eve] from 17:00
 //   [tired] energy < 40   [low] mood < 40   [glad] mood >= 80
-// A line comes up only when all of its placeholders can be filled; time, money and tagged lines weigh double.
+// A line comes up only when all of its placeholders can be filled; time, money, goal and tagged lines weigh double.
 // The output is plain text: callers insert it with textContent (layouts.say does).
 QJZ.lines = (function () {
   var SOUND = { cat: '喵', hamster: '吱' };
@@ -116,7 +119,29 @@ QJZ.lines = (function () {
     eat: ['謝謝你的{food}{s}！', '嚼嚼嚼…好好吃{s}～', '吃飽飽，繼續陪你上班{s}！', '{food}最棒了{s}！'],
     hop: ['叮！又賺到 NT$ {step} 了{s}！', '又達成一個里程碑{s}！', '又多一份{food}可以吃了{s}！', '存錢筒又變重了{s}！', '錢錢進來了{s}！'],
     dangle: ['哇啊！放我下來{s}！', '要帶我去哪裡{s}？', '好高喔…有點怕怕{s}', '輕一點、輕一點{s}！', '飛起來了{s}～'],
-    missed: ['剛剛又賺到 NT$ {gain} 了{s}！', '歡迎回來！{food}又多了{k}份{s}～', '你不在的時候也有在賺錢喔{s}！']
+    missed: ['剛剛又賺到 NT$ {gain} 了{s}！', '歡迎回來！{food}又多了{k}份{s}～', '你不在的時候也有在賺錢喔{s}！'],
+    drank: [
+      '咕嚕咕嚕～好喝{s}！',
+      '喝水了！你好棒{s}～',
+      '{name}也陪你喝一口{s}！',
+      '補充水分，精神都回來了{s}！',
+      '喝完水，繼續加油{s}！'
+    ],
+    waterGoal: [
+      '{goal} 杯喝滿了！你好棒～',
+      '今天的水喝滿了{s}！',
+      '喝水目標達成{s}！ ♡',
+      '水分滿滿，{name}好開心{s}～',
+      '喝滿了！之後想喝還是可以記喔{s}～'
+    ],
+    standOk: [
+      '起來動一動，好棒{s}！',
+      '伸展一下，精神好多了吧{s}？',
+      '動一動，腰會謝謝你的{s}～',
+      '做得好！坐太久對身體不好喔{s}～',
+      '活動完回來，繼續加油{s}！'
+    ],
+    focusPoke: ['專心中～']
   };
   var KIND = {
     cat: {
@@ -143,7 +168,7 @@ QJZ.lines = (function () {
     }
   };
   var STATES = Object.keys(SHARED);
-  var SPECIAL = { n: 1, m: 1, left: 1, item: 1, money: 1, step: 1, k: 1, gain: 1 };
+  var SPECIAL = { n: 1, m: 1, left: 1, item: 1, money: 1, step: 1, k: 1, gain: 1, goal: 1 };
   var TAGS = {
     pre: function (c) { return !c.off; },
     off: function (c) { return !!c.off; },
@@ -205,6 +230,7 @@ QJZ.lines = (function () {
       case 'step': return c.step > 0 ? amount(c.step) : null;
       case 'k': return c.gained >= 1 ? count(Math.floor(c.gained)) : null;
       case 'gain': return c.gained >= 1 && c.step > 0 ? amount(Math.floor(c.gained) * c.step) : null;
+      case 'goal': return c.goal >= 1 ? String(Math.floor(c.goal)) : null;
       default: return null;
     }
   }

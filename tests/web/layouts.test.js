@@ -1020,6 +1020,35 @@
     });
   });
 
+  // A skin that declares no 1.1 pose (cat P4's def as 'test:stub', kind 'test'), as in pets.test.js (Ruling M10).
+  function stubSkin() {
+    var src = QJZ.pets.get('cat:p4'), d = {};
+    for (var k in src) if (k !== 'poses11') d[k] = src[k];
+    d.id = 'test:stub'; d.kind = 'test'; d.skin = 'stub';
+    QJZ.pets.register(d);
+    return d.id;
+  }
+
+  test('layouts: hit box and bubble anchor follow the shown pose', function () {
+    var U = QJZ.layouts.util, P = QJZ.pets, id = stubSkin();
+    eq(P.poseFor(id, 'wave'), 'celebrate', 'the stub draws wave as celebrate');
+    eq(U.petHit('wave', id), U.PET_HIT_TALL, 'celebrate\'s head rises above PET_HIT (PET_REACH)');
+    eq(U.petHit('celebrate', id), U.PET_HIT_TALL);
+    eq([U.petHit('focus', id), U.petHit('holdCup', id), U.petHit('sip', id)], [U.PET_HIT, U.PET_HIT, U.PET_HIT], 'typing and coffee');
+    eq(U.petHit('dangle', id), U.petHit('dangle'), 'the other states as before');
+    eq(U.bandKey(id, 'wave'), U.bandKey(id, 'celebrate'), 'celebrate\'s measured bands serve');
+    eq(U.bandKey(id, 'focus'), U.bandKey(id, 'typing'));
+    // the bubble points where it does for celebrate, even once a 'wave' state of its own (drawn elsewhere) exists
+    var e = mk(at(12, 10, 0), { first: 'U7' }), b = $(e, '[data-bubble]'), pet = $(e, '[data-pet]'), S = P.states, get = S.get;
+    try {
+      S.get = function (n) { return n === 'wave' ? get('dangle') : get(n); };
+      ok(String(P.speechAt(id, 'wave')) !== String(P.speechAt(id, 'celebrate')), 'its own wave would point elsewhere');
+      var celebrate = U.anchorBubble(b, pet, 'petonly', id, 'celebrate', e.root);
+      ok(celebrate, 'anchored');
+      eq(U.anchorBubble(b, pet, 'petonly', id, 'wave', e.root), celebrate, 'the shown pose\'s anchor');
+    } finally { S.get = get; done(); }
+  });
+
   test('layouts DOM: U7 widens the pet hit rect at once while it dangles and narrows it again after dragEnd', function () {
     var U = QJZ.layouts.util, e = mk(at(12, 10, 0), { first: 'U7' });
     var box = $(e, '[data-hit=pet]').getBoundingClientRect();

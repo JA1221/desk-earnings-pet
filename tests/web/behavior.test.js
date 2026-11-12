@@ -225,9 +225,146 @@
     for (var s = 1; s < 20; s++) eq(b.update(t + s * 1000, working()), 'typing', 'not before 20 s (' + s + ')');
   });
 
+  // ---------- cues (1.1: QJZ.care's reminders and pomodoro, spec §5.1, §5.2, §5.8) ----------
+  // Runs the brain once a second from t0 to t1 (both included); returns the last state.
+  function upTo(b, info, t0, t1) {
+    var s = null;
+    for (var t = t0; t <= t1; t += 1000) s = b.update(t, info);
+    return s;
+  }
+
+  test('behavior: the focus cue replaces typing and sprint', function () {
+    var b = new B.Brain(B.rng(1));
+    eq(b.update(T0, working()), 'typing');
+    b.cue('focus', T0 + 1000);
+    eq(b.update(T0 + 1000, { status: 'working', minutesToEnd: 20 }), 'focus', 'not sprint');
+    eq(b.change, { from: 'typing', to: 'focus', quiet: false });
+    eq(b.base, 'focus');
+    eq(b.update(T0 + 2000, working()), 'focus', 'not typing');
+    [{ status: 'before', minutesToEnd: 480 }, { status: 'lunch', minutesToEnd: 240, lunchMin: 2 }, { status: 'lunch', minutesToEnd: 240, lunchMin: 30 },
+      { status: 'done', minutesToEnd: 0 }, { status: 'ended', minutesToEnd: 0 }].forEach(function (info, i) {
+      eq(b.update(T0 + 3000 + i * 1000, info), 'focus', info.status + ' ' + info.lunchMin);
+    });
+    eq(b.poke(T0 + 9000), 'petted');
+    eq(b.update(T0 + 9100, working()), 'petted', 'overlays still win');
+    eq(b.update(T0 + 11100, working()), 'focus');
+    b.cue('focus', T0 + 12000);
+    eq(b.update(T0 + 12000, working()), 'focus', 'the same cue again changes nothing');
+  });
+
+  test('behavior: 可以下班 during a focus waits; celebrate for 8 s after the focus and its stretch, then waitBag', function () {
+    var T = T0 + 3600000, done = { status: 'done', minutesToEnd: 0 };
+    // focused from 5 minutes before 可以下班 (T) until T + 10 min
+    function focused() {
+      var b = new B.Brain(B.rng(2));
+      b.cue('focus', T - 300000);
+      eq(upTo(b, working(5), T - 300000, T - 1000), 'focus');
+      eq(upTo(b, done, T, T + 600000), 'focus', '可以下班 from T: the focus goes on');
+      return b;
+    }
+    // care's real sequence: the focus ends with the break bubble's stretch (Ruling M8)
+    var b = focused();
+    b.cue('stretch', T + 600000);
+    eq(b.update(T + 600000, done), 'stretch');
+    eq(b.change, null, 'nothing new to celebrate yet');
+    eq(b.update(T + 603999, done), 'stretch');
+    eq(b.update(T + 604000, done), 'celebrate', 'after the 4 s stretch');
+    eq(b.change, { from: 'focus', to: 'celebrate', quiet: false }, 'seen live: the jingle plays');
+    eq(upTo(b, done, T + 605000, T + 611000), 'celebrate');
+    eq(b.update(T + 612000, done), 'waitBag', 'celebrate for 8 s');
+    // the focus stopped with no break bubble: at once
+    b = focused();
+    b.cue(null, T + 600000);
+    eq(b.update(T + 600000, done), 'celebrate');
+    eq(b.change, { from: 'focus', to: 'celebrate', quiet: false });
+    eq(upTo(b, done, T + 601000, T + 607000), 'celebrate');
+    eq(b.update(T + 608000, done), 'waitBag');
+    // the break bubble answered within the stretch: the stretch ends then
+    b = focused();
+    b.cue('stretch', T + 600000);
+    eq(upTo(b, done, T + 600000, T + 602000), 'stretch');
+    b.cue(null, T + 602000);
+    eq(b.update(T + 602000, done), 'celebrate');
+    eq(b.update(T + 610000, done), 'waitBag');
+    // at work the focus gives way to typing after its stretch
+    b = new B.Brain(B.rng(2));
+    b.cue('focus', T0);
+    upTo(b, working(), T0, T0 + 5000);
+    b.cue('stretch', T0 + 6000);
+    eq(upTo(b, working(), T0 + 6000, T0 + 9000), 'stretch');
+    eq(b.update(T0 + 10000, working()), 'typing');
+    eq(b.change, { from: 'focus', to: 'typing', quiet: false });
+  });
+
+  test('behavior: wave for 4 s after the cue and each knock, idle between; holdCup holds; stretch for 4 s', function () {
+    var t = T0 + 600000, w = working();
+    eq([B.WAVE_MS, B.STRETCH_MS, B.SIP_MS], [4000, 4000, 3000]);
+    // wave (the reminder asks only 起來動)
+    var b = new B.Brain(B.rng(3));
+    b.update(t - 1000, w);
+    b.cue('wave', t);
+    eq(b.update(t, w), 'wave');
+    eq(b.update(t + 3999, w), 'wave');
+    eq(b.update(t + 4000, w), 'idle', 'then waits, looking at you');
+    eq(upTo(b, w, t + 5000, t + 119000), 'idle');
+    eq(b.base, 'typing', 'the base state goes on underneath');
+    b.knock(t + 120000);
+    eq(b.update(t + 120000, w), 'wave', 'a knock waves again');
+    eq(b.update(t + 123999, w), 'wave');
+    eq(b.update(t + 124000, w), 'idle');
+    // holdCup (the reminder asks for water)
+    b = new B.Brain(B.rng(3));
+    b.update(t - 1000, w);
+    b.cue('holdCup', t);
+    eq(b.update(t, w), 'holdCup');
+    eq(b.waveAt, t);
+    eq(upTo(b, w, t + 1000, t + 60000), 'holdCup', 'holds the cup');
+    b.knock(t + 120000);
+    eq(b.update(t + 120000, w), 'holdCup', 'a knock replays its own wave');
+    eq(b.waveAt, t + 120000);
+    b.show('sip', t + 121000, B.SIP_MS);
+    eq(b.update(t + 121000, w), 'sip', 'overlays still win');
+    eq(b.update(t + 123999, w), 'sip');
+    eq(b.update(t + 124000, w), 'holdCup');
+    // stretch (the break bubble)
+    b = new B.Brain(B.rng(3));
+    b.update(t - 1000, w);
+    b.cue('stretch', t);
+    eq(b.update(t, w), 'stretch');
+    eq(b.update(t + 3999, w), 'stretch');
+    eq(b.update(t + 4000, w), 'typing', 'then the base state');
+    b.knock(t + 120000);
+    eq(b.update(t + 120000, w), 'wave', 'a pomodoro bubble re-waves too (§5.1)');
+    eq(b.update(t + 124000, w), 'typing');
+    b.cue(null, t + 125000);
+    eq(b.update(t + 125000, w), 'typing');
+    // a cue cuts an idle action short
+    b = new B.Brain(B.rng(7));
+    var r = runs(b, w, 120, 1000), act = r.filter(function (x) { return x.state !== 'typing'; })[0];
+    ok(act, 'an idle action came');
+    b = new B.Brain(B.rng(7));
+    upTo(b, w, T0, act.from);
+    eq(b.state, act.state);
+    b.cue('holdCup', act.from + 500);
+    eq(b.update(act.from + 1000, w), 'holdCup');
+  });
+
+  test('behavior: no idle actions while a cue is on', function () {
+    function seq(cue) {
+      var b = new B.Brain(B.rng(7));
+      if (cue) b.cue(cue, T0);
+      return runs(b, working(), 120, 1000).map(function (x) { return x.state; });
+    }
+    ok(seq(null).some(function (s) { return WORK_IDLES.indexOf(s) >= 0; }), 'the same pet without a cue: ' + seq(null));
+    eq(seq('focus'), ['focus']);
+    eq(seq('wave'), ['wave', 'idle']);
+    eq(seq('holdCup'), ['holdCup']);
+    eq(seq('stretch'), ['stretch', 'typing']);
+  });
+
   // ---------- lines ----------
   var RICH = { name: '金金', kind: 'hamster', minutesToLunch: 15, minutesToEnd: 12, earned: 1234.5, step: 100, gained: 2,
-    hour: 10, energy: 30, mood: 30, items: QJZ.settings.DEFAULTS.items };
+    hour: 10, energy: 30, mood: 30, items: QJZ.settings.DEFAULTS.items, goal: 8 };
   function ctxs() {
     var out = [{}, { kind: 'cat' }, { kind: 'hamster', off: true }, { kind: 'cat', minutesToEnd: 200, earned: 30, hour: 15 },
       { kind: 'cat', minutesToLunch: 1, minutesToEnd: 1, earned: 65, hour: 18, energy: 90, mood: 95 },
@@ -326,5 +463,32 @@
     for (var k = 0; k < 300; k++) if (L.pick('typing', { kind: 'cat', rng: rng }).indexOf('小橘') >= 0) dflt++;
     ok(dflt > 0, 'default cat name 小橘');
     eq(L.pick('nope', {}), '', 'unknown state');
+  });
+
+  test('lines: drank / waterGoal / standOk have 5+ lines with no unfilled placeholder; focusPoke is 專心中～; waterGoal with goal 8 mentions 8 杯', function () {
+    var rng = B.rng(4);
+    ['drank', 'waterGoal', 'standOk'].forEach(function (s) {
+      ['cat', 'hamster'].forEach(function (k) {
+        ok(L.templates(s, k).length >= 5, s + ' ' + k + ': ' + L.templates(s, k).length);
+        for (var i = 0; i < 60; i++) {
+          [{ kind: k, rng: rng }, { kind: k, rng: rng, goal: 8 }].forEach(function (c) {
+            var line = L.pick(s, c);
+            ok(line && !/[{}\[\]]/.test(line), s + ' ' + k + ': ' + line);
+          });
+        }
+      });
+    });
+    ['cat', 'hamster'].forEach(function (k) {
+      eq(L.templates('focusPoke', k), ['專心中～'], k);
+      eq(L.pick('focusPoke', { kind: k, rng: rng }), '專心中～', k);
+    });
+    eq(L.templates('waterGoal', 'cat')[0], '{goal} 杯喝滿了！你好棒～', 'B_after_goal');
+    eq(L.fill('{goal} 杯喝滿了！你好棒～', { goal: 8 }), '8 杯喝滿了！你好棒～');
+    var withGoal = 0;
+    for (var j = 0; j < 200; j++) {
+      if (L.pick('waterGoal', { kind: 'cat', goal: 8, rng: rng }).indexOf('8 杯') >= 0) withGoal++;
+      ok(!/\d 杯/.test(L.pick('waterGoal', { kind: 'hamster', rng: rng })), 'no goal, no number');
+    }
+    ok(withGoal > 0, 'the goal line comes up');
   });
 })();

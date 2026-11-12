@@ -11,16 +11,28 @@ window.QJZ = window.QJZ || {};
 //   Brain: the running pet. update(nowMs, info) -> the state to show, where
 //       info = {status, minutesToEnd, lunchMin (minutes into lunch, or null), mood ({energy, mood}, optional)}.
 //       On top of the base state: lunchEat for the first 10 minutes of lunch (RULING-3), an idle action every
-//       20–60 s for 3–5 s (doze 8–15 s), and overlays: dangle while dragged > angry > petted / eat / hop.
+//       20–60 s for 3–5 s (doze 8–15 s), and overlays: dangle while dragged > angry > petted / eat / hop / sip (show).
 //       After each update brain.change is {from, to, quiet} when the base state changed (from null the first
 //       time); quiet when it was not seen happening live: the first look, or after a gap over 5 s (the window
 //       was hidden). brain.base is the current base state.
+//   1.1 cues (spec §5.1, §5.2, §5.8): cue(name | null, nowMs) with QJZ.care's cue ('focus' | 'wave' | 'holdCup' |
+//       'stretch'), knock(nowMs) for care's re-wave every 2 minutes while a bubble waits. brain.cued is the cue.
+//       focus: the base state is 'focus' whatever the status. A focus lasts until its cue changes, or, when it changes
+//         to 'stretch' (care: the focus ended with its break bubble), until that stretch is over (Ruling M8). Then the
+//         status clock restarts, so 可以下班 during a focus celebrates for 8 s after it, live (§5.2).
+//       wave: 'wave' for WAVE_MS after the cue and after each knock, 'idle' in between.
+//       holdCup: 'holdCup' all along; a knock replays its wave (brain.waveAt: when the last wave began).
+//       stretch: 'stretch' for STRETCH_MS, then the base state.
+//       A knock with no cue or the stretch's (a pomodoro bubble) waves for WAVE_MS too (§5.1). While a cue is on there
+//       are no idle actions; overlays still win.
 QJZ.behavior = (function () {
   var IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch'];
   var CELEBRATE_SEC = 8, SPRINT_MIN = 30, LUNCH_EAT_MIN = 10;
   var IDLE_EVERY = [20000, 60000], IDLE_FOR = [3000, 5000], DOZE_FOR = [8000, 15000], DOZE_CHANCE = 0.4;
   var GAP_MS = 5000, PET_MS = 2000;
   var POKE_WINDOW = 2000, POKE_COUNT = 5, ANGRY_MS = 4000;
+  var WAVE_MS = 4000, STRETCH_MS = 4000, SIP_MS = 3000;
+  var CUES = { focus: 1, wave: 1, holdCup: 1, stretch: 1 };
 
   function base(status, minutesToEnd, secInStatus) {
     switch (status) {
@@ -82,14 +94,32 @@ QJZ.behavior = (function () {
     this.over = null;          // {state, from, until}: petted / eat / hop
     this.held = false;         // dragged (U7)
     this.angered = false;      // the last poke made it angry just now
+    this.cued = null;          // care's cue
+    this.cuedAt = 0;           // when it came
+    this.waveAt = -Infinity;   // when the last wave began (a wave or holdCup cue, or a knock)
+    this.focusEnd = -Infinity; // when the last focus ended, or ends (after its stretch)
+  }
+  // The pose the cue shows at now, or null for none (the base state and its idle actions show).
+  function cuePose(br, now) {
+    var c = br.cued;
+    if (c === 'focus' || c === 'holdCup') return c;
+    if (c === 'stretch' && now >= br.cuedAt && now < br.cuedAt + STRETCH_MS) return 'stretch';
+    if (now >= br.waveAt && now < br.waveAt + WAVE_MS) return 'wave';
+    return c === 'wave' ? 'idle' : null;
   }
   Brain.prototype.schedule = function (now) { this.nextIdle = now + between(this.rng, IDLE_EVERY); };
   Brain.prototype.update = function (now, info) {
-    var gap = this.last === null || now - this.last > GAP_MS || now < this.last;
+    var back = this.last !== null && now < this.last;
+    var gap = this.last === null || now - this.last > GAP_MS || back;
     this.last = now;
+    if (back && this.cued !== 'focus' && this.focusEnd > now) this.focusEnd = now;   // the clock went back: no long wait
     if (info.status !== this.status || now < this.since) { this.status = info.status; this.since = now; }
-    var b = base(info.status, info.minutesToEnd, (now - this.since) / 1000);
-    if (b === 'lunchSleep' && info.lunchMin !== null && info.lunchMin !== undefined && info.lunchMin < LUNCH_EAT_MIN) b = 'lunchEat';
+    var b = 'focus';
+    if (this.cued !== 'focus' && now >= this.focusEnd) {
+      // the status clock restarts when a focus ends: 可以下班 during a focus celebrates after it (§5.2)
+      b = base(info.status, info.minutesToEnd, (now - Math.max(this.since, this.focusEnd)) / 1000);
+      if (b === 'lunchSleep' && info.lunchMin !== null && info.lunchMin !== undefined && info.lunchMin < LUNCH_EAT_MIN) b = 'lunchEat';
+    }
 
     this.change = b !== this.base ? { from: this.base, to: b, quiet: gap || this.base === null } : null;
     if (this.change || gap) { this.idle = null; this.nextIdle = null; }
@@ -98,11 +128,14 @@ QJZ.behavior = (function () {
     var over = this.over && now < this.over.until ? this.over : null;
     if (this.over && now >= this.over.until) this.over = null;
     var busy = this.held || this.poker.angry(now) || (over && now >= over.from);
-    var s = b;
+    var s = b, cp = cuePose(this, now);
     if (busy) {
       this.idle = null; this.nextIdle = null;   // an idle action never cuts into a reaction; the wait restarts after it
       s = this.held ? 'dangle' : this.poker.angry(now) ? 'angry' : over.state;
-    } else if (b === 'typing' || b === 'idle') {
+    } else if (cp) {
+      this.idle = null; this.nextIdle = null;
+      s = cp;
+    } else if (!this.cued && (b === 'typing' || b === 'idle')) {
       if (this.idle && now >= this.idle.until) { this.idle = null; this.nextIdle = null; }
       if (this.nextIdle === null && !this.idle) this.schedule(now);
       if (!this.idle && now >= this.nextIdle) {
@@ -134,9 +167,23 @@ QJZ.behavior = (function () {
     this.over = { state: state, from: from, until: from + ms };
   };
   Brain.prototype.drag = function (on) { this.held = !!on; };
+  // care's cue (an unknown name is null). Leaving 'focus' ends the focus now, or after the stretch for 'stretch'; a new
+  // cue during that stretch ends it then. A cue cuts an idle action short.
+  Brain.prototype.cue = function (name, now) {
+    name = CUES.hasOwnProperty(name) ? name : null;
+    if (name === this.cued) return;
+    if (this.cued === 'focus') this.focusEnd = name === 'stretch' ? now + STRETCH_MS : now;
+    else if (now < this.focusEnd) this.focusEnd = now;
+    this.cued = name;
+    this.cuedAt = now;
+    this.waveAt = name === 'wave' || name === 'holdCup' ? now : -Infinity;
+    this.idle = null; this.nextIdle = null;
+  };
+  // care's re-wave: the wave again (holdCup's own); never during a focus.
+  Brain.prototype.knock = function (now) { if (this.cued !== 'focus') this.waveAt = now; };
 
   return {
     IDLES: IDLES, base: base, pickIdle: pickIdle, rng: rng, Poker: Poker, Brain: Brain,
-    PET_MS: PET_MS, EAT_MS: 3000, HOP_MS: 2400
+    PET_MS: PET_MS, EAT_MS: 3000, HOP_MS: 2400, WAVE_MS: WAVE_MS, STRETCH_MS: STRETCH_MS, SIP_MS: SIP_MS
   };
 })();

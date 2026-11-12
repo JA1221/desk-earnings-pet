@@ -496,4 +496,71 @@
     var doc = parse(svg);
     eq(doc.querySelector('.eyes-open').getElementsByTagName('path').length, 2, 'happy arcs in eyes-open');
   });
+
+  // ---------- the 1.1 poses (spec §5.8) ----------
+  // A skin that declares no 1.1 pose: cat P4's def as 'test:stub', kind 'test' (so no list sees it). The fallback tests
+  // run on it, so the real skins' art (Task 17) cannot break them (Ruling M10). layouts.test.js has the same helper.
+  function stubSkin(poses) {
+    var src = QJZ.pets.get('cat:p4'), d = {};
+    for (var k in src) if (k !== 'poses11') d[k] = src[k];
+    d.id = 'test:stub'; d.kind = 'test'; d.skin = 'stub';
+    if (poses) d.poses11 = poses;
+    QJZ.pets.register(d);
+    return d.id;
+  }
+  // QJZ.pets.states with name drawn as another state's parts (as if Task 17 had added it), or gone (null).
+  function withState(name, as, fn) {
+    var S = QJZ.pets.states, get = S.get;
+    S.get = function (n) { return n === name ? (as ? get(as) : null) : get(n); };
+    try { fn(); } finally { S.get = get; }
+  }
+
+  test('pets: undeclared new poses fall back', function () {
+    var P = QJZ.pets, id = stubSkin();
+    eq(P.NEW_POSES, ['wave', 'holdCup', 'sip', 'focus']);
+    eq(P.FALLBACK, { wave: 'celebrate', holdCup: 'coffee', sip: 'coffee', focus: 'typing' });
+    eq(P.NEW_POSES.map(function (s) { return P.poseFor(id, s); }), ['celebrate', 'coffee', 'coffee', 'typing'], 'the stub');
+    STATES.forEach(function (s) { eq(P.poseFor(id, s), s, s + ' is its own pose'); });
+    eq([P.poseFor(id, 'nope'), P.poseFor(id, 'toString'), P.poseFor(id, undefined)], ['nope', 'toString', undefined], 'other names pass through');
+    eq(P.poseFor('dog:p0', 'wave'), 'celebrate', 'an unknown skin declares nothing');
+    var want = { wave: 'st-celebrate', holdCup: 'st-coffee', sip: 'st-coffee', focus: 'st-typing' };
+    P.NEW_POSES.forEach(function (s) {
+      VIEWS.forEach(function (view) {
+        var root = parse(P.compose(id, view, { state: s })).documentElement;
+        ok(hasClass(root, want[s]), s + ' ' + view + ': ' + root.getAttribute('class'));
+      });
+    });
+    ok(hasClass(parse(P.compose(id, 'petonly', { state: 'wave' })).documentElement, 'st-celebrate'), 'petonly wave');
+    // preview (the review page, Ruling R3): a pose shows before its skin declares it, but only one that exists
+    withState('wave', null, function () {
+      eq(P.poseFor(id, 'wave', true), 'celebrate', 'no wave state: still the stand-in');
+      ok(hasClass(parse(P.compose(id, 'petonly', { state: 'wave', preview: true })).documentElement, 'st-celebrate'), 'compose too');
+    });
+    withState('wave', 'celebrate', function () {
+      eq(P.poseFor(id, 'wave', true), 'wave', 'preview shows a drawn pose');
+      eq([P.poseFor(id, 'wave'), P.poseFor(id, 'wave', 1)], ['celebrate', 'celebrate'], 'only with preview === true');
+      stubSkin(['wave']);
+      eq(P.poseFor(id, 'wave'), 'wave', 'a declared, drawn pose is itself');
+      eq(P.poseFor(id, 'sip'), 'coffee', 'the others still fall back');
+    });
+    stubSkin(['wave']);
+    withState('wave', null, function () { eq(P.poseFor(id, 'wave'), 'celebrate', 'declared but not drawn'); });
+    stubSkin();
+  });
+
+  test('pets: missingPoses lists every hamster and cat skin without poses11', function () {
+    var P = QJZ.pets;
+    stubSkin();
+    var m = P.missingPoses();
+    eq(m.length, 40, '10 skins x 4 poses until Task 17 declares them (then 0)');
+    m.forEach(function (x) { ok(/^(hamster|cat):\w+ (wave|holdCup|sip|focus)$/.test(x), x); });
+    eq(m.filter(function (x) { return x.indexOf('test:') === 0; }), [], 'the stub is not listed');
+    var d = P.get('cat:p4'), had = d.poses11;
+    try {
+      d.poses11 = ['wave', 'sip'];
+      var part = P.missingPoses();
+      eq([part.indexOf('cat:p4 wave'), part.indexOf('cat:p4 sip')], [-1, -1], 'declared');
+      ok(part.indexOf('cat:p4 holdCup') >= 0 && part.indexOf('cat:p4 focus') >= 0, 'not declared');
+    } finally { if (had === undefined) delete d.poses11; else d.poses11 = had; }
+  });
 })();
