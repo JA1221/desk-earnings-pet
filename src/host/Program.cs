@@ -1,99 +1,69 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Globalization;
+using System.Threading;
 using System.Windows.Forms;
-using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.WinForms;
 
 public static class Program
 {
+    const string MissingWebView2 = "這台電腦缺少 Microsoft Edge WebView2 執行階段，錢進中需要它才能顯示畫面。請到 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下載安裝後再開啟。";
+
     [STAThread]
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        if (Array.IndexOf(args, "--spike") >= 0) Application.Run(SpikeWindow());
-        else Application.Run(new MainForm());
-    }
+        // A bug in one UI event handler is logged and the app keeps running; anything else is fatal.
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { ErrorLog.Write("unhandled exception on the UI thread", e.Exception); };
+        AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
 
-    // Dev-only (Task 2): spike.html in a PetWindow; replaced by AppHost in Task 7.
-    private static PetWindow SpikeWindow()
-    {
-        PetWindow w = new PetWindow("https://app.qjz/spike.html");
-        w.InitFailed += delegate(string message)
+        if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
+        if (!WebView2Check.IsAvailable())
         {
-            MessageBox.Show(message, "錢進中");
-            w.Close();
-        };
-        w.WebReady += delegate
-        {
-            Bridge bridge = new Bridge(w.Web);
-            bridge.Received += delegate(string type, Dictionary<string, object> d)
-            {
-                if (type == "dragStart") w.BeginDrag();
-                else if (type == "setTopmost") w.TopMostEnabled = true.Equals(Field(d, "on"));
-                else if (type == "setLayout") w.SetContentSize((int)Num(Field(d, "width")), (int)Num(Field(d, "height")), Num(Field(d, "dpr")));
-                else if (type == "hitRects") w.SetHitRects(Rects(Field(d, "rects")), Num(Field(d, "dpr")));
-            };
-        };
-        return w;
-    }
-
-    private static object Field(Dictionary<string, object> d, string key)
-    {
-        object v;
-        return d.TryGetValue(key, out v) ? v : null;
-    }
-
-    private static float Num(object v)
-    {
-        try { return v == null ? 0f : Convert.ToSingle(v, CultureInfo.InvariantCulture); }
-        catch (Exception) { return 0f; }
-    }
-
-    private static RectangleF[] Rects(object v)
-    {
-        List<RectangleF> list = new List<RectangleF>();
-        IEnumerable items = v as IEnumerable;
-        if (items != null)
-            foreach (object item in items)
-            {
-                IList r = item as IList;
-                if (r != null && r.Count == 4) list.Add(new RectangleF(Num(r[0]), Num(r[1]), Num(r[2]), Num(r[3])));
-            }
-        return list.ToArray();
-    }
-}
-
-public class MainForm : Form
-{
-    private readonly WebView2 web = new WebView2();
-
-    public MainForm()
-    {
-        Text = "錢進中";
-        ClientSize = new Size(400, 300);
-        StartPosition = FormStartPosition.CenterScreen;
-        web.Dock = DockStyle.Fill;
-        Controls.Add(web);
-        Load += delegate { Init(); };
-    }
-
-    private async void Init()
-    {
+            MessageBox.Show(MissingWebView2, "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
+        string page = DevPage(args);
         try
         {
-            await web.EnsureCoreWebView2Async(await WebViewEnv.GetAsync());
-            string root = WebRoot.Resolve();
-            if (root == null) { MessageBox.Show("找不到網頁資源 (src/web)。", "錢進中"); return; }
-            web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);
-            web.CoreWebView2.Navigate("https://app.qjz/index.html");
+            new AppHost(page ?? "index.html", page != null).Run();
+            return 0;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.ToString(), "錢進中");
+            Fatal(ex);
+            return 1;
         }
+    }
+
+    // A short message for the user; the details go to error.log.
+    static void Fatal(Exception ex)
+    {
+        ErrorLog.Write("fatal error", ex);
+        try
+        {
+            MessageBox.Show("錢進中發生錯誤，需要關閉。\n\n詳細資訊已記錄在：\n" + ErrorLog.FilePath,
+                "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        catch (Exception) { }
+    }
+
+    // Dev only: --page <file> loads that page from the web root instead of index.html (a relative path inside
+    // the root, optionally with a ?query); --spike is --page spike.html (tools\visual-check uses it).
+    static string DevPage(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--spike") return "spike.html";
+            if (args[i] == "--page" && i + 1 < args.Length && SafePage(args[i + 1])) return args[i + 1].Replace('\\', '/');
+        }
+        return null;
+    }
+
+    static bool SafePage(string p)
+    {
+        if (string.IsNullOrEmpty(p) || p.Length > 200 || p.Contains("..") || p.StartsWith("/") || p.StartsWith("\\")) return false;
+        foreach (char c in p)
+            if (!(char.IsLetterOrDigit(c) && c < 128) && "._-/\\?=&%".IndexOf(c) < 0) return false;
+        return true;
     }
 }

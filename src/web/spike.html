@@ -11,6 +11,9 @@
   docs/prototypes/shared.js, rendered once and pasted as static SVG (unused defs removed).
   Host protocol (JSON via chrome.webview, see Bridge.cs): setLayout {layout, width, height, dpr},
   hitRects {rects: [[x,y,w,h],...], dpr}, dragStart {}, setTopmost {on}; dpr = window.devicePixelRatio.
+  Query (build\錢進中.exe --page "spike.html?layout=U7&guard=on"): layout = name reported in setLayout
+  (default 'spike'; U7 / M3 switch the host to no-activate clicks); the page turns the host's capture guard
+  off (setCaptureGuard {on:false}) because the visual checks capture the screen, unless guard=on.
 -->
 <style>
   @font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-Variable.ttf') format('truetype'); font-weight: 300 700; }
@@ -79,11 +82,13 @@
 (function () {
   var wv = window.chrome && window.chrome.webview;
   var topmost = false;
+  var query = new URLSearchParams(window.location.search);
+  var layoutName = query.get('layout') || 'spike';
   function send(msg) { if (wv) wv.postMessage(msg); }
   function report() {
     var dpr = window.devicePixelRatio;
     var stage = document.getElementById('stage');
-    send({ type: 'setLayout', layout: 'spike', width: stage.offsetWidth, height: stage.offsetHeight, dpr: dpr });
+    send({ type: 'setLayout', layout: layoutName, width: stage.offsetWidth, height: stage.offsetHeight, dpr: dpr });
     var rects = [];
     document.querySelectorAll('[data-hit]').forEach(function (el) {
       var r = el.getBoundingClientRect();
@@ -115,6 +120,7 @@
   });
   window.addEventListener('resize', report);
   watchDpr();
+  if (query.get('guard') !== 'on') send({ type: 'setCaptureGuard', on: false });   // before the first setLayout shows the window
   report();
 })();
 </script>

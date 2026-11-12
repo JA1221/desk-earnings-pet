@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
 // HKCU Run-key autostart; no admin rights needed.
@@ -18,6 +20,21 @@ public class AutoStart
         {
             return k != null && k.GetValue(ValueName) != null;
         }
+    }
+
+    // The "autostart" setting in settings.json text; like the page's sanitizer, anything but a JSON bool
+    // (no file, corrupt text, missing field) means the default, on.
+    public static bool SettingOn(string settingsJson)
+    {
+        if (string.IsNullOrEmpty(settingsJson)) return true;
+        try
+        {
+            var d = new JavaScriptSerializer().DeserializeObject(settingsJson) as Dictionary<string, object>;
+            object v;
+            if (d != null && d.TryGetValue("autostart", out v) && v is bool) return (bool)v;
+        }
+        catch (Exception) { }
+        return true;
     }
 
     public void Set(bool on, string exePath)

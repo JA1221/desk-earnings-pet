@@ -5,20 +5,39 @@ using System.Runtime.InteropServices;
 internal static class Native
 {
     public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_TOPMOST = 0x00000008;
     public const int WS_EX_TRANSPARENT = 0x00000020;
     public const int WS_EX_LAYERED = 0x00080000;
+    public const int WS_EX_NOACTIVATE = 0x08000000;
     public const int LWA_ALPHA = 0x2;
 
+    public const int WM_MOUSEACTIVATE = 0x0021;
     public const int WM_NCLBUTTONDOWN = 0x00A1;
+    public const int WM_EXITSIZEMOVE = 0x0232;
     public const int WM_DPICHANGED = 0x02E0;
+    public const int WM_HOTKEY = 0x0312;
     public const int HTCAPTION = 2;
+    public const int MA_NOACTIVATE = 3;
 
     public const int VK_LBUTTON = 0x01;
     public const int VK_RBUTTON = 0x02;
     public const int SM_SWAPBUTTON = 23;
 
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
+    public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+
+    public const uint WDA_NONE = 0x0;
+    public const uint WDA_MONITOR = 0x1;
+    public const uint WDA_EXCLUDEFROMCAPTURE = 0x11;   // Windows 10 2004+
+
+    public const int ASFW_ANY = -1;
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+    public const int MDT_EFFECTIVE_DPI = 0;
 
     public const int DWM_BB_ENABLE = 0x1;
     public const int DWM_BB_BLURREGION = 0x2;
@@ -80,4 +99,35 @@ internal static class Native
 
     [DllImport("gdi32.dll")]
     public static extern bool DeleteObject(IntPtr obj);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, int modifiers, int vk);
+
+    [DllImport("user32.dll")]
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint affinity);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowDisplayAffinity(IntPtr hWnd, out uint affinity);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool AllowSetForegroundWindow(int processId);
+
+    [DllImport("user32.dll")]
+    public static extern bool DestroyIcon(IntPtr icon);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromPoint(POINT point, uint flags);
+
+    // Windows 8.1+.
+    [DllImport("shcore.dll")]
+    public static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
 }

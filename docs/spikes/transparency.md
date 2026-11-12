@@ -29,7 +29,8 @@ Dev harness: `build\錢進中.exe --spike` opens `src/web/spike.html` in a `PetW
 host protocol through `Bridge` (JSON): `setLayout {layout, width, height, dpr}`, `hitRects {rects:[[x,y,w,h],…], dpr}`,
 `dragStart {}`, `setTopmost {on}`, with `dpr = window.devicePixelRatio`. It re-reports on `resize` and also when a
 `(resolution: <dpr>dppx)` media query changes, because a DPI change can change the DPR without changing the CSS
-viewport. `Program.cs` holds the spike's message handling; Task 7 replaces it.
+viewport. Since Task 7 the switch runs the real `AppHost` with this page (`--spike` = `--page spike.html`), and the
+page turns the host's capture guard off at load unless it is opened as `spike.html?guard=on`.
 The page contains an A1 sticker card (28 px radius, 3 px `#3D2C24` border, 7 px hard shadow), the P0 hamster
 (`petOnlySVG('p0','hamster')`, outlined), the S4 hamster (no outlines), a soft radial glow (alpha 0.95 → 0),
 and a fading `+NT$0.42` floater. Nothing sits behind any of them.
@@ -134,14 +135,20 @@ Evidence: everything is in `.superpowers/sdd/2026-11-11-qianjinzhong/`, which is
 - **Poll latency is up to 33 ms.** A click within about one tick of crossing a rect edge can go to the other
   window. Hover and `mousemove` reach the page only while the cursor is inside a hit rect.
 - **Clicking the pet activates the window** and takes keyboard focus from the user's app. `WS_EX_NOACTIVATE`
-  would avoid this but breaks typing in panels; that is a decision for Task 7 or 10.
+  would avoid this but breaks typing in panels. Task 7 decision: `WS_EX_NOACTIVATE` + `MA_NOACTIVATE` only while
+  the layout is U7 or M3. The WebView2 child windows answer `WM_MOUSEACTIVATE` with `MA_ACTIVATE` themselves, so
+  for clicks on the page it is the root window's `WS_EX_NOACTIVATE` that keeps the focus where it is.
 - **Do not paint GDI on `PetWindow`** (keep `BackColor` black). Under blur-behind any non-black GDI pixel has
   alpha 0 and would show up as an additive colour cast.
 - **Windows 10 is untested** (no Win10 machine). The APIs used exist there (`DwmEnableBlurBehindWindow` Vista+,
   DirectComposition children of layered windows Win8+, `GetDpiForWindow` 1607+), but the combination is only
   proven on this Win11 build.
-- **Capture protection is untested here.** `SetWindowDisplayAffinity` (Task 7) on this layered window still
-  needs its own check.
+- **Capture protection** (Task 7): `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` works on this layered
+  blur-behind window, WebView2 content included. With the guard on, a BitBlt capture of the window's rect equals
+  the backdrop behind it (0 changed pixels); with it off, the pet is in the capture. Visual checks need it off.
+- **Hidden window** (Task 7): WinForms does not tell the WebView2 control when its form is hidden, so `PetWindow`
+  hides and shows the control together with the window. A window created hidden also needs one such cycle at
+  its first show, or its initial area shows as a white box.
 - Only 100 % and 150 % monitors were tested, plus page zoom 1.25 for a DPR that differs from DPI/96. The Windows
   Text size setting was not changed (it is the user's machine). It takes the same DPR path as zoom.
 - **Layout pages must send `dpr`** with `setLayout` and `hitRects`, and must re-report when the DPR changes

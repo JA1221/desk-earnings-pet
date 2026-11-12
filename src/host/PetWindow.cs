@@ -17,6 +17,7 @@ using Microsoft.Web.WebView2.WinForms;
 // the cursor is outside every hit rect, so the whole window, WebView2 included, is skipped.
 // CSS -> physical px uses the page's devicePixelRatio (reported with SetContentSize / SetHitRects),
 // which can differ from DPI / 96 (page zoom, Windows Text size).
+// Focus: showing never activates the window; with NoActivate set (floating layouts) clicks do not either.
 public class PetWindow : Form
 {
     private readonly WebView2 web = new WebView2();
@@ -28,12 +29,23 @@ public class PetWindow : Form
     private double scale;      // physical px per CSS px; 0 until known, then the page's DPR
     private int windowDpi;     // tracked through WM_DPICHANGED
     private bool pollSuspended;
+    private bool webStarted;
+    private bool failed;
+    private bool noActivate;
+    private bool topMost;
+    private bool everShown;
 
     public event EventHandler WebReady;
 
-    // Transparency or WebView2 setup failed; the window cannot be shown usefully. Without a subscriber the
-    // window shows the message itself and closes.
+    // Transparency or WebView2 setup failed; the window cannot be shown usefully. Raised at most once. Without
+    // a subscriber the window shows the message itself and closes.
     public event Action<string> InitFailed;
+
+    // A move or resize loop ended (WM_EXITSIZEMOVE), e.g. after BeginDrag.
+    public event EventHandler MoveEnded;
+
+    // WM_HOTKEY arrived; the argument is the hotkey id.
+    public event Action<int> HotKeyPressed;
 
     public PetWindow(string startUrl)
     {
@@ -52,16 +64,69 @@ public class PetWindow : Form
         hitTimer.Interval = 33;
         hitTimer.Tick += delegate { UpdateClickThrough(); };
         VisibleChanged += delegate { hitTimer.Enabled = Visible && !pollSuspended; };
-        Load += delegate { InitWeb(); };
     }
 
     // Null until WebReady.
     public CoreWebView2 Web { get { return web.CoreWebView2; } }
 
+    // Creates the window without showing it and starts loading the page (WebView2 runs while hidden), so the
+    // owner can size and place it before the first Show().
+    public void CreateHidden()
+    {
+        if (!IsHandleCreated) CreateHandle();
+    }
+
+    // Set without activating the window (Form.TopMost would activate it and take focus from the user's app).
     public bool TopMostEnabled
     {
-        get { return TopMost; }
-        set { TopMost = value; }
+        get { return topMost; }
+        set
+        {
+            topMost = value;
+            if (IsHandleCreated)
+                Native.SetWindowPos(Handle, value ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        }
+    }
+
+    // True: clicking the window does not activate it, so the user's app keeps keyboard focus. WS_EX_NOACTIVATE
+    // on this root window is what counts for clicks on the page: the WebView2 child windows answer
+    // WM_MOUSEACTIVATE themselves (MA_ACTIVATE); this window answers MA_NOACTIVATE for clicks that reach it.
+    // False: normal activation, needed wherever the page takes keyboard input.
+    public bool NoActivate
+    {
+        get { return noActivate; }
+        set
+        {
+            noActivate = value;
+            if (!IsHandleCreated) return;
+            int ex = Native.GetWindowLong(Handle, Native.GWL_EXSTYLE);
+            int want = value ? ex | Native.WS_EX_NOACTIVATE : ex & ~Native.WS_EX_NOACTIVATE;
+            if (want != ex) Native.SetWindowLong(Handle, Native.GWL_EXSTYLE, want);
+        }
+    }
+
+    protected override bool ShowWithoutActivation
+    {
+        get { return true; }
+    }
+
+    // The WebView2 control is hidden and shown together with the window:
+    // - WinForms tells child controls when their form is shown but not when it is hidden, so WebView2 would keep
+    //   rendering a hidden window (measured: ~13 % of a core instead of ~0.4 %).
+    // - First show: the window was created hidden (CreateHidden) at its default size, and that initial area
+    //   showed as a solid white box until the WebView2 control itself was hidden and shown once, so it is.
+    // (Before the first show nothing is changed: the page loads while hidden and sends its first setLayout.)
+    protected override void SetVisibleCore(bool value)
+    {
+        if (!value && everShown) web.Visible = false;
+        base.SetVisibleCore(value);
+        if (value)
+        {
+            if (!everShown) web.Visible = false;
+            everShown = true;
+            web.Visible = true;
+        }
     }
 
     // Window size = page CSS size x page DPR. dpr <= 0 means "not reported": the last known scale is kept
@@ -117,6 +182,8 @@ public class PetWindow : Form
         {
             CreateParams cp = base.CreateParams;
             cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
+            if (noActivate) cp.ExStyle |= Native.WS_EX_NOACTIVATE;
+            if (topMost) cp.ExStyle |= Native.WS_EX_TOPMOST;
             return cp;
         }
     }
@@ -137,6 +204,11 @@ public class PetWindow : Form
             error = "SetLayeredWindowAttributes " + Marshal.GetLastWin32Error();
         if (error != null)
             BeginInvoke((MethodInvoker)delegate { Fail("透明視窗初始化失敗：" + error); });
+        else if (!webStarted)
+        {
+            webStarted = true;
+            BeginInvoke((MethodInvoker)InitWeb);
+        }
     }
 
     // Handled here without calling base: Form.DeviceDpi stays at its creation value and Form.DpiChanged
@@ -155,7 +227,20 @@ public class PetWindow : Form
             m.Result = IntPtr.Zero;
             return;
         }
+        if (m.Msg == Native.WM_MOUSEACTIVATE && noActivate)
+        {
+            m.Result = (IntPtr)Native.MA_NOACTIVATE;   // the click still reaches the page
+            return;
+        }
+        if (m.Msg == Native.WM_HOTKEY)
+        {
+            Action<int> hot = HotKeyPressed;
+            if (hot != null) hot((int)m.WParam.ToInt64());
+            m.Result = IntPtr.Zero;
+            return;
+        }
         base.WndProc(ref m);
+        if (m.Msg == Native.WM_EXITSIZEMOVE && MoveEnded != null) MoveEnded(this, EventArgs.Empty);
     }
 
     protected override void Dispose(bool disposing)
@@ -193,6 +278,8 @@ public class PetWindow : Form
 
     private void Fail(string message)
     {
+        if (failed) return;   // e.g. a DWM failure followed by the WebView2 one: report only the first
+        failed = true;
         Action<string> handler = InitFailed;
         if (handler != null) { handler(message); return; }
         MessageBox.Show(message, "錢進中");

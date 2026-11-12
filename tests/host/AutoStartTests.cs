@@ -20,4 +20,28 @@ public static class AutoStartTests
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(@"Software\QJZTest", false); }
     }
+
+    public static void Test_SetRepointsStalePath()
+    {
+        try
+        {
+            var a = new AutoStart(@"Software\QJZTest\Run");
+            a.Set(true, @"C:\old\錢進中.exe");
+            a.Set(true, @"D:\new\錢進中.exe");   // what the host does on every start while the setting is on
+            using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\QJZTest\Run"))
+                Assert.Eq("\"D:\\new\\錢進中.exe\"", k.GetValue("錢進中"), "points at the current exe");
+        }
+        finally { Registry.CurrentUser.DeleteSubKeyTree(@"Software\QJZTest", false); }
+    }
+
+    public static void Test_SettingOnReadsSettingsJson()
+    {
+        Assert.True(AutoStart.SettingOn(null), "no settings file -> default on");
+        Assert.True(AutoStart.SettingOn(""), "empty -> default on");
+        Assert.True(AutoStart.SettingOn("{not json"), "corrupt -> default on (the page resets to defaults)");
+        Assert.True(AutoStart.SettingOn("{\"autostart\":true}"), "on");
+        Assert.True(!AutoStart.SettingOn("{\"autostart\":false,\"salary\":{\"amount\":1}}"), "off");
+        Assert.True(AutoStart.SettingOn("{\"autostart\":\"false\"}"), "not a bool -> default on (as the page sanitizes)");
+        Assert.True(AutoStart.SettingOn("[]"), "not an object -> default on");
+    }
 }

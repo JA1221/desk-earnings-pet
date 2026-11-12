@@ -9,17 +9,26 @@ using Microsoft.Web.WebView2.Core;
 public static class WebViewEnv
 {
     private static Task<CoreWebView2Environment> env;
+    private static bool loaderSet;
 
     public static Task<CoreWebView2Environment> GetAsync()
     {
         if (env == null)
         {
-            SetLoaderFolder();
+            EnsureLoaderFolder();
             string userData = Path.Combine(AppPaths.LocalDir, "WebView2");
             Directory.CreateDirectory(userData);
             env = CoreWebView2Environment.CreateAsync(null, userData);
         }
         return env;
+    }
+
+    // Points WebView2 at its loader DLL; must run before the first WebView2 call of the process (idempotent).
+    public static void EnsureLoaderFolder()
+    {
+        if (loaderSet) return;
+        loaderSet = true;
+        SetLoaderFolder();
     }
 
     // <exeDir>\vendor\webview2\<arch> first, then the dev layout (build\ exe next to the repo's vendor\).

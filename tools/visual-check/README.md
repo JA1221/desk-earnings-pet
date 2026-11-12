@@ -24,8 +24,16 @@ machine's monitors, so pick a backdrop and pet position inside one monitor of yo
 
 ## Before running
 
-- **The capture guard must be off** (Task 7: `privacy.hideFromCapture` / `SetWindowDisplayAffinity`). With it
+- Since Task 7, `--spike` is `--page spike.html`: the full app host (`AppHost`) runs with `spike.html` instead of
+  `index.html` (tray icon, hotkey, single instance and so on). **Close any running 錢進中 first**: a second start
+  only signals the running one to show itself, and then exits. Dev runs never touch the autostart Run value,
+  but they do keep the `spike` window position in `%AppData%\錢進中\window.json`.
+- **The capture guard must be off** (`privacy.hideFromCapture` / `SetWindowDisplayAffinity`). With it
   on, the pet is excluded from screen captures and every capture-based check reports a false "transparent".
+  The host turns the guard on when it creates the window. `spike.html` turns it off at load
+  (`setCaptureGuard {on:false}`), unless it is started as `--page "spike.html?guard=on"`.
+  `--page "spike.html?layout=U7"` reports the layout as U7, so the window is topmost and does not take focus when clicked.
+  `QJZ_TRACE=1` makes the host log its page messages to `%LocalAppData%\錢進中\trace.log`.
 - The session must be **unlocked**. While locked, captures show the lock screen. Do not send input then either: it would go to the lock screen.
 - The scripts move the real cursor for about 30 s per pass (they put it back afterwards). Do not use the mouse while they run.
 - Never change Windows display settings (scaling, Text size, …) for a check. Use a monitor that already has

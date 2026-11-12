@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Web.Script.Serialization;
 using Microsoft.Web.WebView2.Core;
 
@@ -50,6 +52,58 @@ public class Bridge
         {
             return null;
         }
+    }
+
+    // Typed field access for parsed messages. A missing or wrongly typed field gives null / the fallback, never
+    // an exception; numbers must be real JSON numbers (a numeric string or a bool is not one).
+    public static string Str(Dictionary<string, object> d, string key)
+    {
+        object v;
+        return d != null && d.TryGetValue(key, out v) ? v as string : null;
+    }
+
+    public static bool? Bool(Dictionary<string, object> d, string key)
+    {
+        object v;
+        if (d != null && d.TryGetValue(key, out v) && v is bool) return (bool)v;
+        return null;
+    }
+
+    public static double Num(Dictionary<string, object> d, string key, double fallback)
+    {
+        object v;
+        double n;
+        return d != null && d.TryGetValue(key, out v) && TryNumber(v, out n) ? n : fallback;
+    }
+
+    // [[x, y, w, h], ...] -> rects; entries that are not four finite numbers with w, h >= 0 are skipped; at most max.
+    public static RectangleF[] Rects(Dictionary<string, object> d, string key, int max)
+    {
+        var list = new List<RectangleF>();
+        object v;
+        IList items = d != null && d.TryGetValue(key, out v) ? v as IList : null;
+        if (items == null) return list.ToArray();
+        foreach (object item in items)
+        {
+            if (list.Count >= max) break;
+            IList r = item as IList;
+            double x, y, w, h;
+            if (r == null || r.Count != 4 || !TryNumber(r[0], out x) || !TryNumber(r[1], out y)
+                || !TryNumber(r[2], out w) || !TryNumber(r[3], out h) || w < 0 || h < 0) continue;
+            list.Add(new RectangleF((float)x, (float)y, (float)w, (float)h));
+        }
+        return list.ToArray();
+    }
+
+    // A finite JSON number as JavaScriptSerializer returns it (int, long, decimal or double).
+    public static bool TryNumber(object v, out double n)
+    {
+        if (v is int) n = (int)v;
+        else if (v is long) n = (long)v;
+        else if (v is decimal) n = (double)(decimal)v;
+        else if (v is double) n = (double)v;
+        else { n = 0; return false; }
+        return !double.IsNaN(n) && !double.IsInfinity(n);
     }
 
     void OnMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
