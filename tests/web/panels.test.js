@@ -354,13 +354,13 @@
     done();
   });
 
-  test('panels DOM: settings has the nine sections of spec 5.3 and remembers the tab', function () {
+  test('panels DOM: settings has the nine sections of spec 5.3 plus 關於 and remembers the tab', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     ok($(e, '.panel.p-settings'));
     eq(text(e, '.ptitle'), '設定');
     eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }),
-      ['薪資', '工時', '起算', '寵物', '版型', '動力加成', '音效', '開機', '隱私']);
+      ['薪資', '工時', '起算', '寵物', '版型', '動力加成', '音效', '開機', '隱私', '關於']);
     eq(last(e.sent, 'setLayout').layout, 'PANEL');
     var h = last(e.sent, 'setLayout').height;
     ok(h > 400 && h <= 640 + 14, 'about 640 tall: ' + h);
@@ -422,10 +422,63 @@
     commit(amount, '44,000');
     $(e, '[data-seg=mode] [data-v=monthly]').click();
     eq(QJZ.app.state.settings.salary.amount, 44000, 'clicking the mode that is already on changes nothing');
-    commit(amount, '0.01');
-    $(e, '[data-seg=mode] [data-v=hourly]').click();   // 0.01 / 22 / 8 rounds to 0.00
+    commit(amount, '5');
+    eq(QJZ.app.state.settings.salary.amount, 5, 'a monthly 5 is valid');
+    $(e, '[data-seg=mode] [data-v=hourly]').click();   // 5 / 22 / 8 = 0.03 an hour: under 1, so no conversion
     s = QJZ.app.state.settings.salary;
-    ok(s.amount > 0 && QJZ.settings.validateSalary(String(s.amount)).ok, 'never saved as 0 or invalid');
+    eq([s.mode, s.amount], ['hourly', 5], 'the mode changes, the amount stays');
+    eq(savedSettings(e).salary.amount, 5, 'never saved as 0.03');
+    eq(amount.value, '5');
+    ok(text(e, '[data-o=modeNote]').indexOf('已換算') < 0, 'no "converted" hint: ' + text(e, '[data-o=modeNote]'));
+    eq(text(e, '[data-o=modeNote]'), '已切換為時薪，金額無法換算，沒有改，請確認', 'a short hint that it was not converted');
+    done();
+  });
+
+  test('panels DOM: an onboarding mode switch converts when it can and shows no hint when it cannot', function () {
+    var e = mk(at(12, 10, 0), { settings: { salary: { mode: 'monthly', amount: 100, divisor: 22 } } });
+    var amount = $(e, '[data-f=amount]');
+    eq(amount.value, '100', 'prefilled');
+    $(e, '[data-seg=mode] [data-v=hourly]').click();   // 100 / 22 / 8 = 0.57: not a valid wage
+    eq(amount.value, '100', 'kept');
+    eq(text(e, '[data-o=modeNote]'), '', 'no hint without a conversion');
+    $(e, '[data-seg=mode] [data-v=monthly]').click();   // 100 an hour -> 17,600 a month
+    eq(amount.value, '17,600');
+    ok(text(e, '[data-o=modeNote]').indexOf('已切換為月薪') >= 0, 'converted, with the hint');
+    type(amount, '120');
+    $(e, '[data-seg=mode] [data-v=hourly]').click();   // 120 / 176 = 0.68: no conversion
+    eq([amount.value, text(e, '[data-o=modeNote]')], ['120', ''], 'no stale hint');
+    done();
+  });
+
+  test('panels DOM: 關於 shows the version and loads the licence texts once, as plain text', function () {
+    var e = mk(at(12, 10, 0));
+    var orig = window.fetch, calls = [];
+    function now(v) { return { then: function (ok) { var r = ok(v); return r && r.then ? r : now(r); } }; }   // a synchronous fetch
+    window.fetch = function (url) { calls.push(url); return now({ ok: true, text: function () { return now('<b>' + url + '</b>'); } }); };
+    try {
+      e.menu('settings');
+      ok(text(e, '[data-sec=layout]').indexOf('橫向極簡') >= 0, 'U5-B is 橫向極簡, as in the menu');
+      eq(calls.length, 0, 'nothing loads before 關於 shows');
+      $(e, '[data-tab=about]').click();
+      ok(visible($(e, '[data-sec=about]')));
+      eq(text(e, '[data-o=version]'), '版本 t', 'the version the host sent with init');
+      ok(text(e, '[data-sec=about]').indexOf('不會上傳') >= 0, 'the data stays on this PC');
+      eq(calls, ['licenses/WebView2-SDK.txt', 'fonts/OFL.txt']);
+      var pres = $$(e, '[data-lic]');
+      eq(pres.map(function (p) { return p.textContent; }), ['<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>'], 'as text');
+      ok(!pres[0].querySelector('b'), 'never as markup');
+      $(e, '[data-tab=salary]').click();
+      $(e, '[data-tab=about]').click();
+      eq(calls.length, 2, 'loaded once');
+    } finally { window.fetch = orig; }
+    done();
+    var f = mk(at(12, 10, 0)), orig2 = window.fetch;
+    window.fetch = function () { throw new Error('offline'); };
+    try {
+      f.menu('settings');
+      $(f, '[data-tab=about]').click();
+      eq($$(f, '[data-lic]').map(function (p) { return p.textContent; }), ['（讀不到授權文字。）', '（讀不到授權文字。）']);
+    } finally { window.fetch = orig2; }
     done();
   });
 

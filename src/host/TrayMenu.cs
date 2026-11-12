@@ -136,7 +136,22 @@ public class TrayMenu : IDisposable
     // A #FFC857 coin with a #3D2C24 outline and a "$", drawn at size x size px (16 for the tray at 100 %, 32 large).
     public static Icon CoinIcon(int size)
     {
-        using (Bitmap b = new Bitmap(size, size, PixelFormat.Format32bppArgb))
+        using (Bitmap b = CoinBitmap(size))
+        {
+            IntPtr h = b.GetHicon();
+            try
+            {
+                using (Icon shared = Icon.FromHandle(h)) return (Icon)shared.Clone();   // the clone owns its handle
+            }
+            finally { Native.DestroyIcon(h); }
+        }
+    }
+
+    // The coin as a 32-bit ARGB bitmap (also the exe icon: tools\make-icon.ps1 -> assets\app.ico).
+    public static Bitmap CoinBitmap(int size)
+    {
+        Bitmap b = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        try
         {
             using (Graphics g = Graphics.FromImage(b))
             {
@@ -161,12 +176,12 @@ public class TrayMenu : IDisposable
                     using (SolidBrush ink = new SolidBrush(Line)) g.FillPath(ink, dollar);
                 }
             }
-            IntPtr h = b.GetHicon();
-            try
-            {
-                using (Icon shared = Icon.FromHandle(h)) return (Icon)shared.Clone();   // the clone owns its handle
-            }
-            finally { Native.DestroyIcon(h); }
+            return b;
+        }
+        catch
+        {
+            b.Dispose();
+            throw;
         }
     }
 

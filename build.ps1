@@ -1,8 +1,8 @@
-﻿# Builds build\錢進中.exe.
+﻿# Builds build\錢進中.exe (icon assets\app.ico, version from AppHost.Version via src\host\AssemblyInfo.cs).
 #   .\build.ps1           dev build: the page loads from src\web on disk; the WebView2 DLLs are copied beside the exe.
-#   .\build.ps1 -Release  one self-contained exe, nothing beside it: web.zip (src\web without the dev pages, fonts
-#                         included), the two WebView2 DLLs and both WebView2Loader.dll are embedded as plain
-#                         resources, which Payload.cs unpacks to %LocalAppData%\錢進中\app\<id>\ at the first start.
+#   .\build.ps1 -Release  one self-contained exe, nothing beside it: web.zip (index.html, everything it loads, and the
+#                         licence texts), the two WebView2 DLLs and the x64/x86/arm64 WebView2Loader.dll are embedded
+#                         as plain resources, which Payload.cs unpacks to %LocalAppData%\錢進中\app\<id>\ at the first start.
 param([switch]$Release)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -11,51 +11,22 @@ $buildDir = Join-Path $root 'build'
 New-Item -ItemType Directory -Force $buildDir | Out-Null
 $wv = Join-Path $root 'vendor\webview2'
 
-# fonts: vendor\fonts\* -> src\web\fonts\ (git-ignored copy)
+# Git-ignored copies the page uses: vendor\fonts\* -> src\web\fonts\ (the font and its OFL), and the WebView2 SDK
+# licence -> src\web\licenses\ (its BSD licence asks for the notice to ship with the binary; 設定 → 關於 shows it).
 $webFonts = Join-Path $root 'src\web\fonts'
 New-Item -ItemType Directory -Force $webFonts | Out-Null
 Copy-Item (Join-Path $root 'vendor\fonts\*') $webFonts -Force
+$webLicenses = Join-Path $root 'src\web\licenses'
+New-Item -ItemType Directory -Force $webLicenses | Out-Null
+Copy-Item (Join-Path $wv 'LICENSE.txt') (Join-Path $webLicenses 'WebView2-SDK.txt') -Force
 
-# Dev and review pages (paths under src\web). They load nothing that index.html does not, so these are all that
-# a release leaves out; everything else under src\web ships.
-$DevOnlyWeb = @('dev.html', 'pets-gallery.html', 'pet-states.html', 'spike.html')
+# What a release ships besides index.html and what it loads: files the page fetches at run time (licence texts).
+$ShipExtra = @('fonts/OFL.txt', 'licenses/WebView2-SDK.txt')
 
-# Writes the release web.zip from webDir and returns its entry names ('/' separated). Sorted entries with a fixed
-# timestamp: unchanged files give a byte-identical zip, so the exe keeps the same unpack folder id.
-function New-WebZip([string]$webDir, [string]$zipPath) {
-    Add-Type -AssemblyName System.IO.Compression
+# index.html and everything it loads: each <script src> and <link href>, and each url(...) in those stylesheets (the
+# font). Paths are '/' separated and relative to webDir. Fails on a remote URL or a file that does not exist.
+function Get-IndexClosure([string]$webDir) {
     $base = (Resolve-Path $webDir).Path.TrimEnd('\') + '\'
-    $names = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($f in Get-ChildItem $webDir -Recurse -File) {
-        $rel = $f.FullName.Substring($base.Length).Replace('\', '/')
-        if ($DevOnlyWeb -notcontains $rel) { $names.Add($rel) }
-    }
-    $sorted = $names.ToArray()
-    [Array]::Sort($sorted, [StringComparer]::Ordinal)
-    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-    $when = New-Object DateTimeOffset -ArgumentList 2026, 1, 1, 0, 0, 0, ([TimeSpan]::Zero)
-    $fs = [IO.File]::Open($zipPath, [IO.FileMode]::CreateNew)
-    try {
-        $zip = New-Object IO.Compression.ZipArchive -ArgumentList $fs, ([IO.Compression.ZipArchiveMode]::Create)
-        try {
-            foreach ($rel in $sorted) {
-                $entry = $zip.CreateEntry($rel, [IO.Compression.CompressionLevel]::Optimal)
-                $entry.LastWriteTime = $when
-                $bytes = [IO.File]::ReadAllBytes((Join-Path $base $rel))
-                $s = $entry.Open()
-                try { $s.Write($bytes, 0, $bytes.Length) } finally { $s.Dispose() }
-            }
-        } finally { $zip.Dispose() }
-    } finally { $fs.Dispose() }
-    return , $sorted
-}
-
-# Fails the build unless web.zip holds index.html and everything it loads: each <script src> and <link href>, and
-# each url(...) in those stylesheets (the font).
-function Assert-IndexAssets([string]$webDir, [string[]]$entries) {
-    $base = (Resolve-Path $webDir).Path.TrimEnd('\') + '\'
-    $have = New-Object 'System.Collections.Generic.HashSet[string]' -ArgumentList ([StringComparer]::OrdinalIgnoreCase)
-    foreach ($n in $entries) { [void]$have.Add($n) }
     $need = New-Object 'System.Collections.Generic.List[string]'
     $need.Add('index.html')
     $html = [IO.File]::ReadAllText((Join-Path $base 'index.html'))
@@ -75,15 +46,42 @@ function Assert-IndexAssets([string]$webDir, [string[]]$entries) {
             $need.Add($full.Substring($base.Length).Replace('\', '/'))
         }
     }
-    $missing = @($need | Where-Object { -not $have.Contains($_) } | Select-Object -Unique)
-    if ($missing.Count -gt 0) { throw ('web.zip lacks what index.html needs: ' + ($missing -join ', ')) }
-    return $need.Count
+    $list = @($need | Select-Object -Unique)
+    $missing = @($list | Where-Object { -not (Test-Path -LiteralPath (Join-Path $base $_) -PathType Leaf) })
+    if ($missing.Count -gt 0) { throw ('index.html needs files that do not exist: ' + ($missing -join ', ')) }
+    return , $list
+}
+
+# Writes web.zip from an allow-list of '/' separated paths under webDir. Sorted entries with a fixed timestamp:
+# unchanged files give a byte-identical zip, so the exe keeps the same unpack folder id.
+function New-WebZip([string]$webDir, [string[]]$files, [string]$zipPath) {
+    Add-Type -AssemblyName System.IO.Compression
+    $base = (Resolve-Path $webDir).Path.TrimEnd('\') + '\'
+    $sorted = [string[]]@($files | Select-Object -Unique)
+    [Array]::Sort($sorted, [StringComparer]::Ordinal)
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+    $when = New-Object DateTimeOffset -ArgumentList 2026, 1, 1, 0, 0, 0, ([TimeSpan]::Zero)
+    $fs = [IO.File]::Open($zipPath, [IO.FileMode]::CreateNew)
+    try {
+        $zip = New-Object IO.Compression.ZipArchive -ArgumentList $fs, ([IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($rel in $sorted) {
+                $entry = $zip.CreateEntry($rel, [IO.Compression.CompressionLevel]::Optimal)
+                $entry.LastWriteTime = $when
+                $bytes = [IO.File]::ReadAllBytes((Join-Path $base $rel))
+                $s = $entry.Open()
+                try { $s.Write($bytes, 0, $bytes.Length) } finally { $s.Dispose() }
+            }
+        } finally { $zip.Dispose() }
+    } finally { $fs.Dispose() }
+    return , $sorted
 }
 
 $exe = Join-Path $buildDir '錢進中.exe'
 $srcs = @(Get-ChildItem (Join-Path $root 'src\host') -Filter *.cs -Recurse | ForEach-Object { $_.FullName })
 $cscArgs = @('/nologo', '/codepage:65001', '/target:winexe', '/platform:anycpu', '/optimize+', "/out:$exe",
     "/win32manifest:$(Join-Path $root 'src\host\app.manifest')",
+    "/win32icon:$(Join-Path $root 'assets\app.ico')",
     "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')",
     "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.WinForms.dll')",
     '/reference:System.Web.Extensions.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
@@ -93,14 +91,14 @@ if ($Release) {
     New-Item -ItemType Directory -Force $obj | Out-Null
     $webZip = Join-Path $obj 'web.zip'
     $webDir = Join-Path $root 'src\web'
-    $entries = New-WebZip $webDir $webZip
-    $checked = Assert-IndexAssets $webDir $entries
+    $closure = Get-IndexClosure $webDir
+    foreach ($x in $ShipExtra) { if (-not (Test-Path -LiteralPath (Join-Path $webDir $x) -PathType Leaf)) { throw "missing $x" } }
+    $entries = New-WebZip $webDir ($closure + $ShipExtra) $webZip
     # resource names are what Payload.cs looks up
     $cscArgs += "/resource:$webZip,web.zip"
     $cscArgs += "/resource:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll'),Microsoft.Web.WebView2.Core.dll"
     $cscArgs += "/resource:$(Join-Path $wv 'Microsoft.Web.WebView2.WinForms.dll'),Microsoft.Web.WebView2.WinForms.dll"
-    $cscArgs += "/resource:$(Join-Path $wv 'x64\WebView2Loader.dll'),x64/WebView2Loader.dll"
-    $cscArgs += "/resource:$(Join-Path $wv 'x86\WebView2Loader.dll'),x86/WebView2Loader.dll"
+    foreach ($arch in 'x64', 'x86', 'arm64') { $cscArgs += "/resource:$(Join-Path $wv "$arch\WebView2Loader.dll"),$arch/WebView2Loader.dll" }
 } else {
     $cscArgs += '/debug'
 }
@@ -114,7 +112,8 @@ if ($Release) {
         if (Test-Path $p) { Remove-Item $p -Force }
     }
     $id = (Get-FileHash $webZip -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant()
-    Write-Host ('Built {0} (release, {1:N0} bytes; web.zip {2} files, index.html needs {3}, all present; unpacks to app\{4})' -f $exe, (Get-Item $exe).Length, $entries.Count, $checked, $id)
+    Write-Host ('Built {0} (release, {1:N0} bytes; web.zip {2} files: index.html + {3} it loads + {4} licence texts; unpacks to app\{5})' -f
+        $exe, (Get-Item $exe).Length, $entries.Count, ($closure.Count - 1), $ShipExtra.Count, $id)
 } else {
     # dev build: DLLs next to the exe
     Copy-Item (Join-Path $wv 'Microsoft.Web.WebView2.Core.dll') $buildDir -Force

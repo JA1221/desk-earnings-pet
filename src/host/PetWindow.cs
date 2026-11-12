@@ -322,7 +322,7 @@ public class PetWindow : Form
             s.AreDefaultContextMenusEnabled = false;
             s.AreBrowserAcceleratorKeysEnabled = false;
             s.IsStatusBarEnabled = false;
-            s.AreDevToolsEnabled = Environment.GetEnvironmentVariable("QJZ_DEVTOOLS") == "1";
+            s.AreDevToolsEnabled = !Payload.IsRelease && Environment.GetEnvironmentVariable("QJZ_DEVTOOLS") == "1";   // dev builds only
             web.AllowExternalDrop = false;    // a file dropped on a hit rect would navigate the page away
 
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);

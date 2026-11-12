@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -31,11 +32,13 @@ public static class WebViewEnv
         SetLoaderFolder();
     }
 
-    // Release build: <unpacked payload>\<arch>. Dev build: <exeDir>\vendor\webview2\<arch> first, then the dev
-    // layout (build\ exe next to the repo's vendor\).
+    // <arch> = x86, x64 or arm64, by the process architecture (an AnyCPU exe runs as arm64 on Windows on ARM with
+    // .NET Framework 4.8.1). Release build: <unpacked payload>\<arch>. Dev build: <exeDir>\vendor\webview2\<arch>
+    // first, then the dev layout (build\ exe next to the repo's vendor\).
     private static void SetLoaderFolder()
     {
-        string arch = Environment.Is64BitProcess ? "x64" : "x86";
+        string arch = Payload.LoaderFolder(RuntimeInformation.ProcessArchitecture);
+        if (arch == null) return;   // no loader for this architecture: WebView2Check reports WebView2 as missing
         string loader;
         if (Payload.Dir != null) loader = Path.Combine(Payload.Dir, arch);
         else

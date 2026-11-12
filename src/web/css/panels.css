@@ -25,6 +25,8 @@
 .panel .lbl small,.panel .code{font-size:11px;color:var(--sub);font-weight:700}
 .panel .hint{font-size:11.5px;font-weight:600;color:var(--sub);line-height:1.5;margin-top:3px}
 .panel .hint:empty{display:none}
+.panel pre.lic{margin:6px 0 0;max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.45 Consolas,"Microsoft JhengHei UI",monospace;
+  color:var(--line);background:var(--bg);border:2px solid var(--dash);border-radius:10px;padding:7px 9px;user-select:text;-webkit-user-select:text}
 .panel .pnote{font-size:12px;font-weight:600;color:var(--sub);line-height:1.5}
 .panel .sub{font-size:12.5px;font-weight:600;color:var(--sub);margin-top:2px}
 .panel .err{font-size:12px;font-weight:700;color:var(--err);margin-top:5px;line-height:1.4}

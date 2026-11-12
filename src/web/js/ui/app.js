@@ -29,7 +29,7 @@ QJZ.app = (function () {
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
-    pendingQuestion: null, startHint: null, ready: false, paused: false,
+    pendingQuestion: null, startHint: null, ready: false, paused: false, version: null,
     hotkeyFailed: null, storageError: null, storageErrors: []
   };
   var listeners = { tick: [], second: [], change: [], milestone: [], notice: [] };
@@ -176,6 +176,7 @@ QJZ.app = (function () {
     state.history = hp.history;
     state.pendingQuestion = null;
     state.startHint = null;
+    state.version = typeof msg.version === 'string' && msg.version ? msg.version : null;   // the host's AppHost.Version (設定 → 關於)
     applySound();
 
     var key = QJZ.time.dayKey(now);
@@ -387,7 +388,7 @@ QJZ.app = (function () {
     listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
-    state.hotkeyFailed = state.storageError = null; state.storageErrors = [];
+    state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null;
     document.documentElement.classList.remove('paused');
   }
 

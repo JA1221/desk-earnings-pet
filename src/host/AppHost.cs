@@ -24,7 +24,7 @@ using Microsoft.Web.WebView2.Core;
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs).
 public class AppHost
 {
-    public const string Version = "0.7.0-dev";
+    public const string Version = "1.0.0";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
     const string Origin = "https://app.qjz/";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;

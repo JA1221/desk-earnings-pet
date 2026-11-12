@@ -3,9 +3,9 @@ window.QJZ = window.QJZ || {};
 //   onboarding  step 1 salary (月薪/時薪, the amount checked by QJZ.settings.validateSalary, ÷22/÷30), step 2 the
 //               pet (all 8 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
 //               settings.salary.amount is 0 or settings.onboarded is false.
-//   settings    the nine sections of §5.3 as tabs. Every change is saved at once through QJZ.app (host settings
-//               through app.setAutostart / setCaptureGuard / setHotkey, topmost through layouts.refreshTopmost).
-//               'adjust' (menu 調整起算時間) opens it at 起算.
+//   settings    the nine sections of §5.3 as tabs, plus 關於 (version, the third-party licence texts). Every change
+//               is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /
+//               setHotkey, topmost through layouts.refreshTopmost). 'adjust' (menu 調整起算時間) opens it at 起算.
 //   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
 //               totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
@@ -17,10 +17,17 @@ window.QJZ = window.QJZ || {};
 QJZ.panels = (function () {
   var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定' };
   var TABS = [['salary', '薪資'], ['hours', '工時'], ['start', '起算'], ['pet', '寵物'], ['layout', '版型'],
-    ['boost', '動力加成'], ['sound', '音效'], ['autostart', '開機'], ['privacy', '隱私']];
-  var LAYOUTS = [['U1', '經典直式', 'U1'], ['U3', '遊戲畫面', 'U3'], ['U5B', '極簡橫向', 'U5-B'], ['U7', '桌面寵物', 'U7'], ['M3', '迷你徽章', 'M3']];
+    ['boost', '動力加成'], ['sound', '音效'], ['autostart', '開機'], ['privacy', '隱私'], ['about', '關於']];
+  var LAYOUTS = [['U1', '經典直式', 'U1'], ['U3', '遊戲畫面', 'U3'], ['U5B', '橫向極簡', 'U5-B'], ['U7', '桌面寵物', 'U7'], ['M3', '迷你徽章', 'M3']];
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
+  // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
+  // covers]. The texts load the first time 關於 shows and only ever go into textContent.
+  var LICENSES = [
+    ['licenses/WebView2-SDK.txt', 'Microsoft Edge WebView2 SDK', '顯示畫面用的元件（Microsoft.Web.WebView2 的 DLL 與 WebView2Loader.dll）。'],
+    ['fonts/OFL.txt', 'Fredoka 字型（SIL Open Font License 1.1）', '金額數字使用的字型。']
+  ];
+  var LIC_FAIL = '（讀不到授權文字。）';
   var WD = '日一二三四五六';
   var TALL = 633;            // settings / history / onboarding: 640 with the 7px shadow
   var DAY_START_MIN = 4 * 60;
@@ -78,6 +85,8 @@ QJZ.panels = (function () {
     return v > 0 && QJZ.settings.validateSalary(String(v)).ok ? v : null;
   }
   function modeNote(to) { return '已切換為' + (to === 'hourly' ? '時薪' : '月薪') + '，金額已換算，請確認'; }
+  // The amount could not be converted (convertAmount null): it stays as it was, now in the other mode.
+  function keptNote(to) { return '已切換為' + (to === 'hourly' ? '時薪' : '月薪') + '，金額無法換算，沒有改，請確認'; }
   // 50000 -> '50,000', 183.5 -> '183.5', 0 -> '' (what an amount field shows).
   function amountInputText(n) {
     if (!(n > 0)) return '';
@@ -371,6 +380,16 @@ QJZ.panels = (function () {
           '<div class="warn" data-o="hkFail" hidden><b data-o="hkFailText"></b><small data-o="hkFailSub"></small></div>' +
           hint('按一下全部隱藏，再按一下恢復。要換的話，點上面的框，再按下新的組合鍵（要有 Ctrl 或 Alt）。')) +
         '</div>';
+    },
+    about: function () {
+      var lic = '';
+      LICENSES.forEach(function (l) {
+        lic += line('<span class="lbl">' + esc(l[1]) + '</span>' + hint(l[2]) + '<pre class="lic" data-lic="' + l[0] + '"></pre>');
+      });
+      return '<div class="card">' +
+        line(row('錢進中', '<b data-o="version"></b>') + hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
+        line(hint('薪資和紀錄只存在這台電腦裡，不會上傳。')) +
+        '</div><div class="card">' + line('<span class="lbl">第三方授權</span>') + lic + '</div>';
     }
   };
 
@@ -586,6 +605,9 @@ QJZ.panels = (function () {
       var hf = hotkeyText(st().hotkeyFailed);
       show(node(c, 'hkFail'), !!hf);
       if (hf) { out(c, 'hkFailText', hf.text); out(c, 'hkFailSub', hf.sub); }
+      // 關於
+      out(c, 'version', '版本 ' + (st().version || '開發版'));
+      if (tab === 'about' && !c.licLoaded) { c.licLoaded = true; loadLicenses(c); }
     },
     history: function (c) {
       var s = st(), m = historyModel(s.history, s.today, s.snap.earned);
@@ -605,6 +627,18 @@ QJZ.panels = (function () {
       }
     }
   };
+
+  // The licence texts for 關於, fetched as plain text from the files beside the page (https://app.qjz/...).
+  function loadLicenses(c) {
+    qa(c, '[data-lic]').forEach(function (pre) {
+      var fail = function () { pre.textContent = LIC_FAIL; };
+      pre.textContent = '讀取中…';
+      try {
+        window.fetch(pre.getAttribute('data-lic')).then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+          .then(function (text) { pre.textContent = text; }, fail);
+      } catch (e) { fail(); }
+    });
+  }
 
   function skinsOn(c, id) {
     qa(c, '[data-skin]').forEach(function (b) {
@@ -772,14 +806,14 @@ QJZ.panels = (function () {
     if (c.kind === 'onboarding') {
       if (name === 'mode') {
         var to = v === 'hourly' ? 'hourly' : 'monthly', r0 = QJZ.settings.validateSalary(c.ob.amountText);
-        if (to !== c.ob.mode && r0.ok) {
-          var cv = convertAmount(r0.value, to, c.ob.divisor, st().settings.hoursPerDay);
+        if (to !== c.ob.mode) {
+          var cv = r0.ok ? convertAmount(r0.value, to, c.ob.divisor, st().settings.hoursPerDay) : null;
           if (cv !== null) {
             c.ob.amountText = amountInputText(cv);
             var af = q(c, '[data-f=amount]');
             if (af) af.value = c.ob.amountText;
-            c.modeNote = modeNote(to);
           }
+          c.modeNote = cv !== null ? modeNote(to) : '';   // an older 已換算 note must not stay on an unconverted amount
         }
         c.ob.mode = to;
       }
@@ -794,7 +828,7 @@ QJZ.panels = (function () {
       save({ salary: cv2 === null ? { mode: to2 } : { mode: to2, amount: cv2 } });
       var af2 = q(c, '[data-f=amount]');
       if (af2) af2.value = amountInputText(st().settings.salary.amount);
-      c.modeNote = cv2 === null ? '' : modeNote(to2);
+      c.modeNote = cv2 !== null ? modeNote(to2) : s0.salary.amount > 0 ? keptNote(to2) : '';
       setErr(c, 'amount', '');
       _update();
     }

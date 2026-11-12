@@ -3,7 +3,7 @@ using System.IO;
 
 public static class WebRootTests
 {
-    public static void Test_ResolveOrderIsEnvThenPayloadThenRepo()
+    public static void Test_ResolveOrderIsPayloadThenEnvThenRepo()
     {
         string b = Path.Combine(Path.GetTempPath(), "qjz-wr-" + Guid.NewGuid().ToString("N"));
         string repoWeb = Path.Combine(b, @"repo\src\web");
@@ -14,8 +14,9 @@ public static class WebRootTests
         Directory.CreateDirectory(elsewhere);
         try
         {
-            Assert.Eq(@"X:\snap\web", WebRoot.Resolve(@"X:\snap\web", @"C:\packed\web", exeDir), "QJZ_WEB_ROOT wins");
+            Assert.Eq(@"C:\packed\web", WebRoot.Resolve(@"X:\snap\web", @"C:\packed\web", exeDir), "a release exe ignores QJZ_WEB_ROOT");
             Assert.Eq(@"C:\packed\web", WebRoot.Resolve(null, @"C:\packed\web", exeDir), "a release exe uses its own pages, even inside the repo");
+            Assert.Eq(@"X:\snap\web", WebRoot.Resolve(@"X:\snap\web", null, exeDir), "dev build: QJZ_WEB_ROOT wins over src\\web");
             Assert.Eq(repoWeb, WebRoot.Resolve(null, null, exeDir), "dev build: src\\web above the exe");
             Assert.Eq(repoWeb, WebRoot.Resolve("", null, exeDir), "empty env = unset");
             Assert.True(WebRoot.Resolve(null, null, elsewhere) == null, "nothing found");

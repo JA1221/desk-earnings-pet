@@ -13,11 +13,12 @@ try {
     if (-not $lib) { throw 'no lib\net4* folder in nupkg' }
     Write-Host "Using lib folder: $($lib.Name)"
     $wv = Join-Path $root 'vendor\webview2'
-    New-Item -ItemType Directory -Force (Join-Path $wv 'x64'), (Join-Path $wv 'x86') | Out-Null
     Copy-Item (Join-Path $lib.FullName 'Microsoft.Web.WebView2.Core.dll') $wv -Force
     Copy-Item (Join-Path $lib.FullName 'Microsoft.Web.WebView2.WinForms.dll') $wv -Force
-    Copy-Item (Join-Path $x 'runtimes\win-x64\native\WebView2Loader.dll') (Join-Path $wv 'x64') -Force
-    Copy-Item (Join-Path $x 'runtimes\win-x86\native\WebView2Loader.dll') (Join-Path $wv 'x86') -Force
+    foreach ($arch in 'x64', 'x86', 'arm64') {
+        New-Item -ItemType Directory -Force (Join-Path $wv $arch) | Out-Null
+        Copy-Item (Join-Path $x "runtimes\win-$arch\native\WebView2Loader.dll") (Join-Path $wv $arch) -Force
+    }
     $lic = Get-ChildItem $x -File | Where-Object { $_.Name -like 'LICENSE*' } | Select-Object -First 1
     if (-not $lic) { throw 'no LICENSE in nupkg' }
     Copy-Item $lic.FullName (Join-Path $wv 'LICENSE.txt') -Force

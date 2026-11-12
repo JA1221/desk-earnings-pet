@@ -29,7 +29,7 @@ public static class PayloadTests
         }
     }
 
-    // A release payload: web.zip plus the four binaries (fake contents, tagged so a change is visible).
+    // A release payload: web.zip plus the binaries (fake contents, tagged so a change is visible).
     static Dictionary<string, byte[]> Resources(byte[] webZip, string dllTag)
     {
         var r = new Dictionary<string, byte[]>();
@@ -76,6 +76,28 @@ public static class PayloadTests
             Assert.True(Payload.EntryPath(b, n) == null, "rejected: <" + n + ">");
     }
 
+    public static void Test_EntryPathRefusesDeviceNamesAndTrailingDotsOrSpaces()
+    {
+        string b = Path.Combine(Path.GetTempPath(), "qjz-base");
+        string[] bad = { "CON", "con", "nul.js", "NUL.tar.gz", "prn.txt", "aux.css", "js/aux/x.js", "COM1", "com9.log", "LPT1.txt",
+            "lpt9", "COM0.js", "com\u00B9.txt", "conin$", "CONOUT$.txt", "nul .js", "Con  ", "a.", "a ", "js./x.js", "js /x.js", "index.html." };
+        foreach (string n in bad)
+            Assert.True(Payload.EntryPath(b, n) == null, "rejected: <" + n + ">");
+        string[] good = { "console.js", "nul_x.js", "null.js", "com10.js", "lpt.js", "auxiliary.css", "a.b.c", "js/con-tag.js", ".hidden" };
+        foreach (string n in good)
+            Assert.True(Payload.EntryPath(b, n) != null, "accepted: <" + n + ">");
+    }
+
+    public static void Test_LoaderFolderFollowsTheProcessArchitecture()
+    {
+        Assert.Eq("x86", Payload.LoaderFolder(System.Runtime.InteropServices.Architecture.X86), "32-bit");
+        Assert.Eq("x64", Payload.LoaderFolder(System.Runtime.InteropServices.Architecture.X64), "64-bit");
+        Assert.Eq("arm64", Payload.LoaderFolder(System.Runtime.InteropServices.Architecture.Arm64), "Windows on ARM (.NET 4.8.1)");
+        Assert.True(Payload.LoaderFolder(System.Runtime.InteropServices.Architecture.Arm) == null, "no WebView2 loader for 32-bit ARM");
+        foreach (string f in new[] { "x86", "x64", "arm64" })
+            Assert.True(Array.IndexOf(Payload.Binaries, f + "/WebView2Loader.dll") >= 0, "embedded: " + f);
+    }
+
     public static void Test_ManagedFileMatchesOnlyTheTwoWebView2Assemblies()
     {
         Assert.Eq("Microsoft.Web.WebView2.Core.dll",
@@ -93,6 +115,7 @@ public static class PayloadTests
     {
         Assert.True(Payload.Ensure() == null, "dev build (and this test exe): nothing to unpack");
         Assert.True(Payload.Dir == null && Payload.WebDir == null, "no payload folder");
+        Assert.True(!Payload.IsRelease, "dev switches (QJZ_WEB_ROOT, QJZ_DEVTOOLS) count");
     }
 
     public static void Test_InstallUnpacksEverythingWithTheStampLast()
@@ -111,9 +134,13 @@ public static class PayloadTests
             Assert.Eq("Microsoft.Web.WebView2.WinForms.dll v1", Text(Path.Combine(dir, "Microsoft.Web.WebView2.WinForms.dll")), "WinForms DLL");
             Assert.Eq("x64/WebView2Loader.dll v1", Text(Path.Combine(dir, @"x64\WebView2Loader.dll")), "x64 loader");
             Assert.Eq("x86/WebView2Loader.dll v1", Text(Path.Combine(dir, @"x86\WebView2Loader.dll")), "x86 loader");
+            Assert.Eq("arm64/WebView2Loader.dll v1", Text(Path.Combine(dir, @"arm64\WebView2Loader.dll")), "arm64 loader");
             string stamp = Text(Path.Combine(dir, Payload.StampName));
             Assert.True(stamp.StartsWith(Payload.FolderName(web)), "stamp lists web.zip's hash first: " + stamp);
-            Assert.True(stamp.Contains("web.zip") && stamp.Contains("x86/WebView2Loader.dll"), "stamp names every resource");
+            Assert.True(stamp.Contains("  " + web.Length + "  web.zip\n"), "with its size: " + stamp);
+            Assert.True(stamp.Contains("  " + "arm64/WebView2Loader.dll v1".Length + "  arm64/WebView2Loader.dll\n"), "every resource, with its size");
+            Assert.True(stamp.Contains("  9  web/index.html\n") && stamp.Contains("  6  web/js/core/time.js\n"), "every page file with its size");
+            Assert.True(!stamp.Contains("web/js/\n"), "no directory entries");
             Assert.Eq(1, Directory.GetDirectories(root).Length, "nothing else in app\\");
             Assert.Eq(0, errors.Count, "no errors");
         }
@@ -176,6 +203,25 @@ public static class PayloadTests
         finally { Directory.Delete(root, true); }
     }
 
+    public static void Test_InstallRedoesAFolderWithATruncatedFile()
+    {
+        string root = NewDir();
+        try
+        {
+            var res = Resources(SampleWeb(), "v1");
+            string dir = Payload.Install(root, res, null);
+            string dll = Path.Combine(dir, "Microsoft.Web.WebView2.Core.dll");
+            string page = Path.Combine(dir, @"web\index.html");
+            using (var f = new FileStream(dll, FileMode.Open, FileAccess.Write)) f.SetLength(f.Length - 3);   // the stamp still matches
+            Payload.Install(root, res, null);
+            Assert.Eq("Microsoft.Web.WebView2.Core.dll v1", Text(dll), "DLL rewritten in full");
+            using (var f = new FileStream(page, FileMode.Open, FileAccess.Write)) f.SetLength(0);
+            Payload.Install(root, res, null);
+            Assert.Eq("<p>hi</p>", Text(page), "an emptied page file too");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     public static void Test_InstallRedoesTheFolderWhenOnlyTheDllsChanged()
     {
         string root = NewDir();
@@ -234,19 +280,62 @@ public static class PayloadTests
     public static void Test_InstallRefusesAZipEntryOutsideTheFolder()
     {
         string root = NewDir();
-        string outside = Path.Combine(root, "evil.txt");
         try
         {
-            byte[] web = Zip("index.html", "ok", "../../evil.txt", "bad");
-            bool threw = false;
-            try { Payload.Install(Path.Combine(root, "app"), Resources(web, "v1"), null); }
-            catch (InvalidDataException) { threw = true; }
-            Assert.True(threw, "unsafe entry -> InvalidDataException");
-            Assert.True(!File.Exists(outside), "nothing written outside");
-            string dir = Path.Combine(Path.Combine(root, "app"), Payload.FolderName(web));
-            Assert.True(!File.Exists(Path.Combine(dir, Payload.StampName)), "the folder is not marked complete");
+            foreach (string evil in new[] { "../../evil.txt", "web/nul.js" })
+            {
+                byte[] web = Zip("index.html", "ok", evil, "bad");
+                bool threw = false;
+                try { Payload.Install(Path.Combine(root, "app"), Resources(web, "v1"), null); }
+                catch (InvalidDataException) { threw = true; }
+                Assert.True(threw, evil + " -> InvalidDataException");
+                Assert.True(!Directory.Exists(Path.Combine(root, "app")), evil + ": nothing at all was written");
+                Assert.Eq(0, Directory.GetFileSystemEntries(root).Length, evil + ": nothing beside it either");
+            }
         }
         finally { Directory.Delete(root, true); }
+    }
+
+    static void Junction(string link, string target)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c mklink /J \"" + link + "\" \"" + target + "\"");
+        psi.UseShellExecute = false;
+        psi.CreateNoWindow = true;
+        psi.RedirectStandardOutput = true;
+        psi.RedirectStandardError = true;
+        using (var p = System.Diagnostics.Process.Start(psi))
+        {
+            p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+        }
+        Assert.True((File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0, "junction made: " + link);
+    }
+
+    public static void Test_InstallDeletesOldVersionsWithoutFollowingJunctions()
+    {
+        string root = NewDir(), outside = NewDir();
+        string inner = Path.Combine(root, @"0123456789ab\web\linked"), whole = Path.Combine(root, "fedcba987654");
+        try
+        {
+            File.WriteAllText(Path.Combine(outside, "keep.txt"), "the user's file");
+            Directory.CreateDirectory(Path.Combine(root, @"0123456789ab\web"));
+            File.WriteAllText(Path.Combine(root, @"0123456789ab\web\index.html"), "old version");
+            Junction(inner, outside);   // an old version's folder with a junction inside
+            Junction(whole, outside);   // an old version's folder that is itself a junction
+            var errors = new List<string>();
+            Payload.Install(root, Resources(SampleWeb(), "v1"), delegate(string what, Exception ex) { errors.Add(what + ": " + ex); });
+            Assert.Eq(0, errors.Count, "no errors: " + string.Join(" | ", errors.ToArray()));
+            Assert.True(!Directory.Exists(Path.Combine(root, "0123456789ab")), "old version deleted");
+            Assert.True(!Directory.Exists(whole), "the junction folder is gone");
+            Assert.Eq("the user's file", Text(Path.Combine(outside, "keep.txt")), "what the junctions pointed to is untouched");
+        }
+        finally
+        {
+            foreach (string link in new[] { inner, whole })
+                if (Directory.Exists(link)) Directory.Delete(link, false);   // the link only
+            Directory.Delete(root, true);
+            Directory.Delete(outside, true);
+        }
     }
 
     public static void Test_InstallNeedsEveryResource()

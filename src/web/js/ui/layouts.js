@@ -1,6 +1,6 @@
 window.QJZ = window.QJZ || {};
 // The visible layouts, built after docs/prototypes/converge.html: main windows U1 經典直式, U3 遊戲畫面,
-// U5B 極簡橫向, U7 桌面寵物; the temporary mini badge M3 and PANEL. PANEL is the window frame (title bar, size,
+// U5B 橫向極簡, U7 桌面寵物; the temporary mini badge M3 and PANEL. PANEL is the window frame (title bar, size,
 // hit rects); its content is QJZ.panels (onboarding / settings / history / question, 'adjust' = settings at 起算),
 // mounted when PANEL is built and updated on every render. The first layout is a panel when QJZ.panels.initial
 // asks for one (onboarding, an early-leave question); closing it goes to the start layout.
@@ -38,6 +38,11 @@ QJZ.layouts = (function () {
   var DRAG_PX = 4;
   var PETONLY_VB = [30, 4, 176, 170];    // QJZ.pets.compose 'petonly' viewBox
   var PET_HIT = [38, 24, 160, 148];      // the pet and its desk inside that viewBox, every skin and base state
+  // Reactions that leave PET_HIT, measured over all 8 skins and the whole animation (normal motion), clipped to the
+  // viewBox: hop rises up to 12.7 above it (cat P0) and squashes 3.4 left / 5.6 right on landing; dangle swings to
+  // both viewBox sides (hamster P0, S5) and up to its top (cat P0). Only while they play.
+  var PET_HIT_BY_STATE = { hop: [34, 11, 170, 161], dangle: [30, 4, 176, 168] };
+  function petHit(state) { return PET_HIT_BY_STATE.hasOwnProperty(state) ? PET_HIT_BY_STATE[state] : PET_HIT; }
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
@@ -284,6 +289,8 @@ QJZ.layouts = (function () {
     var id = petId(app().state.settings), key = id + '|' + state;
     if (view.petKey === key) return;
     view.petKey = key;
+    var hitBefore = petHit(view.petState);
+    view.petState = state;
     var opts = { state: state }, svgText = '';
     if (h.view === 'hud') opts.viewBox = HUD_VB;
     try { svgText = QJZ.pets.compose(id, h.view === 'hud' ? 'scene' : h.view, opts); }
@@ -291,6 +298,7 @@ QJZ.layouts = (function () {
     h.el.innerHTML = svgText;
     var svg = h.el.firstElementChild;
     if (svg) svg.style.setProperty('--bd', (-Math.random() * 4.6).toFixed(2) + 's');   // blinks out of step
+    if (view.live && h.view === 'petonly' && petHit(state) !== hitBefore) sync(false);   // hop / dangle: the hit area follows at once
   }
 
   function renderMoney(snap) {
@@ -431,7 +439,7 @@ QJZ.layouts = (function () {
       if (el.hidden || (cond && !el.matches(cond))) return;
       var r = boxOf(el);
       if (!(r.width > 0 && r.height > 0)) return;
-      if (el.getAttribute('data-hit') === 'pet') r = subRect(r, PETONLY_VB, PET_HIT);
+      if (el.getAttribute('data-hit') === 'pet') r = subRect(r, PETONLY_VB, petHit(view.petState));
       out.push(outer(r));
     });
     return out;
@@ -475,6 +483,7 @@ QJZ.layouts = (function () {
       if (window.console) console.error('[layouts] render ' + name + ' failed', e);   // still size and show the window
     }
     sync(true);   // synchronous: the first one is what shows the window
+    view.live = true;
     send('setTopmost', { on: topmostFor(name) });
     var s = app().state.settings;
     if (isMain(name) && s.layout.current !== name) app().saveSettings({ layout: { current: name } });
@@ -855,7 +864,7 @@ QJZ.layouts = (function () {
       hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox,
-      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT
+      PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit
     }
   };
 })();

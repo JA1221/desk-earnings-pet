@@ -584,6 +584,45 @@
     done();
   });
 
+  test('layouts: the pet hit area covers hop and dangle as measured, inside the petonly viewBox, only while they play', function () {
+    var U = QJZ.layouts.util, vb = U.PETONLY_VB;
+    function edges(r) { return [r[0], r[1], r[0] + r[2], r[1] + r[3]]; }
+    function covers(r, box) { var a = edges(r); return a[0] <= box[0] && a[1] <= box[1] && a[2] >= box[2] && a[3] >= box[3]; }
+    eq(U.petHit('typing'), U.PET_HIT, 'base states keep the tight box');
+    eq(U.petHit(undefined), U.PET_HIT);
+    eq(U.petHit('toString'), U.PET_HIT, 'only its own keys');
+    // T14 measurements (all 8 skins, whole animation, clipped to the viewBox 30..206 x 4..174; PET_HIT's bottom 172 kept)
+    ok(covers(U.petHit('hop'), [34.6, 11.3, 203.6, 172]), 'hop: ' + U.petHit('hop'));
+    ok(covers(U.petHit('dangle'), [30, 4, 206, 172]), 'dangle: ' + U.petHit('dangle'));
+    ['hop', 'dangle'].forEach(function (s) {
+      var r = U.petHit(s);
+      ok(covers(r, edges(U.PET_HIT)), s + ' contains the base box');
+      ok(covers(vb, edges(r)), s + ' stays inside the viewBox');
+    });
+  });
+
+  test('layouts DOM: U7 widens the pet hit rect at once while it dangles and narrows it again after dragEnd', function () {
+    var U = QJZ.layouts.util, e = mk(at(12, 10, 0), { first: 'U7' });
+    var box = $(e, '[data-hit=pet]').getBoundingClientRect();
+    function petRect(state) { return JSON.stringify(U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(state)))); }
+    function has(rects, r) { return rects.map(function (x) { return JSON.stringify(x); }).indexOf(r) >= 0; }
+    ok(petRect('dangle') !== petRect('typing'), 'a different box');
+    ok(has(last(e.sent, 'hitRects').rects, petRect('typing')), 'the tight box first');
+    var n = of(e.sent, 'hitRects').length;
+    var pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    ok(of(e.sent, 'hitRects').length > n, 'sent with the pose, not a second later');
+    var held = last(e.sent, 'hitRects').rects;
+    ok(has(held, petRect('dangle')) && !has(held, petRect('typing')), 'the dangle box: ' + JSON.stringify(held));
+    e.bridge.emit({ type: 'dragEnd' });
+    eq(petState(e), 'typing');
+    var after = last(e.sent, 'hitRects').rects;
+    ok(has(after, petRect('typing')) && !has(after, petRect('dangle')), 'back to the tight box: ' + JSON.stringify(after));
+    done();
+  });
+
   test('layouts DOM: the pet talks every 7–15 s where there is a bubble, never as banners in U5-B', function () {
     var e = mk(at(12, 10, 0));
     var b = $(e, '[data-bubble]'), t0 = at(12, 10, 0);
