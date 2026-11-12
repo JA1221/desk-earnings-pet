@@ -187,7 +187,7 @@
           var svg = QJZ.pets.compose(d.id, view, { state: s }), doc = parse(svg), at = view + ': ';
           eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parsererror');
           ok(!/<!--[A-Z]+-->/.test(svg), at + 'no leftover slot');
-          ok(hasClass(doc.documentElement, 'pet-svg') && hasClass(doc.documentElement, 'st-' + s), at + 'root classes');
+          ok(hasClass(doc.documentElement, 'pet-svg') && hasClass(doc.documentElement, 'kind-' + d.kind) && hasClass(doc.documentElement, 'st-' + s), at + 'root classes');
           ok(/--hx:[\d.]+px;--hy:[\d.]+px;--gx:[\d.]+px;--gy:[\d.]+px/.test(doc.documentElement.getAttribute('style')), at + 'pivots');
           eq(unresolved(svg), [], at + 'unresolved references');
           var ids = svgIds(svg);
@@ -201,36 +201,21 @@
     });
   });
 
-  test('pets: hamster arm styles — none draws only paws, stub keeps the short arms, cats are unaffected', function () {
-    function norm(svg) { return svg.replace(/pet\d+/g, 'pet#'); }
-    var RAISED = ['stretch', 'celebrate', 'hop', 'scratch'];
-    eq(QJZ.pets.hamsterArms(), 'none', 'default style');
+  test('pets: hamsters draw no arm limbs in any state or view; cats still do', function () {
     QJZ.pets.list('hamster').forEach(function (d) {
-      ok(d.build('a0').rig.armless, d.id + ' has an armless style');
+      var rig = d.build('a0').rig;
+      ok(rig.up.paws && !rig.up.arms && rig.scratch.paw && !rig.scratch.arm && !rig.limb, d.id + ' rig has paws only');
       STATES.forEach(function (s) {
-        ['none', 'stub'].forEach(function (style) {
-          var svg = QJZ.pets.compose(d.id, 'petonly', { state: s, arms: style });
-          eq(parse(svg).getElementsByTagName('parsererror').length, 0, d.id + ' ' + s + ' ' + style + ' parses');
-          eq(unresolved(svg), [], d.id + ' ' + s + ' ' + style + ' refs');
-          if (style === 'none') ok(svg.indexOf('class="limb"') < 0, d.id + ' ' + s + ' none: no arm geometry');
-          eq(svg.indexOf('arms-none') > 0, style === 'none', d.id + ' ' + s + ' ' + style + ' root class');
+        VIEWS.forEach(function (v) {
+          ok(QJZ.pets.compose(d.id, v, { state: s }).indexOf('class="limb"') < 0, d.id + ' ' + s + ' ' + v + ': no arm limbs');
         });
       });
-      RAISED.forEach(function (s) {
-        ok(QJZ.pets.compose(d.id, 'petonly', { state: s, arms: 'stub' }).indexOf('class="limb"') > 0, d.id + ' ' + s + ' stub: has arms');
+    });
+    QJZ.pets.list('cat').forEach(function (d) {
+      ['stretch', 'celebrate', 'hop', 'scratch'].forEach(function (s) {
+        ok(QJZ.pets.compose(d.id, 'petonly', { state: s }).indexOf('class="limb"') > 0, d.id + ' ' + s + ': has arms');
       });
     });
-    // the module setting and the per-call option agree; cats ignore both
-    QJZ.pets.setHamsterArms('stub');
-    eq(QJZ.pets.hamsterArms(), 'stub');
-    eq(norm(QJZ.pets.compose('hamster:p4', 'scene', { state: 'celebrate' })), norm(QJZ.pets.compose('hamster:p4', 'scene', { state: 'celebrate', arms: 'stub' })), 'setting = option (stub)');
-    var catStub = norm(QJZ.pets.compose('cat:p0', 'petonly', { state: 'stretch' }));
-    QJZ.pets.setHamsterArms('none');
-    eq(norm(QJZ.pets.compose('hamster:p4', 'scene', { state: 'celebrate' })), norm(QJZ.pets.compose('hamster:p4', 'scene', { state: 'celebrate', arms: 'none' })), 'setting = option (none)');
-    eq(norm(QJZ.pets.compose('cat:p0', 'petonly', { state: 'stretch' })), catStub, 'cats ignore the hamster setting');
-    eq(norm(QJZ.pets.compose('cat:p0', 'petonly', { state: 'stretch', arms: 'none' })), catStub, 'cats ignore the option');
-    QJZ.pets.setHamsterArms('nope');
-    eq(QJZ.pets.hamsterArms(), 'none', 'unknown style falls back to none');
   });
 
   test('pets: compose state defaults and overrides', function () {

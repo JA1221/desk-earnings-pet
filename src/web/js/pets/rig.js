@@ -13,22 +13,24 @@ QJZ.pets = QJZ.pets || {};
 //   bag: {x,y,s,rot, straps:[[x1,y1,x2,y2],[...]]}   backpack behind the body + straps in front
 //   bento: [x,y,s],          lunch box on the desk
 //   paw(x, y, rot) -> svg    one paw in the skin's style
-//   limb: {fill}             fur colour of arms (outline from the skin's line colour)
+//   limb: {fill}             (cats) fur colour of arms (outline from the skin's line colour)
 //   pawL, pawR: svg          the resting / typing paws (class pawL / pawR)
-//   up:      {ink, fill, w:[root,tip], arms:[[root,tip,rot,fur?],[...]]}     both arms raised (fur: per-arm colour)
+//   up:      both paws raised, one of
+//            {ink, fill, w:[root,tip], arms:[[root,tip,rot],[root,tip,rot]]}   (cats) arms that grow out of the body
+//            {paws:[[x,y,rot],[x,y,rot]]}                                     (hamsters) paws only, pressed against
+//                                                                             the sides of the head / cheeks
 //   holdArm: {paws:[[x,y,rot],[x,y,rot]], arms?:[[root,tip],[root,tip]], w}    paws holding the item
-//   scratch: {ink, fill, w, arm:[root,(elbow,)tip], paw:[x,y,rot], fur?}      left paw scratching the head
+//   scratch: left paw on the head, one of
+//            {ink, fill, w, arm:[root,(elbow,)tip], paw:[x,y,rot]}              (cats) with an arm
+//            {paw:[x,y,rot]}                                                    (hamsters) the paw alone
 //   strap:   [[x,y,rot],[x,y,rot]]                                             paws gripping backpack straps
-//   armless: {up:[[x,y,rot],[x,y,rot]], scratch:[x,y,rot]}   (hamsters) the "none" arm style: paws only,
-//            pressed against the sides of the head / cheeks so they always touch the body outline
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 // }
-// Raised arms grow out of the body without a seam: `ink` names the slot drawn before the body (the outline), `fill`
-// the slot drawn after it (the fur, which covers the body's outline where the arm joins). Hamster arms are short and
-// stubby: they start at a shoulder on the side of the body below the cheeks and reach out and up beside the head.
-// arms(rig, mode, style) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
+// Hamsters have no arms at all, only small paws that always touch the body outline (the user's pick in review).
+// Cat arms grow out of the body without a seam: `ink` names the slot drawn before the body (the outline), `fill`
+// the slot drawn after it (the fur, which covers the body's outline where the arm joins).
+// arms(rig, mode) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
 // (after the desk, behind a cat's head) and the OVER slot (inside the head group, in front of the face).
-// style 'none' (skins with rig.armless) draws no limbs at all; any other style draws the limbs above.
 QJZ.pets.rig = (function () {
   function n(v) { return Math.round(v * 100) / 100; }
 
@@ -41,8 +43,8 @@ QJZ.pets.rig = (function () {
 
   // a limb that grows out of the body: {ink, fill}. Draw ink before the body and fill after it.
   // Two points give a tapered limb (w = [root, tip]); more points a bent limb of even width (w = number).
-  function grow(rig, pts, w, fur) {
-    var lw = rig.line[1], ink, fill, col = fur || rig.limb.fill;
+  function grow(rig, pts, w) {
+    var lw = rig.line[1], ink, fill, col = rig.limb.fill;
     if (pts.length === 2) {
       var d = taper(pts[0], pts[1], w[0], w[1]);
       ink = `<path class="limb" d="${d}" fill="${rig.line[0]}" stroke="${rig.line[0]}" stroke-width="${n(lw * 2)}" stroke-linejoin="round"/>`;
@@ -63,26 +65,19 @@ QJZ.pets.rig = (function () {
 
   function add(o, k, m) { if (m) o[k] = (o[k] || '') + m; }
 
-  // armless style: raised paws wiggle in place (origin = the paw), so they never leave the head outline
-  function armless(rig, mode) {
-    var a = rig.armless;
-    if (mode === 'up') {
-      return { over: a.up.map(function (p, i) {
-        return `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${p[0]}px ${p[1]}px">${rig.paw(p[0], p[1], p[2])}</g>`;
-      }).join('') };
-    }
-    var s = a.scratch;   // mode === 'scratch'
-    return { front: rig.pawR, over: `<g class="scr" style="transform-origin:${s[0]}px ${s[1]}px">${rig.paw(s[0], s[1], s[2])}</g>` };
-  }
-
-  function arms(rig, mode, style) {
-    if (style === 'none' && rig.armless && (mode === 'up' || mode === 'scratch')) return armless(rig, mode);
+  function arms(rig, mode) {
     switch (mode) {
       case 'type': case 'rest': return { front: rig.pawL + rig.pawR };
       case 'up': {
         var u = rig.up, o = {};
+        if (u.paws) {   // paws only: they wiggle in place (origin = the paw), so they never leave the head outline
+          o.over = u.paws.map(function (q, i) {
+            return `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${q[0]}px ${q[1]}px">${rig.paw(q[0], q[1], q[2])}</g>`;
+          }).join('');
+          return o;
+        }
         u.arms.forEach(function (a, i) {
-          var g = grow(rig, [a[0], a[1]], u.w, a[3]), g0 = `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
+          var g = grow(rig, [a[0], a[1]], u.w), g0 = `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
           add(o, u.ink, g.ink ? g0 + g.ink + '</g>' : '');
           add(o, u.fill, g0 + g.fill + rig.paw(a[1][0], a[1][1], a[2]) + '</g>');
         });
@@ -94,10 +89,13 @@ QJZ.pets.rig = (function () {
         return { over: m + rig.paw(h.paws[0][0], h.paws[0][1], h.paws[0][2]) + rig.paw(h.paws[1][0], h.paws[1][1], h.paws[1][2]) };
       }
       case 'scratch': {
-        var s = rig.scratch, r = { front: rig.pawR }, gs = grow(rig, s.arm, s.w, s.fur);
-        add(r, s.ink, gs.ink);
-        add(r, s.fill, gs.fill);
-        add(r, 'over', `<g class="scr" style="transform-origin:${s.paw[0]}px ${s.paw[1] + 6}px">${rig.paw(s.paw[0], s.paw[1], s.paw[2])}</g>`);
+        var s = rig.scratch, r = { front: rig.pawR }, oy = s.arm ? s.paw[1] + 6 : s.paw[1];
+        if (s.arm) {
+          var gs = grow(rig, s.arm, s.w);
+          add(r, s.ink, gs.ink);
+          add(r, s.fill, gs.fill);
+        }
+        add(r, 'over', `<g class="scr" style="transform-origin:${s.paw[0]}px ${oy}px">${rig.paw(s.paw[0], s.paw[1], s.paw[2])}</g>`);
         return r;
       }
       case 'strap': {
