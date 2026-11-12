@@ -1,10 +1,12 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
 
 public static class Program
 {
     static AppHost host;   // for the fatal path: its tray icon must not outlive the process
+    const string UnpackFailed = "錢進中無法準備執行所需的檔案（可能是磁碟空間不足，或被防毒軟體擋住），需要關閉。\n\n詳細資訊已記錄在：\n";
     const string MissingWebView2 = "這台電腦缺少 Microsoft Edge WebView2 執行階段，錢進中需要它才能顯示畫面。請到 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下載安裝後再開啟。";
 
     [STAThread]
@@ -18,6 +20,32 @@ public static class Program
         AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
 
         if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
+        if (!Unpack()) return 1;
+        return Start(args);
+    }
+
+    // Release build: the files embedded in the exe go to %LocalAppData%\錢進中\app\ (one process at a time, after
+    // the single-instance check) before anything needs the WebView2 assemblies. Dev build: nothing to do.
+    static bool Unpack()
+    {
+        try
+        {
+            Payload.Ensure();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("unpacking the app files failed", ex);
+            MessageBox.Show(UnpackFailed + ErrorLog.FilePath, "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+    }
+
+    // Apart from Main (and never inlined into it), so nothing WebView2-related is compiled or loaded before
+    // Payload.Ensure has run: a release build resolves those assemblies only from the unpacked folder.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static int Start(string[] args)
+    {
         if (!WebView2Check.IsAvailable())
         {
             MessageBox.Show(MissingWebView2, "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Information);

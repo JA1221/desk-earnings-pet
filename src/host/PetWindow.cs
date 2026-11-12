@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -302,6 +303,18 @@ public class PetWindow : Form
     {
         try
         {
+            // The page must exist before WebView2 starts: a missing one (a dev page in a release build, or files
+            // gone from the folder) is a short message and error.log, not a browser error page.
+            string root = WebRoot.Resolve();
+            if (root == null) { Fail("找不到網頁資源。"); return; }
+            string page = WebRoot.PageFile(root, new Uri(startUrl).AbsolutePath);
+            if (page == null || !File.Exists(page))
+            {
+                ErrorLog.Write("page not found: " + (page ?? startUrl));
+                Fail("找不到頁面 " + new Uri(startUrl).AbsolutePath.TrimStart('/') + "。");
+                return;
+            }
+
             await web.EnsureCoreWebView2Async(await WebViewEnv.GetAsync());
             CoreWebView2Settings s = web.CoreWebView2.Settings;
             s.IsZoomControlEnabled = false;   // page zoom would desync DPR from the reported layout
@@ -312,8 +325,6 @@ public class PetWindow : Form
             s.AreDevToolsEnabled = Environment.GetEnvironmentVariable("QJZ_DEVTOOLS") == "1";
             web.AllowExternalDrop = false;    // a file dropped on a hit rect would navigate the page away
 
-            string root = WebRoot.Resolve();
-            if (root == null) { Fail("找不到網頁資源 (src/web)。"); return; }
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);
             if (WebReady != null) WebReady(this, EventArgs.Empty);
             web.CoreWebView2.Navigate(startUrl);

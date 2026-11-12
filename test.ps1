@@ -1,7 +1,7 @@
 ﻿# Runs JS tests (headless Edge) and host tests (csc). Exits 0 only when both pass.
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$HostTestSources = @('src\host\AppPaths.cs', 'src\host\TextStore.cs', 'src\host\AutoStart.cs', 'src\host\SessionWatcher.cs', 'src\host\EventLogProbe.cs', 'src\host\Bridge.cs', 'src\host\PetGeometry.cs', 'src\host\ScreenFit.cs', 'src\host\Native.cs', 'src\host\HotKey.cs', 'src\host\WindowPositions.cs', 'src\host\SavedText.cs', 'src\host\PauseGate.cs', 'src\host\TrayMenu.cs', 'src\host\MenuEscape.cs', 'src\host\ErrorLog.cs', 'src\host\HostSettings.cs', 'src\host\WindowPlacer.cs', 'src\host\UserFiles.cs')   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
+$HostTestSources = @('src\host\AppPaths.cs', 'src\host\TextStore.cs', 'src\host\AutoStart.cs', 'src\host\SessionWatcher.cs', 'src\host\EventLogProbe.cs', 'src\host\Bridge.cs', 'src\host\PetGeometry.cs', 'src\host\ScreenFit.cs', 'src\host\Native.cs', 'src\host\HotKey.cs', 'src\host\WindowPositions.cs', 'src\host\SavedText.cs', 'src\host\PauseGate.cs', 'src\host\TrayMenu.cs', 'src\host\MenuEscape.cs', 'src\host\ErrorLog.cs', 'src\host\HostSettings.cs', 'src\host\WindowPlacer.cs', 'src\host\UserFiles.cs', 'src\host\Payload.cs', 'src\host\WebRoot.cs')   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
 $exit = 0
 
 # ---- WEB ----
@@ -33,7 +33,7 @@ if (-not $m.Success) {
 
 # ---- HOST ----
 $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-$buildDir = Join-Path $root 'build'
+$buildDir = Join-Path $root 'build\tests'   # not build\: no WebView2 DLL may sit beside a release build\錢進中.exe
 New-Item -ItemType Directory -Force $buildDir | Out-Null
 $srcs = @(Get-ChildItem (Join-Path $root 'tests\host') -Filter *.cs | ForEach-Object { $_.FullName })
 foreach ($s in $HostTestSources) { $srcs += (Join-Path $root $s) }
@@ -41,7 +41,7 @@ $testExe = Join-Path $buildDir 'tests-host.exe'
 if (Test-Path $testExe) { Remove-Item $testExe -Force }
 $wv = Join-Path $root 'vendor\webview2'
 $cscArgs = @('/nologo', '/codepage:65001', '/target:exe', '/debug', "/out:$testExe",
-    "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')", '/reference:System.Web.Extensions.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll') + $srcs
+    "/reference:$(Join-Path $wv 'Microsoft.Web.WebView2.Core.dll')", '/reference:System.Web.Extensions.dll', '/reference:System.Core.dll', '/reference:System.Windows.Forms.dll', '/reference:System.IO.Compression.dll') + $srcs
 Copy-Item (Join-Path $wv 'Microsoft.Web.WebView2.Core.dll') $buildDir -Force
 & $csc @cscArgs
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $testExe)) {

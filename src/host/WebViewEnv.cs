@@ -31,14 +31,20 @@ public static class WebViewEnv
         SetLoaderFolder();
     }
 
-    // <exeDir>\vendor\webview2\<arch> first, then the dev layout (build\ exe next to the repo's vendor\).
+    // Release build: <unpacked payload>\<arch>. Dev build: <exeDir>\vendor\webview2\<arch> first, then the dev
+    // layout (build\ exe next to the repo's vendor\).
     private static void SetLoaderFolder()
     {
-        string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
         string arch = Environment.Is64BitProcess ? "x64" : "x86";
-        string rel = Path.Combine("vendor", Path.Combine("webview2", arch));
-        string loader = Path.Combine(exeDir, rel);
-        if (!Directory.Exists(loader)) loader = Path.Combine(Path.GetDirectoryName(exeDir) ?? exeDir, rel);
+        string loader;
+        if (Payload.Dir != null) loader = Path.Combine(Payload.Dir, arch);
+        else
+        {
+            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+            string rel = Path.Combine("vendor", Path.Combine("webview2", arch));
+            loader = Path.Combine(exeDir, rel);
+            if (!Directory.Exists(loader)) loader = Path.Combine(Path.GetDirectoryName(exeDir) ?? exeDir, rel);
+        }
         if (Directory.Exists(loader)) CoreWebView2Environment.SetLoaderDllFolderPath(loader);
     }
 }
