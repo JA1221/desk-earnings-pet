@@ -50,6 +50,7 @@ public class AppHost
     string startLayout = "U1";   // settings.json layout.start: what the safety net sizes and places the window for
     bool firstShown;             // the window has been visible to the user (IsWindowVisible) at least once
     bool rescued;                // shown by the safety net before the page reported a layout
+    bool rescueLogged;           // the first-show fallback line is written at most once per launch
     uint uiThread;
     Dictionary<string, bool> topmost = HostSettings.Parse(null).TopmostByLayout();   // per layout, from settings.json + setTopmost
     string configuredHotkey = HostSettings.DefaultHotkey;
@@ -165,6 +166,7 @@ public class AppHost
         ErrorLog.Write(what + ": " + message);
         if (quitting || fatalShown) return;
         fatalShown = true;
+        tray.HideIcon();   // no working-looking tray icon beside the error dialog
         MessageBox.Show("錢進中無法顯示畫面，需要關閉。\n\n" + message + "\n\n詳細資訊：" + ErrorLog.FilePath,
             "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Error);
         Quit();
@@ -186,6 +188,7 @@ public class AppHost
             if (!e.IsSuccess)
             {
                 ErrorLog.Write("page failed to load: " + e.WebErrorStatus);
+                if (e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled) return;   // a navigation we cancelled ourselves (external link)
                 RescueFirstShow("the page failed to load (" + e.WebErrorStatus + ")");   // show what WebView2 shows
                 return;
             }
@@ -315,7 +318,7 @@ public class AppHost
         if (string.IsNullOrEmpty(name) || name.Length > MaxLayoutName || !(w >= 1) || !(h >= 1)) return;
         bool changed = name != layout;
         layout = name;
-        window.NoActivate = name == "U7" || name == "M3";
+        window.NoActivate = ShowRescue.NoActivateLayout(name);
         window.SetContentSize((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)), Dpr(d));
         if (changed)
         {
@@ -351,11 +354,14 @@ public class AppHost
 
     void ApplyVisibility()
     {
-        bool show = wantVisible && (layout != null || rescued) && !quitting;
-        if (show && !window.Visible) window.Show();   // never activates (PetWindow.ShowWithoutActivation)
-        else if (!show && window.Visible) window.Hide();
-        else if (show && !ShownToUser() && window.IsHandleCreated)
-            Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms says shown, Windows disagrees (or minimized)
+        switch (ShowRescue.Visibility(wantVisible, layout != null, rescued, quitting, window.Visible, ShownToUser()))
+        {
+            case VisibilityAction.Show: window.Show(); break;   // never activates (PetWindow.ShowWithoutActivation)
+            case VisibilityAction.Hide: window.Hide(); break;
+            case VisibilityAction.ForceShow:   // WinForms says shown, Windows disagrees (or minimized)
+                if (window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);
+                break;
+        }
         if (gate.SetShown(window.Visible)) PauseChanged();
         if (!firstShown && ShownToUser())
         {
@@ -400,12 +406,19 @@ public class AppHost
             Size css = WindowPlacer.RescueSize(placer.SavedSize(startLayout));
             window.SetContentSize(css.Width, css.Height, 0);
             placer.Place(window, startLayout);
+            window.NoActivate = ShowRescue.NoActivateLayout(startLayout);   // a rescued M3/U7 must not take focus
+            bool on;
+            window.TopMostEnabled = topmost.TryGetValue(startLayout, out on) && on;
             rescued = true;
         }
         ApplyVisibility();
         if (!ShownToUser() && window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms thinks it is shown
         firstShown = ShownToUser();
-        ErrorLog.Write("first show fallback: " + reason + "; window " + (firstShown ? "shown" : "STILL NOT VISIBLE") + " at " + window.Bounds);
+        if (!rescueLogged)
+        {
+            rescueLogged = true;
+            ErrorLog.Write("first show fallback: " + reason + "; window " + (firstShown ? "shown" : "STILL NOT VISIBLE") + " at " + window.Bounds);
+        }
         UpdateTray();
     }
 
@@ -463,7 +476,7 @@ public class AppHost
     // example in the WebView2 child or the user's app) gets Esc through MenuEscape while it is open.
     void OnMenuOpened()
     {
-        if (MenuEscape.Needed(window.NoActivate, KeyboardThread(), uiThread)) menuEscape.Start();
+        if (!quitting && MenuEscape.Needed(window.NoActivate, KeyboardThread(), uiThread)) menuEscape.Start();
     }
 
     // The thread whose window has the keyboard focus (or, without one, the active window); 0 when unknown.
@@ -504,6 +517,7 @@ public class AppHost
             return;
         }
         if (wanted == hotkey) { hotkeyFailure = null; return; }
+        if (!window.IsHandleCreated) return;
         int result = HotKey.TryRegister(window.Handle, wanted);
         if (result == 0)
         {
@@ -543,11 +557,11 @@ public class AppHost
         {
             try
             {
+                menuEscape.Dispose();   // first: the poll timer goes even if a later step throws
                 tray.Dispose();   // removes the tray icon
                 window.Close();
                 window.Dispose();
                 files.Dispose();
-                menuEscape.Dispose();
             }
             finally { context.ExitThread(); }
         }, null);
@@ -559,6 +573,7 @@ public class AppHost
         quitting = true;
         quitTimer.Stop();
         firstShowTimer.Stop();
+        firstShowTimer.Dispose();
         menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered
         files.FlushAll();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);

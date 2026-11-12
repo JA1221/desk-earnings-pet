@@ -46,4 +46,28 @@ public static class ShowRescueTests
         Assert.Eq("no setLayout from the page", ShowRescue.Reason(false, true, false, false), "page never reported");
         Assert.Eq("setLayout arrived but the window is not visible", ShowRescue.Reason(false, true, false, true), "shown in WinForms only");
     }
+
+    public static void Test_VisibilityDecisionTable()
+    {
+        // (wantVisible, layoutKnown, rescued, quitting, winFormsVisible, shownToUser)
+        Assert.Eq(VisibilityAction.Show, ShowRescue.Visibility(true, true, false, false, false, false), "wanted, layout known, hidden: show");
+        Assert.Eq(VisibilityAction.Show, ShowRescue.Visibility(true, false, true, false, false, false), "rescued counts as a layout");
+        Assert.Eq(VisibilityAction.None, ShowRescue.Visibility(true, false, false, false, false, false), "no layout yet, not rescued: stay hidden");
+        Assert.Eq(VisibilityAction.Hide, ShowRescue.Visibility(false, true, false, false, true, true), "the user hid it: hide");
+        Assert.Eq(VisibilityAction.None, ShowRescue.Visibility(false, true, false, false, false, false), "already hidden: nothing");
+        Assert.Eq(VisibilityAction.Hide, ShowRescue.Visibility(true, true, false, true, true, true), "quitting: hide");
+        Assert.Eq(VisibilityAction.None, ShowRescue.Visibility(true, true, true, true, false, false), "quitting and hidden: nothing");
+        Assert.Eq(VisibilityAction.None, ShowRescue.Visibility(true, true, false, false, true, true), "visible and wanted: nothing");
+        Assert.Eq(VisibilityAction.ForceShow, ShowRescue.Visibility(true, true, false, false, true, false), "WinForms says visible, Windows disagrees: force");
+        Assert.Eq(VisibilityAction.Hide, ShowRescue.Visibility(false, true, false, false, true, false), "not wanted: hide, never force");
+        Assert.Eq(VisibilityAction.Hide, ShowRescue.Visibility(true, false, false, false, true, true), "visible without a layout and not rescued: hide");
+    }
+
+    public static void Test_StartLayoutNoActivate()
+    {
+        Assert.True(ShowRescue.NoActivateLayout("U7"), "U7");
+        Assert.True(ShowRescue.NoActivateLayout("M3"), "M3");
+        Assert.True(!ShowRescue.NoActivateLayout("U1"), "U1");
+        Assert.True(!ShowRescue.NoActivateLayout(null), "null");
+    }
 }

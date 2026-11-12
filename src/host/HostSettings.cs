@@ -9,6 +9,7 @@ using System.Web.Script.Serialization;
 public class HostSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+H";
+    // Must stay in sync with the page's LAYOUTS list in src/web/js/core/settings.js (the web side is not shared).
     static readonly string[] Layouts = { "U1", "U3", "U5B", "U7", "M3" };
     readonly Dictionary<string, bool> topmost = new Dictionary<string, bool>();
 

@@ -1,7 +1,7 @@
 ﻿# Runs JS tests (headless Edge) and host tests (csc). Exits 0 only when both pass.
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$HostTestSources = @('src\host\AppPaths.cs', 'src\host\TextStore.cs', 'src\host\AutoStart.cs', 'src\host\SessionWatcher.cs', 'src\host\EventLogProbe.cs', 'src\host\Bridge.cs', 'src\host\PetGeometry.cs', 'src\host\ScreenFit.cs', 'src\host\Native.cs', 'src\host\HotKey.cs', 'src\host\WindowPositions.cs', 'src\host\SavedText.cs', 'src\host\PauseGate.cs', 'src\host\TrayMenu.cs', 'src\host\ErrorLog.cs', 'src\host\HostSettings.cs', 'src\host\WindowPlacer.cs', 'src\host\UserFiles.cs')   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
+$HostTestSources = @('src\host\AppPaths.cs', 'src\host\TextStore.cs', 'src\host\AutoStart.cs', 'src\host\SessionWatcher.cs', 'src\host\EventLogProbe.cs', 'src\host\Bridge.cs', 'src\host\PetGeometry.cs', 'src\host\ScreenFit.cs', 'src\host\Native.cs', 'src\host\HotKey.cs', 'src\host\WindowPositions.cs', 'src\host\SavedText.cs', 'src\host\PauseGate.cs', 'src\host\TrayMenu.cs', 'src\host\MenuEscape.cs', 'src\host\ErrorLog.cs', 'src\host\HostSettings.cs', 'src\host\WindowPlacer.cs', 'src\host\UserFiles.cs')   # host source files (relative to repo root) compiled into the test exe; add as tasks need them
 $exit = 0
 
 # ---- WEB ----

@@ -87,4 +87,3 @@ public static class WindowPlacerTests
         Assert.True(WindowPlacer.DefaultRescueCss.Width > 0 && WindowPlacer.DefaultRescueCss.Height > 0, "default is a real size");
     }
 }
-

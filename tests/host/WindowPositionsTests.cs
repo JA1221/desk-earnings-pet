@@ -103,4 +103,3 @@ public static class WindowPositionsTests
         Assert.True(!p.TryGetSize("U5B", out s), "SetSize ignores an empty size");
     }
 }
-

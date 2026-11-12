@@ -44,4 +44,24 @@ public static class ShowRescue
         if (quitting || !wantVisible || shownToUser) return null;
         return layoutReported ? "setLayout arrived but the window is not visible" : "no setLayout from the page";
     }
+
+    // What ApplyVisibility must do with the window. wantVisible: the user's choice; layoutKnown: the page has sent
+    // a setLayout; rescued: the safety net showed it anyway; winFormsVisible: Form.Visible; shownToUser: Windows'
+    // own view (visible and not minimized). ForceShow: WinForms says shown but Windows disagrees.
+    public static VisibilityAction Visibility(bool wantVisible, bool layoutKnown, bool rescued, bool quitting, bool winFormsVisible, bool shownToUser)
+    {
+        bool show = wantVisible && (layoutKnown || rescued) && !quitting;
+        if (show && !winFormsVisible) return VisibilityAction.Show;
+        if (!show && winFormsVisible) return VisibilityAction.Hide;
+        if (show && !shownToUser) return VisibilityAction.ForceShow;
+        return VisibilityAction.None;
+    }
+
+    // U7 and M3 never take focus when clicked.
+    public static bool NoActivateLayout(string layout)
+    {
+        return layout == "U7" || layout == "M3";
+    }
 }
+
+public enum VisibilityAction { None, Show, Hide, ForceShow }

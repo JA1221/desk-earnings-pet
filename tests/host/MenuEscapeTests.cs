@@ -94,4 +94,18 @@ public static class MenuEscapeTests
             Assert.Eq(1, g.Unregisters, "released once");
         }
     }
+
+    public static void Test_ReopenCycleRegistersAgain()
+    {
+        var f = new Fake();
+        using (MenuEscape m = f.Make())
+        {
+            m.Start();
+            m.Stop();
+            m.Start();
+            Assert.Eq(2, f.Registers, "registered for each open");
+            Assert.Eq(1, f.Unregisters, "released once so far (the second menu is still open)");
+            Assert.True(m.Active && m.Registered, "active again");
+        }
+    }
 }
