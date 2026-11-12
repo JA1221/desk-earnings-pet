@@ -139,6 +139,22 @@
     } finally { host.remove(); }
   });
 
+  // CPU: animating background-position repainted the U7 tag (money text and its outline shadows) every frame,
+  // 2.50 % -> 1.71 % of the machine with U7 shown. The stripes must move by transform on their own layer.
+  test('layouts: progress stripes move by transform on ::before, not by repainting the bar', function () {
+    var host = document.createElement('div');
+    host.innerHTML = '<div class="thin"><div class="fill" style="width:50%"></div></div>';
+    document.body.appendChild(host);
+    try {
+      var fill = host.querySelector('.fill');
+      eq(getComputedStyle(fill).animationName, 'none', 'the bar itself does not animate');
+      var before = getComputedStyle(fill, '::before');
+      eq(before.animationName, 'stripes');
+      eq(before.willChange, 'transform');
+      eq(getComputedStyle(fill).overflow, 'hidden');
+    } finally { host.remove(); }
+  });
+
   // ---------- DOM + app ----------
   function fixture() {
     var el = document.getElementById('layout-fixture');
