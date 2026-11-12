@@ -81,6 +81,17 @@ public class TrayMenu : IDisposable
         notifyIcon.Visible = true;
     }
 
+    // Removes the tray icon at once (fatal error path; safe to call from any thread, never throws).
+    public void HideIcon()
+    {
+        try
+        {
+            NotifyIcon icon = notifyIcon;
+            if (icon != null) icon.Visible = false;
+        }
+        catch (Exception) { }
+    }
+
     public void ShowAt(Point screen)
     {
         SetFontScale(DpiScaleAt(screen));

@@ -1,70 +1,64 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 
-// The running app. Owns the one PetWindow and wires it to the page (Bridge messages), the tray menu, the
-// hide hotkey, the capture guard, session events and the user's files (settings.json, history.json,
-// window.json in %AppData%\錢進中).
+// The running app: message routing between the page and the host, window visibility, and the app's lifecycle.
+// It owns the one PetWindow, the tray menu, the hide hotkey, the capture guard and session events; window
+// positions live in WindowPlacer, the user's files in UserFiles.
 //
-// Window rules
-// - The window is created hidden with the capture guard already on, and first shown after the page's first
-//   setLayout, so it never flashes at a wrong size. Until then only the tray icon is visible.
-// - Positions are per layout (physical px, window.json), owned by the host, saved when a move ends (which
-//   also sends dragEnd). A layout switch restores that layout's position through ScreenFit.Clamp.
+// - The window is created hidden with the capture guard already on and the configured hotkey (settings.json
+//   privacy.hotkey, default Ctrl+Alt+H) registered, and first shown after the page's first setLayout, so it never
+//   flashes at a wrong size. Until then only the tray icon is visible.
+// - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
+//   page also gets the current state: visibility, a hotkey failure, unreadable files (storageError).
 // - U7 and M3 never take focus when clicked; the other layouts activate normally (keyboard input).
 // - While the window is hidden or the session is locked the page gets visibility {visible:false} and the hit
 //   poll stops; showing / unlocking reverses both.
+// - Alt+F4 hides the window. Any close from outside (WM_CLOSE, Windows ending the session) shuts the app down.
 // Host-only menu actions: toggleVisible (a hidden page cannot show itself) and quit (sent to the page as
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs).
 public class AppHost
 {
     public const string Version = "0.7.0-dev";
     const string Origin = "https://app.qjz/";
-    const string DefaultHotkey = "Ctrl+Alt+H";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;
     const int MaxLayoutName = 32;
-    const int DefaultMargin = 24;    // physical px from the work-area corner for a first-ever position
     const int ProbeWaitMs = 3000;    // longest wait for the event-log probe before init goes out without it
     const int QuitWaitMs = 1500;     // how long quit waits for the page's quit {}
-    const int RetryMs = 10000;       // retry interval while a file write is pending
     const int MaxPageCrashes = 3;    // page reloads after renderer crashes allowed per minute
 
     readonly string startUrl;
     readonly bool devPage;
     readonly PetWindow window;
     readonly TrayMenu tray = new TrayMenu();
-    readonly SavedText settings;
-    readonly SavedText history;
-    readonly SavedText windowFile;
+    readonly UserFiles files;
+    readonly WindowPlacer placer;
+    readonly Bridge bridge;
     readonly AutoStart autoStart = new AutoStart();
     readonly PauseGate gate = new PauseGate();
-    readonly Dictionary<string, bool> topmost = new Dictionary<string, bool>();   // per layout, learned from setTopmost
     readonly ApplicationContext context = new ApplicationContext();
-    readonly System.Windows.Forms.Timer retryTimer = new System.Windows.Forms.Timer();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
-    WindowPositions positions = new WindowPositions();
+    Dictionary<string, bool> topmost = HostSettings.Parse(null).TopmostByLayout();   // per layout, from settings.json + setTopmost
+    string configuredHotkey = HostSettings.DefaultHotkey;
     SessionWatcher session;
-    Bridge bridge;
-    bool pageReady;              // the current page has loaded and may receive messages
     int navigation;              // bumps on every navigation, so a slow init for an old page is dropped
     string layout;               // layout of the last setLayout; null before the first
-    bool placed;                 // the window has a position
     bool wantVisible = true;     // the user's show/hide choice (hotkey, tray, menu, hide {})
     bool captureGuard = true;
     string hotkey;               // the registered combo; null when none is registered
-    object hotkeyFailure;        // hotkeyFailed payload waiting for the page (startup registration failed)
+    object hotkeyFailure;        // the current hotkeyFailed payload, re-sent after every init; null when fine
     IntPtr focusBeforeMenu;      // foreground window to give focus back to after a no-activate context menu
     DateTime firstCrash;         // start of the current one-minute window of page crashes
     int crashes;
     SynchronizationContext ui;
     bool quitting;
+    bool fatalShown;
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike),
     // which never touches the autostart Run value.
@@ -72,23 +66,21 @@ public class AppHost
     {
         startUrl = Origin + page;
         this.devPage = devPage;
-        topmost["U7"] = true;    // the floating layouts default to topmost, as in settings DEFAULTS
-        topmost["M3"] = true;
-        settings = new SavedText(new TextStore(Path.Combine(AppPaths.DataDir, "settings.json")), Logger("settings.json"));
-        history = new SavedText(new TextStore(Path.Combine(AppPaths.DataDir, "history.json")), Logger("history.json"));
-        windowFile = new SavedText(new TextStore(Path.Combine(AppPaths.DataDir, "window.json")), Logger("window.json"));
+        files = new UserFiles(AppPaths.DataDir, ErrorLog.Write);
+        placer = new WindowPlacer(files);
+        bridge = new Bridge(PostToPage, ErrorLog.Write);
+        bridge.Received += OnPageMessage;
 
         window = new PetWindow(startUrl);
-        window.StartPosition = FormStartPosition.Manual;   // the host places it
+        window.StartPosition = FormStartPosition.Manual;   // WindowPlacer places it
         window.HandleCreated += delegate { OnHandleCreated(); };
         window.InitFailed += delegate(string message) { Fatal("window init failed", message); };
         window.WebReady += delegate { OnWebReady(); };
         window.MoveEnded += delegate { OnMoveEnded(); };
         window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) ToggleVisible(); };
+        window.CloseRequested += delegate { wantVisible = false; ApplyVisibility(); };   // Alt+F4: hide; 結束 quits
         window.FormClosing += OnClosing;
 
-        retryTimer.Interval = RetryMs;
-        retryTimer.Tick += delegate { FlushFiles(); };
         quitTimer.Interval = QuitWaitMs;
         quitTimer.Tick += delegate { Quit(); };
     }
@@ -98,10 +90,12 @@ public class AppHost
         if (!(SynchronizationContext.Current is WindowsFormsSynchronizationContext))
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         ui = SynchronizationContext.Current;
-        settings.Load();
-        history.Load();
-        positions = WindowPositions.Parse(windowFile.Load());
-        if (!devPage && !settings.ReadFailed) SetAutoStart(AutoStart.SettingOn(settings.Text));   // re-points a stale Run value
+        files.LoadAll();
+        placer.Load();
+        HostSettings settings = HostSettings.Parse(files.Settings.Text);
+        topmost = settings.TopmostByLayout();
+        configuredHotkey = settings.Hotkey;
+        if (!devPage && !files.Settings.ReadFailed) SetAutoStart(settings.Autostart);   // re-points a stale Run value
 
         tray.ItemClicked += OnMenu;
         tray.IconDoubleClick += delegate { ToggleVisible(); };
@@ -117,26 +111,37 @@ public class AppHost
         Application.Run(context);
     }
 
+    // Fatal-error path (Program): removes the tray icon so no ghost icon stays behind. Any thread; never throws.
+    public void RemoveTrayIcon()
+    {
+        tray.HideIcon();
+    }
+
     // ---- window lifecycle ----
 
     void OnHandleCreated()
     {
         ApplyCaptureGuard();
-        string combo = hotkey ?? DefaultHotkey;
-        if (HotKey.Register(window.Handle, combo)) hotkey = combo;
-        else
+        string combo = hotkey ?? configuredHotkey;
+        int result = HotKey.TryRegister(window.Handle, combo);
+        if (result == 0)
         {
-            ErrorLog.Write("hotkey " + combo + " could not be registered (error " + Marshal.GetLastWin32Error() + ")");
-            hotkey = null;
-            hotkeyFailure = new { combo = combo, reason = "taken", active = (string)null };
+            hotkey = combo;
+            hotkeyFailure = null;
+            return;
         }
+        ErrorLog.Write("hotkey " + combo + " could not be registered (" + result + ")");
+        hotkey = null;
+        hotkeyFailure = new { combo = combo, reason = HotKey.FailureReason(result), active = (string)null };
     }
 
-    // The window cannot work (setup failed, WebView2 is gone): one short message, then quit.
+    // The window cannot work (setup failed, WebView2 is gone): one short message, then quit. Once only: the
+    // MessageBox pumps messages, so a second failure could arrive while it is open.
     void Fatal(string what, string message)
     {
         ErrorLog.Write(what + ": " + message);
-        if (quitting) return;
+        if (quitting || fatalShown) return;
+        fatalShown = true;
         MessageBox.Show("錢進中無法顯示畫面，需要關閉。\n\n" + message + "\n\n詳細資訊：" + ErrorLog.FilePath,
             "錢進中", MessageBoxButtons.OK, MessageBoxIcon.Error);
         Quit();
@@ -145,19 +150,17 @@ public class AppHost
     void OnWebReady()
     {
         CoreWebView2 web = window.Web;
-        bridge = new Bridge(web);
-        bridge.Received += OnPageMessageSafe;
+        bridge.Attach(web);
         web.NavigationStarting += delegate(object s, CoreWebView2NavigationStartingEventArgs e)
         {
             if (!e.Uri.StartsWith(Origin, StringComparison.OrdinalIgnoreCase)) { e.Cancel = true; return; }   // stay on the app's pages
-            pageReady = false;
+            bridge.Hold();   // the new page cannot listen yet
             navigation++;
         };
         web.NewWindowRequested += delegate(object s, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; };
         web.NavigationCompleted += delegate(object s, CoreWebView2NavigationCompletedEventArgs e)
         {
             if (!e.IsSuccess) { ErrorLog.Write("page failed to load: " + e.WebErrorStatus); return; }
-            pageReady = true;
             SendInit(navigation);
         };
         web.ProcessFailed += delegate(object s, CoreWebView2ProcessFailedEventArgs e) { OnProcessFailed(e.ProcessFailedKind); };
@@ -188,54 +191,41 @@ public class AppHost
             if (await Task.WhenAny(t, Task.Delay(ProbeWaitMs)) == t) probe = t.Result;
         }
         catch (Exception ex) { ErrorLog.Write("event log probe", ex); }
-        if (nav != navigation || !pageReady || quitting) return;   // the page changed meanwhile
-        Send("init", new { settings = settings.Text, history = history.Text, probeMs = probe, nowMs = NowMs(), version = Version });
+        if (nav != navigation || quitting) return;   // the page changed meanwhile
+        bridge.Open("init", new { settings = files.Settings.Text, history = files.History.Text, probeMs = probe, nowMs = NowMs(), version = Version });
+        // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
-        if (hotkeyFailure != null)
-        {
-            Send("hotkeyFailed", hotkeyFailure);
-            hotkeyFailure = null;
-        }
+        if (hotkeyFailure != null) Send("hotkeyFailed", hotkeyFailure);
+        foreach (string file in files.Unreadable) Send("storageError", new { file = file, reason = "unreadable" });
     }
 
     void OnClosing(object sender, FormClosingEventArgs e)
     {
         if (quitting) return;
-        if (e.CloseReason == CloseReason.UserClosing)
-        {
-            // Alt+F4 on the window: hide it; the tray icon and the hotkey bring it back, 結束 quits.
-            e.Cancel = true;
-            wantVisible = false;
-            ApplyVisibility();
-            return;
-        }
-        Shutdown();   // Windows is ending the session (or the process is being closed): save what we have
+        // Not a quit, and not Alt+F4 (PetWindow turns that into CloseRequested): WM_CLOSE from outside or Windows
+        // ending the session. Save what we have and end.
+        Shutdown();
         tray.Dispose();
         context.ExitThread();
     }
 
     // ---- page messages ----
 
-    void OnPageMessageSafe(string type, Dictionary<string, object> d)
-    {
-        try
-        {
-            if (ErrorLog.Tracing) ErrorLog.Trace("<- " + type + (type.StartsWith("save") ? "" : " " + Bridge.BuildMessage(type, d)));
-            OnPageMessage(type, d);
-        }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("page message '" + type + "' failed", ex);   // one bad message must not take the host down
-        }
-    }
-
     void OnPageMessage(string type, Dictionary<string, object> d)
     {
+        if (ErrorLog.Tracing) ErrorLog.Trace("<- " + type + (type.StartsWith("save") ? "" : " " + Bridge.BuildMessage(type, d)));
         switch (type)
         {
-            case "saveSettings": Save(settings, Bridge.Str(d, "text")); break;
-            case "saveHistory": Save(history, Bridge.Str(d, "text")); break;
-            case "backupCorrupt": BackupCorrupt(Bridge.Str(d, "file")); break;
+            case "saveSettings":
+                {
+                    string text = Bridge.Str(d, "text");
+                    if (text == null) break;
+                    files.Save(files.Settings, text);
+                    topmost = HostSettings.Parse(text).TopmostByLayout();   // the page's own copy of layout.topmost
+                    break;
+                }
+            case "saveHistory": files.Save(files.History, Bridge.Str(d, "text")); break;
+            case "backupCorrupt": files.BackupCorrupt(Bridge.Str(d, "file")); break;
             case "setLayout": SetLayout(d); break;
             case "hitRects": window.SetHitRects(Bridge.Rects(d, "rects", MaxHitRects), Dpr(d)); break;
             case "dragStart": window.BeginDrag(); break;
@@ -271,16 +261,22 @@ public class AppHost
 
     void Send(string type, object payload)
     {
-        if (bridge == null || !pageReady) return;
-        try
-        {
-            if (ErrorLog.Tracing) ErrorLog.Trace(type == "init" ? "-> init" : "-> " + Bridge.BuildMessage(type, payload));
-            bridge.Send(type, payload);
-        }
-        catch (Exception ex) { ErrorLog.Write("send '" + type + "' failed", ex); }
+        bridge.Send(type, payload);   // queued until the page's init
     }
 
-    // ---- layout, position, topmost ----
+    void PostToPage(string json)
+    {
+        try
+        {
+            CoreWebView2 web = window.Web;
+            if (web == null) return;
+            if (ErrorLog.Tracing) ErrorLog.Trace(json.Contains("\"type\":\"init\"") ? "-> init" : "-> " + json);
+            web.PostWebMessageAsJson(json);
+        }
+        catch (Exception ex) { ErrorLog.Write("send to the page failed", ex); }
+    }
+
+    // ---- layout ----
 
     void SetLayout(Dictionary<string, object> d)
     {
@@ -293,7 +289,7 @@ public class AppHost
         window.SetContentSize((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)), Dpr(d));
         if (changed)
         {
-            Place();
+            placer.Place(window, name);
             bool on;
             window.TopMostEnabled = topmost.TryGetValue(name, out on) && on;
         }
@@ -301,58 +297,10 @@ public class AppHost
         ApplyVisibility();   // the first setLayout shows the window
     }
 
-    // Saved position for the layout (kept on screen by ScreenFit.Clamp); a layout without one stays where the
-    // window is (fully inside its monitor); the very first one goes to the primary work area's bottom-right.
-    void Place()
-    {
-        Rectangle[] areas = WorkAreas();
-        Size size = window.Size;
-        Point saved;
-        Rectangle target;
-        bool hostChosen;   // false: the user's own saved spot, kept as it is (Clamp left it alone)
-        if (positions.TryGet(layout, out saved))
-        {
-            Rectangle user = new Rectangle(saved, size);
-            target = ScreenFit.Clamp(user, areas);
-            hostChosen = target != user;
-        }
-        else if (placed)
-        {
-            Rectangle here = new Rectangle(window.Location, size);
-            target = ScreenFit.MoveInside(here, ScreenFit.NearestArea(here, areas));
-            hostChosen = true;
-        }
-        else
-        {
-            Rectangle wa = Screen.PrimaryScreen.WorkingArea;
-            target = ScreenFit.MoveInside(new Rectangle(wa.Right - size.Width - DefaultMargin, wa.Bottom - size.Height - DefaultMargin, size.Width, size.Height), wa);
-            hostChosen = true;
-        }
-        window.Bounds = target;
-        placed = true;
-        // Landing on a monitor with another DPI resizes the window (WM_DPICHANGED): a spot the host chose stays
-        // fully inside, the user's own spot only gets the Clamp rule.
-        Rectangle now = window.Bounds;
-        Rectangle fit = hostChosen ? ScreenFit.MoveInside(now, ScreenFit.NearestArea(now, areas)) : ScreenFit.Clamp(now, areas);
-        if (fit != now) window.Bounds = fit;
-    }
-
     void OnMoveEnded()
     {
-        if (layout != null)
-        {
-            positions.Set(layout, window.Location);
-            Save(windowFile, positions.ToJson());
-        }
+        placer.Remember(layout, window.Location);
         Send("dragEnd", null);
-    }
-
-    static Rectangle[] WorkAreas()
-    {
-        Screen[] screens = Screen.AllScreens;
-        Rectangle[] areas = new Rectangle[screens.Length];
-        for (int i = 0; i < screens.Length; i++) areas[i] = screens[i].WorkingArea;
-        return areas;
     }
 
     static double Dpr(Dictionary<string, object> d)
@@ -449,15 +397,23 @@ public class AppHost
         string wanted = HotKey.Normalize(combo);
         if (wanted == null)
         {
-            Send("hotkeyFailed", new { combo = combo, reason = "invalid", active = hotkey });
+            hotkeyFailure = new { combo = combo, reason = HotKey.FailureReason(HotKey.InvalidCombo), active = hotkey };
+            Send("hotkeyFailed", hotkeyFailure);
             return;
         }
-        if (wanted == hotkey || !window.IsHandleCreated) return;
-        if (HotKey.Register(window.Handle, wanted)) { hotkey = wanted; return; }
-        ErrorLog.Write("hotkey " + wanted + " could not be registered (error " + Marshal.GetLastWin32Error() + ")");
-        string previous = hotkey;   // Register dropped it; keep it working
+        if (wanted == hotkey) { hotkeyFailure = null; return; }
+        int result = HotKey.TryRegister(window.Handle, wanted);
+        if (result == 0)
+        {
+            hotkey = wanted;
+            hotkeyFailure = null;
+            return;
+        }
+        ErrorLog.Write("hotkey " + wanted + " could not be registered (" + result + ")");
+        string previous = hotkey;   // TryRegister dropped it; keep it working
         hotkey = previous != null && HotKey.Register(window.Handle, previous) ? previous : null;
-        Send("hotkeyFailed", new { combo = wanted, reason = "taken", active = hotkey });
+        hotkeyFailure = new { combo = wanted, reason = HotKey.FailureReason(result), active = hotkey };
+        Send("hotkeyFailed", hotkeyFailure);
     }
 
     void SetAutoStart(bool on)
@@ -466,39 +422,12 @@ public class AppHost
         catch (Exception ex) { ErrorLog.Write("autostart " + (on ? "on" : "off"), ex); }
     }
 
-    // ---- files ----
-
-    void Save(SavedText file, string text)
-    {
-        if (text == null) return;
-        if (!file.Save(text)) retryTimer.Start();   // kept in memory; retried on the next save or the timer
-    }
-
-    void FlushFiles()
-    {
-        bool done = settings.Flush() & history.Flush() & windowFile.Flush();
-        if (done) retryTimer.Stop();
-    }
-
-    void BackupCorrupt(string file)
-    {
-        SavedText target = file == "settings" ? settings : file == "history" ? history : null;
-        if (target == null) return;
-        try { target.Store.BackupCorrupt(); }
-        catch (Exception ex) { ErrorLog.Write("backup of corrupt " + file, ex); }
-    }
-
-    static Action<string, Exception> Logger(string name)
-    {
-        return delegate(string what, Exception ex) { ErrorLog.Write(name + ": " + what, ex); };
-    }
-
     // ---- quit ----
 
     void BeginQuit()
     {
         if (quitting) return;
-        if (!pageReady) { Quit(); return; }
+        if (!bridge.IsOpen) { Quit(); return; }   // no page to wait for
         Send("menu", new { action = "quit" });   // the page saves and answers quit {}
         quitTimer.Start();
     }
@@ -510,10 +439,14 @@ public class AppHost
         // Deferred: Quit runs inside WebView2 and menu event handlers, which must return before their objects go.
         ui.Post(delegate
         {
-            tray.Dispose();   // removes the tray icon
-            window.Close();
-            window.Dispose();
-            context.ExitThread();
+            try
+            {
+                tray.Dispose();   // removes the tray icon
+                window.Close();
+                window.Dispose();
+                files.Dispose();
+            }
+            finally { context.ExitThread(); }
         }, null);
     }
 
@@ -522,8 +455,7 @@ public class AppHost
     {
         quitting = true;
         quitTimer.Stop();
-        retryTimer.Stop();
-        FlushFiles();
+        files.FlushAll();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);
         if (session != null) session.Dispose();
         SingleInstance.Stop();

@@ -30,6 +30,9 @@ public class SavedText
     // The file exists but could not be read; it is left untouched from then on.
     public bool ReadFailed { get; private set; }
 
+    // A pending write that a later Flush may still complete (never true for a file that could not be read).
+    public bool Retryable { get { return Pending && !ReadFailed; } }
+
     // Reads the file (null when it does not exist or cannot be read).
     public string Load()
     {

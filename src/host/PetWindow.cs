@@ -47,6 +47,10 @@ public class PetWindow : Form
     // WM_HOTKEY arrived; the argument is the hotkey id.
     public event Action<int> HotKeyPressed;
 
+    // The user asked to close the window (Alt+F4: WM_SYSCOMMAND SC_CLOSE). The window does not close by itself;
+    // the owner decides (the app hides it). Any FormClosing therefore comes from the program or from Windows.
+    public event EventHandler CloseRequested;
+
     public PetWindow(string startUrl)
     {
         this.startUrl = startUrl;
@@ -230,6 +234,14 @@ public class PetWindow : Form
         if (m.Msg == Native.WM_MOUSEACTIVATE && noActivate)
         {
             m.Result = (IntPtr)Native.MA_NOACTIVATE;   // the click still reaches the page
+            return;
+        }
+        if (m.Msg == Native.WM_SYSCOMMAND && (m.WParam.ToInt64() & 0xFFF0) == Native.SC_CLOSE)
+        {
+            // Not passed to base: WinForms would turn it into a WM_CLOSE with CloseReason UserClosing, and keep that
+            // reason after a cancelled close, so a later WM_CLOSE from outside would look like Alt+F4 too.
+            if (CloseRequested != null) CloseRequested(this, EventArgs.Empty);
+            m.Result = IntPtr.Zero;
             return;
         }
         if (m.Msg == Native.WM_HOTKEY)

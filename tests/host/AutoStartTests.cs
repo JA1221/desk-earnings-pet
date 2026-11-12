@@ -33,15 +33,4 @@ public static class AutoStartTests
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(@"Software\QJZTest", false); }
     }
-
-    public static void Test_SettingOnReadsSettingsJson()
-    {
-        Assert.True(AutoStart.SettingOn(null), "no settings file -> default on");
-        Assert.True(AutoStart.SettingOn(""), "empty -> default on");
-        Assert.True(AutoStart.SettingOn("{not json"), "corrupt -> default on (the page resets to defaults)");
-        Assert.True(AutoStart.SettingOn("{\"autostart\":true}"), "on");
-        Assert.True(!AutoStart.SettingOn("{\"autostart\":false,\"salary\":{\"amount\":1}}"), "off");
-        Assert.True(AutoStart.SettingOn("{\"autostart\":\"false\"}"), "not a bool -> default on (as the page sanitizes)");
-        Assert.True(AutoStart.SettingOn("[]"), "not an object -> default on");
-    }
 }

@@ -16,6 +16,8 @@ internal static class Native
     public const int WM_EXITSIZEMOVE = 0x0232;
     public const int WM_DPICHANGED = 0x02E0;
     public const int WM_HOTKEY = 0x0312;
+    public const int WM_SYSCOMMAND = 0x0112;
+    public const int SC_CLOSE = 0xF060;
     public const int HTCAPTION = 2;
     public const int MA_NOACTIVATE = 3;
 

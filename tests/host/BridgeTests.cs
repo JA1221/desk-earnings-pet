@@ -29,6 +29,60 @@ public static class BridgeTests
         Assert.Eq("dragEnd", e["type"], "null payload");
     }
 
+    public static void Test_DispatchIsolatesHandlers()
+    {
+        var errors = new List<string>();
+        var posted = new List<string>();
+        var b = new Bridge(posted.Add, delegate(string what, Exception ex) { errors.Add(what + ": " + ex.Message); });
+        var seen = new List<string>();
+        b.Received += delegate(string type, Dictionary<string, object> d) { throw new InvalidOperationException("boom"); };
+        b.Received += delegate(string type, Dictionary<string, object> d) { seen.Add(type + "/" + d["a"]); };
+        b.Dispatch("{\"type\":\"hitRects\",\"a\":1}");
+        Assert.Eq("hitRects/1", string.Join(",", seen.ToArray()), "second handler still ran");
+        Assert.Eq(1, errors.Count, "the throwing handler was reported");
+        Assert.True(errors[0].Contains("hitRects") && errors[0].Contains("boom"), "report names the message: " + errors[0]);
+        b.Dispatch("{not json");
+        b.Dispatch(null);
+        Assert.Eq(1, seen.Count, "malformed messages reach no handler");
+        var empty = new Bridge(posted.Add, null);
+        empty.Dispatch("{\"type\":\"x\"}");   // no handlers, no error callback: nothing happens
+    }
+
+    public static void Test_SendQueuesUntilOpen()
+    {
+        var posted = new List<string>();
+        var b = new Bridge(posted.Add, null);
+        b.Send("session", new { kind = "lock", ms = 1L });
+        b.Send("menu", new { action = "feed" });
+        Assert.Eq(0, posted.Count, "nothing reaches the page before init");
+        b.Open("init", new { nowMs = 5L });
+        Assert.Eq("init,session,menu", Types(posted), "init first, then the queued messages in order");
+        b.Send("dragEnd", null);
+        Assert.Eq("init,session,menu,dragEnd", Types(posted), "sent at once while open");
+        b.Hold();   // the page navigates: queue again until its init
+        b.Send("visibility", new { visible = false });
+        Assert.Eq(4, posted.Count, "held");
+        b.Open("init", new { nowMs = 6L });
+        Assert.Eq("init,session,menu,dragEnd,init,visibility", Types(posted), "second init, then the held message");
+    }
+
+    public static void Test_QueueIsBounded()
+    {
+        var posted = new List<string>();
+        var b = new Bridge(posted.Add, null);
+        for (int i = 0; i < 250; i++) b.Send("session", new { n = i });
+        b.Open("init", null);
+        Assert.Eq(1 + Bridge.MaxQueued, posted.Count, "init plus the newest MaxQueued messages");
+        Assert.Eq(250 - Bridge.MaxQueued, Convert.ToInt32(Bridge.Parse(posted[1])["n"]), "the oldest were dropped");
+    }
+
+    static string Types(List<string> posted)
+    {
+        var t = new List<string>();
+        foreach (string json in posted) t.Add((string)Bridge.Parse(json)["type"]);
+        return string.Join(",", t.ToArray());
+    }
+
     public static void Test_FieldAccessorsAreTyped()
     {
         Dictionary<string, object> d = Bridge.Parse(

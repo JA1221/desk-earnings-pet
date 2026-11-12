@@ -16,14 +16,34 @@ public static class HotKey
     static readonly string[] NamedKeys = { "Space", "PageUp", "PageDown", "End", "Home", "Left", "Up", "Right", "Down", "Insert", "Delete" };
     static readonly int[] NamedVks = { 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E };
 
-    // Replaces this window's hotkey with combo. False when combo is invalid or already taken by another program
-    // (then this window has no hotkey).
+    public const int InvalidCombo = -1;   // TryRegister: the combo does not parse
+    public const int UnknownError = -2;   // TryRegister: RegisterHotKey failed without an error code
+    const int ERROR_HOTKEY_ALREADY_REGISTERED = 1409;
+
+    // Replaces this window's hotkey with combo. False when combo is invalid or cannot be registered (then this
+    // window has no hotkey).
     public static bool Register(IntPtr hwnd, string combo)
+    {
+        return TryRegister(hwnd, combo) == 0;
+    }
+
+    // Like Register: 0 on success, InvalidCombo, or the Win32 error of RegisterHotKey (UnknownError if none).
+    public static int TryRegister(IntPtr hwnd, string combo)
     {
         Unregister(hwnd);
         int mods, vk;
-        if (!TryParse(combo, out mods, out vk)) return false;
-        return Native.RegisterHotKey(hwnd, Id, mods | MOD_NOREPEAT, vk);
+        if (!TryParse(combo, out mods, out vk)) return InvalidCombo;
+        if (Native.RegisterHotKey(hwnd, Id, mods | MOD_NOREPEAT, vk)) return 0;
+        int error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+        return error != 0 ? error : UnknownError;
+    }
+
+    // hotkeyFailed {reason} for a TryRegister result: "invalid", "taken" (another program has it) or "error".
+    public static string FailureReason(int code)
+    {
+        if (code == InvalidCombo) return "invalid";
+        if (code == ERROR_HOTKEY_ALREADY_REGISTERED) return "taken";
+        return "error";
     }
 
     public static void Unregister(IntPtr hwnd)

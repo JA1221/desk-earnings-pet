@@ -37,6 +37,20 @@ public static class HotKeyTests
         }
     }
 
+    public static void Test_FailureReason()
+    {
+        Assert.Eq("invalid", HotKey.FailureReason(HotKey.InvalidCombo), "unparseable combo");
+        Assert.Eq("taken", HotKey.FailureReason(1409), "ERROR_HOTKEY_ALREADY_REGISTERED");
+        Assert.Eq("error", HotKey.FailureReason(5), "any other Win32 error");
+        Assert.Eq("error", HotKey.FailureReason(0), "failed without an error code");
+    }
+
+    public static void Test_RegisterInvalidComboReportsInvalid()
+    {
+        Assert.Eq(HotKey.InvalidCombo, HotKey.TryRegister(IntPtr.Zero, "Shift+H"), "invalid combo is not registered");
+        Assert.Eq(HotKey.InvalidCombo, HotKey.TryRegister(IntPtr.Zero, null), "null combo");
+    }
+
     public static void Test_Normalize()
     {
         Assert.Eq("Ctrl+Alt+H", HotKey.Normalize(" ctrl + alt + h "), "default");

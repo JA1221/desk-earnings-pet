@@ -46,7 +46,13 @@ public static class SingleInstance
     // Call on the UI thread (the mutex owner) when the app quits.
     public static void Stop()
     {
-        if (waiter != null) { waiter.Unregister(null); waiter = null; }
+        if (waiter != null)
+        {
+            using (var unregistered = new ManualResetEvent(false))   // the event may only close once no wait uses it
+                if (waiter.Unregister(unregistered)) unregistered.WaitOne(1000);
+            waiter = null;
+        }
+        if (showEvent != null) { showEvent.Dispose(); showEvent = null; }
         if (mutex != null)
         {
             try { mutex.ReleaseMutex(); }

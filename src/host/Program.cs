@@ -4,6 +4,7 @@ using System.Windows.Forms;
 
 public static class Program
 {
+    static AppHost host;   // for the fatal path: its tray icon must not outlive the process
     const string MissingWebView2 = "這台電腦缺少 Microsoft Edge WebView2 執行階段，錢進中需要它才能顯示畫面。請到 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下載安裝後再開啟。";
 
     [STAThread]
@@ -25,7 +26,8 @@ public static class Program
         string page = DevPage(args);
         try
         {
-            new AppHost(page ?? "index.html", page != null).Run();
+            host = new AppHost(page ?? "index.html", page != null);
+            host.Run();
             return 0;
         }
         catch (Exception ex)
@@ -35,10 +37,12 @@ public static class Program
         }
     }
 
-    // A short message for the user; the details go to error.log.
+    // A short message for the user; the details go to error.log; the tray icon goes away first.
     static void Fatal(Exception ex)
     {
         ErrorLog.Write("fatal error", ex);
+        AppHost h = host;
+        if (h != null) h.RemoveTrayIcon();
         try
         {
             MessageBox.Show("錢進中發生錯誤，需要關閉。\n\n詳細資訊已記錄在：\n" + ErrorLog.FilePath,

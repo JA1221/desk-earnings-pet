@@ -6,22 +6,82 @@ using System.Web.Script.Serialization;
 using Microsoft.Web.WebView2.Core;
 
 // JSON message bridge between the host and the page; every message is an object with a string "type".
+// Host -> page: Send queues until Open (the page's init), and again after Hold (the page navigates), so the page
+// never misses a message sent before it could listen; at most MaxQueued wait, the oldest are dropped.
+// Page -> host: every Received handler runs on its own; one that throws is reported and the others still run.
 public class Bridge
 {
+    public const int MaxQueued = 200;
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
-    readonly CoreWebView2 web;
+    readonly Action<string> post;
+    readonly Action<string, Exception> onError;
+    readonly List<string> queue = new List<string>();
+    bool open;
 
     public event Action<string, Dictionary<string, object>> Received;
 
-    public Bridge(CoreWebView2 web)
+    public Bridge(CoreWebView2 web) : this(web.PostWebMessageAsJson, ErrorLog.Write)
     {
-        this.web = web;
+        Attach(web);
+    }
+
+    // post: delivers one JSON message to the page. onError: reports a handler that threw (may be null).
+    public Bridge(Action<string> post, Action<string, Exception> onError)
+    {
+        this.post = post;
+        this.onError = onError;
+    }
+
+    // Messages are delivered (true) or queued (false).
+    public bool IsOpen { get { return open; } }
+
+    // Receives the page's messages from web.
+    public void Attach(CoreWebView2 web)
+    {
         web.WebMessageReceived += OnMessage;
     }
 
     public void Send(string type, object payload)
     {
-        web.PostWebMessageAsJson(BuildMessage(type, payload));
+        string json = BuildMessage(type, payload);
+        if (open) { post(json); return; }
+        queue.Add(json);
+        if (queue.Count > MaxQueued) queue.RemoveAt(0);
+    }
+
+    // Delivers this first message (the page's init), then everything queued, in order; later sends go straight out.
+    public void Open(string type, object payload)
+    {
+        post(BuildMessage(type, payload));
+        open = true;
+        string[] waiting = queue.ToArray();
+        queue.Clear();
+        foreach (string json in waiting) post(json);
+    }
+
+    // Queue again until the next Open (the page is navigating).
+    public void Hold()
+    {
+        open = false;
+    }
+
+    // Parses one message from the page and hands it to every Received handler, each isolated.
+    public void Dispatch(string json)
+    {
+        Dictionary<string, object> d = Parse(json);
+        Action<string, Dictionary<string, object>> handlers = Received;
+        if (d == null || handlers == null) return;
+        string type = (string)d["type"];
+        foreach (Delegate h in handlers.GetInvocationList())
+        {
+            try { ((Action<string, Dictionary<string, object>>)h)(type, d); }
+            catch (Exception ex)
+            {
+                if (onError == null) continue;
+                try { onError("page message '" + type + "' handler failed", ex); }
+                catch (Exception) { }
+            }
+        }
     }
 
     public static string BuildMessage(string type, object payload)
@@ -111,9 +171,6 @@ public class Bridge
         string json;
         try { json = e.WebMessageAsJson; }
         catch (Exception) { return; }
-        Dictionary<string, object> d = Parse(json);
-        if (d == null) return;
-        Action<string, Dictionary<string, object>> h = Received;
-        if (h != null) h((string)d["type"], d);
+        Dispatch(json);
     }
 }
