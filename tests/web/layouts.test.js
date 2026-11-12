@@ -2078,4 +2078,82 @@
       done();
     });
   });
+
+  // 省電模式 (§5.9, Task 15): html.saver stops every decorative loop outside the pet, in every layout (the status
+  // pulse, the progress stripes, U3's coin); the pet is drawn with the saver texture and its Brain idles less often.
+  test('layouts: html.saver while 省電模式; no infinite animation outside the pet in U1 and U7 then', function () {
+    var html = document.documentElement;
+    function loops(e) {
+      return document.getAnimations().filter(function (a) {
+        var t = a.effect && a.effect.target;
+        return !!t && e.root.contains(t) && !t.closest('[data-pet]') && a.effect.getComputedTiming().iterations === Infinity;
+      }).map(function (a) { return (a.effect.target.getAttribute('class') || a.effect.target.tagName) + (a.effect.pseudoElement || '') + ' ' + a.animationName; });
+    }
+    var SAVER = { display: { opaque: false, powerSaver: true }, health: WATER_ON };
+    ['U1', 'U3', 'U5B', 'U7', 'M3', 'U10', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true, settings: SAVER, rec: today(3, 3, 5) });
+      eq(QJZ.layouts.current(), name);
+      ok(html.classList.contains('saver'), name + ': html.saver');
+      eq(loops(e), [], name + ' working');
+      if (name === 'U10') { mouse($(e, '.isl'), 'mouseover'); eq(loops(e), [], name + ' expanded'); }
+      done();
+    });
+    ok(!html.classList.contains('saver'), 'gone with the app');
+    // U1: on stops its loops at once, off brings them back
+    var u1 = mk(at(12, 10, 0), { care: true }), before = loops(u1);
+    ok(before.length >= 2 && !html.classList.contains('saver'), 'off: ' + before);
+    QJZ.app.saveSettings({ display: { powerSaver: true } });
+    eq([loops(u1), html.classList.contains('saver')], [[], true], 'on');
+    QJZ.app.saveSettings({ display: { powerSaver: false } });
+    eq([loops(u1).length, html.classList.contains('saver')], [before.length, false], 'off again');
+    done();
+    // U7 with the crayon cat: redrawn at once with the still grain, and the Brain spaces its idle actions out
+    var e = mk(at(12, 10, 0), { first: 'U7', settings: { pet: { kind: 'cat', skin: 's5' } } });
+    ok($(e, '[data-pet] [filter*="-crayon"]'), 'off: the crayon filter');
+    eq(QJZ.layouts._brain().saver, false);
+    QJZ.app.saveSettings({ display: { powerSaver: true } });
+    eq(loops(e), [], 'U7 on');
+    eq($(e, '[data-pet] [filter*="-crayon"]'), null, 'on: no crayon filter');
+    ok($(e, '[data-pet] [fill*="-gr"]'), 'the still grain instead');
+    eq(QJZ.layouts._brain().saver, true, 'fewer idle actions');
+    QJZ.app.saveSettings({ display: { powerSaver: false } });
+    ok($(e, '[data-pet] [filter*="-crayon"]'), 'off again: the crayon filter');
+    eq(QJZ.layouts._brain().saver, false);
+    done();
+  });
+
+  // 省電模式, Task 15 step b (§5.9 CPU): between idle actions the pet rests, every loop of it paused (svg.rest), so
+  // nothing is drawn; an idle action, a reaction or a cue plays as usual. Off, the pet moves all the time.
+  test('layouts: 省電模式 pauses the pet between idle actions', function () {
+    var t0 = at(12, 10, 0);
+    function svg(e) { return $(e, '[data-pet] svg'); }
+    function running(e) {
+      return svg(e).getAnimations({ subtree: true }).filter(function (a) { return a.playState === 'running'; }).length;
+    }
+    var e = mk(t0, { first: 'U7', seed: 7, settings: { display: { opaque: false, powerSaver: true } } });
+    eq(petState(e), 'typing');
+    ok(svg(e).classList.contains('rest'), 'typing rests');
+    ok(svg(e).getAnimations({ subtree: true }).length > 0, 'its loops are there');
+    eq(running(e), 0, 'all paused');
+    eq(getComputedStyle($(e, '[data-pet] .blink')).animationName, 'none', 'never frozen mid-blink');
+    var t = t0, s = 'typing';
+    while (s === 'typing' && t < t0 + 200000) { t += 1000; e.tick(t); s = petState(e); }
+    ok(s !== 'typing', 'an idle action came within 200 s: ' + s);
+    ok(!svg(e).classList.contains('rest') && running(e) > 0, s + ' plays');
+    while (s !== 'typing' && t < t0 + 220000) { t += 1000; e.tick(t); s = petState(e); }
+    ok(s === 'typing' && svg(e).classList.contains('rest') && running(e) === 0, 'and it rests again after: ' + s);
+    QJZ.layouts._brain().poke(t);
+    e.tick(t + 250);
+    eq(petState(e), 'petted');
+    ok(!svg(e).classList.contains('rest') && running(e) > 0, 'a reaction plays');
+    e.tick(t + 3000);
+    QJZ.app.saveSettings({ display: { powerSaver: false } });
+    ok(!svg(e).classList.contains('rest') && running(e) > 0, 'off: typing moves');
+    done();
+    var f = mk(at(12, 17, 30, 0), { first: 'U7', settings: { display: { opaque: false, powerSaver: true } } });
+    f.tick(at(12, 18, 0, 1));
+    eq(petState(f), 'celebrate');
+    ok(!svg(f).classList.contains('rest') && running(f) > 0, '可以下班 still celebrates');
+    done();
+  });
 })();

@@ -19,8 +19,9 @@ window.QJZ = window.QJZ || {};
 // Hidden or locked (visibility false) the tick stops; refresh() catches up from the wall clock instead (the 04:00
 // rollover, today's numbers) and announces it with the refresh event (snap), without celebrating: every REFRESH_MS
 // while hidden, and whenever the host sends menuOpening (its menu is about to show the work status and the snacks).
-// Events (on): tick (every 100 ms, snap), second (snap), refresh (snap), change (state), started (today) on a fresh
-// 開始上班 (startWork; not the auto start, 繼續上班 or 調整起算時間), milestone ({count, gained, quiet}) when
+// Events (on): tick (every tickMs(): 100 ms, 250 ms with 省電模式; snap), second (snap), refresh (snap), change
+// (state), started (today) on a fresh 開始上班 (startWork; not the auto start, 繼續上班 or 調整起算時間), milestone
+// ({count, gained, quiet}) when
 // the clock carries today's earnings past another settings.milestone step (gained: how many steps at once). Record /
 // settings changes (adjustStart, a new step, init, a new day) only move the baseline, so they never celebrate by
 // themselves. quiet: the step was crossed while nobody was watching — the first tick after visibility comes back, or
@@ -37,8 +38,10 @@ window.QJZ = window.QJZ || {};
 // Host settings the page changes (saved at once, then sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
 // Session: lock / unlock are tracked; a resume while locked is not an arrival (the unlock that follows is).
 // 相容模式: html.opaque (base.css paints the whole page) while settings.display.opaque or init.forceOpaque.
+// 省電模式 (§5.9): while settings.display.powerSaver the tick runs every SAVER_TICK_MS (the money moves 4 times a
+// second, not 10; a change restarts the running interval at once), and html.saver tells the CSS and the layouts.
 QJZ.app = (function () {
-  var SAVE_DELAY = 1000, TICK_MS = 100, QUIET_GAP_MS = 5000, REFRESH_MS = 60000;
+  var SAVE_DELAY = 1000, TICK_MS = 100, SAVER_TICK_MS = 250, QUIET_GAP_MS = 5000, REFRESH_MS = 60000;
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
@@ -46,7 +49,7 @@ QJZ.app = (function () {
     hotkeyFailed: null, storageError: null, storageErrors: []
   };
   var listeners = { tick: [], second: [], refresh: [], change: [], started: [], milestone: [], notice: [] };
-  var tickTimer = null, saveTimer = null, refreshTimer = null, lastSec = null, lastMilestone = null;
+  var tickTimer = null, tickEvery = 0, saveTimer = null, refreshTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
   var started = false, unloadBound = false, tickEnabled = true, resumed = false, lastTickMs = null, locked = false;
@@ -273,9 +276,12 @@ QJZ.app = (function () {
     var sec = Math.floor(ms / 1000);
     if (sec !== lastSec) { lastSec = sec; emit('second', state.snap); }
   }
+  // The tick's interval: 100 ms, or 250 ms with 省電模式.
+  function tickMs() { return state.settings && state.settings.display.powerSaver ? SAVER_TICK_MS : TICK_MS; }
   function startTick() {
     if (tickTimer || !tickEnabled) return;
-    tickTimer = setInterval(tick, TICK_MS);   // only a trigger: every value is recomputed from the wall clock
+    tickEvery = tickMs();
+    tickTimer = setInterval(tick, tickEvery);   // only a trigger: every value is recomputed from the wall clock
   }
   function stopTick() {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
@@ -345,7 +351,10 @@ QJZ.app = (function () {
     QJZ.sound.setEnabled(state.settings.sound.enabled);
   }
   function applyDisplay() {
-    document.documentElement.classList.toggle('opaque', !!(state.settings.display.opaque || state.forceOpaque));
+    var root = document.documentElement;
+    root.classList.toggle('opaque', !!(state.settings.display.opaque || state.forceOpaque));
+    root.classList.toggle('saver', !!state.settings.display.powerSaver);
+    if (tickTimer && tickEvery !== tickMs()) { stopTick(); startTick(); }
   }
 
   // ---- actions ----
@@ -497,10 +506,11 @@ QJZ.app = (function () {
     state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;
     document.documentElement.classList.remove('paused');
     document.documentElement.classList.remove('opaque');
+    document.documentElement.classList.remove('saver');
   }
 
   return {
-    state: state, start: start, tickNow: tick, refresh: refresh, _reset: reset, on: on, nowMs: nowMs, flush: flush,
+    state: state, start: start, tickNow: tick, tickMs: tickMs, refresh: refresh, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, resumeWork: resumeWork, setOffDay: setOffDay,
     feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, setHealth: setHealth, setPomodoro: setPomodoro, answerEarlyLeave: answerEarlyLeave, quit: quit,
     setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey

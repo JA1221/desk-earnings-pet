@@ -242,3 +242,9 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 
 /* flat room mode (S4): no outlines except elements marked .keep */
 .pet-svg .flat [stroke]:not(.keep){stroke:none!important}
+
+/* 省電模式 (Task 15, spec §5.9 CPU): between idle actions the pet rests. layouts.js sets .rest on its base state (not
+   the 8 s celebration): every loop is paused where it starts, so nothing is drawn again until the next idle action,
+   reaction or cue. The blink stops open rather than pausing somewhere in a blink. */
+.pet-svg.rest *{animation-play-state:paused!important}
+.pet-svg.rest .blink{animation:none}

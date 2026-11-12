@@ -43,6 +43,8 @@
 .s-done{--st-bg:#FFC857;--st-dot:#FF8A3D}
 .s-ended,.s-before,.s-off{--st-bg:#F1E6D6;--st-dot:#9A6E52}
 .lay:not(.s-working) :is(.status i,.mtop .dot){animation:none}
+/* 省電模式 (html.saver, base.css): the layouts' own decorative loops stop too (U5-B's dot, U3's coin) */
+html.saver :is(.mtop .dot,.u3 .coin){animation:none}
 
 /* ---------- U1 經典直式 ---------- */
 .u1{width:340px}

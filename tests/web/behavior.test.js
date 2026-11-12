@@ -111,6 +111,49 @@
     }
   });
 
+  // 省電模式 (§5.9): fewer idle actions. Turning it on or off schedules the next one from then, at the new spacing.
+  test('behavior: saver idle actions come every 60–180 s', function () {
+    function gaps(r, base) {
+      var out = [];
+      for (var i = 1; i < r.length - 1; i++) if (r[i].state === base) out.push(r[i].to - r[i].from + 250);
+      return out;
+    }
+    var b = new B.Brain(B.rng(7));
+    eq(b.saver, false, 'off by default');
+    b.setSaver(true);
+    eq(b.saver, true);
+    var r = runs(b, working(), 3600), acts = r.filter(function (x) { return x.state !== 'typing'; });
+    ok(acts.length >= 18 && acts.length <= 60, acts.length + ' idle actions in an hour');
+    acts.forEach(function (a) {
+      ok(WORK_IDLES.indexOf(a.state) >= 0, a.state);
+      var len = a.to - a.from + 250;
+      ok(len >= 3000 && len <= 5250, a.state + ' lasted ' + len + ' (as long as without it)');
+    });
+    var g = gaps(r, 'typing');
+    ok(g.length >= 18, g.length + ' gaps');
+    g.forEach(function (x) { ok(x >= 60000 && x <= 180250, 'typing for ' + x + ' between idle actions'); });
+    ok(g.some(function (x) { return x > 120000; }), 'gaps reach past 2 minutes: ' + g);
+    // turned on while the next action was due in 20–60 s: the wait starts again at 60–180 s
+    var c = new B.Brain(B.rng(3)), t = T0;
+    c.update(t, working());
+    var due = c.nextIdle;
+    ok(due - t >= 20000 && due - t <= 60000, 'scheduled the normal way: ' + (due - t));
+    c.setSaver(true);
+    r = runs(c, working(), 400, 250, t + 250);
+    ok(r[0].state === 'typing' && r[0].to - t >= 60000 && r[0].to - t <= 180250, 'the first action comes ' + (r[0].to - t) + ' ms after the switch');
+    // and back off: 20–60 s again
+    c.setSaver(false);
+    var t2 = r[r.length - 1].to + 250;
+    var r2 = runs(c, working(), 900, 250, t2);
+    gaps(r2, 'typing').forEach(function (x) { ok(x >= 20000 && x <= 60250, 'off again: typing for ' + x); });
+    // an idle action that is on keeps its time when the setting changes
+    var d = new B.Brain(B.rng(7)), u = T0, s = 'typing';
+    for (; s === 'typing' && u < T0 + 120000; u += 250) s = d.update(u, working());
+    var until = d.idle.until;
+    d.setSaver(true);
+    eq(d.idle.until, until, 'the running action is not cut short');
+  });
+
   test('behavior: brain — no idle actions while sprinting, at lunch or after work', function () {
     eq(runs(new B.Brain(B.rng(7)), working(20), 300).map(function (x) { return x.state; }), ['sprint']);
     eq(runs(new B.Brain(B.rng(7)), { status: 'lunch', minutesToEnd: 300, lunchMin: 20 }, 300).map(function (x) { return x.state; }), ['lunchSleep']);

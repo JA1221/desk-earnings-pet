@@ -391,6 +391,62 @@
     } finally { host.remove(); }
   });
 
+  // 省電模式 (§5.9, Task 15): compose(..., {saver: true}) gives the crayon skins a still grain instead of the crayon
+  // filter (two feTurbulence passes worked out per pixel whenever their part is drawn): every plain colour of the pet
+  // is painted with a pattern of that colour flecked with paper. No filter and no mask is left on the pet (a mask
+  // measured more costly than the filter); the room keeps its own wobble, on its still parts.
+  test('pets: the saver crayon texture has no animated filter', function () {
+    var host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-2000px;top:0;width:300px;height:200px';
+    document.body.appendChild(host);
+    function plain(svg) {
+      return Array.prototype.filter.call(svg.querySelectorAll('.pa *,.tops *'), function (el) {
+        return /^#/.test(el.getAttribute('fill') || '') || /^#/.test(el.getAttribute('stroke') || '');
+      }).filter(function (el) { return !el.closest('pattern'); }).length;
+    }
+    try {
+      ['hamster:s5', 'cat:s5'].forEach(function (id) {
+        VIEWS.forEach(function (view) {
+          STATES.concat(QJZ.pets.NEW_POSES).forEach(function (st) {
+            var text = QJZ.pets.compose(id, view, { state: st, saver: true }), what = id + ' ' + view + ' ' + st;
+            eq(text.indexOf('-crayon)'), -1, what + ': no crayon filter reference');
+            eq(unresolved(text), [], what + ': references resolve');
+            var ids = svgIds(text);
+            eq(ids.filter(function (x, i) { return ids.indexOf(x) !== i; }), [], what + ': each pattern defined once');
+            host.innerHTML = text;
+            var svg = host.firstElementChild, bad = [];
+            eq(svg.querySelectorAll('.pa [filter],.pa [mask],.tops [filter],.tops [mask]').length, 0, what + ': no filter or mask on the pet');
+            ok(svg.querySelectorAll('.pa [fill*="-gr"]').length > 0, what + ': the grain is on');
+            eq(plain(svg), 0, what + ': every colour of the pet has the grain');
+            Array.prototype.forEach.call(svg.querySelectorAll('*'), function (el) {
+              if (getComputedStyle(el).animationName === 'none') return;
+              var m = el.closest('[mask],[filter]');
+              if (m && svg.contains(m)) bad.push((el.getAttribute('class') || el.tagName) + ' under ' + (m.getAttribute('mask') || m.getAttribute('filter')));
+            });
+            eq(bad, [], what + ': nothing that moves is under a filter');
+          });
+        });
+      });
+      host.innerHTML = QJZ.pets.compose('hamster:s5', 'petonly', { state: 'typing', saver: true });
+      ['.pawL ellipse', '.head path[fill="none"]'].forEach(function (sel) {
+        var n = host.querySelector(sel), paint = n ? (n.getAttribute('fill') || '') + ' ' + (n.getAttribute('stroke') || '') : '';
+        ok(/url\(#pet\d+-gr[0-9a-f]+\)/.test(paint), sel + ' has the grain: ' + paint);
+      });
+      var pats = host.querySelectorAll('pattern[id*="-gr"]');
+      ok(pats.length >= 4, pats.length + ' colours');
+      eq(host.querySelectorAll('pattern[id*="-gr"] :is(animate,animateTransform,set,[class],[style])').length, 0,
+        'plain patterns: nothing in them moves or could be animated by pets.css');
+      // without the option, or on another skin, nothing changes
+      ok(QJZ.pets.compose('cat:s5', 'petonly', { state: 'typing' }).indexOf('-crayon)') > 0, 'the crayon filter without it');
+      eq(/-gr[0-9a-f]/.test(QJZ.pets.compose('cat:s5', 'petonly', { state: 'typing' })), false);
+      ['hamster:p0', 'cat:p4', 'cat:h2', 'hamster:s4'].forEach(function (id) {
+        var a = QJZ.pets.compose(id, 'petonly', { state: 'typing' }).replace(/pet\d+/g, 'U');
+        var b = QJZ.pets.compose(id, 'petonly', { state: 'typing', saver: true }).replace(/pet\d+/g, 'U');
+        eq(b, a, id + ': the same drawing');
+      });
+    } finally { host.remove(); }
+  });
+
   test('pets: filterStatic wraps still runs and descends into moving groups', function () {
     var f = QJZ.pets.common.filterStatic;
     eq(f('', 'url(#x)'), '');

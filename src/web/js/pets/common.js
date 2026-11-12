@@ -57,6 +57,26 @@ QJZ.pets.common = (function () {
 
   var REGION = 'filterUnits="userSpaceOnUse" x="-100" y="-100" width="500" height="430"';
 
+  // 省電模式's crayon grain (compose opts.saver, spec §5.9): instead of the crayon filter, each colour is painted with a
+  // still pattern of that colour flecked with paper, the way crayon leaves the paper showing. A pattern is drawn once
+  // and repeated, where the filter works out its noise per pixel, and it needs no extra layer (a mask did: it cost more
+  // than the filter). grainPattern(uid, key, colour) -> the <pattern> id="<uid>-gr<key>": a 16 x 14 tile, rotated so
+  // its rows do not line up with the drawing, with 30 specks [x, y, r, strength] (about 10 % of its area).
+  var SPECKS = [[3, 9.5, 0.53, 0.92], [12.6, 7.2, 0.5, 0.89], [0.5, 5.3, 0.52, 0.86], [12.4, 3.5, 0.45, 0.86],
+    [15.5, 10.1, 0.58, 0.94], [8, 2, 0.59, 0.91], [2.4, 12.6, 0.49, 0.93], [5.6, 6.8, 0.44, 0.86],
+    [15, 12.1, 0.55, 0.96], [9.2, 10, 0.42, 0.92], [7.3, 5.5, 0.6, 0.91], [0.9, 1.7, 0.54, 1], [3.2, 2.7, 0.47, 0.99],
+    [5.1, 1.8, 0.41, 0.97], [6.6, 13.4, 0.59, 0.94], [6.1, 3.7, 0.58, 0.87], [13.1, 1.2, 0.45, 0.89],
+    [13.1, 10.8, 0.58, 0.94], [10.8, 12.9, 0.4, 0.94], [9.3, 3.8, 0.48, 0.99], [6.2, 9.7, 0.51, 0.86],
+    [8, 7.6, 0.59, 0.86], [15.2, 5.1, 0.46, 1], [9.8, 0.8, 0.53, 0.92], [12.9, 13, 0.6, 0.85], [4.3, 11.5, 0.43, 0.95],
+    [1, 11, 0.59, 0.96], [1.1, 8.4, 0.54, 0.89], [3.3, 5.7, 0.51, 0.88], [9.8, 6.6, 0.56, 0.9]];
+  var FLECKS = SPECKS.map(function (s) {
+    return `<circle cx="${s[0]}" cy="${s[1]}" r="${s[2]}" fill="#FFF8EC" fill-opacity="${Math.round(s[3] * 60) / 100}"/>`;
+  }).join('');
+  function grainPattern(uid, key, colour) {
+    return `<pattern id="${uid}-gr${key}" width="16" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(23)">` +
+      `<rect width="16" height="14" fill="${colour}"/>${FLECKS}</pattern>`;
+  }
+
   // ---- shape helpers (cat H2 / S4) ----
   function r2(v) { return Math.round(v * 100) / 100; }
   // a closed smooth outline through the points (Catmull-Rom drawn as cubic Béziers)
@@ -146,6 +166,6 @@ QJZ.pets.common = (function () {
     return b > a ? s.slice(a, b) : '';
   }
 
-  return { L0: L0, ST: ST, star4: star4, blushLines: blushLines, scribble: scribble, badge: badge, seed: seed, keys: keys, defs: defs,
+  return { L0: L0, ST: ST, star4: star4, blushLines: blushLines, scribble: scribble, badge: badge, seed: seed, keys: keys, defs: defs, grainPattern: grainPattern,
     ANIMATED: ANIMATED, filterStatic: filterStatic, smooth: smooth, blob: blob, softTri: softTri, innerTri: innerTri, mirrorX: mirrorX };
 })();

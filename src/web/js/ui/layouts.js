@@ -41,8 +41,11 @@ window.QJZ = window.QJZ || {};
 // #12): M3 when mini, else current (a first run: U1). Dev pages may override it with opts.first. After a reload of the
 // page (the host reloads it after a renderer crash) the layout shown last (PANEL: the layout it came from) is kept in
 // sessionStorage, which only lives as long as this WebView, and comes back. 1.0's settings.layout.start is not read.
-// Rendering: the odometer follows the 100 ms tick; every other text changes at most once a second (or on a
-// record / settings change), computed from the wall clock, and is only written when it changed.
+// Rendering: the odometer follows the app's tick (100 ms; 250 ms with 省電模式); every other text changes at most once a
+// second (or on a record / settings change), computed from the wall clock, and is only written when it changed.
+// 省電模式 (§5.9, html.saver from QJZ.app): the CSS stops every decorative loop outside the pet; the pet is drawn with
+// compose's saver option, rests between idle actions (.rest: its loops paused, the room's in U3 too) and its Brain
+// idles less often (setSaver), all following the setting at once.
 // The markup is QJZ.templates. 1.1 (spec §4.3, §4.4, §4.9 #8): the cups, the tomatoes, the 番茄鐘 buttons (data-act
 // drink / pomo) and the countdown rings (QJZ.ring) read QJZ.care.state (model's cs); a care change re-renders at once,
 // and the countdowns follow the app's second.
@@ -392,22 +395,31 @@ QJZ.layouts = (function () {
     var id = settings.pet.kind + ':' + settings.pet.skin;
     return QJZ.pets && QJZ.pets.get(id) ? id : 'hamster:p0';
   }
+  // 省電模式 (§5.9): the pet is drawn with compose's saver option (a crayon skin's still grain) and its Brain idles less.
+  function saverOn() { return !!app().state.settings.display.powerSaver; }
+  // ... and between idle actions it rests (Task 15's CPU step b): its base state, but for the 8 s celebration, is drawn
+  // with every loop paused (pets.css .rest), so nothing is drawn again until the next idle action, reaction or cue.
+  // (Step a, the loops at half speed, measured no gain: a slower loop still draws every frame. It is not kept.)
+  function resting(state) { return !!brain && state === brain.base && state !== 'celebrate'; }
   // holdCup stays the state across care's re-wave: the drawing is keyed by the last knock too, so a knock redraws it and
-  // its wave plays again (brain.waveAt).
+  // its wave plays again (brain.waveAt). 省電模式 and resting are in the key: a change redraws it at once.
   function updatePet(state) {
     var h = view ? view.pet : null;
     if (!h || !state || !QJZ.pets || !QJZ.pets.compose) return;
-    var id = petId(app().state.settings), key = id + '|' + state + (state === 'holdCup' && brain ? '|' + brain.waveAt : '');
+    var id = petId(app().state.settings), saver = saverOn(), rest = saver && resting(state);
+    var key = id + '|' + state + (state === 'holdCup' && brain ? '|' + brain.waveAt : '') + (saver ? '|saver' : '') +
+      (rest ? '|rest' : '');
     if (view.petKey === key) return;
     view.petKey = key;
     view.petState = state;
-    var opts = { state: state }, svgText = '';
+    var opts = { state: state, saver: saver }, svgText = '';
     if (h.view === 'hud') opts.viewBox = HUD_VB;
     try { svgText = QJZ.pets.compose(id, h.view === 'hud' ? 'scene' : h.view, opts); }
     catch (e) { if (window.console) console.error('[layouts] pet ' + key + ' failed', e); }
     h.el.innerHTML = svgText;
     var svg = h.el.firstElementChild;
     if (svg) svg.style.setProperty('--bd', (-Math.random() * 4.6).toFixed(2) + 's');   // blinks out of step
+    if (svg && rest) svg.classList.add('rest');   // before the first style pass: its loops never start
     if (view.bubble && view.bubble.classList.contains('show')) placeBubble();   // the head moved (dangle, lie, sit up)
     if (view.live && h.el.getAttribute('data-hit') === 'pet') sync(false);   // the hit area follows the pose at once
   }
@@ -550,6 +562,7 @@ QJZ.layouts = (function () {
   function petTick(ms) {
     if (!brain || !ready() || !app().state.snap) return null;
     if (dragging && brain.held && ms - dragAt > DRAG_SAFETY_MS) endDrag();
+    brain.setSaver(saverOn());
     var s = brain.update(ms, petInfo(app().state, ms));
     if (brain.change) onPetChange(brain.change);
     updatePet(s);
@@ -1226,8 +1239,8 @@ QJZ.layouts = (function () {
     render();
     sync(false);
   }
-  // Every app tick (100 ms while visible): the odometer, the pet's state and the chatter clock. Pure arithmetic
-  // unless something changed.
+  // Every app tick (100 ms while visible, 250 ms with 省電模式): the odometer, the pet's state and the chatter clock.
+  // Pure arithmetic unless something changed.
   function onTick(snap) {
     if (!view || !snap) return;
     renderMoney(snap);

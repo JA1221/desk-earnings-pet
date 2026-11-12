@@ -541,6 +541,40 @@
     ok(!root.classList.contains('opaque'));
   });
 
+  // ---- 省電模式 (§5.9): the money ticks 4 times a second instead of 10 ----
+  test('app: the tick runs every 100 ms, every 250 ms with 省電模式', function () {
+    var calls = [], si = window.setInterval, ci = window.clearInterval, root = document.documentElement;
+    window.setInterval = function (fn, ms) { var h = { fn: fn, ms: ms, live: true }; calls.push(h); return h; };
+    window.clearInterval = function (h) { if (h && h.live !== undefined) h.live = false; };
+    function live() { return calls.filter(function (h) { return h.live && h.ms !== 60000; }).map(function (h) { return h.ms; }); }
+    try {
+      QJZ.app._reset();
+      var handlers = {}, clock = { ms: at(12, 10, 0) };
+      var bridge = { send: function () {}, on: function (t, f) { handlers[t] = f; }, emit: function (m) { handlers[m.type](m); } };
+      QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; } });
+      eq(QJZ.app.tickMs(), 100, 'before init: the default');
+      bridge.emit({ type: 'init', settings: SETTINGS, history: null, probeMs: null, nowMs: clock.ms, version: 't' });
+      eq([QJZ.app.tickMs(), live(), root.classList.contains('saver')], [100, [100], false], 'off: 10 times a second');
+      QJZ.app.saveSettings({ display: { powerSaver: true } });
+      eq([QJZ.app.tickMs(), live(), root.classList.contains('saver')], [250, [250], true], 'on: the interval restarts at 250 ms, html.saver');
+      var n = calls.length;
+      QJZ.app.saveSettings({ milestone: 50 });
+      eq([live(), calls.length], [[250], n], 'another settings change leaves the running interval alone');
+      QJZ.app.saveSettings({ display: { powerSaver: false } });
+      eq([QJZ.app.tickMs(), live(), root.classList.contains('saver')], [100, [100], false], 'off again');
+      bridge.emit({ type: 'visibility', visible: false });
+      QJZ.app.saveSettings({ display: { powerSaver: true } });
+      eq(live(), [], 'hidden: a change starts no tick');
+      bridge.emit({ type: 'visibility', visible: true });
+      eq(live(), [250], 'shown again at the saver rate');
+      bridge.emit({ type: 'init', settings: SETTINGS, history: null, probeMs: null, nowMs: clock.ms, version: 't' });
+      eq([live(), root.classList.contains('saver')], [[100], false], 'a repeated init with it off');
+      bridge.emit({ type: 'init', settings: JSON.stringify({ display: { powerSaver: true } }), history: null, probeMs: null, nowMs: clock.ms, version: 't' });
+      eq([QJZ.app.tickMs(), live(), root.classList.contains('saver')], [250, [250], true], 'from settings.json');
+    } finally { QJZ.app._reset(); window.setInterval = si; window.clearInterval = ci; }
+    eq([calls.filter(function (h) { return h.live; }).length, root.classList.contains('saver')], [0, false], 'reset stops it and drops html.saver');
+  });
+
   test('app: tickNow recomputes from the clock, no accumulation', function () {
     var e = mk(at(12, 10, 0));
     init(e, {});

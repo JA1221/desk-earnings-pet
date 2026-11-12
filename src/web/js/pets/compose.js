@@ -12,6 +12,7 @@ QJZ.pets = QJZ.pets || {};
 //   preview    — true: a 1.1 pose shows before the skin declares it (the pose review page, Ruling R3)
 //   expression — eyes, overrides the state's (and drops its second-frame eyes); mouth likewise
 //   props      — array of prop names, replaces the state's props ([] for none); a held prop brings holding paws
+//   saver      — true: 省電模式, a crayon skin draws with the still grain instead of the crayon filter (below)
 // (the props' backpack (waitBag) stands on the desk beside the pet, which waves and sits up rig.pack.lift units off
 //  the keyboard in the scene and petonly views)
 // The root <svg> carries .pet-svg, .kind-<kind> and .st-<state> (and .bag-<style> with the bag), plus per-skin pivots
@@ -62,7 +63,26 @@ QJZ.pets.compose = (function () {
   // stand still (C.filterStatic: a filter above a moving part would be redrawn every frame)
   function wrap(mode, uid, layer) {
     if (!layer) return '';
+    if (mode === 'grain') return grain(uid, layer);
     return mode === 'crayon' ? C.filterStatic(layer, 'url(#' + uid + '-crayon)') : layer;
+  }
+
+  // ---- 省電模式 (opts.saver, spec §5.9, Task 15) ----
+  // A crayon skin draws with the still grain instead of the crayon filter (wrap mode 'grain'): every plain colour of a
+  // layer, fill or stroke, is painted with its C.grainPattern, defined in the layer the first time the SVG (uid) uses
+  // it. Moving parts included: a pattern moves with its part and costs nothing per frame. Its room keeps the wobble;
+  // the other skins are drawn as they are.
+  function saverDef(def, opts) { return opts.saver && def.wrap === 'crayon' ? merge(def, { wrap: 'grain' }) : def; }
+  var grained = { uid: null, keys: {} };   // the patterns the SVG being composed has defined
+  function grain(uid, layer) {
+    if (grained.uid !== uid) grained = { uid: uid, keys: {} };
+    var defs = '';
+    var out = layer.replace(/(\s(?:fill|stroke))="(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3})"/g, function (m, attr, colour) {
+      var key = colour.slice(1).toLowerCase();
+      if (!grained.keys[key]) { grained.keys[key] = true; defs += C.grainPattern(uid, key, colour); }
+      return attr + '="url(#' + uid + '-gr' + key + ')"';
+    });
+    return (defs ? '<defs>' + defs + '</defs>' : '') + out;
   }
 
   function fill(layer, slots) {
@@ -85,6 +105,7 @@ QJZ.pets.compose = (function () {
     if (!def) throw new Error('unknown pet: ' + id);
     if (view !== 'scene' && view !== 'petonly' && view !== 'avatar') throw new Error('unknown view: ' + view);
     opts = opts || {};
+    def = saverDef(def, opts);
     var shown = P.poseFor(id, opts.state, opts.preview);
     var name = P.states.get(shown) ? shown : 'typing', st = P.states.get(name), alt = st.alt || {};
     var uid = 'pet' + (seq++);

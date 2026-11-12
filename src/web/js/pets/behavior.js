@@ -27,10 +27,13 @@ window.QJZ = window.QJZ || {};
 //       stretch: 'stretch' for STRETCH_MS, then the base state.
 //       A knock with no cue or the stretch's (a pomodoro bubble) waves for WAVE_MS too (§5.1). While a cue is on there
 //       are no idle actions; overlays still win.
+//   省電模式 (§5.9): setSaver(on) spaces the idle actions SAVER_IDLE_EVERY apart (brain.saver); a change schedules the
+//       next one from the next update, an action that is on plays to its end.
 QJZ.behavior = (function () {
   var IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch'];
   var CELEBRATE_SEC = 8, SPRINT_MIN = 30, LUNCH_EAT_MIN = 10;
   var IDLE_EVERY = [20000, 60000], IDLE_FOR = [3000, 5000], DOZE_FOR = [8000, 15000], DOZE_CHANCE = 0.4;
+  var SAVER_IDLE_EVERY = [60000, 180000];
   var GAP_MS = 5000, PET_MS = 2000;
   var POKE_WINDOW = 2000, POKE_COUNT = 5, ANGRY_MS = 4000;
   var WAVE_MS = 4000, STRETCH_MS = 4000, SIP_MS = 3000;
@@ -101,6 +104,7 @@ QJZ.behavior = (function () {
     this.waveAt = -Infinity;   // when the last wave began (a wave or holdCup cue, or a knock)
     this.focusEnd = -Infinity; // when the last focus ended, or ends (after its stretch)
     this.waited = false;       // the work status changed during the last focus: its clock starts when the focus ends
+    this.saver = false;        // 省電模式: fewer idle actions
   }
   // The pose the cue shows at now, or null for none (the base state and its idle actions show).
   function cuePose(br, now) {
@@ -110,7 +114,13 @@ QJZ.behavior = (function () {
     if (now >= br.waveAt && now < br.waveAt + WAVE_MS) return 'wave';
     return c === 'wave' ? 'idle' : null;
   }
-  Brain.prototype.schedule = function (now) { this.nextIdle = now + between(this.rng, IDLE_EVERY); };
+  Brain.prototype.schedule = function (now) { this.nextIdle = now + between(this.rng, this.saver ? SAVER_IDLE_EVERY : IDLE_EVERY); };
+  Brain.prototype.setSaver = function (on) {
+    on = !!on;
+    if (on === this.saver) return;
+    this.saver = on;
+    if (!this.idle) this.nextIdle = null;
+  };
   Brain.prototype.update = function (now, info) {
     var back = this.last !== null && now < this.last;
     var gap = this.last === null || now - this.last > GAP_MS || back;

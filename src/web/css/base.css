@@ -12,6 +12,10 @@ html,body{font-family:var(--font);color:var(--text)}
 
 /* animations pause when the window is hidden / locked (host sends visibility:false) */
 html.paused *,html.paused *::before,html.paused *::after{animation-play-state:paused!important}
+/* 省電模式 (settings.display.powerSaver; QJZ.app sets html.saver): no decorative loop outside the pet. These are the
+   atoms' (the status pulse, the progress stripes); layouts.css stops the layouts' own. */
+html.saver .status i{animation:none}
+html.saver .fill::before{animation:none;will-change:auto}
 /* 相容模式 (settings.display.opaque, or the host's init.forceOpaque when it cannot make the window transparent):
    the whole page is painted, no transparent pixel is left (the hit rects stay as they are) */
 html.opaque,html.opaque body{background:#FFF8EC}
