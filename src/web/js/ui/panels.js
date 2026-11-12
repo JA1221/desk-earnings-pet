@@ -3,11 +3,13 @@ window.QJZ = window.QJZ || {};
 //   onboarding  step 1 salary (月薪/時薪, the amount checked by QJZ.settings.validateSalary, ÷22/÷30), step 2 the
 //               pet (all 10 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
 //               settings.salary.amount is 0 or settings.onboarded is false.
-//   settings    the nine sections of §5.3 as tabs, plus 關於 (version, 使用說明, the third-party licence texts). Every
-//               change is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /
-//               setHotkey). 'adjust' (menu 調整起算時間) opens it at 起算,
-//               which also has 今天休假 (today counts 0) and, after 下班, 繼續上班 (app.resumeWork). 版型 has
-//               相容模式 (display.opaque; shown on and locked while the host forces it, init.forceOpaque).
+//   settings    the sections of §5.3 plus 關於 (version; 使用說明 and the third-party licence texts behind a
+//               disclosure button each, loaded the first time they open), in four tabs (simplification #9):
+//               薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效), 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於).
+//               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;
+//               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
+//               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
+//               shown on and locked while the host forces it, init.forceOpaque).
 //   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
 //               totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
@@ -18,13 +20,14 @@ window.QJZ = window.QJZ || {};
 // User text (pet names, item names) only ever goes into input values or textContent.
 QJZ.panels = (function () {
   var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定' };
-  var TABS = [['salary', '薪資'], ['hours', '工時'], ['start', '起算'], ['pet', '寵物'], ['layout', '版型'],
-    ['boost', '動力加成'], ['sound', '音效'], ['autostart', '開機'], ['privacy', '隱私'], ['about', '關於']];
+  // [id, label, its sections (SECTIONS keys, in order)]
+  var TABS = [['time', '薪水和時間', ['today', 'salary', 'hours', 'start']], ['pet', '寵物', ['pet', 'sound']],
+    ['display', '畫面', ['layout', 'boost']], ['other', '其他', ['autostart', 'privacy', 'about']]];
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
   // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
   // covers]. 關於 → 使用說明: GUIDE, the plain-text copy of docs/使用說明.md (build.ps1 ships it in web.zip too).
-  // The texts load the first time 關於 shows and only ever go into textContent.
+  // The texts load the first time their disclosure opens and only ever go into textContent.
   var LICENSES = [
     ['licenses/WebView2-SDK.txt', 'Microsoft Edge WebView2 SDK', '顯示畫面用的元件（Microsoft.Web.WebView2 的 DLL 與 WebView2Loader.dll）。'],
     ['fonts/OFL.txt', 'Fredoka 字型（SIL Open Font License 1.1）', '金額數字使用的字型。']
@@ -323,18 +326,23 @@ QJZ.panels = (function () {
           err('lunch') + hint('午休不算錢，狀態會顯示「午休中」。')) +
         '</div>' + hint('', 'endHint');
     },
-    start: function () {
-      var days = '';
-      [1, 2, 3, 4, 5, 6, 0].forEach(function (d) { days += '<button type="button" data-wd="' + d + '">' + WD.charAt(d) + '</button>'; });
+    // what changes today, at the top of 薪水和時間
+    today: function () {
       return '<div class="card">' +
-        line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint')) +
-        line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始，但可以手動開始上班。')) +
         line(row('今天休假', tgl('offDay', '今天休假')) + hint('打開後，今天不算錢（已經開始算的也歸零），狀態顯示「休假日」；關掉就恢復。')) +
         line(row('<span data-o="endedAt"></span>', '<button type="button" class="btn sm" data-pa="resume">繼續上班</button>') +
           hint('按錯「下班」了？按「繼續上班」就接著算，中間的時間也照算。'), ' data-o="resumeLine"') +
         line('<label class="lbl">調整今天的起算時間</label><div class="adj">' +
           textIn('startAt', 'tm', ' inputmode="numeric" maxlength="5" aria-label="今天的起算時間"') +
           '<button type="button" class="btn sm" data-pa="applyStart">套用</button></div>' + err('startAt') + hint('', 'todayStart')) +
+        '</div>';
+    },
+    start: function () {
+      var days = '';
+      [1, 2, 3, 4, 5, 6, 0].forEach(function (d) { days += '<button type="button" data-wd="' + d + '">' + WD.charAt(d) + '</button>'; });
+      return '<div class="card">' +
+        line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint')) +
+        line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始，但可以手動開始上班。')) +
         '</div>';
     },
     pet: function () {
@@ -393,11 +401,16 @@ QJZ.panels = (function () {
         line(row('錢進中', '<b data-o="version"></b>') + hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
           '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
-        '</div><div class="card">' + line('<span class="lbl">使用說明</span>' +
-          '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') + '</div>' +
-        '<div class="card">' + line('<span class="lbl">第三方授權</span>') + lic + '</div>';
+        '</div>' + disclosure('guide', '使用說明', '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') +
+        disclosure('lic', '第三方授權', lic);
     }
   };
+  // A card with a title button that opens / closes body (closed at first): 使用說明, 第三方授權.
+  function disclosure(name, title, body) {
+    return '<div class="card disc"><button type="button" class="disc-h" data-disc="' + name + '" aria-expanded="false">' +
+      '<span class="lbl">' + title + '</span><span class="chev"><span data-o="disc.' + name + '">點開</span> <i>›</i></span></button>' +
+      '<div class="disc-b" data-discbody="' + name + '" hidden>' + body + '</div></div>';
+  }
 
   var BUILD = {
     onboarding: function (c) {
@@ -431,8 +444,9 @@ QJZ.panels = (function () {
     settings: function (c) {
       var tabs = '', secs = '';
       TABS.forEach(function (t) {
-        tabs += '<button type="button" data-tab="' + t[0] + '">' + t[1] + '</button>';
-        secs += '<section data-sec="' + t[0] + '" hidden>' + SECTIONS[t[0]]() + '</section>';
+        tabs += '<button type="button" role="tab" data-tab="' + t[0] + '">' + t[1] + '</button>';
+        secs += '<section data-pane="' + t[0] + '" hidden>' +
+          t[2].map(function (k) { return '<div class="sec" data-sec="' + k + '">' + SECTIONS[k]() + '</div>'; }).join('') + '</section>';
       });
       c.body.innerHTML = '<div class="ph"><h2 class="ptitle">設定</h2><button type="button" class="btn sm" data-act="back">完成</button></div>' +
         WARN + '<div class="tabs" role="tablist">' + tabs + '</div><div class="pscroll" data-nodrag>' + secs + '</div>';
@@ -475,7 +489,7 @@ QJZ.panels = (function () {
   // ================= runtime =================
   var started = false, offs = [];
   var cur = null;        // the mounted panel: {kind, win, body, nodes, ...}
-  var tab = 'salary';    // the settings tab, kept for the session
+  var tab = 'time';      // the settings tab, kept for the session
   var lastQ = null;      // the pending question already shown
 
   function app() { return QJZ.app; }
@@ -523,7 +537,7 @@ QJZ.panels = (function () {
     var body = win.querySelector('[data-panel]');
     if (!body) return;
     var k = kind === 'adjust' ? 'settings' : (has(BUILD, kind) ? kind : 'settings');
-    if (kind === 'adjust') tab = 'start';
+    if (kind === 'adjust') tab = 'time';
     cur = { kind: k, win: win, body: body, nodes: {}, cache: {} };
     win.classList.add('p-' + k);
     if (k !== 'question') win.style.height = tallHeight() + 'px';
@@ -570,9 +584,9 @@ QJZ.panels = (function () {
         var v = b.getAttribute('data-tab');
         b.classList.toggle('on', v === tab);
         b.setAttribute('aria-selected', v === tab ? 'true' : 'false');
-        if (v === 'privacy') b.classList.toggle('alert', !!st().hotkeyFailed);
+        if (v === 'other') b.classList.toggle('alert', !!st().hotkeyFailed);   // 隱私 has the failure
       });
-      qa(c, '[data-sec]').forEach(function (n) { show(n, n.getAttribute('data-sec') === tab); });
+      qa(c, '[data-pane]').forEach(function (n) { show(n, n.getAttribute('data-pane') === tab); });
       // 薪資
       segOn(c, 'mode', s.salary.mode);
       segOn(c, 'divisor', s.salary.divisor);
@@ -618,7 +632,6 @@ QJZ.panels = (function () {
       if (hf) { out(c, 'hkFailText', hf.text); out(c, 'hkFailSub', hf.sub); }
       // 關於
       out(c, 'version', '版本 ' + (st().version || '開發版'));
-      if (tab === 'about' && !c.docsLoaded) { c.docsLoaded = true; loadDocs(c); }
     },
     history: function (c) {
       var s = st(), m = historyModel(s.history, s.today, s.snap.earned);
@@ -639,9 +652,10 @@ QJZ.panels = (function () {
     }
   };
 
-  // The guide and the licence texts for 關於, fetched as plain text from the files beside the page (https://app.qjz/...).
-  function loadDocs(c) {
-    qa(c, '[data-doc]').forEach(function (pre) {
+  // The guide or the licence texts in el (an opened disclosure of 關於), fetched as plain text from the files beside the
+  // page (https://app.qjz/...).
+  function loadDocs(el) {
+    Array.prototype.forEach.call(el.querySelectorAll('[data-doc]'), function (pre) {
       var fail = function () { pre.textContent = pre.getAttribute('data-fail'); };
       pre.textContent = '讀取中…';
       try {
@@ -808,6 +822,7 @@ QJZ.panels = (function () {
     if ((v = attr(t, '[data-skin]', 'data-skin')) !== null) { pickSkin(c, v); return; }
     if ((v = attr(t, '[data-tab]', 'data-tab')) !== null) { tab = v; _update(); var sc = q(c, '.pscroll'); if (sc) sc.scrollTop = 0; return; }
     if ((v = attr(t, '[data-tgl]', 'data-tgl')) !== null) { toggle(c, v); return; }
+    if ((v = attr(t, '[data-disc]', 'data-disc')) !== null) { disclose(c, v); return; }
     if ((v = attr(t, '[data-hstep]', 'data-hstep')) !== null) { save({ hoursPerDay: stepHours(st().settings.hoursPerDay, v === '+' ? 1 : -1) }); return; }
     if ((v = attr(t, '[data-wd]', 'data-wd')) !== null) { save({ workDays: toggleDay(st().settings.workDays, +v) }); return; }
     var b = t.closest('[data-pa]');
@@ -845,6 +860,16 @@ QJZ.panels = (function () {
     }
     else if (name === 'divisor') save({ salary: { divisor: +v } });
     else if (name === 'startMode') save({ startMode: v });
+  }
+  // Opens or closes a disclosure of 關於; its texts load the first time it opens.
+  function disclose(c, name) {
+    var b = q(c, '[data-disc="' + name + '"]'), body = q(c, '[data-discbody="' + name + '"]');
+    if (!b || !body) return;
+    var open = body.hidden;
+    body.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    out(c, 'disc.' + name, open ? '收起' : '點開');
+    if (open && !body.hasAttribute('data-loaded')) { body.setAttribute('data-loaded', ''); loadDocs(body); }
   }
   function pickSkin(c, id) {
     var p = petParts(id);
@@ -1064,7 +1089,7 @@ QJZ.panels = (function () {
   function reset() {
     offs.forEach(function (f) { try { f(); } catch (e) {} });
     offs = [];
-    started = false; cur = null; tab = 'salary'; lastQ = null;
+    started = false; cur = null; tab = 'time'; lastQ = null;
   }
 
   return {

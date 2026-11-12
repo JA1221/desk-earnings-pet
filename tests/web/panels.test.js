@@ -359,33 +359,64 @@
     done();
   });
 
-  test('panels DOM: settings has the nine sections of spec 5.3 plus 關於 and remembers the tab', function () {
+  // #9: the ten sections of spec 5.3 plus 關於, in four tabs: 薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效),
+  // 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於).
+  var PANES = { time: ['today', 'salary', 'hours', 'start'], pet: ['pet', 'sound'], display: ['layout', 'boost'], other: ['autostart', 'privacy', 'about'] };
+  test('panels DOM: settings has four tabs (薪水和時間, 寵物, 畫面, 其他) and remembers the tab', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     ok($(e, '.panel.p-settings'));
     eq(text(e, '.ptitle'), '設定');
-    eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }),
-      ['薪資', '工時', '起算', '寵物', '版型', '動力加成', '音效', '開機', '隱私', '關於']);
+    eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }), ['薪水和時間', '寵物', '畫面', '其他']);
+    ok(visible($(e, '[data-pane=time]')), 'the first tab first');
     eq(last(e.sent, 'setLayout').layout, 'PANEL');
     var h = last(e.sent, 'setLayout').height;
     ok(h > 400 && h <= 640 + 14, 'about 640 tall: ' + h);
-    ['salary', 'hours', 'start', 'pet', 'layout', 'boost', 'sound', 'autostart', 'privacy'].forEach(function (t) {
+    var tabsBox = $(e, '.tabs').getBoundingClientRect(), first = $$(e, '[data-tab]')[0].getBoundingClientRect();
+    ok(tabsBox.height < first.height * 1.6, 'one row of tabs');
+    Object.keys(PANES).forEach(function (t) {
       $(e, '[data-tab=' + t + ']').click();
-      ok(visible($(e, '[data-sec=' + t + ']')), t + ' shows');
-      eq($$(e, '[data-sec]').filter(visible).length, 1, 'one section at a time');
+      ok(visible($(e, '[data-pane=' + t + ']')), t + ' shows');
+      eq($$(e, '[data-pane]').filter(visible).length, 1, 'one tab at a time');
+      eq($$(e, '[data-pane=' + t + '] [data-sec]').map(function (n) { return n.getAttribute('data-sec'); }), PANES[t], t + ' sections in order');
+      ok($$(e, '[data-pane=' + t + '] [data-sec]').every(visible), t + ': all of them');
+      eq($(e, '[data-tab=' + t + ']').getAttribute('aria-selected'), 'true');
       eq(last(e.sent, 'setLayout').height, h, 'the panel keeps its size');
     });
     $(e, '[data-act=back]').click();
     eq(QJZ.layouts.current(), 'U1');
     e.menu('settings');
-    ok(visible($(e, '[data-sec=privacy]')), 'the last tab again');
+    ok(visible($(e, '[data-pane=other]')), 'the last tab again');
+    done();
+  });
+
+  test('panels DOM: every 1.0 setting is still there, once, in its tab; 今天休假 and 調整起算時間 come first', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    var WHERE = {
+      time: ['[data-tgl=offDay]', '[data-f=startAt]', '[data-pa=applyStart]', '[data-pa=resume]', '[data-seg=mode]', '[data-f=amount]',
+        '[data-seg=divisor]', '[data-hstep="-"]', '[data-hstep="+"]', '[data-f=lunchStart]', '[data-f=lunchEnd]', '[data-seg=startMode]', '[data-wd="1"]'],
+      pet: ['[data-skin="hamster:p0"]', '[data-f="name.hamster"]', '[data-f="name.cat"]', '[data-tgl=sound]', '[data-f=volume]'],
+      display: ['[data-tgl=opaque]', '[data-f=milestone]', '[data-items]', '[data-pa=addItem]'],
+      other: ['[data-tgl=autostart]', '[data-tgl=capture]', '[data-f=hotkey]', '[data-pa=hkDefault]', '[data-o=version]']
+    };
+    Object.keys(WHERE).forEach(function (t) {
+      WHERE[t].forEach(function (sel) {
+        eq($$(e, '[data-panel] ' + sel).length, 1, sel + ' once');
+        ok($(e, '[data-pane=' + t + '] ' + sel), sel + ' in ' + t);
+      });
+    });
+    var today = $(e, '[data-pane=time] [data-sec]');
+    eq(today.getAttribute('data-sec'), 'today', 'the first section of the first tab');
+    ok(today.querySelector('[data-tgl=offDay]') && today.querySelector('[data-f=startAt]'), '今天休假 and 調整今天的起算時間');
+    ok(today.getBoundingClientRect().bottom <= $(e, '[data-f=amount]').getBoundingClientRect().top, 'above 薪資');
     done();
   });
 
   test('panels DOM: 薪資 saves valid amounts at once and shows errors under the field', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=salary]').click();
+    $(e, '[data-tab=time]').click();
     var amount = $(e, '[data-f=amount]');
     eq(amount.value, '50,000');
     commit(amount, 'abc');
@@ -405,7 +436,7 @@
   test('panels DOM: switching 月薪 and 時薪 converts the amount, hints, and never saves an invalid amount', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=salary]').click();
+    $(e, '[data-tab=time]').click();
     var amount = $(e, '[data-f=amount]');
     eq(amount.value, '50,000');
     $(e, '[data-seg=mode] [data-v=hourly]').click();
@@ -455,37 +486,55 @@
     done();
   });
 
-  test('panels DOM: 關於 shows the version and loads the guide and the licence texts once, as plain text', function () {
+  // #9: 使用說明 and the licence texts open only when clicked (a disclosure button each); each loads the first time.
+  test('panels DOM: 關於 shows the version; 使用說明 and 第三方授權 open on click and load once, as plain text', function () {
     var e = mk(at(12, 10, 0));
     var orig = window.fetch, calls = [];
     function now(v) { return { then: function (ok) { var r = ok(v); return r && r.then ? r : now(r); } }; }   // a synchronous fetch
     window.fetch = function (url) { calls.push(url); return now({ ok: true, text: function () { return now('<b>' + url + '</b>'); } }); };
     try {
       e.menu('settings');
-      eq(calls.length, 0, 'nothing loads before 關於 shows');
-      $(e, '[data-tab=about]').click();
+      $(e, '[data-tab=other]').click();
       ok(visible($(e, '[data-sec=about]')));
       eq(text(e, '[data-o=version]'), '版本 t', 'the version the host sent with init');
       ok(text(e, '[data-sec=about]').indexOf('不會上傳') >= 0, 'the data stays on this PC');
       ok(text(e, '[data-sec=about]').indexOf('漫遊設定檔') >= 0 && text(e, '[data-sec=about]').indexOf('%AppData%\\錢進中') >= 0,
         'with the roaming exception, as in the guide');
+      var g = $(e, '[data-disc=guide]'), l = $(e, '[data-disc=lic]');
+      eq([g.tagName, g.getAttribute('aria-expanded'), l.getAttribute('aria-expanded')], ['BUTTON', 'false', 'false'], 'two closed disclosure buttons');
+      ok(g.textContent.indexOf('使用說明') >= 0 && l.textContent.indexOf('第三方授權') >= 0 && g.textContent.indexOf('點開') >= 0, g.textContent);
+      eq($$(e, '[data-doc]').filter(visible).length, 0, 'no text shows');
+      eq(calls.length, 0, 'and nothing loads before a click');
+      g.click();
+      eq(g.getAttribute('aria-expanded'), 'true');
+      ok(g.textContent.indexOf('收起') >= 0, g.textContent);
+      eq(calls, ['guide.txt'], 'only the guide');
+      var pre = $(e, '[data-doc="guide.txt"]');
+      ok(visible(pre));
+      eq(pre.tagName, 'PRE');
+      eq(pre.textContent, '<b>guide.txt</b>', 'as text');
+      ok(!pre.querySelector('b'), 'never as markup');
+      eq(getComputedStyle(pre).overflowY, 'auto', 'it scrolls');
+      g.click();
+      eq([g.getAttribute('aria-expanded'), visible(pre)], ['false', false], 'closes again');
+      g.click();
+      eq(calls.length, 1, 'loaded once');
+      l.click();
       eq(calls, ['guide.txt', 'licenses/WebView2-SDK.txt', 'fonts/OFL.txt']);
-      var pres = $$(e, '[data-doc]');
-      eq(pres.map(function (p) { return p.textContent; }), ['<b>guide.txt</b>', '<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>'], 'as text');
-      ok(!pres[0].querySelector('b') && !pres[1].querySelector('b'), 'never as markup');
-      eq(pres[0].tagName, 'PRE');
-      ok(text(e, '[data-sec=about]').indexOf('使用說明') >= 0, 'the guide has a title');
-      eq(getComputedStyle(pres[0]).overflowY, 'auto', 'it scrolls');
-      $(e, '[data-tab=salary]').click();
-      $(e, '[data-tab=about]').click();
-      eq(calls.length, 3, 'loaded once');
+      eq($$(e, '[data-discbody=lic] [data-doc]').filter(visible).map(function (p) { return p.textContent; }),
+        ['<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>']);
+      $(e, '[data-tab=time]').click();
+      $(e, '[data-tab=other]').click();
+      eq(calls.length, 3, 'still loaded once');
     } finally { window.fetch = orig; }
     done();
     var f = mk(at(12, 10, 0)), orig2 = window.fetch;
     window.fetch = function () { throw new Error('offline'); };
     try {
       f.menu('settings');
-      $(f, '[data-tab=about]').click();
+      $(f, '[data-tab=other]').click();
+      $(f, '[data-disc=guide]').click();
+      $(f, '[data-disc=lic]').click();
       eq($$(f, '[data-doc]').map(function (p) { return p.textContent; }), ['（讀不到使用說明。）', '（讀不到授權文字。）', '（讀不到授權文字。）']);
     } finally { window.fetch = orig2; }
     done();
@@ -494,7 +543,7 @@
   test('panels DOM: an invalid item row keeps its last saved item while another row is edited', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=boost]').click();
+    $(e, '[data-tab=display]').click();
     var before = JSON.parse(JSON.stringify(QJZ.app.state.settings.items));
     eq(before.length, 3);
     var rows = $$(e, '[data-item]');
@@ -522,7 +571,7 @@
   test('panels DOM: 工時 and 起算', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=hours]').click();
+    $(e, '[data-tab=time]').click();
     $(e, '[data-hstep="+"]').click();
     eq(QJZ.app.state.settings.hoursPerDay, 8.5);
     commit($(e, '[data-f=lunchEnd]'), '11:00');
@@ -530,7 +579,7 @@
     eq(QJZ.app.state.settings.lunch.end, '13:00');
     commit($(e, '[data-f=lunchEnd]'), '13:30');
     eq(QJZ.app.state.settings.lunch, { start: '12:00', end: '13:30' });
-    $(e, '[data-tab=start]').click();
+    $(e, '[data-tab=time]').click();
     $(e, '[data-seg=startMode] [data-v=manual]').click();
     eq(QJZ.app.state.settings.startMode, 'manual');
     $(e, '[data-wd="6"]').click();
@@ -550,11 +599,11 @@
     done();
   });
 
-  test('panels DOM: 起算 → 今天休假 zeroes a started day; 繼續上班 shows after 下班 and continues', function () {
+  test('panels DOM: 薪水和時間 → 今天休假 zeroes a started day; 繼續上班 shows after 下班 and continues', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=start]').click();
-    ok(text(e, '[data-sec=start]').indexOf('不算錢') >= 0, 'the hint says the day counts 0');
+    $(e, '[data-tab=time]').click();
+    ok(text(e, '[data-sec=today]').indexOf('不算錢') >= 0, 'the hint says the day counts 0');
     ok(!visible($(e, '[data-pa=resume]')), 'nothing to continue while working');
     $(e, '[data-tgl=offDay]').click();
     eq([QJZ.app.state.snap.status, QJZ.app.state.snap.earned], ['off', 0]);
@@ -564,7 +613,7 @@
     var b = $(e, '[data-pa=resume]');
     ok(visible(b), 'after 下班');
     eq(b.textContent, '繼續上班');
-    ok(text(e, '[data-sec=start]').indexOf('10:00') >= 0, 'when the day ended');
+    ok(text(e, '[data-sec=today]').indexOf('10:00') >= 0, 'when the day ended');
     b.click();
     eq(QJZ.app.state.today.endMs, null);
     eq(QJZ.app.state.snap.status, 'working');
@@ -578,7 +627,7 @@
   test('panels DOM: 版型 → 相容模式（不透明背景） toggles display.opaque; forced by the host it stays on', function () {
     var e = mk(at(12, 10, 0)), root = document.documentElement;
     e.menu('settings');
-    $(e, '[data-tab=layout]').click();
+    $(e, '[data-tab=display]').click();
     ok(text(e, '[data-sec=layout]').indexOf('相容模式（不透明背景）') >= 0);
     ok(text(e, '[data-sec=layout]').indexOf('視窗周圍出現黑框時請開啟') >= 0);
     var t = $(e, '[data-tgl=opaque]');
@@ -594,7 +643,7 @@
     done();
     var f = mk(at(12, 10, 0), { forceOpaque: true });
     f.menu('settings');
-    $(f, '[data-tab=layout]').click();
+    $(f, '[data-tab=display]').click();
     t = $(f, '[data-tgl=opaque]');
     eq([t.getAttribute('aria-checked'), t.disabled], ['true', true], 'on, and cannot be turned off');
     t.click();
@@ -617,16 +666,21 @@
     done();
   });
 
-  test('panels DOM: 調整起算時間 from the menu opens 起算', function () {
+  test('panels DOM: 調整起算時間 from the menu opens 薪水和時間 at the top, the time field focused', function () {
     var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    $(e, '[data-tab=other]').click();
+    $(e, '[data-act=back]').click();
     e.menu('adjust');
     ok($(e, '.panel.p-settings'));
-    ok(visible($(e, '[data-sec=start]')));
+    ok(visible($(e, '[data-pane=time]')) && visible($(e, '[data-sec=today]')));
     eq($(e, '[data-f=startAt]').value, '09:00');
+    eq(document.activeElement, $(e, '[data-f=startAt]'));
+    eq($(e, '.pscroll').scrollTop, 0);
     done();
   });
 
-  test('panels DOM: 寵物, 版型 and 動力加成', function () {
+  test('panels DOM: 寵物, 版型 and 動力加成 (in 寵物 and 畫面)', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     $(e, '[data-tab=pet]').click();
@@ -645,12 +699,12 @@
     eq($(e, 'img'), null, 'names are never markup');
 
     // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式
-    $(e, '[data-tab=layout]').click();
+    $(e, '[data-tab=display]').click();
     eq([$(e, '[data-seg=layoutStart]'), $(e, '[data-tgl^="top."]')], [null, null]);
     eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque']);
     ok(text(e, '[data-sec=layout]').indexOf('最後用的版型') >= 0 && text(e, '[data-sec=layout]').indexOf('右鍵選單') >= 0, 'says where they went');
 
-    $(e, '[data-tab=boost]').click();
+    $(e, '[data-tab=display]').click();
     commit($(e, '[data-f=milestone]'), '0');
     eq(text(e, '[data-err=milestone]'), '金額要大於 0');
     commit($(e, '[data-f=milestone]'), '250');
@@ -677,10 +731,10 @@
     done();
   });
 
-  test('panels DOM: 音效, 開機, 隱私 send the host messages and persist', function () {
+  test('panels DOM: 音效 (寵物), 開機 and 隱私 (其他) send the host messages and persist', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=sound]').click();
+    $(e, '[data-tab=pet]').click();
     eq($(e, '[data-tgl=sound]').getAttribute('aria-checked'), 'false', 'sound is off by default');
     $(e, '[data-tgl=sound]').click();
     eq(QJZ.app.state.settings.sound.enabled, true);
@@ -688,13 +742,13 @@
     eq(QJZ.app.state.settings.sound.volume, 0.3);
     eq(text(e, '[data-o=volume]'), '30%');
 
-    $(e, '[data-tab=autostart]').click();
+    $(e, '[data-tab=other]').click();
     eq($(e, '[data-tgl=autostart]').getAttribute('aria-checked'), 'true', 'autostart is on by default');
     $(e, '[data-tgl=autostart]').click();
     eq(last(e.sent, 'setAutostart'), { on: false });
     eq(QJZ.app.state.settings.autostart, false);
 
-    $(e, '[data-tab=privacy]').click();
+    $(e, '[data-tab=other]').click();
     var cap = $(e, '[data-tgl=capture]');
     eq(cap.getAttribute('aria-checked'), 'true', 'capture protection is on by default');
     ok(text(e, '[data-sec=privacy]').indexOf('分享螢幕、錄影、截圖時隱形') >= 0);
@@ -726,7 +780,7 @@
   test('panels DOM: hotkeyFailed shows in 隱私 and the saved hotkey goes back to the working one', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
-    $(e, '[data-tab=privacy]').click();
+    $(e, '[data-tab=other]').click();
     var hk = $(e, '[data-f=hotkey]');
     hk.focus();
     key(hk, { key: 'k', code: 'KeyK', ctrlKey: true, altKey: true });
@@ -738,7 +792,8 @@
     ok(warn.textContent.indexOf('目前仍然使用 Ctrl+Alt+H') >= 0);
     eq(QJZ.app.state.settings.privacy.hotkey, 'Ctrl+Alt+H', 'settings.json keeps the combo that works');
     eq(hk.value, 'Ctrl+Alt+H');
-    ok($(e, '[data-tab=privacy]').classList.contains('alert'), 'the tab is marked');
+    ok($(e, '[data-tab=other]').classList.contains('alert'), 'the tab is marked');
+    ok(!$(e, '[data-tab=time]').classList.contains('alert'), 'only that one');
     hk.focus();
     key(hk, { key: 'j', code: 'KeyJ', ctrlKey: true, altKey: true });
     ok(!visible($(e, '[data-o=hkFail]')), 'a new try clears it');
@@ -750,7 +805,7 @@
     e.bridge.emit({ type: 'hotkeyFailed', combo: 'Ctrl+Alt+H', reason: 'taken', active: null });
     eq(QJZ.app.state.settings.privacy.hotkey, 'Ctrl+Alt+H');
     e.menu('settings');
-    $(e, '[data-tab=privacy]').click();
+    $(e, '[data-tab=other]').click();
     ok($(e, '[data-o=hkFail]').textContent.indexOf('Ctrl+Alt+H 已被其他程式使用，請換一組') >= 0);
     done();
   });
@@ -853,9 +908,9 @@
     var e = mk(at(12, 10, 0), { history: h });
     eq(QJZ.app.state.today.startMs, at(12, 8, 37));
     e.menu('settings');
-    $(e, '[data-tab=hours]').click();
+    $(e, '[data-tab=time]').click();
     ok(text(e, '[data-o=endHint]').indexOf('今天 08:37 開始，17:37 就可以下班') === 0, text(e, '[data-o=endHint]'));
-    $(e, '[data-tab=start]').click();
+    $(e, '[data-tab=time]').click();
     ok(text(e, '[data-o=todayStart]').indexOf('08:37') >= 0, text(e, '[data-o=todayStart]'));
     done();
   });

@@ -11,8 +11,8 @@
   scrollbar-width:thin;scrollbar-color:#E7C88C transparent}
 .panel .pscroll::-webkit-scrollbar{width:10px}
 .panel .pscroll::-webkit-scrollbar-thumb{background:#E7C88C;border:3px solid var(--bg);border-radius:99px}
-.panel section{display:flex;flex-direction:column;gap:10px}
-.panel section > .hint{padding:0 4px}
+.panel section,.panel .sec{display:flex;flex-direction:column;gap:10px}
+.panel .sec > .hint{padding:0 4px}
 
 /* ---------- atoms ---------- */
 .panel .card{background:#fff;border:2.5px solid var(--line);border-radius:18px;box-shadow:3px 3px 0 var(--shadow);padding:2px 14px}
@@ -82,8 +82,17 @@
 
 /* ---------- settings ---------- */
 .panel .tabs{flex:none;display:flex;flex-wrap:wrap;gap:6px}
-.panel .tabs button{font-size:12.5px;font-weight:700;border:2px solid var(--line);background:#fff;border-radius:99px;padding:3px 11px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
+.panel .tabs button{font-size:13.5px;font-weight:700;border:2px solid var(--line);background:#fff;border-radius:99px;padding:4px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .panel .tabs button.on{background:var(--bar)}
+/* 關於: 使用說明 and 第三方授權 open on a click */
+.panel .disc-h{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 0;border:0;background:none;
+  text-align:left;color:var(--text)}
+.panel .disc-h .chev{flex:none;font-size:12.5px;font-weight:700;color:var(--sub)}
+.panel .disc-h .chev i{display:inline-block;font-style:normal;transition:transform .15s}
+.panel .disc-h[aria-expanded=true] .chev i{transform:rotate(90deg)}
+.panel .disc-h:focus-visible{outline:3px solid var(--money);outline-offset:2px;border-radius:8px}
+.panel .disc-b{padding-bottom:10px}
+.panel .disc-b > .line:first-child{padding-top:0}
 .panel .tabs button.alert::after{content:"";display:inline-block;width:8px;height:8px;margin-left:5px;border-radius:50%;background:var(--heart);border:1.5px solid var(--line);vertical-align:1px}
 .panel .stepper{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px}
 .panel .stepper b{font-family:"Fredoka",var(--font);font-size:20px;min-width:34px;text-align:center}
