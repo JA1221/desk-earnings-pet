@@ -17,6 +17,10 @@ using Microsoft.Web.WebView2.Core;
 // - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
 //   page also gets the current state: visibility, fullscreen, a hotkey failure, unreadable files (storageError).
 // - U7, M3 and U10 never take focus when clicked; the other layouts activate normally (keyboard input).
+// - U10's capsule sits at its dock (setLayout dock) on the work area of its monitor, and a drop snaps it to the
+//   nearest dock of the monitor it landed on (CapsuleDock; the page learns it from capsuleDock); that spot is saved.
+//   Any other window that grows stays inside its work area if it was inside (WindowPlacer.FitAfterGrow, spec 5.7);
+//   a spot it is pushed to is never saved (Ruling C5), only one the user drags it to.
 // - fullscreen {on}: Windows reports a fullscreen app or presentation mode (Presentation), after every init and on
 //   each change; the page holds its reminders meanwhile.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
@@ -85,6 +89,10 @@ public class AppHost
     bool exitRecorded;           // this run's end is in session.json
     DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
     bool promptRaised;           // the page's raise {on}: a prompt bubble shows, so the window is topmost (ApplyTopmost)
+    Size layoutCss;              // the page size (CSS px) of the last setLayout
+    string capsuleDock = "top";  // U10's dock: the page's setLayout dock, or where a drop snapped it
+    Point? growFrom;             // a same-layout grow pushed the window in from growFrom to growTo; the shrink after
+    Point? growTo;               // it goes back (WindowPlacer.AfterShrink)
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
     // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
@@ -318,6 +326,13 @@ public class AppHost
                     tray.SetSnacks(snacks >= 0 && snacks <= 99999 ? (int)Math.Floor(snacks) : -1);
                     break;
                 }
+            case "healthMenu":   // 記一杯水's cups and the 開始番茄鐘 / 停止番茄鐘 item follow the page
+                {
+                    object p;
+                    Dictionary<string, object> pomodoro = d.TryGetValue("pomodoro", out p) ? p as Dictionary<string, object> : null;
+                    tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0));
+                    break;
+                }
             case "setTopmost":
                 {
                     bool? on = Bridge.Bool(d, "on");
@@ -381,13 +396,30 @@ public class AppHost
         if (string.IsNullOrEmpty(name) || name.Length > MaxLayoutName || !(w >= 1) || !(h >= 1)) return;
         bool changed = name != layout;
         layout = name;
+        if (name == "U10") capsuleDock = CapsuleDock.Parse(Bridge.Str(d, "dock"));
         window.NoActivate = ShowRescue.NoActivateLayout(name);
-        window.SetContentSize((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)), Dpr(d));
+        Size css = new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)));
+        layoutCss = css;
+        Rectangle before = window.Bounds;
+        window.SetContentSize(css.Width, css.Height, Dpr(d));
         if (changed)
         {
-            placer.RememberSize(name, new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize))));
+            Size? savedCss = placer.SavedSize(name);   // the size the layout had when its spot was saved
             placer.Place(window, name);
+            growFrom = null;
+            growTo = null;
+            bool pushed = false;
+            if (name == "U10") DockCapsule(window.Bounds);   // on the monitor of its saved spot
+            else if (savedCss.HasValue && savedCss.Value != css) pushed = FitAfterSwitch(savedCss.Value);
+            // Pushed in: the saved spot and the size it was saved at stay as they are (Ruling C5), so every switch
+            // pushes it in again; a saved size of the new size would make the saved spot look like a chosen overhang.
+            if (!pushed) placer.RememberSize(name, css);
             ApplyTopmost();
+        }
+        else if (!window.Moving)   // a new size mid-drag (another DPI) is left to the drop (OnMoveEnded)
+        {
+            if (name == "U10") DockCapsule(before);
+            else if (window.Size != before.Size) FitAfterResize(before);
         }
         UpdateTray();
         ApplyVisibility();   // the first setLayout shows the window
@@ -398,11 +430,77 @@ public class AppHost
         }
     }
 
+    // A layout whose size changed since its spot was saved (U5-B is about 65 px wider in 1.1, spec 5.7) grows from that
+    // spot and is pushed back inside if it was fully inside. The pushed-in spot is not saved, so the saved one (1.0's)
+    // survives (Ruling C5). True when it pushed the window.
+    bool FitAfterSwitch(Size savedCss)
+    {
+        Rectangle saved = new Rectangle(window.Location, window.ToPhysical(savedCss));
+        Point fit = WindowPlacer.FitAfterGrow(saved, window.Size, WindowPlacer.WorkAreas()).Location;
+        if (fit == window.Location) return false;
+        window.Location = fit;
+        return true;
+    }
+
+    // The same layout changed size (a prompt bubble beside U7 / M3): a grow stays inside if the window was inside, and
+    // where it was pushed from is kept; the shrink after it goes back there unless the user moved it meanwhile. Neither
+    // spot is saved.
+    void FitAfterResize(Rectangle before)
+    {
+        Size now = window.Size;
+        if (now.Width <= before.Width && now.Height <= before.Height)
+        {
+            Point back = WindowPlacer.AfterShrink(window.Location, growFrom, growTo);
+            growFrom = null;
+            growTo = null;
+            if (back != window.Location) window.Location = back;
+            return;
+        }
+        Point fit = WindowPlacer.FitAfterGrow(before, now, WindowPlacer.WorkAreas()).Location;
+        if (fit == before.Location) return;
+        if (growTo != before.Location) growFrom = before.Location;   // else it grew again: it goes back to the first spot
+        growTo = fit;
+        window.Location = fit;
+    }
+
+    // U10's dock rect is 6 CSS px in from the work-area edges.
+    const int CapsuleMarginCss = 6;
+
+    int CapsuleMargin()
+    {
+        return (int)Math.Round(CapsuleMarginCss * window.CssScale, MidpointRounding.AwayFromZero);
+    }
+
+    // U10 goes to its dock on the work area nearest the centre of from (the window's rect before this change), and the
+    // spot is saved so the next start pre-places the window on that monitor.
+    void DockCapsule(Rectangle from)
+    {
+        Rectangle area = CapsuleDock.AreaFor(from, WindowPlacer.WorkAreas());
+        Point at = CapsuleDock.Rect(capsuleDock, area, window.Size, CapsuleMargin()).Location;
+        if (at != window.Location) window.Location = at;
+        placer.Remember("U10", at);
+    }
+
+    // A dropped U10 snaps to the nearest dock of the monitor it was dropped on (spec 5.7); the page saves that dock.
+    void SnapCapsule()
+    {
+        Rectangle area = CapsuleDock.AreaFor(window.Bounds, WindowPlacer.WorkAreas());
+        int margin = CapsuleMargin();
+        capsuleDock = CapsuleDock.Nearest(window.Bounds, area, margin);
+        Point at = CapsuleDock.Rect(capsuleDock, area, window.Size, margin).Location;
+        if (at != window.Location) window.Location = at;
+        placer.Remember("U10", at);
+        UpdateTray();
+        Send("capsuleDock", new { dock = capsuleDock });
+        Send("dragEnd", null);
+    }
+
     // U7's desk ends this many CSS px above the window bottom (layouts.css: .u7 bottom padding and the hard shadow).
     const int U7DeskMarginCss = 16;
 
     void OnMoveEnded()
     {
+        if (layout == "U10") { SnapCapsule(); return; }
         // U7 hangs from its scruff tip while dragged, so a drop can leave the seated pet below the work area (over or
         // under the taskbar): lift it until the desk is inside the work area of the monitor the cursor is on.
         if (layout == "U7")
@@ -413,6 +511,7 @@ public class AppHost
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
         placer.Remember(layout, window.Location);
+        placer.RememberSize(layout, layoutCss);   // with the size the user placed it at, which FitAfterSwitch reads
         Send("dragEnd", null);
     }
 
@@ -561,7 +660,7 @@ public class AppHost
     void UpdateTray()
     {
         // the check mark is the layout's own 永遠在最上層, never a prompt's raise; the menu offers 顯示 while nothing is visible
-        tray.SetState(layout, LayoutTopmost(), ShownToUser());
+        tray.SetState(layout, LayoutTopmost(), ShownToUser(), capsuleDock);
     }
 
     // ---- topmost ----

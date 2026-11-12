@@ -5,7 +5,8 @@ using System.Windows.Forms;
 // Where the window goes on a layout change, and remembering where the user moved it. Positions are per layout,
 // physical px, in window.json, owned by the host. The decision is pure (Decide, Refit):
 // saved position (kept by ScreenFit.Clamp) -> else where the window is now (fully inside its monitor) -> else
-// the bottom-right of the primary work area.
+// the bottom-right of the primary work area. A window that grows stays inside its work area (FitAfterGrow) and goes
+// back when it shrinks (AfterShrink).
 public class WindowPlacer
 {
     public const int DefaultMargin = 24;   // physical px in from the work-area corner for a first-ever position
@@ -85,10 +86,12 @@ public class WindowPlacer
         return saved.HasValue && saved.Value.Width >= 1 && saved.Value.Height >= 1 ? saved.Value : DefaultRescueCss;
     }
 
-    // The user finished moving the window (WM_EXITSIZEMOVE): remember the spot for this layout.
+    // The user finished moving the window (WM_EXITSIZEMOVE), or U10 docked: remember the spot for this layout
+    // (written only when it changed).
     public void Remember(string layout, Point location)
     {
-        if (layout == null) return;
+        Point old;
+        if (layout == null || (positions.TryGet(layout, out old) && old == location)) return;
         positions.Set(layout, location);
         files.Save(files.Window, positions.ToJson());
     }
@@ -118,6 +121,25 @@ public class WindowPlacer
     public static Rectangle Refit(Rectangle now, bool hostChosen, Rectangle[] areas)
     {
         return hostChosen ? ScreenFit.MoveInside(now, ScreenFit.NearestArea(now, areas)) : ScreenFit.Clamp(now, areas);
+    }
+
+    // Grow-inside (spec 5.7): the window at before now has the size after. It keeps its top-left (so it grows right
+    // and down, like U5-B's extra column or a prompt bubble beside U7 / M3), unless before was fully inside its
+    // nearest work area and the grown rect is not: then it is moved inside that area. A window the user left
+    // hanging over an edge keeps that overhang.
+    public static Rectangle FitAfterGrow(Rectangle before, Size after, Rectangle[] areas)
+    {
+        Rectangle grown = new Rectangle(before.Location, after);
+        if (areas == null || areas.Length == 0) return grown;
+        Rectangle area = ScreenFit.NearestArea(before, areas);
+        return area.Contains(before) && !area.Contains(grown) ? ScreenFit.MoveInside(grown, area) : grown;
+    }
+
+    // The window shrank back after a grow that moved it from growFrom to growTo: back to growFrom if it is still at
+    // growTo; anywhere else (the user moved it, or no grow moved it) it stays at now.
+    public static Point AfterShrink(Point now, Point? growFrom, Point? growTo)
+    {
+        return growFrom.HasValue && growTo.HasValue && now == growTo.Value ? growFrom.Value : now;
     }
 
     public static Rectangle[] WorkAreas()

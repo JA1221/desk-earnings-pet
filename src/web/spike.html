@@ -15,6 +15,7 @@
   (default 'spike'; U7 / M3 / U10 switch the host to no-activate clicks); the page turns the host's capture guard
   off (setCaptureGuard {on:false}) because the visual checks capture the screen, unless guard=on.
   raise=<ms>: sends raise {on:true} (as a prompt bubble does) <ms> after load, and raise {on:false} 4 s later.
+  dock=<top|bottomLeft|bottomCenter|bottomRight>: sent as setLayout dock (U10's capsule dock, as the page does).
 -->
 <style>
   @font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-Variable.ttf') format('truetype'); font-weight: 300 700; }
@@ -89,7 +90,9 @@
   function report() {
     var dpr = window.devicePixelRatio;
     var stage = document.getElementById('stage');
-    send({ type: 'setLayout', layout: layoutName, width: stage.offsetWidth, height: stage.offsetHeight, dpr: dpr });
+    var layout = { type: 'setLayout', layout: layoutName, width: stage.offsetWidth, height: stage.offsetHeight, dpr: dpr };
+    if (query.get('dock')) layout.dock = query.get('dock');
+    send(layout);
     var rects = [];
     document.querySelectorAll('[data-hit]').forEach(function (el) {
       var r = el.getBoundingClientRect();

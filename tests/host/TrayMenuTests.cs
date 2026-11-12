@@ -19,23 +19,59 @@ public static class TrayMenuTests
         return string.Join("|", labels.ToArray());
     }
 
-    // Simplification #2: by how often each is used. 餵食 (with the snack count) on top; one item that follows the
-    // work status (開始上班 / 下班 / 繼續上班) with 調整起算時間; 版型 ▶ holds the layouts, 縮成迷你 and 永遠在最上層;
-    // then 紀錄, 設定, 隱藏, 結束. Three separators (there were five).
-    public static void Test_TopLevelItemsInOrder()
+    // Labels in order, separators left out.
+    static string ItemLabels(ToolStripItemCollection items)
+    {
+        var labels = new List<string>();
+        foreach (ToolStripItem i in items) if (!(i is ToolStripSeparator)) labels.Add(i.Text);
+        return string.Join("|", labels.ToArray());
+    }
+
+    // Simplification #2 (spec 4.9): by how often each is used. The top group is 記一杯水 (with the cups), 開始番茄鐘,
+    // then 1.0's 餵食; then the work item (開始上班 / 下班 / 繼續上班) with 調整起算時間; 版型 ▶, 紀錄, 設定; 隱藏, 結束.
+    public static void Test_HealthItemsLeadTheMenu()
     {
         using (var t = new TrayMenu())
         {
-            Assert.Eq("餵食|-|開始上班|調整起算時間|-|版型|紀錄|設定|-|隱藏|結束", Labels(t.Menu.Items), "top level");
-            Assert.Eq("U1 經典直式|U3 遊戲畫面|U5-B 橫向極簡|U7 桌面寵物|-|縮成迷你|-|永遠在最上層",
-                Labels(Item(t, "layouts").DropDownItems), "版型 submenu");
+            Assert.Eq("記一杯水|開始番茄鐘|餵食|開始上班|調整起算時間|版型|紀錄|設定|隱藏|結束", ItemLabels(t.Menu.Items), "top level");
+        }
+    }
+
+    // 版型 ▶: the layouts, 縮成迷你, 永遠在最上層, and last 膠囊位置 ▶, which only U10 shows (spec 4.9 #2, 5.7).
+    public static void Test_LayoutSubmenu()
+    {
+        using (var t = new TrayMenu())
+        {
+            ToolStripItemCollection items = Item(t, "layouts").DropDownItems;
+            Assert.Eq("U1 經典直式|U3 遊戲畫面|U5-B 橫向極簡|U7 桌面寵物|U10 頂端小膠囊|U12 健康儀表板|U13 番茄鐘優先|-|縮成迷你|-|永遠在最上層|膠囊位置",
+                Labels(items), "版型 submenu");
+            ToolStripMenuItem capsule = Item(t, "capsule");
+            Assert.True(object.ReferenceEquals(capsule, items[items.Count - 1]), "膠囊位置 is the last item");
+            Assert.Eq("上方正中間|左下|中下|右下", Labels(capsule.DropDownItems), "膠囊位置 submenu");
+            Assert.True(!capsule.Available, "no layout yet: hidden");
+            t.SetState("U10", true, true, "bottomRight");
+            Assert.True(capsule.Available, "shown in U10");
+            Assert.True(Item(t, "layout:U10").Checked, "U10 checked");
+            Assert.True(Item(t, "capsule:bottomRight").Checked, "the current dock checked");
+            Assert.True(!Item(t, "capsule:top").Checked && !Item(t, "capsule:bottomLeft").Checked && !Item(t, "capsule:bottomCenter").Checked,
+                "the other docks unchecked");
+            t.SetState("U10", true, true, "top");
+            Assert.True(Item(t, "capsule:top").Checked && !Item(t, "capsule:bottomRight").Checked, "the check follows the dock");
+            t.SetState("U1", false, true);
+            Assert.True(!capsule.Available, "hidden for U1");
+            t.SetState("M3", false, true, "top");
+            Assert.True(!capsule.Available, "hidden for the mini badge");
+            t.SetState("U13", false, true);
+            Assert.True(Item(t, "layout:U13").Checked && !Item(t, "layout:U10").Checked, "U13 checked");
         }
     }
 
     public static void Test_EachItemSendsItsActionId()
     {
         string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "mini", "topmost", "feed", "adjust",
-                         "settings", "history", "toggleVisible", "quit" };
+                         "settings", "history", "toggleVisible", "quit",
+                         "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink",
+                         "capsule:top", "capsule:bottomLeft", "capsule:bottomCenter", "capsule:bottomRight" };
         using (var t = new TrayMenu())
         {
             var got = new List<string>();
@@ -92,6 +128,51 @@ public static class TrayMenuTests
         }
     }
 
+    // 開始番茄鐘 reads 停止番茄鐘（還剩 N 分） while a focus or a break runs, N rounded up and at least 1.
+    public static void Test_PomodoroLabel()
+    {
+        double now = 1794470400000;   // a fixed time in ms
+        Assert.Eq("開始番茄鐘", TrayMenu.PomodoroLabel("idle", 0, now), "idle");
+        Assert.Eq("停止番茄鐘（還剩 12 分）", TrayMenu.PomodoroLabel("focus", now + 12 * 60000, now), "focus, 12 min left");
+        Assert.Eq("停止番茄鐘（還剩 12 分）", TrayMenu.PomodoroLabel("focus", now + 11 * 60000 + 1, now), "a part minute counts as one");
+        Assert.Eq("停止番茄鐘（還剩 3 分）", TrayMenu.PomodoroLabel("break", now + 3 * 60000, now), "break");
+        Assert.Eq("停止番茄鐘（還剩 1 分）", TrayMenu.PomodoroLabel("focus", now - 5000, now), "already over: at least 1");
+        Assert.Eq("開始番茄鐘", TrayMenu.PomodoroLabel("breakOver", now + 60000, now), "休息結束: nothing runs");
+        Assert.Eq("開始番茄鐘", TrayMenu.PomodoroLabel(null, 0, now), "not reported");
+        using (var t = new TrayMenu())
+        {
+            var got = new List<string>();
+            t.ItemClicked += got.Add;
+            ToolStripMenuItem p = Item(t, "pomodoro");
+            Assert.Eq("開始番茄鐘", p.Text, "before the page reports");
+            double soon = (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds + 12 * 60000 - 2000;
+            t.SetHealth(null, "focus", soon);
+            Assert.Eq("停止番茄鐘（還剩 12 分）", p.Text, "the label follows the page");
+            p.PerformClick();
+            t.SetHealth(null, "idle", 0);
+            Assert.Eq("開始番茄鐘", p.Text, "back to start");
+            p.PerformClick();
+            Assert.Eq("pomodoro,pomodoro", string.Join(",", got.ToArray()), "one action id for start and stop: the page toggles");
+        }
+    }
+
+    // 記一杯水 shows today's cups (3/8) on the right when the page shows them (spec 4.9 #8), else nothing.
+    public static void Test_CupsCount()
+    {
+        using (var t = new TrayMenu())
+        {
+            ToolStripMenuItem d = Item(t, "drink");
+            Assert.True(string.IsNullOrEmpty(d.ShortcutKeyDisplayString), "nothing before the page reports");
+            t.SetHealth("3/8", "idle", 0);
+            Assert.Eq("記一杯水", d.Text, "label");
+            Assert.Eq("3/8", d.ShortcutKeyDisplayString, "the cups on the right");
+            Assert.True(d.ShowShortcutKeys, "shown");
+            t.SetHealth(null, "idle", 0);
+            Assert.True(string.IsNullOrEmpty(d.ShortcutKeyDisplayString), "hidden by the page: empty");
+            Assert.True(d.Enabled, "still clickable");
+        }
+    }
+
     public static void Test_StateShowsChecksAndToggleLabel()
     {
         using (var t = new TrayMenu())
@@ -112,7 +193,7 @@ public static class TrayMenuTests
         }
     }
 
-    // Esc closes the open submenu first (the 版型 one), then the menu.
+    // Esc closes the innermost open submenu first (膠囊位置, then 版型), then the menu.
     public static void Test_CloseInnermostWithoutAnOpenMenuIsSafe()
     {
         using (var t = new TrayMenu())

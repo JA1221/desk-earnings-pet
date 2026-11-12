@@ -57,6 +57,9 @@ public class PetWindow : Form
     // A move or resize loop ended (WM_EXITSIZEMOVE), e.g. after BeginDrag.
     public event EventHandler MoveEnded;
 
+    // A move or resize loop runs (WM_ENTERSIZEMOVE until WM_EXITSIZEMOVE): the user is dragging the window.
+    public bool Moving { get; private set; }
+
     // WM_HOTKEY arrived; the argument is the hotkey id.
     public event Action<int> HotKeyPressed;
 
@@ -319,8 +322,13 @@ public class PetWindow : Form
             try { SessionEnding(this, EventArgs.Empty); }
             catch (Exception ex) { ErrorLog.Write("session end", ex); }   // Windows must still get its answer below
         }
+        if (m.Msg == Native.WM_ENTERSIZEMOVE) Moving = true;
         base.WndProc(ref m);
-        if (m.Msg == Native.WM_EXITSIZEMOVE && MoveEnded != null) MoveEnded(this, EventArgs.Empty);
+        if (m.Msg == Native.WM_EXITSIZEMOVE)
+        {
+            Moving = false;
+            if (MoveEnded != null) MoveEnded(this, EventArgs.Empty);
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -331,6 +339,12 @@ public class PetWindow : Form
 
     // Physical px per CSS px of the page (its devicePixelRatio once reported).
     public double CssScale { get { return Scale(); } }
+
+    // The window size a page of css size would have now (the same rounding as SetContentSize).
+    public Size ToPhysical(Size css)
+    {
+        return PetGeometry.WindowSize(css.Width, css.Height, Scale());
+    }
 
     private double Scale()
     {

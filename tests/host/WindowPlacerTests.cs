@@ -79,6 +79,48 @@ public static class WindowPlacerTests
         Assert.Eq(new Rectangle(-900, 893, 780, 510), WindowPlacer.Refit(mostlyOut, false, Areas), "user's spot under 50 % inside is clamped");
     }
 
+    // Grow-inside (spec 5.7): a window that grows keeps its top-left and grows right / down; one that was fully inside
+    // its work area and would now stick out is pushed back in.
+    public static void Test_FitAfterGrow_PushesBackInside()
+    {
+        Assert.Eq(new Rectangle(1375, 900, 545, 120), WindowPlacer.FitAfterGrow(new Rectangle(1440, 900, 480, 120), new Size(545, 120), Areas),
+            "U5-B 65 px wider at the right edge: pushed left, not onto the next monitor");
+        // DISPLAY1 (150 %): U5-B saved flush against the right edge at its 1.0 width, 455 CSS px = 683 px, now 780 px
+        Assert.Eq(new Rectangle(-780, 700, 780, 510), WindowPlacer.FitAfterGrow(new Rectangle(-683, 700, 683, 510), new Size(780, 510), Areas),
+            "portrait monitor at negative coordinates");
+    }
+
+    public static void Test_FitAfterGrow_FitsAsIs()
+    {
+        Assert.Eq(new Rectangle(100, 900, 545, 120), WindowPlacer.FitAfterGrow(new Rectangle(100, 900, 480, 120), new Size(545, 120), Areas),
+            "room to grow: the top-left stays");
+        Assert.Eq(new Rectangle(1440, 900, 300, 100), WindowPlacer.FitAfterGrow(new Rectangle(1440, 900, 480, 120), new Size(300, 100), Areas),
+            "smaller: the top-left stays");
+    }
+
+    public static void Test_FitAfterGrow_KeepsAnOverhangTheUserChose()
+    {
+        Assert.Eq(new Rectangle(1700, 100, 465, 300), WindowPlacer.FitAfterGrow(new Rectangle(1700, 100, 400, 300), new Size(465, 300), Areas),
+            "already over the edge before it grew: left where the user put it");
+        Assert.Eq(new Rectangle(1700, 100, 465, 300), WindowPlacer.FitAfterGrow(new Rectangle(1700, 100, 400, 300), new Size(465, 300), new[] { Primary }),
+            "the same with no monitor beside it");
+    }
+
+    public static void Test_FitAfterGrow_Bottom()
+    {
+        Assert.Eq(new Rectangle(100, 832, 300, 200), WindowPlacer.FitAfterGrow(new Rectangle(100, 900, 300, 120), new Size(300, 200), Areas),
+            "taller at the bottom: pushed up above the taskbar");
+    }
+
+    // A prompt grew the window and pushed it in; when it shrinks back it returns to where it was, unless the user
+    // moved it meanwhile.
+    public static void Test_AfterShrink()
+    {
+        Assert.Eq(new Point(1440, 900), WindowPlacer.AfterShrink(new Point(1375, 900), new Point(1440, 900), new Point(1375, 900)), "back to the spot before the push");
+        Assert.Eq(new Point(1200, 500), WindowPlacer.AfterShrink(new Point(1200, 500), new Point(1440, 900), new Point(1375, 900)), "the user moved it: stays");
+        Assert.Eq(new Point(1200, 500), WindowPlacer.AfterShrink(new Point(1200, 500), null, null), "never pushed: stays");
+    }
+
     public static void Test_RescueSizeIsSavedElseDefault()
     {
         Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");
