@@ -9,15 +9,20 @@ window.QJZ = window.QJZ || {};
 //    such question is asked (state.pendingQuestion); older ones are closed directly. Until answered the record
 //    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save.
 //  - Money is always computed from the wall clock (Date.now() + dev offset), never accumulated from tick counts.
+// Events (on): tick (every 100 ms, snap), second (snap), change (state), milestone ({count}) when the clock
+// carries today's earnings past another settings.milestone step. Record / settings changes (adjustStart, a new
+// step, init, a new day) only move the baseline, so they never celebrate by themselves.
+// Host notices the page cannot act on yet are kept for the panels: state.hotkeyFailed, state.storageError.
 QJZ.app = (function () {
   var SAVE_DELAY = 1000, TICK_MS = 100;
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0,
-    pendingQuestion: null, startHint: null, ready: false, paused: false
+    pendingQuestion: null, startHint: null, ready: false, paused: false,
+    hotkeyFailed: null, storageError: null
   };
-  var listeners = { tick: [], second: [], change: [] };
-  var tickTimer = null, saveTimer = null, lastSec = null;
+  var listeners = { tick: [], second: [], change: [], milestone: [] };
+  var tickTimer = null, saveTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
   var started = false, unloadBound = false, tickEnabled = true;
@@ -61,9 +66,11 @@ QJZ.app = (function () {
     });
     state.snacks = QJZ.rewards.snacksAvailable(t, state.snap.earned, s.milestone);
   }
+  function milestones() { return QJZ.rewards.milestones(state.snap.earned, state.settings.milestone); }
   function changed() {
     if (!state.ready) return;
     recompute(nowMs());
+    lastMilestone = milestones();
     emit('change', state);
   }
   function setToday(rec) {
@@ -154,6 +161,7 @@ QJZ.app = (function () {
     dirtyHistory = true;
     if (!state.paused) startTick();
     recompute(nowMs());
+    lastMilestone = milestones();
     lastSec = Math.floor(nowMs() / 1000);
     schedule();
     emit('change', state);
@@ -178,6 +186,9 @@ QJZ.app = (function () {
     checkRollover(ms);
     recompute(ms);
     emit('tick', state.snap);
+    var m = milestones();
+    if (lastMilestone !== null && m > lastMilestone) { lastMilestone = m; emit('milestone', { count: m }); }
+    else lastMilestone = m;   // also follows the count down (a new day, an earlier clock)
     var sec = Math.floor(ms / 1000);
     if (sec !== lastSec) { lastSec = sec; emit('second', state.snap); }
   }
@@ -265,6 +276,14 @@ QJZ.app = (function () {
     changed();
   }
   function answerEarlyLeave(accept) { return answerQuestion(accept, false); }
+  // menu 結束: save everything now, then tell the host it may exit (it also exits on its own after a timeout).
+  function quit() {
+    if (!bridge) return;
+    flush();
+    bridge.send('quit', {});
+  }
+  function onHotkeyFailed(msg) { state.hotkeyFailed = msg; }
+  function onStorageError(msg) { state.storageError = msg; }
 
   // opts (tests): {bridge, now, tick:false}. Loading this file has no side effects; start() wires everything.
   function start(opts) {
@@ -277,6 +296,8 @@ QJZ.app = (function () {
     bridge.on('init', onInit);
     bridge.on('session', onSession);
     bridge.on('visibility', onVisibility);
+    bridge.on('hotkeyFailed', onHotkeyFailed);
+    bridge.on('storageError', onStorageError);
     if (!unloadBound) { unloadBound = true; window.addEventListener('beforeunload', function () { flush(); }); }
     if (bridge.boot) bridge.boot();
   }
@@ -286,16 +307,17 @@ QJZ.app = (function () {
     stopTick();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     dirtySettings = dirtyHistory = false;
-    clockOffset = 0; lastSec = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
-    listeners.tick = []; listeners.second = []; listeners.change = [];
+    clockOffset = 0; lastSec = null; lastMilestone = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
+    listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
+    state.hotkeyFailed = state.storageError = null;
     document.documentElement.classList.remove('paused');
   }
 
   return {
     state: state, start: start, tickNow: tick, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, setOffDay: setOffDay,
-    feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave
+    feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit
   };
 })();

@@ -1,0 +1,114 @@
+/* Layouts U1 / U3 / U5-B / U7 / M3 and the PANEL placeholder, ported from docs/prototypes/converge.html
+   (layout CSS) and the atoms of docs/prototypes/shared.css that base.css does not have.
+   Built by js/ui/layouts.js: every layout root is .lay plus a status class s-working|s-lunch|s-done|s-ended|s-before|s-off.
+   Keyframe names start with lay- so they never collide with pets.css. */
+
+/* ---------- atoms ---------- */
+.lay{user-select:none;-webkit-user-select:none}
+.lay svg{-webkit-user-drag:none}
+.scene-wrap{border:3px solid var(--line);border-radius:20px;overflow:hidden;position:relative}
+.scene{position:relative;width:100%;aspect-ratio:3/2;cursor:pointer}
+.scene svg,.po svg{display:block;width:100%;height:100%}
+/* petonly pet: the compose viewBox (30 4 176 170) is wider than the prototype's (38 18 160 154), so the box is
+   1.1x the prototype width --pw and the margins pull the extra back: the footprint stays --pw x 0.9625 --pw
+   exactly like the prototype, and jumps / coins may use the extra room. */
+.po{--pw:132px;position:relative;flex:none;cursor:pointer;width:calc(var(--pw) * 1.1);aspect-ratio:176/170;
+  margin:calc(var(--pw) * -.0875) calc(var(--pw) * -.05) calc(var(--pw) * -.0125)}
+.av{border-radius:50%;background:#FFE6C7;border:2.5px solid var(--line);overflow:hidden;flex:none;cursor:pointer}
+.av svg{width:100%;height:100%;display:block}
+.thin{height:10px;border:2.5px solid var(--line);border-radius:99px;overflow:hidden;background:#fff}
+.thin .fill{border-right-width:2px}
+.vitals{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600}
+.hearts{color:var(--heart);letter-spacing:1px;font-size:14px}
+.bolt{display:inline-flex;gap:2px;vertical-align:middle}
+.bolt i{width:10px;height:13px;border:2px solid var(--line);border-radius:3px;background:var(--bolt)}
+.bolt i.off{background:transparent}
+.mmoney{font-family:var(--font);font-size:25px;font-weight:700;color:var(--money);line-height:1.1;white-space:nowrap;
+  text-shadow:-1.5px -1.5px 0 var(--line),1.5px -1.5px 0 var(--line),-1.5px 1.5px 0 var(--line),1.5px 1.5px 0 var(--line),2px 3px 0 var(--line)}
+.mmoney small{font-size:13px;color:var(--cur)}
+.lay button{font-family:inherit;color:var(--text);cursor:pointer}
+.bar .dots i{cursor:pointer}
+.mtop{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sub);white-space:nowrap}
+.mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite;flex:none}
+.meta2{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--sub);margin-top:6px}
+
+/* feed button: snack count + 餵食 (greyed when there is nothing to feed) */
+.feed{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;
+  background:var(--bar);border:2px solid var(--line);border-radius:99px;padding:2px 9px 2px 7px;box-shadow:2px 2px 0 var(--shadow)}
+.feed.none{background:#fff;color:var(--sub)}
+.feed:active,.pill:is(button):active,.btn:active{transform:translate(1px,1px)}
+
+/* status colours: green while working (pulsing dot), calmer and still otherwise */
+.s-lunch{--st-bg:#FFE08A;--st-dot:#FFB627}
+.s-done{--st-bg:#FFC857;--st-dot:#FF8A3D}
+.s-ended,.s-before,.s-off{--st-bg:#F1E6D6;--st-dot:#9A6E52}
+.lay:not(.s-working) :is(.status i,.mtop .dot){animation:none}
+
+/* ---------- U1 經典直式 ---------- */
+.u1{width:340px}
+.u1 .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.u1 .row-top{display:flex;justify-content:space-between;align-items:center}
+.u1 .money-box{text-align:center}
+
+/* ---------- U3 遊戲畫面 HUD ---------- */
+.u3{width:500px}
+.u3 .scene{aspect-ratio:300/236}
+.u3 .hud{position:absolute;inset:0;pointer-events:none;padding:12px}
+.u3 .hud :is(.pill,.status){pointer-events:auto}
+.u3 .hud-top{display:flex;gap:8px;align-items:center}
+.u3 .hud-top .feed{margin-left:auto;font-size:13px;padding:4px 12px;gap:4px;border-width:2.5px}
+.u3 .hud-top .gear{width:34px;height:34px;justify-content:center;padding:0;font-size:16px}
+.u3 .hud-bottom{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:20px;box-shadow:4px 4px 0 var(--shadow);
+  padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+.u3 .coin{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1A8,#FFC857 55%,#F0A020);border:3px solid var(--line);
+  display:grid;place-items:center;font-weight:700;font-size:20px;box-shadow:2px 2px 0 var(--shadow);animation:lay-coin 2.4s ease-in-out infinite;flex:none;grid-row:span 2}
+@keyframes lay-coin{0%,70%,100%{transform:scaleX(1)}80%{transform:scaleX(.1)}90%{transform:scaleX(1)}}
+.u3 .money{font-size:34px}
+.u3 .xp{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--sub)}
+.u3 .xp .track{flex:1;height:14px}
+.u3 .side{position:absolute;right:12px;top:58px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.u3 .side .pill{font-size:11.5px;padding:3px 10px}
+.u3 .bubble{left:44%;top:16%}
+
+/* ---------- U5-B 極簡・橫向 ---------- */
+.u5b{width:480px;display:flex;align-items:center;gap:6px;padding:8px 18px 12px 6px}
+.u5b .po{--pw:132px}
+.u5b .mid{flex:1;min-width:0}
+.u5b .mtop .feed{margin-left:auto}
+.u5b .mtop .x{font-size:18px;line-height:1;background:none;border:0;padding:0 2px 4px;font-weight:700}
+.u5b .money{font-size:46px;margin-top:4px}
+.u5b .thin{margin-top:8px}
+
+/* ---------- U7 桌面寵物 (no frame: everything outside the tag and the pet is transparent) ---------- */
+.u7{position:relative;width:236px;padding:44px 18px 6px}
+.u7 .dpet{position:relative;width:200px;display:flex;flex-direction:column;align-items:center}
+.u7 .po{--pw:190px}
+.u7 .mtag{background:var(--bg);border:3px solid var(--line);border-radius:16px;box-shadow:3px 3px 0 var(--shadow);padding:4px 12px 7px;text-align:center;
+  position:relative;margin-bottom:-6px;z-index:2;font-family:var(--font);color:var(--text);cursor:pointer}
+.u7 .mtag::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bg);border-right:3px solid var(--line);border-bottom:3px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+.u7 .mtag .money{font-size:24px}
+.u7 .mtag .thin{height:7px;margin-top:3px;border-width:2px}
+.u7 .tools{position:absolute;right:-6px;top:-10px;z-index:3;display:flex;gap:4px;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.u7 .dpet.hover .tools{opacity:1;visibility:visible;transition:opacity .2s}
+.u7 .tools button{width:24px;height:24px;border-radius:50%;background:#fff;border:2.5px solid var(--line);display:grid;place-items:center;font-size:12px;padding:0;box-shadow:2px 2px 0 var(--shadow)}
+.u7 .bubble{left:14px;top:2px;max-width:200px}
+
+/* ---------- M3 圓形徽章 ---------- */
+.m3{position:relative;display:flex;flex-direction:column;align-items:center;font-family:var(--font);width:max-content;min-width:168px;padding:2px 4px 2px}
+.m3 .ring{width:118px;height:118px;border-radius:50%;padding:9px;border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);background:conic-gradient(var(--money) calc(var(--p,0)*1%),#fff 0);cursor:pointer}
+.m3 .ring .av{width:100%;height:100%;border-width:3px}
+.m3 .tagm{margin-top:-14px;position:relative;background:var(--bar);border:3px solid var(--line);border-radius:12px;padding:3px 12px;box-shadow:3px 3px 0 var(--shadow);cursor:pointer}
+.m3 .tagm .mmoney{font-size:21px}
+/* the prototype sat on a white card; on a real desktop the line needs its own light backing to stay readable.
+   Fredoka's digits are proportional: the fixed minimum width keeps the box (and its hit rect) still as the time ticks. */
+.m3 .sub{font-size:11px;font-weight:700;color:var(--sub);margin-top:6px;background:rgba(255,248,236,.92);border-radius:99px;padding:1px 9px;white-space:nowrap;
+  min-width:136px;text-align:center}
+.m3 .banner{font-size:12px;padding:4px 10px;top:30%;white-space:normal;width:150px;text-align:center}
+
+/* ---------- PANEL (placeholder until the real panels exist) ---------- */
+.panel{width:400px}
+.panel .pbody{padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.panel .ptitle{font-size:20px;font-weight:700}
+.panel .pmsg{font-size:14px;font-weight:600;line-height:1.7;color:var(--sub)}
+.panel .pmsg b{color:var(--text)}
+.btn{font-size:14px;font-weight:700;border:2.5px solid var(--line);background:var(--bar);border-radius:99px;padding:6px 18px;box-shadow:2px 2px 0 var(--shadow)}

@@ -5,15 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>錢進中</title>
 <link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pets.css">
+<link rel="stylesheet" href="css/layouts.css">
 <style>
-  html, body { background: transparent; }
-  body { padding: 12px; }
-  .ro { max-width: 380px; }
-  .ro-body { padding: 14px 16px 16px; display: grid; gap: 8px; }
-  .ro-row { display: flex; align-items: center; justify-content: space-between; }
-  .ro .odo { font-size: inherit; }
-  .ro-q { font-size: 13px; font-weight: 600; display: grid; gap: 6px; }
-  .ro-q button { font: inherit; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 12px; cursor: pointer; }
+  /* The window is sized to the layout (setLayout) and transparent wherever the layout paints nothing. */
+  html, body { background: transparent; overflow: hidden; }
+  #root { position: absolute; left: 0; top: 0; }
 </style>
 </head>
 <body>
@@ -29,9 +26,25 @@
 <script src="js/ui/fx.js"></script>
 <script src="js/ui/sound.js"></script>
 <script src="js/ui/app.js"></script>
-<script src="js/ui/readout.js"></script>
+<script src="js/pets/common.js"></script>
+<script src="js/pets/room.js"></script>
+<script src="js/pets/expressions.js"></script>
+<script src="js/pets/props.js"></script>
+<script src="js/pets/rig.js"></script>
+<script src="js/pets/states.js"></script>
+<script src="js/pets/registry.js"></script>
+<script src="js/pets/skins/hamster-p0.js"></script>
+<script src="js/pets/skins/hamster-p4.js"></script>
+<script src="js/pets/skins/hamster-h2.js"></script>
+<script src="js/pets/skins/hamster-s4.js"></script>
+<script src="js/pets/skins/hamster-s5.js"></script>
+<script src="js/pets/skins/cat-p0.js"></script>
+<script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-s5.js"></script>
+<script src="js/pets/compose.js"></script>
+<script src="js/ui/layouts.js"></script>
 <script>
-  QJZ.readout.mount(document.getElementById('root'));
+  QJZ.layouts.start(document.getElementById('root'));
   QJZ.app.start();
 </script>
 </body>

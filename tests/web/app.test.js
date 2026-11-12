@@ -153,6 +153,52 @@
     eq(parsed.history.days['2026-11-12'].startMs, at(12, 10, 0));
     QJZ.app._reset();
   });
+  // 50000 / 22 / 8 h = NT$284.09 an hour: from 09:00 the 3rd NT$100 milestone falls at 10:03:22.
+  test('app: milestone fires once when the clock crosses a step, never on init', function () {
+    var e = mk(at(12, 10, 0));
+    var got = [];
+    QJZ.app.on('milestone', function (m) { got.push(m.count); });
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    eq(got, [], 'init with 2 milestones already passed does not celebrate');
+    e.clock.ms = at(12, 10, 3); QJZ.app.tickNow();
+    eq(got, []);
+    e.clock.ms = at(12, 10, 4); QJZ.app.tickNow();
+    eq(got, [3]);
+    e.clock.ms = at(12, 10, 5); QJZ.app.tickNow();
+    eq(got, [3], 'only once per step');
+    eq(QJZ.app.state.snacks, 3, 'the step is a snack');
+    QJZ.app._reset();
+  });
+  test('app: a jump from adjustStart moves the milestone baseline without celebrating', function () {
+    var e = mk(at(12, 10, 0));
+    var got = 0;
+    QJZ.app.on('milestone', function () { got++; });
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    QJZ.app.adjustStart(at(12, 7, 0));
+    QJZ.app.tickNow();
+    eq(got, 0);
+    QJZ.app._reset();
+  });
+  test('app: quit flushes pending saves, then sends quit', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    QJZ.app.saveSettings({ milestone: 50 });
+    QJZ.app.quit();
+    var t = typesOf(e.sent);
+    eq(t[t.length - 1], 'quit');
+    ok(t.indexOf('saveSettings') >= 0 && t.indexOf('saveSettings') < t.length - 1, 'settings saved before quit');
+    QJZ.app._reset();
+  });
+  test('app: hotkeyFailed / storageError are kept for the panels', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    e.bridge.emit({ type: 'hotkeyFailed', combo: 'Ctrl+Alt+H', reason: 'taken' });
+    e.bridge.emit({ type: 'storageError', file: 'settings', reason: 'locked' });
+    eq(QJZ.app.state.hotkeyFailed.reason, 'taken');
+    eq(QJZ.app.state.storageError.file, 'settings');
+    QJZ.app._reset();
+    eq(QJZ.app.state.hotkeyFailed, null);
+  });
   test('app: tickNow recomputes from the clock, no accumulation', function () {
     var e = mk(at(12, 10, 0));
     init(e, {});

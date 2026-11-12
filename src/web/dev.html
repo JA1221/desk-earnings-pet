@@ -5,30 +5,56 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>錢進中 dev</title>
 <link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pets.css">
+<link rel="stylesheet" href="css/layouts.css">
 <style>
   html, body { background: #ECE8E1; min-height: 100%; }
   body { padding: 14px; background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0); background-size: 22px 22px; }
-  .ro { max-width: 380px; }
-  .ro-body { padding: 14px 16px 16px; display: grid; gap: 8px; }
-  .ro-row { display: flex; align-items: center; justify-content: space-between; }
-  .ro-q { font-size: 13px; font-weight: 600; display: grid; gap: 6px; }
-  button { font: inherit; font-size: 13px; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 12px; cursor: pointer; }
-  .tools { max-width: 380px; margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .note { max-width: 380px; margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.6; }
+  /* ?bg=wall: a desktop-like backdrop (the prototype's U7 wallpaper) to judge the frameless layouts */
+  html.wall, html.wall body { background: radial-gradient(circle at 75% 25%, #FFE9B0 0 40px, transparent 41px), linear-gradient(180deg, #9ED8FF 0%, #CDEBFF 55%, #BFE6C4 56%, #9FD6A6 100%) fixed; }
+  #root { position: relative; display: inline-block; vertical-align: top; }
+  .devbar { max-width: 520px; margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .devbar button { font: inherit; font-size: 12.5px; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 3px 11px; cursor: pointer; }
+  .devbar .sep { flex-basis: 100%; height: 0; }
+  .note { max-width: 520px; margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.6; }
+  .note code { font-size: 11.5px; }
+  #sent { font-family: Consolas, monospace; font-size: 11px; color: #6B6158; white-space: pre-wrap; }
+  .hitbox { position: fixed; border: 1.5px dashed #E0245E; background: rgba(224,36,94,.08); pointer-events: none; z-index: 99; }
+  .hidebar .devbar, .hidebar .note { display: none; }
 </style>
 </head>
 <body>
 <div id="root"></div>
-<div class="tools">
+<div class="devbar" id="devbar">
+  <button type="button" data-menu="layout:U1">U1</button>
+  <button type="button" data-menu="layout:U3">U3</button>
+  <button type="button" data-menu="layout:U5B">U5-B</button>
+  <button type="button" data-menu="layout:U7">U7</button>
+  <button type="button" data-menu="mini">縮成迷你</button>
+  <span class="sep"></span>
+  <button type="button" data-menu="feed">餵食</button>
+  <button type="button" data-menu="start">開始上班</button>
+  <button type="button" data-menu="adjust">調整起算時間</button>
+  <button type="button" data-menu="end">下班</button>
+  <button type="button" data-menu="topmost">置頂</button>
+  <button type="button" data-menu="settings">設定</button>
+  <button type="button" data-menu="history">紀錄</button>
+  <button type="button" data-menu="quit">結束</button>
+  <span class="sep"></span>
   <button type="button" id="snd">聲音：關</button>
-  <button type="button" id="feed">餵零食</button>
-  <button type="button" id="end">下班</button>
-  <button type="button" id="fxb">特效</button>
+  <button type="button" id="hits">顯示點擊區</button>
 </div>
-<p class="note">Dev mock: 資料存在 localStorage（qjz.settings / qjz.history）。網址加 <code>?start=HH:MM</code> 可指定今天的開工時間；預設假時間 14:32、薪水 50000。</p>
+<p class="note">Dev mock：右鍵選單在這裡用上面的按鈕代替（送出 host 的 <code>menu</code> 訊息）。資料存在 localStorage（qjz.settings / qjz.history）。
+網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3</code>、
+<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。</p>
+<div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
-  window.QJZ_DEV = { nowHM: '14:32:07', start: '09:12', settings: { salary: { mode: 'monthly', amount: 50000, divisor: 22 } } };
+  var devQ = new URLSearchParams(location.search);
+  if (devQ.get('fresh') === '1') { try { localStorage.removeItem('qjz.settings'); localStorage.removeItem('qjz.history'); } catch (e) {} }
+  if (devQ.get('bg') === 'wall') document.documentElement.classList.add('wall');
+  if (devQ.get('bar') === '0') document.body.classList.add('hidebar');
+  window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12', settings: { salary: { mode: 'monthly', amount: 50000, divisor: 22 } } };
 </script>
 <script src="js/core/time.js"></script>
 <script src="js/core/earnings.js"></script>
@@ -41,10 +67,63 @@
 <script src="js/ui/fx.js"></script>
 <script src="js/ui/sound.js"></script>
 <script src="js/ui/app.js"></script>
-<script src="js/ui/readout.js"></script>
+<script src="js/pets/common.js"></script>
+<script src="js/pets/room.js"></script>
+<script src="js/pets/expressions.js"></script>
+<script src="js/pets/props.js"></script>
+<script src="js/pets/rig.js"></script>
+<script src="js/pets/states.js"></script>
+<script src="js/pets/registry.js"></script>
+<script src="js/pets/skins/hamster-p0.js"></script>
+<script src="js/pets/skins/hamster-p4.js"></script>
+<script src="js/pets/skins/hamster-h2.js"></script>
+<script src="js/pets/skins/hamster-s4.js"></script>
+<script src="js/pets/skins/hamster-s5.js"></script>
+<script src="js/pets/skins/cat-p0.js"></script>
+<script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-s5.js"></script>
+<script src="js/pets/compose.js"></script>
+<script src="js/ui/layouts.js"></script>
 <script>
-  var view = QJZ.readout.mount(document.getElementById('root'));
+  // Show what the page tells the host: the last setLayout, and (?hits=1 / button) the hit rects as dashed boxes.
+  var showHits = devQ.get('hits') === '1', lastRects = [], lastLayout = null, sentEl = document.getElementById('sent');
+  function drawHits() {
+    Array.prototype.forEach.call(document.querySelectorAll('.hitbox'), function (n) { n.remove(); });
+    if (!showHits) return;
+    lastRects.forEach(function (r) {
+      var b = document.createElement('div');
+      b.className = 'hitbox';
+      b.style.left = r[0] + 'px'; b.style.top = r[1] + 'px'; b.style.width = r[2] + 'px'; b.style.height = r[3] + 'px';
+      document.body.appendChild(b);
+    });
+  }
+  var mockSend = QJZ.bridge.send;
+  QJZ.bridge.send = function (type, payload) {
+    if (type === 'setLayout') lastLayout = payload;
+    if (type === 'hitRects') { lastRects = payload.rects; drawHits(); }
+    if (lastLayout) sentEl.textContent = 'setLayout ' + JSON.stringify(lastLayout) + '\nhitRects ' + JSON.stringify(lastRects);
+    return mockSend(type, payload);
+  };
+
+  var first = devQ.get('layout');
+  QJZ.layouts.start(document.getElementById('root'), { first: first });
+  var pet = /^(cat|hamster):(\w+)$/.exec(devQ.get('pet') || '');
+  if (pet) {
+    var offPet = QJZ.app.on('change', function () {
+      offPet();
+      QJZ.app.saveSettings({ pet: { kind: pet[1], skin: pet[2] } });
+    });
+  }
+  var sayText = devQ.get('say');
+  if (sayText) {
+    var offSay = QJZ.app.on('change', function () { offSay(); setTimeout(function () { QJZ.layouts.say(sayText, 600000); }, 0); });
+  }
   QJZ.app.start();
+
+  document.getElementById('devbar').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-menu]');
+    if (b) QJZ.bridge._dispatch({ type: 'menu', action: b.getAttribute('data-menu') });
+  });
   var snd = document.getElementById('snd');
   snd.onclick = function () {
     var on = !QJZ.sound.isEnabled();
@@ -52,16 +131,7 @@
     snd.textContent = '聲音：' + (on ? '開' : '關');
     if (on) QJZ.sound.coin();
   };
-  document.getElementById('feed').onclick = function () {
-    var ok = QJZ.app.feed();
-    if (ok) QJZ.fx.hearts(view.fxHost, 190, 120, 6); else QJZ.fx.banner(view.fxHost, '還沒有零食');
-  };
-  document.getElementById('end').onclick = function () { QJZ.app.endWork(); };
-  document.getElementById('fxb').onclick = function () {
-    QJZ.fx.confetti(view.fxHost, 190, 140);
-    QJZ.fx.banner(view.fxHost, '下班啦！');
-    QJZ.sound.jingle();
-  };
+  document.getElementById('hits').onclick = function () { showHits = !showHits; drawHits(); };
 </script>
 </body>
 </html>
