@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -16,6 +15,8 @@ using Microsoft.Web.WebView2.WinForms;
 // Click-through: the window is layered with constant alpha 255 (renders the same, but makes
 // WS_EX_TRANSPARENT count for hit-testing); a ~30 Hz cursor poll sets WS_EX_TRANSPARENT whenever
 // the cursor is outside every hit rect, so the whole window, WebView2 included, is skipped.
+// CSS -> physical px uses the page's devicePixelRatio (reported with SetContentSize / SetHitRects),
+// which can differ from DPI / 96 (page zoom, Windows Text size).
 public class PetWindow : Form
 {
     private readonly WebView2 web = new WebView2();
@@ -24,8 +25,15 @@ public class PetWindow : Form
     private RectangleF[] hitRects = new RectangleF[0];   // CSS px; none = everything clicks through
     private int cssWidth;
     private int cssHeight;
+    private double scale;      // physical px per CSS px; 0 until known, then the page's DPR
+    private int windowDpi;     // tracked through WM_DPICHANGED
+    private bool pollSuspended;
 
     public event EventHandler WebReady;
+
+    // Transparency or WebView2 setup failed; the window cannot be shown usefully. Without a subscriber the
+    // window shows the message itself and closes.
+    public event Action<string> InitFailed;
 
     public PetWindow(string startUrl)
     {
@@ -43,7 +51,7 @@ public class PetWindow : Form
 
         hitTimer.Interval = 33;
         hitTimer.Tick += delegate { UpdateClickThrough(); };
-        VisibleChanged += delegate { hitTimer.Enabled = Visible; };
+        VisibleChanged += delegate { hitTimer.Enabled = Visible && !pollSuspended; };
         Load += delegate { InitWeb(); };
     }
 
@@ -56,20 +64,35 @@ public class PetWindow : Form
         set { TopMost = value; }
     }
 
-    // Window size = page CSS size x the window's current DPI scale (kept on DPI changes).
-    public void SetContentSize(int cssWidth, int cssHeight)
+    // Window size = page CSS size x page DPR. dpr <= 0 means "not reported": the last known scale is kept
+    // (window DPI / 96 until the page has reported one).
+    public void SetContentSize(int cssWidth, int cssHeight, double dpr)
     {
         this.cssWidth = cssWidth;
         this.cssHeight = cssHeight;
-        double s = DpiScale();
-        Size = new Size((int)Math.Round(cssWidth * s), (int)Math.Round(cssHeight * s));
+        if (dpr > 0) scale = dpr;
+        ApplySize();
     }
 
     // Areas (CSS px, page coordinates) that receive the mouse; everywhere else clicks fall through.
-    public void SetHitRects(RectangleF[] cssRects)
+    // A newly reported dpr also re-sizes the window.
+    public void SetHitRects(RectangleF[] cssRects, double dpr)
     {
         hitRects = cssRects ?? new RectangleF[0];
+        if (dpr > 0 && dpr != scale)
+        {
+            scale = dpr;
+            ApplySize();
+        }
         UpdateClickThrough();
+    }
+
+    // Stops (true) or restarts (false) the 30 Hz hit poll, e.g. while the session is locked. The last
+    // click-through state stays in effect while stopped.
+    public void SuspendHitPolling(bool suspend)
+    {
+        pollSuspended = suspend;
+        hitTimer.Enabled = Visible && !suspend;
     }
 
     // Native window move; call while the primary button is held (e.g. on a page mousedown message).
@@ -101,25 +124,34 @@ public class PetWindow : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        windowDpi = (int)Native.GetDpiForWindow(Handle);
         Native.DWM_BLURBEHIND bb = new Native.DWM_BLURBEHIND();
         bb.dwFlags = Native.DWM_BB_ENABLE | Native.DWM_BB_BLURREGION;
         bb.fEnable = true;
         bb.hRgnBlur = Native.CreateRectRgn(0, 0, -1, -1);   // empty region: alpha only, no blur
-        Native.DwmEnableBlurBehindWindow(Handle, ref bb);
+        int hr = Native.DwmEnableBlurBehindWindow(Handle, ref bb);
         Native.DeleteObject(bb.hRgnBlur);
-        Native.SetLayeredWindowAttributes(Handle, 0, 255, Native.LWA_ALPHA);
+        string error = null;
+        if (hr < 0) error = "DwmEnableBlurBehindWindow 0x" + hr.ToString("X8");
+        else if (!Native.SetLayeredWindowAttributes(Handle, 0, 255, Native.LWA_ALPHA))
+            error = "SetLayeredWindowAttributes " + Marshal.GetLastWin32Error();
+        if (error != null)
+            BeginInvoke((MethodInvoker)delegate { Fail("透明視窗初始化失敗：" + error); });
     }
 
+    // Handled here without calling base: Form.DeviceDpi stays at its creation value and Form.DpiChanged
+    // never fires for this window. Use the page's reported DPR instead of either.
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == Native.WM_DPICHANGED)
         {
-            // Keep the suggested position, but size from the page's CSS size at the new DPI.
+            int newDpi = (int)(m.WParam.ToInt64() & 0xFFFF);
+            if (scale > 0) scale = PetGeometry.ScaleAfterDpiChange(scale, windowDpi, newDpi);   // provisional until the page re-reports
+            windowDpi = newDpi;
             Native.RECT r = (Native.RECT)Marshal.PtrToStructure(m.LParam, typeof(Native.RECT));
-            double s = (m.WParam.ToInt64() & 0xFFFF) / 96.0;
-            int w = cssWidth > 0 ? (int)Math.Round(cssWidth * s) : r.Right - r.Left;
-            int h = cssHeight > 0 ? (int)Math.Round(cssHeight * s) : r.Bottom - r.Top;
-            Native.SetWindowPos(Handle, IntPtr.Zero, r.Left, r.Top, w, h, Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+            Size size = cssWidth > 0 ? PetGeometry.WindowSize(cssWidth, cssHeight, Scale())
+                                     : new Size(r.Right - r.Left, r.Bottom - r.Top);
+            Native.SetWindowPos(Handle, IntPtr.Zero, r.Left, r.Top, size.Width, size.Height, Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
             m.Result = IntPtr.Zero;
             return;
         }
@@ -132,10 +164,14 @@ public class PetWindow : Form
         base.Dispose(disposing);
     }
 
-    private double DpiScale()
+    private double Scale()
     {
-        uint dpi = IsHandleCreated ? Native.GetDpiForWindow(Handle) : 0;
-        return (dpi == 0 ? DeviceDpi : (int)dpi) / 96.0;
+        return scale > 0 ? scale : PetGeometry.DpiScale(windowDpi > 0 ? windowDpi : DeviceDpi);
+    }
+
+    private void ApplySize()
+    {
+        if (cssWidth > 0) Size = PetGeometry.WindowSize(cssWidth, cssHeight, Scale());
     }
 
     private void UpdateClickThrough()
@@ -152,43 +188,40 @@ public class PetWindow : Form
         Native.POINT p;
         Native.RECT win;
         if (!Native.GetCursorPos(out p) || !Native.GetWindowRect(Handle, out win)) return false;
-        double s = DpiScale();
-        float x = (float)((p.X - win.Left) / s);
-        float y = (float)((p.Y - win.Top) / s);
-        foreach (RectangleF r in hitRects)
-            if (r.Contains(x, y)) return true;
-        return false;
+        return PetGeometry.HitTest(hitRects, p.X, p.Y, win.Left, win.Top, Scale());
+    }
+
+    private void Fail(string message)
+    {
+        Action<string> handler = InitFailed;
+        if (handler != null) { handler(message); return; }
+        MessageBox.Show(message, "錢進中");
+        Close();
     }
 
     private async void InitWeb()
     {
         try
         {
-            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
-            string arch = Environment.Is64BitProcess ? "x64" : "x86";
-            string loader = Path.Combine(exeDir, Path.Combine("vendor", Path.Combine("webview2", arch)));
-            if (!Directory.Exists(loader))
-            {
-                // dev layout: build\ exe next to repo's vendor\
-                string repoVendor = Path.Combine(Path.GetDirectoryName(exeDir) ?? exeDir, Path.Combine("vendor", Path.Combine("webview2", arch)));
-                if (Directory.Exists(repoVendor)) loader = repoVendor;
-            }
-            if (Directory.Exists(loader)) CoreWebView2Environment.SetLoaderDllFolderPath(loader);
-
-            string userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("錢進中", "WebView2"));
-            Directory.CreateDirectory(userData);
-            CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, userData);
-            await web.EnsureCoreWebView2Async(env);
+            await web.EnsureCoreWebView2Async(await WebViewEnv.GetAsync());
+            CoreWebView2Settings s = web.CoreWebView2.Settings;
+            s.IsZoomControlEnabled = false;   // page zoom would desync DPR from the reported layout
+            s.IsPinchZoomEnabled = false;
+            s.AreDefaultContextMenusEnabled = false;
+            s.AreBrowserAcceleratorKeysEnabled = false;
+            s.IsStatusBarEnabled = false;
+            s.AreDevToolsEnabled = Environment.GetEnvironmentVariable("QJZ_DEVTOOLS") == "1";
+            web.AllowExternalDrop = false;    // a file dropped on a hit rect would navigate the page away
 
             string root = WebRoot.Resolve();
-            if (root == null) { MessageBox.Show("找不到網頁資源 (src/web)。", "錢進中"); return; }
+            if (root == null) { Fail("找不到網頁資源 (src/web)。"); return; }
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);
             if (WebReady != null) WebReady(this, EventArgs.Empty);
             web.CoreWebView2.Navigate(startUrl);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.ToString(), "錢進中");
+            Fail("WebView2 初始化失敗：" + ex.Message);
         }
     }
 }

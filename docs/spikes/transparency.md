@@ -15,14 +15,21 @@ The 150 % monitor was used as-is, so no display setting was changed.
 | Frame | `FormBorderStyle.None`, `ShowInTaskbar = false`, `AutoScaleMode.None`. |
 | Rendering | `DwmEnableBlurBehindWindow` with an **empty** region (`CreateRectRgn(0,0,-1,-1)`, `fEnable = true`). This adds no blur, but DWM now composes the window surface with its alpha channel. The form's GDI background is **black** (GDI writes alpha 0, so black is fully transparent). WebView2 has `DefaultBackgroundColor = Transparent`, and its DirectComposition content is blended on top with its own alpha. |
 | Click-through | The window is created `WS_EX_LAYERED` with `SetLayeredWindowAttributes(alpha 255, LWA_ALPHA)`. That renders identically, but it makes `WS_EX_TRANSPARENT` count for hit-testing. A 33 ms WinForms timer (about 30 Hz) checks `GetCursorPos` against the hit rects: outside every rect it sets `WS_EX_TRANSPARENT`, so the whole window, WebView2 child windows included, is skipped. Inside a rect it clears the flag. The timer runs only while the window is visible. |
-| Hit rects | `SetHitRects(RectangleF[])` takes CSS-pixel rects, which are scaled by `GetDpiForWindow / 96` at test time. With no rects set (before the page reports any), the whole window clicks through. |
-| Size / DPI | `SetContentSize(cssW, cssH)` sets the size to CSS size × DPI scale. `WM_DPICHANGED` keeps the suggested position but re-sizes from the stored CSS size. |
+| CSS ↔ physical | One scale (physical px per CSS px) serves both the window size and the hit test, so they can't drift apart. Once the page reports it, that scale is the page's `devicePixelRatio`, which can differ from `DPI / 96` (page zoom, the Windows Text size setting via WebView2's RasterizationScale). Before any report it falls back to `DPI / 96`. The maths lives in `PetGeometry` (host-tested). |
+| Hit rects | `SetHitRects(RectangleF[] cssRects, double dpr)` takes CSS-pixel rects plus the page DPR (`dpr <= 0` = not reported). A new DPR re-sizes the window too. With no rects set (before the page reports any), the whole window clicks through. |
+| Size / DPI | `SetContentSize(cssW, cssH, dpr)` sets the size to CSS size × DPR. On `WM_DPICHANGED` the window keeps the suggested position, and the scale becomes `scale × newDpi / oldDpi`, which keeps `k = dpr / (oldDpi/96)`. That provisional scale holds until the page re-reports, then the reported DPR wins. The override does not call `base`, so `Form.DeviceDpi` stays stale and `Form.DpiChanged` never fires. Use the page DPR instead. |
+| Poll control | `SuspendHitPolling(bool)` stops or restarts the 30 Hz poll (e.g. while the session is locked). The last click-through state stays in effect. |
+| Failure | `event Action<string> InitFailed` fires when `DwmEnableBlurBehindWindow` returns a failing HRESULT, when `SetLayeredWindowAttributes` fails, or when WebView2 init or virtual-host mapping fails. Without a subscriber the window shows the message and closes itself, so it never leaves an invisible, unclickable window behind. |
+| WebView2 hardening | Zoom control and pinch zoom off (they would desync the DPR), default context menus off, browser accelerator keys off, status bar off, DevTools only with `QJZ_DEVTOOLS=1`, `AllowExternalDrop = false` (a dropped file would navigate the page away). |
+| Process-wide setup | `WebViewEnv.GetAsync()` sets the loader DLL folder and creates the one shared environment (user data `%LocalAppData%\錢進中\WebView2`) once per process. |
 | Drag | `BeginDrag()` is deferred with `BeginInvoke` so the WebView2 event handler returns first. It does nothing if the primary button is already up (`GetAsyncKeyState`, honours swapped buttons), so the window can't stick to the cursor. Otherwise it calls `ReleaseCapture` + `WM_NCLBUTTONDOWN/HTCAPTION`. |
 | Topmost | `TopMostEnabled` maps to `Form.TopMost`. |
 
-Dev harness: `build\錢進中.exe --spike` opens `src/web/spike.html` in a `PetWindow`.
-`Program.cs` wires a tiny string protocol for it: page → host `size W H`, `hits x y w h|…`, `drag`, `topmost`;
-host → page `topmost 1|0`. Task 7 replaces this wiring.
+Dev harness: `build\錢進中.exe --spike` opens `src/web/spike.html` in a `PetWindow`. The page speaks the real
+host protocol through `Bridge` (JSON): `setLayout {layout, width, height, dpr}`, `hitRects {rects:[[x,y,w,h],…], dpr}`,
+`dragStart {}`, `setTopmost {on}`, with `dpr = window.devicePixelRatio`. It re-reports on `resize` and also when a
+`(resolution: <dpr>dppx)` media query changes, because a DPI change can change the DPR without changing the CSS
+viewport. `Program.cs` holds the spike's message handling; Task 7 replaces it.
 The page contains an A1 sticker card (28 px radius, 3 px `#3D2C24` border, 7 px hard shadow), the P0 hamster
 (`petOnlySVG('p0','hamster')`, outlined), the S4 hamster (no outlines), a soft radial glow (alpha 0.95 → 0),
 and a fading `+NT$0.42` floater. Nothing sits behind any of them.
@@ -55,13 +62,13 @@ and a fading `+NT$0.42` floater. Nothing sits behind any of them.
 ## Verification (approach 3)
 
 Method: a scripted helper (per-monitor-v2 aware, all coordinates physical) opens a borderless "backdrop" window
-showing a synthetic busy wallpaper (noise, stripes, rings, blocks). The script captures it, starts
-`錢進中.exe --spike` topmost over it, and captures again (BitBlt + CAPTUREBLT from the screen). It then compares
-the two captures pixel by pixel, sends real mouse clicks (`SetCursorPos` + `mouse_event`) and logs which window
-received each click (the backdrop logs its own `MouseDown`s, and the foreground window is read back). It also
-drags the card and toggles topmost with the page button. The real desktop could not be used: it was covered by
-the user's maximized windows, and their windows were not minimized. Hit-testing does not care which window is
-behind, though. One extra capture landed over a real Chrome window and looks the same.
+showing a busy pattern. The script captures it, starts `錢進中.exe --spike` topmost over it, and captures again
+(BitBlt + CAPTUREBLT from the screen). It then compares the two captures pixel by pixel, sends real mouse clicks
+(`SetCursorPos` + `mouse_event`) and logs which window received each click (the backdrop logs its own
+`MouseDown`s, and the foreground window is read back). It also drags the card and toggles topmost with the page
+button. The helpers are committed in `tools/visual-check/` (see its README). The real desktop could not be
+used: it was covered by the user's maximized windows, and their windows were not minimized. Hit-testing does
+not care which window is behind, though. Extra captures that landed over a real Chrome window look the same.
 
 | Check | 100 % (96 dpi) | 150 % (144 dpi) |
 |---|---|---|
@@ -78,6 +85,27 @@ behind, though. One extra capture landed over a real Chrome window and looks the
 | Drag card by (+200,+100) / (+200,+150) px | window moved exactly by that offset | same |
 | Topmost on → activate backdrop | pet stays above (WS_EX_TOPMOST set) | same |
 | Topmost off → activate backdrop | backdrop covers the pet (flag cleared) | same |
+
+Re-run after fix round 1 (DPR-aware mapping, JSON protocol): every row above passes again at 100 % and 150 %
+(`task-2-fix1-r100-result.txt`, `task-2-fix1-r150-result.txt`). A new test point, the card near its right edge
+(CSS 255,100), hits only when the host uses the page DPR.
+
+**Page DPR ≠ DPI/96** (fix round 1). This was checked without touching any system setting: a temporary dev
+build, not committed, set `WebView2.ZoomFactor = 1.25`.
+
+| Check | 100 % monitor, zoom 1.25 (DPR 1.25) | moved to 150 % monitor (DPR 1.875) |
+|---|---|---|
+| Window size (520×340 CSS) | 650×425 (a DPI-based size would be 520×340) | 975×638, with the ratio k = 1.25 kept through `WM_DPICHANGED` |
+| Click on card / near its right edge / pet | page / page / page | page / page / page |
+| Click in gap, empty corner, glow | reached the window behind | reached the window behind |
+| Transparent regions vs background | 0 changed of 34 341 | 0 changed of 77 925 |
+| Drag, topmost on/off | pass | pass |
+
+A cross-monitor drag with zoom 1.25 goes 650×425 @96 → 975×638 @144 (the page shows DPR 1.875) →
+650×425 @96. Evidence: `task-2-fix1-zoom125-at100.png`, `task-2-fix1-zoom125-at150.png`,
+`task-2-fix1-zoom125-dragged-to-150.png`, `task-2-fix1-z125-result.txt`, `task-2-fix1-z125-150-result.txt`.
+Failure path: with `QJZ_WEB_ROOT` pointing at a missing folder, the spike shows
+「WebView2 初始化失敗：系統找不到指定的路徑。」 and exits by itself once the dialog is closed.
 
 DPI changes: `SetWindowPos` onto the 150 % monitor gives 520×340 → 780×510, and moving back gives 520×340.
 Dragging the card from the 100 % monitor onto the 150 % monitor and back (`WM_DPICHANGED` inside the move loop)
@@ -114,4 +142,7 @@ Evidence: everything is in `.superpowers/sdd/2026-11-11-qianjinzhong/`, which is
   proven on this Win11 build.
 - **Capture protection is untested here.** `SetWindowDisplayAffinity` (Task 7) on this layered window still
   needs its own check.
-- Only 100 % and 150 % were tested, on real monitors. Other scales (125 %, 175 %) use the same code path.
+- Only 100 % and 150 % monitors were tested, plus page zoom 1.25 for a DPR that differs from DPI/96. The Windows
+  Text size setting was not changed (it is the user's machine). It takes the same DPR path as zoom.
+- **Layout pages must send `dpr`** with `setLayout` and `hitRects`, and must re-report when the DPR changes
+  (`resize` plus a resolution media query). Without a DPR the host falls back to DPI/96.

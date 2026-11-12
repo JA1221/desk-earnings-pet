@@ -9,8 +9,8 @@
   floaters must show the desktop, and clicks there must fall through.
   Pet art: petOnlySVG('p0','hamster') and petOnlySVG('s4','hamster') from
   docs/prototypes/shared.js, rendered once and pasted as static SVG (unused defs removed).
-  Host protocol (strings via chrome.webview): page -> host "size W H", "hits x y w h|...",
-  "drag", "topmost"; host -> page "topmost 1|0".
+  Host protocol (JSON via chrome.webview, see Bridge.cs): setLayout {layout, width, height, dpr},
+  hitRects {rects: [[x,y,w,h],...], dpr}, dragStart {}, setTopmost {on}; dpr = window.devicePixelRatio.
 -->
 <style>
   @font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-Variable.ttf') format('truetype'); font-weight: 300 700; }
@@ -78,22 +78,34 @@
 <script>
 (function () {
   var wv = window.chrome && window.chrome.webview;
-  function send(s) { if (wv) wv.postMessage(s); }
+  var topmost = false;
+  function send(msg) { if (wv) wv.postMessage(msg); }
   function report() {
+    var dpr = window.devicePixelRatio;
     var stage = document.getElementById('stage');
-    send('size ' + stage.offsetWidth + ' ' + stage.offsetHeight);
+    send({ type: 'setLayout', layout: 'spike', width: stage.offsetWidth, height: stage.offsetHeight, dpr: dpr });
     var rects = [];
     document.querySelectorAll('[data-hit]').forEach(function (el) {
       var r = el.getBoundingClientRect();
-      rects.push([r.left, r.top, r.width, r.height].map(Math.round).join(' '));
+      rects.push([r.left, r.top, r.width, r.height].map(Math.round));
     });
-    send('hits ' + rects.join('|'));
-    document.getElementById('dpr').textContent = 'DPR ' + window.devicePixelRatio;
+    send({ type: 'hitRects', rects: rects, dpr: dpr });
+    document.getElementById('dpr').textContent = 'DPR ' + dpr;
+  }
+  // DPR can change without a viewport resize (the host keeps the CSS size across DPI changes): re-arm a
+  // resolution media query for the current DPR each time it fires.
+  function watchDpr() {
+    window.matchMedia('(resolution: ' + window.devicePixelRatio + 'dppx)')
+      .addEventListener('change', function () { report(); watchDpr(); }, { once: true });
   }
   document.querySelector('.card').addEventListener('mousedown', function (e) {
-    if (e.button === 0 && e.target.tagName !== 'BUTTON') send('drag');
+    if (e.button === 0 && e.target.tagName !== 'BUTTON') send({ type: 'dragStart' });
   });
-  document.getElementById('top').addEventListener('click', function () { send('topmost'); });
+  document.getElementById('top').addEventListener('click', function () {
+    topmost = !topmost;
+    this.classList.toggle('on', topmost);
+    send({ type: 'setTopmost', on: topmost });
+  });
   document.querySelectorAll('.pet').forEach(function (el) {
     el.addEventListener('click', function () {
       var svg = el.querySelector('svg');
@@ -101,11 +113,8 @@
       setTimeout(function () { svg.classList.remove('happy'); }, 1600);
     });
   });
-  if (wv) wv.addEventListener('message', function (e) {
-    var m = String(e.data).split(' ');
-    if (m[0] === 'topmost') document.getElementById('top').classList.toggle('on', m[1] === '1');
-  });
   window.addEventListener('resize', report);
+  watchDpr();
   report();
 })();
 </script>

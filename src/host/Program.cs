@@ -1,8 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
-using System.IO;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -22,39 +22,48 @@ public static class Program
     private static PetWindow SpikeWindow()
     {
         PetWindow w = new PetWindow("https://app.qjz/spike.html");
+        w.InitFailed += delegate(string message)
+        {
+            MessageBox.Show(message, "錢進中");
+            w.Close();
+        };
         w.WebReady += delegate
         {
-            w.Web.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs e)
+            Bridge bridge = new Bridge(w.Web);
+            bridge.Received += delegate(string type, Dictionary<string, object> d)
             {
-                string msg = e.TryGetWebMessageAsString() ?? "";
-                if (msg == "drag") w.BeginDrag();
-                else if (msg == "topmost")
-                {
-                    w.TopMostEnabled = !w.TopMostEnabled;
-                    w.Web.PostWebMessageAsString(w.TopMostEnabled ? "topmost 1" : "topmost 0");
-                }
-                else if (msg.StartsWith("size ")) { float[] v = Numbers(msg.Substring(5)); w.SetContentSize((int)v[0], (int)v[1]); }
-                else if (msg.StartsWith("hits "))
-                {
-                    List<RectangleF> rects = new List<RectangleF>();
-                    foreach (string part in msg.Substring(5).Split('|'))
-                    {
-                        float[] v = Numbers(part);
-                        rects.Add(new RectangleF(v[0], v[1], v[2], v[3]));
-                    }
-                    w.SetHitRects(rects.ToArray());
-                }
+                if (type == "dragStart") w.BeginDrag();
+                else if (type == "setTopmost") w.TopMostEnabled = true.Equals(Field(d, "on"));
+                else if (type == "setLayout") w.SetContentSize((int)Num(Field(d, "width")), (int)Num(Field(d, "height")), Num(Field(d, "dpr")));
+                else if (type == "hitRects") w.SetHitRects(Rects(Field(d, "rects")), Num(Field(d, "dpr")));
             };
         };
         return w;
     }
 
-    private static float[] Numbers(string s)
+    private static object Field(Dictionary<string, object> d, string key)
     {
-        string[] parts = s.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        float[] v = new float[parts.Length];
-        for (int i = 0; i < parts.Length; i++) v[i] = float.Parse(parts[i], CultureInfo.InvariantCulture);
-        return v;
+        object v;
+        return d.TryGetValue(key, out v) ? v : null;
+    }
+
+    private static float Num(object v)
+    {
+        try { return v == null ? 0f : Convert.ToSingle(v, CultureInfo.InvariantCulture); }
+        catch (Exception) { return 0f; }
+    }
+
+    private static RectangleF[] Rects(object v)
+    {
+        List<RectangleF> list = new List<RectangleF>();
+        IEnumerable items = v as IEnumerable;
+        if (items != null)
+            foreach (object item in items)
+            {
+                IList r = item as IList;
+                if (r != null && r.Count == 4) list.Add(new RectangleF(Num(r[0]), Num(r[1]), Num(r[2]), Num(r[3])));
+            }
+        return list.ToArray();
     }
 }
 
@@ -76,21 +85,7 @@ public class MainForm : Form
     {
         try
         {
-            string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
-            string loader = Path.Combine(exeDir, Path.Combine("vendor", Path.Combine("webview2", Environment.Is64BitProcess ? "x64" : "x86")));
-            if (!Directory.Exists(loader))
-            {
-                // dev layout: build\ exe next to repo's vendor\
-                string repoVendor = Path.Combine(Path.GetDirectoryName(exeDir) ?? exeDir, Path.Combine("vendor", Path.Combine("webview2", Environment.Is64BitProcess ? "x64" : "x86")));
-                if (Directory.Exists(repoVendor)) loader = repoVendor;
-            }
-            if (Directory.Exists(loader)) CoreWebView2Environment.SetLoaderDllFolderPath(loader);
-
-            string userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Path.Combine("錢進中", "WebView2"));
-            Directory.CreateDirectory(userData);
-            CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, userData);
-            await web.EnsureCoreWebView2Async(env);
-
+            await web.EnsureCoreWebView2Async(await WebViewEnv.GetAsync());
             string root = WebRoot.Resolve();
             if (root == null) { MessageBox.Show("找不到網頁資源 (src/web)。", "錢進中"); return; }
             web.CoreWebView2.SetVirtualHostNameToFolderMapping("app.qjz", root, CoreWebView2HostResourceAccessKind.Allow);

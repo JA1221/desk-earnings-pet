@@ -50,7 +50,7 @@ internal static class Native
     [DllImport("user32.dll")]
     public static extern int SetWindowLong(IntPtr hWnd, int index, int value);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, int colorKey, byte alpha, int flags);
 
     [DllImport("user32.dll")]
