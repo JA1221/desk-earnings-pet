@@ -53,12 +53,20 @@ public static class WindowPlacerTests
     // The hidden window starts where the start layout will appear, so the page loads at that monitor's DPR.
     public static void Test_StartBoundsUseTheSavedSpotOfTheStartLayout()
     {
-        Rectangle? r = WindowPlacer.StartBounds(new Point(-1000, 420), new Size(300, 300), Areas);
-        Assert.True(r.HasValue, "a saved spot gives start bounds");
-        Assert.Eq(new Rectangle(-1000, 420, 300, 300), r.Value, "on the 150 % monitor, as saved");
-        r = WindowPlacer.StartBounds(new Point(-5000, 800), new Size(300, 300), Areas);
-        Assert.Eq(new Rectangle(-1080, 800, 300, 300), r.Value, "a gone monitor: clamped like Place does");
-        Assert.True(!WindowPlacer.StartBounds(null, new Size(300, 300), Areas).HasValue, "no saved spot: stay put (the first-ever spot is on the primary)");
+        Rectangle r = WindowPlacer.StartBounds(new Point(-1000, 420), new Size(300, 300), Areas, Primary);
+        Assert.Eq(new Rectangle(-1000, 420, 300, 300), r, "on the 150 % monitor, as saved");
+        r = WindowPlacer.StartBounds(new Point(-5000, 800), new Size(300, 300), Areas, Primary);
+        Assert.Eq(new Rectangle(-1080, 800, 300, 300), r, "a gone monitor: clamped like Place does");
+    }
+
+    public static void Test_StartBoundsWithoutSavedSpotIsPrimaryBottomRight()
+    {
+        // first-ever run: the same spot as Decide's fallback, so the hidden window is not left where CenterScreen
+        // (under the cursor, maybe on another-DPI monitor) would put it
+        Rectangle r = WindowPlacer.StartBounds(null, new Size(300, 300), Areas, Primary);
+        Assert.Eq(new Rectangle(1920 - 300 - WindowPlacer.DefaultMargin, 1032 - 300 - WindowPlacer.DefaultMargin, 300, 300), r, "primary bottom-right, margin in");
+        bool hostChosen;
+        Assert.Eq(WindowPlacer.Decide(null, null, new Size(300, 300), Areas, Primary, out hostChosen), r, "same as the Decide fallback");
     }
 
     public static void Test_RefitAfterDpiChange()

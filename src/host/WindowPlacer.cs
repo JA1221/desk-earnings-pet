@@ -24,21 +24,24 @@ public class WindowPlacer
         positions = WindowPositions.Parse(files.Window.Text);
     }
 
-    // Before the window exists: puts it at the saved spot of the layout the page will start in (when there is one),
-    // so the page loads at that monitor's DPR. Otherwise the page would lay out for the creation monitor, the first
-    // setLayout would move the window across a DPI change, and the first frame would show the old-size surface.
-    public void PrePlace(Control window, string layout)
+    // Before the window exists: puts it where the layout the page will start in is going to show, so the page loads
+    // at that monitor's DPR. Otherwise the page would lay out for the creation monitor, the first setLayout would
+    // move the window across a DPI change, and the first frame would show the old-size surface. Without a saved
+    // spot that is the primary work area's bottom-right (where Place will put it), never CenterScreen (which
+    // centres under the cursor, possibly on a monitor with another DPI).
+    public void PrePlace(Form window, string layout)
     {
         Point saved;
-        Rectangle? r = StartBounds(positions.TryGet(layout, out saved) ? saved : (Point?)null, window.Size, WorkAreas());
-        if (r.HasValue) window.Bounds = r.Value;
+        Point? spot = positions.TryGet(layout, out saved) ? saved : (Point?)null;
+        window.StartPosition = FormStartPosition.Manual;
+        window.Bounds = StartBounds(spot, window.Size, WorkAreas(), Screen.PrimaryScreen.WorkingArea);
     }
 
-    // The saved spot kept on screen (the same rule as Place), or null without one.
-    public static Rectangle? StartBounds(Point? saved, Size size, Rectangle[] areas)
+    // The saved spot kept on screen (the same rule as Place), else Decide's first-ever spot.
+    public static Rectangle StartBounds(Point? saved, Size size, Rectangle[] areas, Rectangle primaryWorkArea)
     {
-        if (!saved.HasValue) return null;
-        return ScreenFit.Clamp(new Rectangle(saved.Value, size), areas);
+        bool hostChosen;
+        return Decide(saved, null, size, areas, primaryWorkArea, out hostChosen);
     }
 
     // Moves window to its spot for layout; call after the window has the layout's size.

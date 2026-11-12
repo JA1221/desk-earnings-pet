@@ -44,6 +44,8 @@ public class AppHost
     readonly PauseGate gate = new PauseGate();
     readonly ApplicationContext context = new ApplicationContext();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
+    readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
+    uint uiThread;
     Dictionary<string, bool> topmost = HostSettings.Parse(null).TopmostByLayout();   // per layout, from settings.json + setTopmost
     string configuredHotkey = HostSettings.DefaultHotkey;
     SessionWatcher session;
@@ -77,7 +79,12 @@ public class AppHost
         window.InitFailed += delegate(string message) { Fatal("window init failed", message); };
         window.WebReady += delegate { OnWebReady(); };
         window.MoveEnded += delegate { OnMoveEnded(); };
-        window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) ToggleVisible(); };
+        window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) ToggleVisible(); else menuEscape.OnHotKey(id); };
+        menuEscape = new MenuEscape(
+            delegate { return window.IsHandleCreated && Native.RegisterHotKey(window.Handle, MenuEscape.Id, Native.MOD_NOREPEAT, MenuEscape.VK_ESCAPE); },
+            delegate { if (window.IsHandleCreated) Native.UnregisterHotKey(window.Handle, MenuEscape.Id); },
+            delegate { return (Native.GetAsyncKeyState(MenuEscape.VK_ESCAPE) & 0x8000) != 0; },
+            delegate { tray.CloseInnermost(); });
         window.CloseRequested += delegate { wantVisible = false; ApplyVisibility(); };   // Alt+F4: hide; 結束 quits
         window.FormClosing += OnClosing;
 
@@ -90,6 +97,7 @@ public class AppHost
         if (!(SynchronizationContext.Current is WindowsFormsSynchronizationContext))
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         ui = SynchronizationContext.Current;
+        uiThread = Native.GetCurrentThreadId();
         files.LoadAll();
         placer.Load();
         HostSettings settings = HostSettings.Parse(files.Settings.Text);
@@ -100,7 +108,12 @@ public class AppHost
 
         tray.ItemClicked += OnMenu;
         tray.IconDoubleClick += delegate { ToggleVisible(); };
-        tray.Menu.Closed += delegate { RestoreFocusAfterMenu(); };
+        tray.Menu.Opened += delegate { OnMenuOpened(); };
+        tray.Menu.Closed += delegate
+        {
+            try { menuEscape.Stop(); }   // any way the menu closes releases Esc
+            finally { RestoreFocusAfterMenu(); }
+        };
         tray.ShowIcon();
         UpdateTray();
 
@@ -378,6 +391,25 @@ public class AppHost
         tray.ShowAt(at);
     }
 
+    // A menu that cannot get the keyboard (no-activate layout, or the keyboard focus is outside our UI thread, for
+    // example in the WebView2 child or the user's app) gets Esc through MenuEscape while it is open.
+    void OnMenuOpened()
+    {
+        if (MenuEscape.Needed(window.NoActivate, KeyboardThread(), uiThread)) menuEscape.Start();
+    }
+
+    // The thread whose window has the keyboard focus (or, without one, the active window); 0 when unknown.
+    static uint KeyboardThread()
+    {
+        Native.GUITHREADINFO info = new Native.GUITHREADINFO();
+        info.cbSize = Marshal.SizeOf(typeof(Native.GUITHREADINFO));
+        if (!Native.GetGUIThreadInfo(0, ref info)) return 0;
+        IntPtr hwnd = info.hwndFocus != IntPtr.Zero ? info.hwndFocus : info.hwndActive;
+        if (hwnd == IntPtr.Zero) return 0;
+        uint pid;
+        return Native.GetWindowThreadProcessId(hwnd, out pid);
+    }
+
     void RestoreFocusAfterMenu()
     {
         IntPtr back = focusBeforeMenu;
@@ -447,6 +479,7 @@ public class AppHost
                 window.Close();
                 window.Dispose();
                 files.Dispose();
+                menuEscape.Dispose();
             }
             finally { context.ExitThread(); }
         }, null);
@@ -457,6 +490,7 @@ public class AppHost
     {
         quitting = true;
         quitTimer.Stop();
+        menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered
         files.FlushAll();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);
         if (session != null) session.Dispose();

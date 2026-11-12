@@ -37,6 +37,7 @@ internal static class Native
     public const uint WDA_MONITOR = 0x1;
     public const uint WDA_EXCLUDEFROMCAPTURE = 0x11;   // Windows 10 2004+
 
+    public const int MOD_NOREPEAT = 0x4000;
     public const int ASFW_ANY = -1;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     public const int MDT_EFFECTIVE_DPI = 0;
@@ -122,6 +123,30 @@ internal static class Native
 
     [DllImport("user32.dll")]
     public static extern bool AllowSetForegroundWindow(int processId);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    // threadId 0: the foreground thread.
+    [DllImport("user32.dll")]
+    public static extern bool GetGUIThreadInfo(uint threadId, ref GUITHREADINFO info);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
 
     [DllImport("user32.dll")]
     public static extern bool DestroyIcon(IntPtr icon);
