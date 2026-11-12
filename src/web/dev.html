@@ -210,6 +210,9 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
         rec.startSource = 'auto';
         if (back % 19 === 0) { rec = QJZ.day.setOffDay(QJZ.day.empty(key), true); rec.earned = 0; }
         else rec.earned = Math.round(daily * share[back % share.length] * 100) / 100;
+        if (!rec.offDay && back <= 11) {   // the last days: some cups and tomatoes for the 紀錄 health calendar
+          rec = QJZ.health.withHealth(rec, { cups: [8, 5, 0, 7, 2, 9, 3, 8, 1, 6, 4][back - 1], cupGoal: 8, tomatoes: back % 3, standups: back % 4 });
+        }
         hist.days[key] = rec;
       }
     } else {

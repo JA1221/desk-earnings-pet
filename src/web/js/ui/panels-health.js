@@ -168,8 +168,36 @@ QJZ.panelsHealth = (function () {
   }
 
   // ================= 紀錄 → 健康月曆 (spec §4.7, §5.6): Task 14 =================
-  function calendarCard() { return ''; }
-  function calendarUpdate() {}
+  // A month grid under the income chart (mockup E 方案 3): the bluer, the more cups; the darkest blue with a ✓ is the
+  // goal; the bottom-right corner is the day's tomatoes. The current month only (1.0's 紀錄 has no month switcher);
+  // QJZ.health.calendar takes the month for a later switcher. The cells are drawn only when something changed.
+  var WEEK = '日一二三四五六';
+  function calendarCard() {
+    var wh = '';
+    for (var i = 0; i < 7; i++) wh += '<span class="wh">' + WEEK.charAt(i) + '</span>';
+    return '<div class="card" data-o="cal"><div class="hist-top"><b>' + icon('drop') + ' 健康月曆</b>' +
+      '<span class="legend">' + icon('tom') + ' = 當天番茄</span></div>' +
+      '<div class="cal">' + wh + '</div><div class="cal" data-o="calGrid"></div>' +
+      '<div class="calleg" data-o="calLegend"></div>' +
+      '<div class="hist-sum"><small data-o="calSum"></small></div></div>';
+  }
+  function calendarUpdate(c) {
+    var s = K.st(), cal = QJZ.health.calendar(s.history, s.today.day.slice(0, 7), s.today, s.settings);
+    var key = JSON.stringify([cal.weeks, cal.goal]), grid = K.q(c, '[data-o=calGrid]');
+    if (!grid || c.cache.cal === key) return;
+    c.cache.cal = key;
+    var h = '';
+    cal.weeks.forEach(function (w) {
+      w.forEach(function (d) {
+        if (!d) { h += '<span class="nil"></span>'; return; }
+        h += '<div class="cc ' + (d.blank ? 'bl' : d.full ? 'full' : 'l' + d.level) + (d.today ? ' today' : '') + '"><span class="dn">' + d.d + '</span>' +
+          (d.tomatoes ? '<span class="ct">' + icon('tom') + d.tomatoes + '</span>' : '') + (d.full ? '<span class="star">✓</span>' : '') + '</div>';
+      });
+    });
+    grid.innerHTML = h;
+    K.q(c, '[data-o=calLegend]').innerHTML = '少 <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> 多（✓ = 喝滿 ' + cal.goal + ' 杯）';
+    K.out(c, 'calSum', '本月 ' + cal.totals.cups + ' 杯 ・ ' + cal.totals.tomatoes + ' 顆');
+  }
 
   return {
     section: section, update: update, onboardingStep: onboardingStep, readStep: readStep, askBuild: askBuild, askUpdate: askUpdate,

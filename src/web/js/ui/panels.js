@@ -480,6 +480,7 @@ QJZ.panels = (function () {
             '<span class="legend"><i class="lg"></i>每天 <i class="lg today"></i>今天</span></div>' +
             '<div class="hist-chart" data-o="chart"></div>' +
             '<div class="hist-sum"><small>本月合計</small><b class="num" data-o="total"></b><span data-o="worked"></span></div></div>' +
+          QJZ.panelsHealth.calendarCard() +
           '<div class="card"><span class="lbl">之前的月份</span><ul class="months" data-o="months"></ul></div>' +
         '</div>';
     },
@@ -669,6 +670,7 @@ QJZ.panels = (function () {
         var begun = isNum(s.today.startMs) && !s.today.offDay;
         out(c, 'worked', m.worked ? '上班 ' + m.worked + ' 天' + (begun ? ' ＋ 今天' : '') : begun ? '只有今天' : '');
       }
+      QJZ.panelsHealth.calendarUpdate(c);
       var count = Object.keys(s.history.days).length + '|' + m.month;
       if (c.cache.months !== count) {
         c.cache.months = count;

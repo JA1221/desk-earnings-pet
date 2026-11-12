@@ -1111,6 +1111,25 @@
     done();
   });
 
+  test('panels: the history panel shows the calendar under the chart', function () {
+    var h = sampleHistory();
+    h.days['2026-11-03'] = QJZ.health.withHealth(h.days['2026-11-03'], { cups: 8, cupGoal: 8, tomatoes: 2 });
+    var e = mk(at(12, 10, 0), { history: h, care: true });
+    e.menu('history');
+    var card = $(e, '[data-o=cal]');
+    ok(card && card.previousElementSibling && card.previousElementSibling.querySelector('[data-o=chart]'), 'under the chart card');
+    ok(text(e, '[data-o=calLegend]').indexOf('✓ = 喝滿 8 杯') >= 0, text(e, '[data-o=calLegend]'));
+    eq($$(e, '[data-o=calGrid] .cc').length, 30, 'a cell per day');
+    var c3 = $$(e, '[data-o=calGrid] .cc')[2];
+    ok(c3.classList.contains('full') && c3.textContent.indexOf('✓') >= 0 && c3.querySelector('.ct').textContent.indexOf('2') >= 0, 'full day, tomatoes 2');
+    eq(text(e, '[data-o=calSum]'), '本月 8 杯 ・ 2 顆');
+    ok($$(e, '[data-o=calGrid] .cc')[11].classList.contains('today'));
+    QJZ.care.setCups(3);
+    eq(text(e, '[data-o=calSum]'), '本月 11 杯 ・ 2 顆', 'today updates live');
+    ok($$(e, '[data-o=calGrid] .cc')[11].classList.contains('l2'), 'level 2 for 3 of 8');
+    done();
+  });
+
   test('panels DOM: Escape closes settings and history', function () {
     var e = mk(at(12, 10, 0));
     e.menu('history');

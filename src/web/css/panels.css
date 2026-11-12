@@ -202,3 +202,24 @@
 .panel .qb{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;border-radius:16px;padding:9px 16px;border-width:2.5px;text-align:left}
 .panel .qb b{font-size:15px}
 .panel .qb small{font-size:11.5px;font-weight:700;color:#7A5640;font-family:var(--font)}
+
+/* ---------- history: the health calendar (mockup E 方案 3) ---------- */
+.panel [data-o=cal]{padding:10px 12px 12px}
+.panel [data-o=cal] .hist-top .ic{width:15px;height:15px;vertical-align:-.2em}
+.panel [data-o=cal] .legend .ic{width:12px;height:12px;vertical-align:-.15em}
+.panel .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}
+.panel .cal + .cal{margin-top:4px}
+.panel .cal .wh{text-align:center;font-size:11px;font-weight:700;color:var(--sub)}
+.panel .cc{position:relative;height:40px;border:2px solid var(--line);border-radius:9px;background:#fff;font-family:"Fredoka",var(--font)}
+.panel .cc .dn{position:absolute;left:4px;top:1px;font-size:10.5px;font-weight:700}
+.panel .cc .ct{position:absolute;right:2px;bottom:1px;display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;line-height:1}
+.panel .cc .ct .ic{width:11px;height:11px}
+.panel .cc .star{position:absolute;right:3px;top:1px;font-size:10px;font-weight:800;color:#fff}
+.panel .cc.bl{border-style:dashed;border-color:#E2CFB4;color:#C9B8A6}
+.panel .cc.l1,.panel .calleg .l1{background:rgba(124,196,255,.2)}
+.panel .cc.l2,.panel .calleg .l2{background:rgba(124,196,255,.47)}
+.panel .cc.l3,.panel .calleg .l3{background:rgba(124,196,255,.74)}
+.panel .cc.full{background:#4DA3FF;color:#fff}
+.panel .cc.today{outline:3px solid var(--money);outline-offset:1px}
+.panel .calleg{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--sub);margin-top:9px;flex-wrap:wrap}
+.panel .calleg i{width:13px;height:13px;border:1.6px solid var(--line);border-radius:3px;display:inline-block;background:#fff}
