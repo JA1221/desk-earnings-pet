@@ -38,4 +38,11 @@ test('history parse ignores __proto__ keys', function(){
   var p=QJZ.history.parse('{"version":1,"days":{"__proto__":{"day":"x"},"2026-11-10":{"day":"2026-11-10","earned":5,"__proto__":{"startMs":123}}}}');
   eq(Object.keys(p.history.days),['2026-11-10']); var rec=p.history.days['2026-11-10'];
   eq(rec.startMs===123,false); ok(Object.getPrototypeOf(rec)===Object.prototype); eq(rec.earned,5); });
+test('history: parse keeps health and a valid pomodoro, drops the rest', function(){
+  var good=QJZ.history.parse('{"version":1,"days":{"2026-11-10":{"day":"2026-11-10","earned":5,"health":{"cups":3,"cupGoal":8,"tomatoes":1,"standups":2}},"2026-11-11":{"day":"2026-11-11","earned":6,"health":"x"}},"pomodoro":{"phase":"focus","startMs":1000,"endMs":2000,"day":"2026-11-10","long":false,"done":0}}').history;
+  eq(good.days['2026-11-10'].health,{cups:3,cupGoal:8,tomatoes:1,standups:2});
+  eq('health' in good.days['2026-11-11'],false);
+  eq(good.pomodoro.phase,'focus');
+  eq('pomodoro' in QJZ.history.parse('{"version":1,"days":{}}').history,false);
+  eq('pomodoro' in QJZ.history.parse('{"version":1,"days":{},"pomodoro":{"phase":"zzz"}}').history,false); });
 })();

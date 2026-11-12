@@ -580,4 +580,71 @@
     eq(QJZ.app.state.snap.workedSec, 28800);
     QJZ.app._reset();
   });
+  test('app: setHealth on today is saved at once', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    QJZ.app.setHealth('2026-11-12', { cups: 1, cupGoal: null, tomatoes: 0, standups: 0 });
+    var s = lastSave(e.sent, 'saveHistory');
+    ok(s && s.p.text.indexOf('"cups":1') >= 0);
+    eq(QJZ.app.state.today.health.cups, 1);
+    QJZ.app._reset();
+  });
+  test('app: setHealth on an earlier day without a record creates it closed and sealed', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    QJZ.app.setHealth('2026-11-10', { cups: 1 });
+    var r = QJZ.app.state.history.days['2026-11-10'];
+    eq(r.earned, 0);
+    eq(r.health.cups, 1);
+    eq(r.health.cupGoal, 8);
+    ok(lastSave(e.sent, 'saveHistory').p.text.indexOf('2026-11-10') >= 0);
+    QJZ.app._reset();
+  });
+  test('app: an unstarted day with health is kept and closed at the rollover; one without is dropped as in 1.0', function () {
+    var e = mk(at(13, 10, 0));
+    init(e, { settings: JSON.stringify({ startMode: 'manual' }) });
+    eq(QJZ.app.state.today.startMs, null);
+    e.clock.ms = at(14, 10, 0);
+    QJZ.app.tickNow();
+    eq(QJZ.app.state.history.days['2026-11-13'], undefined);
+    QJZ.app.setHealth('2026-11-14', { cups: 2 });
+    e.clock.ms = at(15, 5, 0);
+    QJZ.app.tickNow();
+    var r = QJZ.app.state.history.days['2026-11-14'];
+    eq(r.earned, 0);
+    eq(r.health.cups, 2);
+    eq(r.health.cupGoal, 8);
+    QJZ.app._reset();
+  });
+  test('app: the sealed cup goal does not follow a later change', function () {
+    var e = mk(at(15, 10, 0));
+    init(e, { settings: JSON.stringify({ startMode: 'manual' }) });
+    QJZ.app.setHealth('2026-11-14', { cups: 2 });
+    QJZ.app.saveSettings({ health: { water: { goal: 10 } } });
+    eq(QJZ.app.state.history.days['2026-11-14'].health.cupGoal, 8);
+    QJZ.app._reset();
+  });
+  test('app: setPomodoro is saved at once and comes back at init', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    var p = QJZ.pomodoro.start(QJZ.pomodoro.idle(), at(12, 10, 0), QJZ.app.state.settings.health.pomodoro);
+    QJZ.app.setPomodoro(p);
+    var text = lastSave(e.sent, 'saveHistory').p.text;
+    ok(text.indexOf('"pomodoro"') >= 0);
+    var e2 = mk(at(12, 10, 5));
+    init(e2, { history: text });
+    eq(QJZ.app.state.history.pomodoro.phase, 'focus');
+    QJZ.app.setPomodoro(null);
+    eq('pomodoro' in QJZ.app.state.history, false);
+    QJZ.app._reset();
+  });
+  test('app: a 1.0 history keeps its days unchanged', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { settings: V10.settings, history: V10.history });
+    QJZ.app.flush();
+    var before = JSON.parse(V10.history).days, after = JSON.parse(lastSave(e.sent, 'saveHistory').p.text).days;
+    eq(after['2026-11-10'], before['2026-11-10']);
+    eq(after['2026-11-11'], before['2026-11-11']);
+    QJZ.app._reset();
+  });
 })();

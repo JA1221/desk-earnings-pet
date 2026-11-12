@@ -21,8 +21,14 @@ QJZ.history = (function () {
         for (var f in raw.days[k]) if (f !== '__proto__' && Object.prototype.hasOwnProperty.call(raw.days[k], f)) rec[f] = raw.days[k][f];
         rec.day = k;
         if (typeof rec.earned !== 'number' || !isFinite(rec.earned)) rec.earned = null;
+        var hl = QJZ.health.sanitize(rec.health);
+        if (hl) rec.health = hl; else delete rec.health;
         h.days[k] = rec;
       }
+    }
+    if (isObj(raw)) {
+      var pom = QJZ.pomodoro.sanitize(raw.pomodoro);
+      if (pom) h.pomodoro = pom;
     }
     return { history: h, corrupted: false };
   }
@@ -43,7 +49,7 @@ QJZ.history = (function () {
       earned = Math.round(snap.earned * 100) / 100;
     }
     out.earned = earned;
-    return out;
+    return QJZ.health.seal(out, settings && settings.health && settings.health.water ? settings.health.water.goal : null);
   }
 
   function num(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }

@@ -132,7 +132,7 @@ QJZ.app = (function () {
   function retire(rec, allowQuestion) {
     if (typeof rec.startMs !== 'number') {
       // Never started: an off-day marker is kept (closeDay -> earned 0, flags preserved); anything else is dropped.
-      if (rec.offDay) closeRecord(rec);
+      if (rec.offDay || QJZ.health.has(rec)) closeRecord(rec);
       else { delete state.history.days[rec.day]; markHistory(); }
       return;
     }
@@ -393,6 +393,28 @@ QJZ.app = (function () {
     markSettings();
     changed();
   }
+  // Health counts of a day (§5.6). Saved at once: a cup is a small, deliberate act.
+  function setHealth(day, h) {
+    if (!state.ready || typeof day !== 'string') return;
+    if (day === state.today.day) {
+      setToday(QJZ.health.withHealth(state.today, h));
+    } else if (day > state.today.day) {
+      return;
+    } else {
+      var rec = state.history.days[day] || QJZ.history.closeDay(QJZ.day.empty(day), state.settings);
+      state.history.days[day] = QJZ.health.seal(QJZ.health.withHealth(rec, h), state.settings.health.water.goal);
+    }
+    markHistory();
+    flush();
+    changed();
+  }
+  function setPomodoro(p) {
+    if (!state.ready) return;
+    if (p === null || p === undefined) delete state.history.pomodoro; else state.history.pomodoro = p;
+    markHistory();
+    flush();
+    changed();
+  }
   function answerEarlyLeave(accept) { return answerQuestion(accept, false); }
   // menu 結束: save everything now, then tell the host it may exit (it also exits on its own after a timeout).
   function quit() {
@@ -475,7 +497,7 @@ QJZ.app = (function () {
   return {
     state: state, start: start, tickNow: tick, refresh: refresh, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, resumeWork: resumeWork, setOffDay: setOffDay,
-    feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit,
+    feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, setHealth: setHealth, setPomodoro: setPomodoro, answerEarlyLeave: answerEarlyLeave, quit: quit,
     setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey
   };
 })();
