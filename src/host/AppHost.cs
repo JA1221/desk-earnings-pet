@@ -11,9 +11,9 @@ using Microsoft.Web.WebView2.Core;
 // It owns the one PetWindow, the tray menu, the hide hotkey, the capture guard and session events; window
 // positions live in WindowPlacer, the user's files in UserFiles.
 //
-// - The window is created hidden with the capture guard already on and the configured hotkey (settings.json
-//   privacy.hotkey, default Ctrl+Alt+H) registered, and first shown after the page's first setLayout, so it never
-//   flashes at a wrong size. Until then only the tray icon is visible.
+// - The window is created hidden with the capture guard already applied (settings.json privacy.hideFromCapture,
+//   default on) and the configured hotkey (privacy.hotkey, default Ctrl+Alt+H) registered, and first shown after
+//   the page's first setLayout, so it never flashes at a wrong size. Until then only the tray icon is visible.
 // - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
 //   page also gets the current state: visibility, a hotkey failure, unreadable files (storageError).
 // - U7 and M3 never take focus when clicked; the other layouts activate normally (keyboard input).
@@ -95,6 +95,7 @@ public class AppHost
         HostSettings settings = HostSettings.Parse(files.Settings.Text);
         topmost = settings.TopmostByLayout();
         configuredHotkey = settings.Hotkey;
+        captureGuard = settings.CaptureGuard;   // applied when the window handle exists, before the page loads
         if (!devPage && !files.Settings.ReadFailed) SetAutoStart(settings.Autostart);   // re-points a stale Run value
 
         tray.ItemClicked += OnMenu;

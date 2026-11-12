@@ -12,6 +12,7 @@ public static class HostSettingsTests
             Assert.True(s.Topmost("U7") && s.Topmost("M3"), "floating layouts default topmost");
             Assert.True(!s.Topmost("U1") && !s.Topmost("U3") && !s.Topmost("U5B"), "main layouts default not topmost");
             Assert.True(!s.Topmost("spike") && !s.Topmost(null), "unknown layout not topmost");
+            Assert.True(s.CaptureGuard, "capture guard defaults on");
         }
     }
 
@@ -26,6 +27,8 @@ public static class HostSettingsTests
         Assert.True(!s.Topmost("U7"), "U7 configured not topmost");
         Assert.True(s.Topmost("M3"), "M3 keeps its default");
         Assert.True(!s.Topmost("U3"), "U3 keeps its default");
+        Assert.True(s.CaptureGuard, "hideFromCapture true");
+        Assert.True(!HostSettings.Parse("{\"privacy\":{\"hideFromCapture\":false}}").CaptureGuard, "hideFromCapture false turns the guard off");
     }
 
     public static void Test_InvalidHotkeyFallsBackToDefault()
@@ -39,13 +42,15 @@ public static class HostSettingsTests
     {
         string[] bad = { "{not json", "[]", "42", "\"x\"", "null",
                          "{\"autostart\":\"false\",\"layout\":{\"topmost\":{\"U1\":\"yes\",\"U7\":0}},\"privacy\":null}",
-                         "{\"layout\":{\"topmost\":[true,true]}}" };
+                         "{\"layout\":{\"topmost\":[true,true]}}", "{\"privacy\":{\"hideFromCapture\":\"false\"}}",
+                         "{\"privacy\":{\"hideFromCapture\":0}}" };
         foreach (string text in bad)
         {
             HostSettings s = HostSettings.Parse(text);
             Assert.True(s.Autostart, "autostart default for " + text);
             Assert.Eq("Ctrl+Alt+H", s.Hotkey, "hotkey default for " + text);
             Assert.True(!s.Topmost("U1") && s.Topmost("U7"), "topmost defaults for " + text);
+            Assert.True(s.CaptureGuard, "capture guard default for " + text);
         }
     }
 }

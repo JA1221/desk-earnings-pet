@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Web.Script.Serialization;
 
 // The values in settings.json (written by the page) that the host needs before the page runs: autostart, the hide
-// hotkey and topmost per layout. Like the page's sanitizer (src/web/js/core/settings.js), anything missing,
-// invalid or unreadable gives the default: autostart on, Ctrl+Alt+H, topmost only for U7 and M3.
+// hotkey, topmost per layout and the capture guard (privacy.hideFromCapture). Like the page's sanitizer
+// (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default: autostart on,
+// Ctrl+Alt+H, topmost only for U7 and M3, capture guard on.
 public class HostSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+H";
@@ -15,10 +16,14 @@ public class HostSettings
     {
         Autostart = true;
         Hotkey = DefaultHotkey;
+        CaptureGuard = true;
         foreach (string l in Layouts) topmost[l] = l == "U7" || l == "M3";
     }
 
     public bool Autostart { get; private set; }
+
+    // privacy.hideFromCapture: keep the window out of screen captures and sharing.
+    public bool CaptureGuard { get; private set; }
 
     // Canonical combo (HotKey.Normalize).
     public string Hotkey { get; private set; }
@@ -53,6 +58,7 @@ public class HostSettings
             string combo = HotKey.Normalize(v as string);
             if (combo != null) s.Hotkey = combo;
         }
+        if (privacy != null && privacy.TryGetValue("hideFromCapture", out v) && v is bool) s.CaptureGuard = (bool)v;
         Dictionary<string, object> top = Child(Child(d, "layout"), "topmost");
         if (top != null)
             foreach (string l in Layouts)
