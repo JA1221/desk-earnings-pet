@@ -585,4 +585,59 @@
     eq([brain().cued, brain().state], ['focus', 'focus']);
     done();
   });
+  // ---------- the 1.1 layouts (Task 12): U10 on the capsule, U12 beside the pet, U13 in the ring ----------
+  test('promptView: U10 shows the call on the capsule, U12 the small bubble beside the pet, U13 the reminder in its ring; each keeps its size and knocks once', function () {
+    [['U10', '.isl', '.isl [data-prompt-call]'], ['U12', '[data-prompt] .rbub', '.dfoot [data-prompt]'],
+      ['U13', '.bigring', '.bigring [data-prompt-ring]']].forEach(function (c) {
+      var name = c[0], e = mk(at(9, 0), { first: name });
+      e.tick(at(9, 49, 59));
+      var size = last(e.sent, 'setLayout'), slot = $(e, c[2]);
+      ok(slot && !drawn(slot), name + ': an empty slot');
+      e.tick(at(9, 50));
+      ok(drawn(slot) && $(e, '.lay').classList.contains('prompting'), name + ': shown');
+      eq(buttons(slot), ['drink 喝了', 'up 起來了', 'later 等一下'], name);
+      eq(slot.querySelector('.rb-t, .imsg').textContent, '起來動一動，順便喝口水～', name);
+      $$(e, '[data-answer]').forEach(function (n) { ok(visible(n) && inHits(e, box(n)), name + ' ' + n.textContent + ' clickable'); });
+      eq([last(e.sent, 'setLayout').width, last(e.sent, 'setLayout').height], [size.width, size.height], name + ': the same window size');
+      eq(knocks($(e, c[1])).length, 1, name + ': one knock on show');
+      e.tick(at(9, 52));
+      eq(knocks($(e, c[1])).length, 1, name + ': and once on each re-wave, never a loop');
+      ok($(e, c[1]).getAnimations().every(function (a) { return a.effect.getComputedTiming().iterations !== Infinity; }), name + ': nothing loops');
+      C.drink();   // from the menu: its count follows, the size does not
+      eq([last(e.sent, 'setLayout').width, last(e.sent, 'setLayout').height], [size.width, size.height], name + ': a cup elsewhere');
+      answer(e, 'later');
+      ok(!drawn(slot) && !$(e, '.lay').classList.contains('prompting'), name + ': gone');
+      eq([last(e.sent, 'setLayout').width, last(e.sent, 'setLayout').height], [size.width, size.height], name + ': back, the same size');
+      done();
+      // the break bubble with its water line and three buttons, and 休息結束, fit and keep the size too
+      var f = breakBubble({ first: name }), fs = $(f, c[2]);
+      ok(drawn(fs), name + ' break');
+      eq(buttons(fs), ['ok 好', 'drink 喝了', 'skip 跳過休息'], name + ' break');
+      eq([last(f.sent, 'setLayout').width, last(f.sent, 'setLayout').height], [size.width, size.height], name + ' break: the same size');
+      $$(f, '[data-answer]').forEach(function (n) { ok(visible(n) && inHits(f, box(n)), name + ' break ' + n.textContent); });
+      if (name === 'U13') {   // every line of it inside the round ring
+        var rr = $(f, '.bigring').getBoundingClientRect(), cx = (rr.left + rr.right) / 2, cy = (rr.top + rr.bottom) / 2, R = rr.width / 2 - 3;
+        $$(f, '.bigring [data-prompt-ring] > *, .bigring [data-answer]').filter(drawn).forEach(function (n) {
+          var r = n.getBoundingClientRect();
+          [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]].forEach(function (p) {
+            ok(Math.sqrt(Math.pow(p[0] - cx, 2) + Math.pow(p[1] - cy, 2)) <= R, 'U13 break: ' + (n.className || n.tagName) + ' inside the ring');
+          });
+        });
+      }
+      f.tick(at(10, 5, 30));
+      answer(f, 'ok');
+      f.tick(at(10, 10, 3));
+      eq(buttons($(f, c[2])), ['next 開始', 'stop 先不要'], name + ' 休息結束');
+      eq([last(f.sent, 'setLayout').width, last(f.sent, 'setLayout').height], [size.width, size.height], name + ' 休息結束: the same size');
+      done();
+    });
+  });
+
+  test('promptView: U12 lights the ring the bubble is about', function () {
+    var e = remind({ first: 'U12' });
+    eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('hot'); }), [true, false, true]);
+    answer(e, 'drink');
+    eq($$(e, '.u12 .hot').length, 0, 'answered: no glow');
+    done();
+  });
 })();

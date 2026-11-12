@@ -1,15 +1,18 @@
 window.QJZ = window.QJZ || {};
 // The visible layouts, built after docs/prototypes/converge.html: main windows U1 經典直式, U3 遊戲畫面,
-// U5B 橫向極簡, U7 桌面寵物; the temporary mini badge M3 and PANEL. PANEL is the window frame (title bar, size,
-// hit rects); its content is QJZ.panels (onboarding / settings / history / question, 'adjust' = settings at 起算),
+// U5B 橫向極簡, U7 桌面寵物, and 1.1's U10 頂端小膠囊, U12 健康儀表板, U13 番茄鐘優先 (docs/prototypes/v1.1, G);
+// the temporary mini badge M3 and PANEL. PANEL is the window frame (title bar, size, hit rects); its content is
+// QJZ.panels (onboarding / settings / history / question, 'adjust' = settings at 起算),
 // mounted when PANEL is built and updated on every render. The first layout is a panel when QJZ.panels.initial
 // asks for one (onboarding, an early-leave question); closing it goes to the start layout.
 //
 // Host protocol (page -> host; sizes and rects in CSS px, dpr = window.devicePixelRatio):
-//   setLayout {layout, width, height, dpr}  width / height reach the layout root's right / bottom edge plus the 7px
-//                                           hard shadow. Sent synchronously after rendering (the window is still
-//                                           hidden at start and rAF does not run there), again whenever the size
-//                                           or the DPR changes.
+//   setLayout {layout, width, height, dpr, dock?}  width / height reach the layout root's right / bottom edge plus
+//                                           the 7px hard shadow (U10: the root is the whole window). Sent
+//                                           synchronously after rendering (the window is still hidden at start and
+//                                           rAF does not run there), again whenever the size or the DPR changes.
+//                                           U10's always carries dock (settings.layout.capsule: top | bottomLeft |
+//                                           bottomCenter | bottomRight), and goes again when it changes.
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
 //                                           through. Sent with every setLayout and whenever the rects change
 //                                           (hover tools, text growing, resize, the pet's pose). Speech bubbles
@@ -29,10 +32,12 @@ window.QJZ = window.QJZ || {};
 //                 reads 開始上班), 'working' (下班; also at lunch and 可以下班) or 'ended' (繼續上班); snacks to feed.
 //                 Checked on every render and on QJZ.app's refresh (hidden: every minute, and when the host's
 //                 menuOpening asks), so the menu never shows an old day or old snacks.
-// Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
+// Host -> page: menu {action} (TrayMenu ids; capsule:<dock> is the 膠囊位置 item), dragEnd {}, capsuleDock {dock} (a
+// dropped U10 snapped to that dock: saved, and setLayout goes again with it even when it is the same, so an older
+// setLayout still on its way cannot undo the snap).
 //
-// settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. settings.layout.mini
-// says the app was left as the mini badge (M3). The first layout after init is the one used last (simplification
+// settings.layout.current is the last MAIN layout (U1/U3/U5B/U7/U10/U12/U13); M3 and PANEL never go there.
+// settings.layout.mini says the app was left as the mini badge (M3). The first layout after init is the one used last (simplification
 // #12): M3 when mini, else current (a first run: U1). Dev pages may override it with opts.first. After a reload of the
 // page (the host reloads it after a renderer crash) the layout shown last (PANEL: the layout it came from) is kept in
 // sessionStorage, which only lives as long as this WebView, and comes back. 1.0's settings.layout.start is not read.
@@ -60,9 +65,14 @@ window.QJZ = window.QJZ || {};
 // events wait; the user's own lines become banners). During a focus (§4.3 「不講話、不打擾」, §5.2) the pet keeps
 // quiet: no chatter, no event lines, a milestone only hops (no confetti, coin or line), and a poke gets 「專心中～」
 // once per focus and nothing else.
+// 1.1 layouts (Task 12, spec §4.5, §5.7; G_U10_*, G_U12_*, G_U13_*). U10 is one fixed window whose capsule sits at its
+// dock (class d-<dock>) and expands while the pointer is on it ([data-hover], as U7's tools); a prompt makes it the call,
+// a pomodoro its countdown; only the capsule takes clicks, and it shows no odometer (it changes at most once a second).
+// U12's rings and U13's big ring are [data-gauge]s (--p, hot for the prompt that asks for them, rest in a break), U13's
+// tomato slots [data-tslots]. None of them has a speech bubble: their lines are banners, and they never chatter.
 QJZ.layouts = (function () {
-  var MAIN = ['U1', 'U3', 'U5B', 'U7'];
-  var ALL = ['U1', 'U3', 'U5B', 'U7', 'M3', 'PANEL'];
+  var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
+  var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
   var SHADOW = 7;
   var DRAG_PX = 4;
   var PETONLY_VB = [30, 4, 176, 170];    // QJZ.pets.compose 'petonly' viewBox
@@ -179,25 +189,51 @@ QJZ.layouts = (function () {
 
   // ---- 1.1: what QJZ.care adds (spec §4.4, §4.9 #8, §5.2) ----
   var POMO_STATUS = { focus: '專心中', break: '休息中' };
-  // cs = QJZ.care.state. A missing or not-ready care (Ruling S11) is zero counts, an idle pomodoro and nothing shown.
-  // What shows is care's to decide (cs.show, Ruling R4); here it is only read. The pomodoro readouts are taken at the
-  // whole second, so however often a layout renders, the ring and the countdown change at most once a second.
-  function careModel(cs, s, ms) {
-    var on = !!(cs && cs.ready && cs.p), p = on ? cs.p : null, h = on && cs.health ? cs.health : { cups: 0, tomatoes: 0 };
+  // A share as a ring's --p: 0..100, one decimal ('37.5', '75').
+  function pct1(n, of) { return String(of > 0 ? Math.round(Math.min(Math.max(n / of, 0), 1) * 1000) / 10 : 0); }
+  // cs = QJZ.care.state, key = the work status (statusKey). A missing or not-ready care (Ruling S11) is zero counts, an
+  // idle pomodoro and nothing shown. What shows is care's to decide (cs.show, Ruling R4), and so are the time to the next
+  // stand-up (cs.standIn) and the running focus's 第 N 顆 (cs.nth, its start day's count); here they are only read. The
+  // stand-up time shows only while the reminder can run (working, or the lunch break in it) and is not the one asking
+  // right now. The pomodoro readouts are taken at the whole second, so however often a layout renders, the rings and the
+  // countdown change at most once a second.
+  function careModel(cs, s, ms, key) {
+    var on = !!(cs && cs.ready && cs.p), p = on ? cs.p : null;
+    var h = on && cs.health ? cs.health : { cups: 0, tomatoes: 0, standups: 0 }, hs = s.health;
     var phase = p && POMO_STATUS.hasOwnProperty(p.phase) ? p.phase : null;   // idle / breakOver: nothing counts down
     var sec = Math.floor(ms / 1000) * 1000, P = QJZ.pomodoro;
-    var goal = s.health && s.health.water ? s.health.water.goal : 0;
-    var cups = on ? cs.cupsText : '0/' + goal;
-    var stand = on && cs.r && QJZ.reminders ? QJZ.reminders.minutesToNext(cs.r, s.health, h.cups) : null;
+    var goals = on && cs.goals ? cs.goals : hs ?
+      { cups: hs.water.goal, tomatoes: QJZ.settings.tomatoGoal(s), standups: QJZ.settings.standGoal(s) } : { cups: 0, tomatoes: 0, standups: 0 };
+    var cups = on ? cs.cupsText : '0/' + goals.cups;
+    var asks = on && cs.prompt ? cs.prompt.kind : null;   // the prompt that shows: its ring glows (U12)
+    var stand = on && typeof cs.standIn === 'number' && (key === 'working' || key === 'lunch') &&
+      asks !== 'both' && asks !== 'sit' && asks !== 'water' ? cs.standIn : null;   // (not while it is the one asking)
+    var nth = phase === 'focus' && on && cs.nth > 0 ? '第 ' + cs.nth + ' 顆' : '';
+    var frac = phase ? P.fraction(p, sec) : 0, left = 1 - frac;
+    var focusMin = hs ? hs.pomodoro.focus : 25;
     return {
       phase: phase,
       cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
-      showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes),
+      showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
-      ring: { phase: phase, fraction: phase ? P.fraction(p, sec) : 0, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
+      ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
-      nth: phase === 'focus' ? '第 ' + (h.tomatoes + 1) + ' 顆' : '',
-      standIn: typeof stand === 'number' ? stand + ' 分後' : ''
+      nth: nth,
+      standIn: stand === null ? '' : stand + ' 分後',
+      // U10 / U12 / U13
+      cupsNum: String(h.cups), tomNum: String(h.tomatoes), standups: String(h.standups),
+      gauge: { cups: pct1(h.cups, goals.cups), tom: phase ? pct1(left, 1) : pct1(h.tomatoes, goals.tomatoes),
+        stand: pct1(h.standups, goals.standups), pomo: pct1(left, 1) },
+      hot: { cups: asks === 'both' || asks === 'water', tom: asks === 'break' || asks === 'breakEnd', stand: asks === 'both' || asks === 'sit' },
+      tomLabel: phase ? '番茄倒數' : '番茄（顆）',
+      standLabel: asks === 'both' || asks === 'sit' ? '該起來了！' : '起來動（次）',
+      phaseShort: phase === 'focus' ? '專心' : phase === 'break' ? '休息' : '',
+      phaseNote: phase === 'focus' ? nth : phase === 'break' ? '休息中' : '',
+      dsay: stand === null ? '' : phase === 'focus' ? '專心中～提醒等休息再說' : '再 ' + stand + ' 分鐘起來動～',
+      standLine: stand === null ? '' : phase === 'focus' ? '提醒等休息再說' : stand + ' 分後起來動',
+      nextFocus: '下一顆 ' + focusMin + ' 分鐘', focusFull: focusMin + ':00',
+      tslots: { done: Math.min(h.tomatoes, goals.tomatoes), of: goals.tomatoes },
+      tslotText: '今天 ×' + h.tomatoes + '・每 ' + (hs ? hs.pomodoro.longEvery : goals.tomatoes) + ' 顆長休息'
     };
   }
 
@@ -205,7 +241,7 @@ QJZ.layouts = (function () {
   function model(st, ms, cs) {
     var s = st.settings, snap = st.snap, today = st.today;
     var key = statusKey(snap, today, s);
-    var hc = careModel(cs, s, ms);
+    var hc = careModel(cs, s, ms, key);
     var perSec = st.rates ? st.rates.perSecond : 0;
     var pct = Math.max(0, Math.min(1, snap.pct || 0));
     var it = itemAt(s.items, ms);
@@ -218,7 +254,7 @@ QJZ.layouts = (function () {
       key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
-      money: money(snap.earned),
+      money: money(snap.earned), moneyWhole: 'NT$ ' + money(snap.earned).slice(0, -3),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
       remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
       m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
@@ -333,12 +369,15 @@ QJZ.layouts = (function () {
     v.alts = all(el, '[data-alt]');
     v.shows = all(el, '[data-show]');
     v.prings = all(el, '[data-pring]');
+    v.gauges = all(el, '[data-gauge]');
+    v.tslots = all(el, '[data-tslots]');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
     v.fx = el.querySelector('[data-fx]') || el.querySelector('[data-fxwin]');
     v.fxWin = el.querySelector('[data-fxwin]') || v.fx;
     v.dpet = el.querySelector('.dpet');
+    v.hover = el.querySelector('[data-hover]');
     return v;
   }
 
@@ -392,6 +431,11 @@ QJZ.layouts = (function () {
       view.el.classList.add('s-' + m.key);
       view.statusKey = m.key;
     }
+    if (view.name === 'U10' && view.cache.dock !== dockOf()) {
+      if (view.cache.dock) view.el.classList.remove('d-' + view.cache.dock);
+      view.cache.dock = dockOf();
+      view.el.classList.add('d-' + view.cache.dock);
+    }
     var w = m.pctNum.toFixed(2);
     if (view.cache.fill !== w) {
       view.cache.fill = w;
@@ -418,20 +462,22 @@ QJZ.layouts = (function () {
     if (cupPlus) popCup();
     return m;
   }
-  // 「+1」 on the cups the layout shows (a cup logged anywhere: the bubble's 喝了, the menu, the tray, a cups button).
+  // 「+1」 on the cups the layout shows (a cup logged anywhere: the bubble's 喝了, the menu, the tray, a cups button):
+  // the first drawn one (U10 has its cups twice, folded and expanded).
   function popCup() {
     cupPlus = false;
-    var c = view.el.querySelector('[data-cups]');
-    if (c && QJZ.fx && c.getClientRects().length) QJZ.fx.plus(c, '+1');
+    var c = all(view.el, '[data-cups]').filter(function (n) { return n.getClientRects().length > 0; })[0];
+    if (c && QJZ.fx) QJZ.fx.plus(c, '+1');
   }
   // [data-show] by the §4.9 #8 rule, the pomodoro phase (p-foc / p-brk on the layout and the M3 ring), the M3 ring's
   // --p (the day's progress w, or the pomodoro's time left) and the countdown rings.
   var SHOW = {
     cups: function (m) { return m.showCups; }, tomatoes: function (m) { return m.showTomatoes; },
-    both: function (m) { return m.showCups && m.showTomatoes; }, any: function (m) { return m.showCups || m.showTomatoes; }
+    both: function (m) { return m.showCups && m.showTomatoes; }, any: function (m) { return m.showCups || m.showTomatoes; },
+    stand: function (m) { return m.showStand; }, cupsStand: function (m) { return m.showCups && m.showStand; }
   };
   function renderHealth(m, w) {
-    var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '');
+    var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '') + (m.showStand ? 's' : '');
     if (view.cache.shows !== shows) {
       view.cache.shows = shows;
       view.shows.forEach(function (n) { var f = SHOW[n.getAttribute('data-show')]; n.hidden = !(f && f(m)); });
@@ -449,6 +495,31 @@ QJZ.layouts = (function () {
       for (i = 0; i < view.rings.length; i++) view.rings[i].style.setProperty('--p', p);
     }
     for (i = 0; i < view.prings.length; i++) QJZ.ring.update(view.prings[i], m.ring);
+    renderGauges(m);
+  }
+  // The 1.1 layouts' rings ([data-gauge]): --p, hot while the prompt that shows asks for it, rest while the pomodoro ones
+  // count a break down; and U13's tomato slots. Written only when they changed.
+  function renderGauges(m) {
+    var i;
+    for (i = 0; i < view.gauges.length; i++) {
+      var g = view.gauges[i], type = g.getAttribute('data-gauge'), p = m.gauge[type], hot = !!m.hot[type];
+      var k = p + ' ' + hot + ' ' + m.ring.phase;
+      if (view.cache['g' + i] === k) continue;
+      view.cache['g' + i] = k;
+      g.style.setProperty('--p', p);
+      g.classList.toggle('hot', hot);
+      g.classList.toggle('rest', m.ring.phase === 'break' && (type === 'tom' || type === 'pomo'));   // the countdowns
+    }
+    var ts = m.tslots.done + '/' + m.tslots.of;
+    if (view.tslots.length && view.cache.tslots !== ts) {
+      view.cache.tslots = ts;
+      var h = '';
+      for (i = 0; i < m.tslots.of; i++) h += QJZ.icons.svg('tom', i < m.tslots.done ? '' : 'e');   // static markup
+      for (i = 0; i < view.tslots.length; i++) {
+        view.tslots[i].innerHTML = h;
+        view.tslots[i].classList.toggle('many', m.tslots.of > 5);
+      }
+    }
   }
   // menuState for the host's menu, when the work status or the snack count changed.
   function sendMenu(m) {
@@ -536,16 +607,17 @@ QJZ.layouts = (function () {
   }
 
   // ---- size and hit rects ----
-  // The layout root, and a prompt bubble that reaches past it (U7 / M3: a long one), with its 4px shadow.
+  // The layout root, and a prompt bubble that reaches past it (U7 / M3: a long one), with its 4px shadow. U10's root is
+  // the whole window (its capsule's own shadow is inside it): no room for the hard shadow.
   function measure() {
-    var r = view.el.getBoundingClientRect(), right = r.right, bottom = r.bottom;
+    var r = view.el.getBoundingClientRect(), right = r.right, bottom = r.bottom, pad = view.name === 'U10' ? 0 : SHADOW;
     var p = view.el.classList.contains('prompting') ? view.el.querySelector('[data-prompt] .rbub') : null;
     if (p) {
       var b = layoutBox(p);
       right = Math.max(right, b.left + b.width + 4);
       bottom = Math.max(bottom, b.top + b.height + 4);
     }
-    return { width: Math.ceil(right) + SHADOW, height: Math.ceil(bottom) + SHADOW };
+    return { width: Math.ceil(right) + pad, height: Math.ceil(bottom) + pad };
   }
   // The element's border box in page px without its own CSS transform (an element in the middle of a transform
   // transition: its hit rect is where it ends up). Offsets are whole px; the chain stops at body, whose
@@ -842,16 +914,19 @@ QJZ.layouts = (function () {
     var r = boxOf(h.el), p = vbPoint(r, PETONLY_VB, g, false);
     return [Math.round((r.left + p.x) * 10) / 10, Math.round((r.top + p.y) * 10) / 10];
   }
-  // Sends setLayout when the size (or DPR) changed and hitRects when the rects changed or setLayout went out.
-  // force: send both anyway (layout switch, DPR change); forceHits: hitRects anyway (resize).
+  // Sends setLayout when the size (or DPR, or U10's dock) changed and hitRects when the rects changed or setLayout went
+  // out. force: send both anyway (layout switch, DPR change, U10's capsuleDock); forceHits: hitRects anyway (resize).
+  // U10's setLayout always carries its dock (the host would take a missing one for the top).
   function sync(force, forceHits) {
     if (!view) return;
-    var dpr = window.devicePixelRatio || 1;
-    var size = measure(), sk = view.name + ' ' + size.width + 'x' + size.height + '@' + dpr;
+    var dpr = window.devicePixelRatio || 1, dock = view.name === 'U10' ? dockOf() : null;
+    var size = measure(), sk = view.name + ' ' + size.width + 'x' + size.height + '@' + dpr + (dock ? ' ' + dock : '');
     var rects = hitRects(), hk = JSON.stringify(rects) + '@' + dpr;
     if (force || sk !== sent.size) {
       sent.size = sk;
-      send('setLayout', { layout: view.name, width: size.width, height: size.height, dpr: dpr });
+      var msg = { layout: view.name, width: size.width, height: size.height, dpr: dpr };
+      if (dock) msg.dock = dock;
+      send('setLayout', msg);
       forceHits = true;
     }
     if (forceHits || hk !== sent.hits) {
@@ -859,6 +934,9 @@ QJZ.layouts = (function () {
       send('hitRects', { rects: rects, dpr: dpr });
     }
   }
+
+  // U10's dock (spec §5.7): settings.layout.capsule, one of QJZ.settings.DOCKS (the settings parser keeps it so).
+  function dockOf() { return app().state.settings.layout.capsule; }
 
   function topmostFor(name) {
     if (name === 'PANEL') name = panelFrom || backTarget(app().state.settings);
@@ -1112,6 +1190,7 @@ QJZ.layouts = (function () {
     if (a === 'quit') { app().quit(); return; }   // even if init never got through: the host is waiting for quit {}
     if (typeof a !== 'string' || !ready()) return;
     if (a.indexOf('layout:') === 0) { if (isMain(a.slice(7))) show(a.slice(7)); return; }
+    if (a.indexOf('capsule:') === 0) { setDock(a.slice(8)); return; }
     switch (a) {
       case 'mini': show(cur === 'M3' ? backTarget(app().state.settings) : 'M3'); break;   // in M3 (checked): back
       case 'feed': feed(); break;
@@ -1122,6 +1201,16 @@ QJZ.layouts = (function () {
       // toggleVisible is handled by the host; anything else is ignored
     }
   }
+
+  // U10's dock, from the menu's 膠囊位置 (capsule:<dock>) or the host's capsuleDock after a drop snapped it: saved, and
+  // U10 sends setLayout with it. A new dock re-renders through the save's change (sync sees the dock changed); the same
+  // one is sent again all the same, so an older setLayout still on its way to the host cannot undo a snap.
+  function setDock(d) {
+    if (!ready() || QJZ.settings.DOCKS.indexOf(d) < 0) return;
+    if (dockOf() !== d) app().saveSettings({ layout: { capsule: d } });
+    else if (cur === 'U10') sync(true);
+  }
+  function onCapsuleDock(msg) { setDock(msg && msg.dock); }
 
   // ---- app events ----
   function onChange() {
@@ -1283,10 +1372,11 @@ QJZ.layouts = (function () {
   function onDbl(e) {
     if (cur === 'M3' && inRoot(e.target)) show(backTarget(app().state.settings));
   }
-  // U7: the ⚙ ✕ tools show while the pointer is over the pet or its tag (and join the hit rects meanwhile).
+  // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
+  // view; either way the hit rects follow.
   function setHover(on) {
-    if (!view || !view.dpet || view.dpet.classList.contains('hover') === on) return;
-    view.dpet.classList.toggle('hover', on);
+    if (!view || !view.hover || view.hover.classList.contains('hover') === on) return;
+    view.hover.classList.toggle('hover', on);
     sync(false);
   }
   // mouseover and mousemove: entering shows them, moving keeps them (they also go 4 s after the last move, in
@@ -1294,10 +1384,10 @@ QJZ.layouts = (function () {
   // pushes the deadline; the one idle timer re-arms itself for the rest when it fires early.
   var HOVER_IDLE_MS = 4000;
   function onOver(e) {
-    if (!view || !view.dpet || !view.dpet.contains(e.target)) return;
+    if (!view || !view.hover || !view.hover.contains(e.target)) return;
     hoverUntil = Date.now() + HOVER_IDLE_MS;
     if (timers.hover) { clearTimeout(timers.hover); timers.hover = 0; }   // back in before the mouseout delay ran out
-    if (timers.idle && view.dpet.classList.contains('hover')) return;
+    if (timers.idle && view.hover.classList.contains('hover')) return;
     setHover(true);
     clearTimeout(timers.idle);
     timers.idle = setTimeout(hoverIdle, HOVER_IDLE_MS);
@@ -1308,7 +1398,7 @@ QJZ.layouts = (function () {
     if (!timers.idle) setHover(false);
   }
   function onOut(e) {
-    if (!view || !view.dpet || !view.dpet.contains(e.target) || view.dpet.contains(e.relatedTarget)) return;
+    if (!view || !view.hover || !view.hover.contains(e.target) || view.hover.contains(e.relatedTarget)) return;
     clearTimeout(timers.hover);
     timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, 300);
   }
@@ -1342,7 +1432,7 @@ QJZ.layouts = (function () {
       offs.push(QJZ.care.on('change', onCare), QJZ.care.on('prompt', onPrompt), QJZ.care.on('cue', onCue),
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup));
     }
-    [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag)].forEach(function (off) {
+    [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);

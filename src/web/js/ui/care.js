@@ -21,6 +21,8 @@ window.QJZ = window.QJZ || {};
 //
 // Host messages: visibility {visible} (false until the first one), fullscreen {on}, session {kind, ms}, menu {action}
 // ('drink', 'pomodoro'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}}.
+// state also carries standIn (minutesToStand(): null when nothing is asked) and nth (the running focus's 第 N 顆 on its
+// start day, else 0), for the layouts.
 // Events (on): change (state); prompt {type:'show'|'update'|'wave'|'hide', prompt, view, quiet}; cue ('focus' | 'wave'
 // | 'holdCup' | 'stretch' | null); drank {cups, goalReached}; standup {count, source:'up'|'drink'|'break'|'lock'}.
 QJZ.care = (function () {
@@ -31,7 +33,7 @@ QJZ.care = (function () {
     ready: false, visible: false, fullscreen: false, panel: false, away: false,
     r: null, p: null, q: null, prompt: null, breakWater: false,
     health: QJZ.health.of(null), goals: { cups: 0, tomatoes: 0, standups: 0 }, show: { cups: false, tomatoes: false },
-    cupsText: '', turn: 0
+    cupsText: '', turn: 0, standIn: null, nth: 0
   };
   var listeners = { change: [], prompt: [], cue: [], drank: [], standup: [] };
   var started = false, bridge = null, nowFn = null, heartbeat = null, offs = [];
@@ -202,6 +204,8 @@ QJZ.care = (function () {
     return pr.kind === 'break' ? 'stretch' : null;
   }
   // Derived state (the §4.9 #8 rule lives here only), then cue, change and healthMenu, each only when it changed.
+  // standIn: minutesToStand(), so a change (a working minute gone by) is a change. nth: the running focus's place on the
+  // day it started (第 N 顆), so a focus across 04:00 keeps its number; 0 without a focus.
   function publish() {
     if (!state.ready) return;
     var s = settings(), h = QJZ.health.of(today()), p = state.p;
@@ -211,18 +215,24 @@ QJZ.care = (function () {
     state.cupsText = h.cups + '/' + state.goals.cups;
     state.prompt = state.q.prompt;
     state.away = state.r.away;
+    state.standIn = minutesToStand();
+    state.nth = p.phase === 'focus' ? healthOn(p.day).tomatoes + 1 : 0;
     var cue = cueNow();
     if (cue !== lastCue) { lastCue = cue; emit('cue', cue); }
-    var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.panel, state.away]);
+    var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.panel, state.away,
+      state.standIn, state.nth]);
     if (sig !== lastSig) { lastSig = sig; emit('change', state); }
     var menu = { cups: state.show.cups ? state.cupsText : null,
       pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
     var text = JSON.stringify(menu);
     if (text !== lastMenu) { lastMenu = text; bridge.send('healthMenu', menu); }
   }
+  // Minutes to the next reminder (null: nothing is asked). After 等一下 it is the time until the snooze ends, not 0.
   function minutesToStand() {
     if (!state.ready) return null;
-    return R.minutesToNext(state.r, settings().health, QJZ.health.of(today()).cups);
+    var m = R.minutesToNext(state.r, settings().health, QJZ.health.of(today()).cups), until = state.r.snoozeUntil;
+    if (m === null || typeof until !== 'number') return m;
+    return Math.max(m, Math.ceil((until - nowFn()) / MIN));
   }
 
   // ---- app events ----
@@ -388,7 +398,7 @@ QJZ.care = (function () {
     state.ready = state.visible = state.fullscreen = state.panel = state.away = state.breakWater = false;
     state.r = state.p = state.q = state.prompt = null;
     state.health = QJZ.health.of(null); state.goals = { cups: 0, tomatoes: 0, standups: 0 };
-    state.show = { cups: false, tomatoes: false }; state.cupsText = ''; state.turn = 0;
+    state.show = { cups: false, tomatoes: false }; state.cupsText = ''; state.turn = 0; state.standIn = null; state.nth = 0;
   }
 
   // Dev only (dev.html, Ruling R3), like reset: index.html never calls it. o = {cups, tomatoes, standups (today's counts),

@@ -15,6 +15,8 @@
   /* ?bg=wall: a desktop-like backdrop (the prototype's U7 wallpaper) to judge the frameless layouts */
   html.wall, html.wall body { background: radial-gradient(circle at 75% 25%, #FFE9B0 0 40px, transparent 41px), linear-gradient(180deg, #9ED8FF 0%, #CDEBFF 55%, #BFE6C4 56%, #9FD6A6 100%) fixed; }
   #root { position: relative; display: inline-block; vertical-align: top; }
+  /* U10's window is transparent but for its capsule: its bounds dashed, to see where the dock puts the capsule */
+  #root:has(> .u10) { outline: 1.5px dashed rgba(61,44,36,.35); }
   .devbar { max-width: 520px; margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px; }
   .devbar button { font: inherit; font-size: 12.5px; font-weight: 700; border: 2.5px solid var(--line); background: #fff; border-radius: 99px; padding: 3px 11px; cursor: pointer; }
   .devbar .sep { flex-basis: 100%; height: 0; }
@@ -32,6 +34,9 @@
   <button type="button" data-menu="layout:U3">U3</button>
   <button type="button" data-menu="layout:U5B">U5-B</button>
   <button type="button" data-menu="layout:U7">U7</button>
+  <button type="button" data-menu="layout:U10">U10</button>
+  <button type="button" data-menu="layout:U12">U12</button>
+  <button type="button" data-menu="layout:U13">U13</button>
   <button type="button" data-menu="mini">縮成迷你</button>
   <span class="sep"></span>
   <button type="button" data-menu="feed">餵食</button>
@@ -48,7 +53,7 @@
   <button type="button" id="hits">顯示點擊區</button>
 </div>
 <p class="note">Dev mock：右鍵選單在這裡用上面的按鈕代替（送出 host 的 <code>menu</code> 訊息）。資料存在 localStorage（qjz.settings / qjz.history）。
-網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3</code>、
+網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3|U10|U12|U13</code>、
 <code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust</code>、
@@ -57,7 +62,8 @@
 寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。<br>
 健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒，
 <code>?pomo=focus|break|breakOver</code> 番茄鐘正在專心（還剩 13 分）/ 休息 / 休息結束（番茄鐘存在 localStorage，要清掉加 <code>?fresh=1</code>），
-<code>?prompt=both|sit|water|break|breakEnd</code> 馬上冒出那個提醒泡泡（both / sit / water 會照著打開提醒開關；break 加 <code>?water=on</code> 多一行「順便喝口水吧～」）。</p>
+<code>?prompt=both|sit|water|break|breakEnd</code> 馬上冒出那個提醒泡泡（both / sit / water 會照著打開提醒開關；break 加 <code>?water=on</code> 多一行「順便喝口水吧～」）。<br>
+U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（存進設定，像右鍵選單的「膠囊位置」），<code>?hover=1</code> 滑鼠停在膠囊上（展開）。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
@@ -248,6 +254,22 @@
         if (devPrompt) { o.prompt = devPrompt; o.water = devWater; }
         QJZ.care._dev(o);
       }, 0);
+    });
+  }
+  // U10: ?dock= (the menu's 膠囊位置, saved like it), ?hover=1 (the pointer rests on the capsule: a mouseover, then a
+  // small move every second, as a resting hand does, so the 4 s idle timeout never folds it).
+  var devDock = devQ.get('dock');
+  if (devDock) {
+    var offDock = QJZ.app.on('change', function () { offDock(); setTimeout(function () { QJZ.bridge._dispatch({ type: 'menu', action: 'capsule:' + devDock }); }, 0); });
+  }
+  if (devQ.get('hover') === '1') {
+    var offHover = QJZ.app.on('change', function () {
+      offHover();
+      function rest(type) {
+        var h = document.querySelector('#root [data-hover]');
+        if (h) h.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, buttons: 0 }));
+      }
+      setTimeout(function () { rest('mouseover'); setInterval(function () { rest('mousemove'); }, 1000); }, 50);
     });
   }
   QJZ.care.start();

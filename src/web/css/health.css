@@ -168,3 +168,164 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .call .ct{min-width:0;max-height:2.4em;overflow:hidden}
 .u5b .pline .rb-btns{margin:0;gap:4px;flex:none}
 .lay.u5b .pline .rb-btns button{flex:none;font-size:11.5px;padding:1px 7px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}
+
+/* =========== the 1.1 layouts (spec §4.5; G_U10_*, G_U12_*, G_U13_*), ported from the mockup's .isl, .dash, .gauge3,
+   .pomo1 and .bigring. Nothing loops (§5.9): the rings and the capsule change at most once a second (layouts.js on
+   the app's second), the status dot and the progress stripes stand still, a ring that glows for a prompt pulses a
+   few times and then just glows, and a prompt knocks once on show and on each re-wave (promptview). =========== */
+:is(.u12,.u13) .status i{animation:none}
+:is(.u12,.u13) .fill::before{animation:none;will-change:auto}
+@keyframes ringhot{0%,100%{box-shadow:var(--rs),0 0 0 0 var(--glow)}55%{box-shadow:var(--rs),0 0 0 9px transparent}}
+html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* reduced motion: the glow, without the pulse */
+
+/* ---------- U10 頂端小膠囊 (G_U10_*) ----------
+   One fixed window, the footprint of the widest view (the call with three buttons); layouts.js sends it as it is, with
+   no hard-shadow room. The capsule sits on the window's edge at its dock and grows away from it: down from the top, up
+   from the bottom, from a corner inwards, from the centre both ways (spec §5.7). Only the capsule is a hit rect. */
+.u10{position:relative;width:540px;height:112px;display:flex;align-items:flex-start;justify-content:center;font-family:var(--font)}
+.u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight){align-items:flex-end;padding-bottom:5px}   /* its 5px shadow under it */
+.u10.d-bottomLeft{justify-content:flex-start}
+.u10.d-bottomRight{justify-content:flex-end}
+.isl{position:relative;display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:#3D2C24;color:#FFF8EC;border-radius:99px;
+  box-shadow:0 5px 0 rgba(61,44,36,.28);white-space:nowrap;cursor:pointer}
+.isl .av{width:28px;height:28px;border:2px solid #FFF8EC}
+.isl > .iv{display:none;align-items:center;gap:inherit}
+.isl > .iv-c{display:flex}
+.u10:is(.p-foc,.p-brk) .isl:not(.hover) > .iv-c{display:none}
+.u10:is(.p-foc,.p-brk) .isl:not(.hover) > .iv-f{display:flex}
+.isl.hover{border-radius:30px;padding:12px 14px 12px 12px;gap:14px}
+.isl.hover .av{width:74px;height:74px;border-width:3px}
+.isl.hover > .iv{display:none}
+.isl.hover > .iv-x{display:flex}
+/* a prompt: the call, wider, its buttons on it (whatever else it was showing) */
+.u10.prompting .isl{border-radius:26px;padding:7px 8px 7px 7px;gap:10px}
+.u10.prompting .isl .av{width:44px;height:44px;border-width:2px}
+.u10.prompting .isl > .iv:not(.iv-r){display:none}   /* (also over the countdown of a break) */
+.u10.prompting .isl > .iv-r{display:flex}
+.isl .gd{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--st-bg);flex:none}
+.isl .im{font-family:"Fredoka",var(--font);font-weight:700;font-size:16px;line-height:1.2;color:#FFC857}
+.isl .im.sm{font-size:13px}
+.isl .iv-x .im{font-size:30px;line-height:1.05}
+.u10.p-foc .isl .iv-f .im:not(.sm){color:#FF9A85}
+.u10.p-brk .isl .iv-f .im:not(.sm){color:#8EE3B0}
+.isl .donut{border-color:#FFF8EC}
+.isl .ichip{display:inline-flex;align-items:center;gap:2px;background:#FFF8EC;color:var(--text);border:0;border-radius:99px;padding:1px 8px 1px 3px;
+  font-family:"Fredoka",var(--font);font-weight:700;font-size:12px;line-height:1.35}
+.isl .ichip svg.ic{width:14px;height:14px}
+.isl button.ichip:active{transform:translate(1px,1px)}
+.isl .ichip .go{margin-left:3px}
+.isl .isub{font-size:11.5px;font-weight:700;color:#E8D9C4;display:inline-flex;align-items:center;gap:5px}
+.isl .icol{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.isl .ibar{display:block;height:9px;width:170px;border-radius:99px;background:#5A463C;overflow:hidden}
+.isl .ibar i{display:block;height:100%;width:0;background:repeating-linear-gradient(-45deg,#FFC857 0 5px,#FFB627 5px 10px)}
+.isl .iv-r .icol{gap:2px}
+.isl .imsg{font-size:14px;line-height:1.3;color:#FFF8EC}
+.isl .iv-r .isub svg.ic{width:13px;height:13px;margin-right:-3px}
+.isl .rb-btns{margin:0;gap:6px}
+.lay.u10 .isl .rb-btns button{flex:none;font-size:13px;line-height:1.3;border:2px solid #FFF8EC;border-radius:99px;padding:4px 12px;background:transparent;
+  color:#FFF8EC;box-shadow:none}
+.lay.u10 .isl .rb-btns .ok{background:#FFC857;border-color:#FFC857;color:var(--text)}
+.lay.u10 .isl .rb-btns .drink{background:#9AD0FF;border-color:#9AD0FF;color:var(--text)}
+/* a line said to the user (a banner) shows beside the capsule, not over it */
+.u10 .fx .banner{top:48px}
+.u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight) .fx .banner{top:auto;bottom:52px}
+
+/* ---------- the rings (U12, G_U12_*): the day's count against its goal; --p and hot come from layouts.js ---------- */
+.gauge3{--p:0;--c:var(--water);--rs:3px 3px 0 var(--line);--glow:rgba(30,158,90,.55);display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:none;border:0;padding:0;font:inherit;color:var(--text)}
+.gauge3[data-gauge=cups]{--glow:rgba(46,134,222,.5)}
+.gauge3[data-gauge=tom]{--c:var(--tom);--glow:rgba(232,80,58,.5)}
+.gauge3[data-gauge=stand]{--c:var(--rest)}
+.gauge3.rest{--c:var(--rest);--glow:rgba(30,158,90,.55)}   /* a break: green, and so is its glow */
+button.gauge3:active .rg{transform:translate(1px,1px)}
+.gauge3 .gl{font-size:11px;font-weight:700;color:var(--sub);text-align:center;line-height:1.3}
+.gauge3 .rg{width:88px;height:88px;border-radius:50%;border:3px solid var(--line);box-shadow:var(--rs);transition:none;
+  background:radial-gradient(closest-side,#FFF8EC 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05}
+.gauge3 .rg svg.ic{width:18px;height:18px}
+.gauge3 .rg b{font-family:"Fredoka",var(--font);font-size:20px}
+.gauge3 .rg small{font-size:10px;font-weight:700;color:var(--sub)}
+.gauge3 .g-day,.gauge3 .g-run{display:flex;flex-direction:column;align-items:center}
+.gauge3 .g-run,.lay:is(.p-foc,.p-brk) .gauge3 .g-day{display:none}
+.lay:is(.p-foc,.p-brk) .gauge3 .g-run{display:flex}
+.lay:is(.p-foc,.p-brk) .gauge3 .g-run b{font-size:19px}
+.gauge3.hot{--rs:3px 3px 0 var(--line),0 0 0 4px var(--glow)}
+.gauge3.hot .rg{animation:ringhot 1.3s ease-in-out 3}
+.gauge3[data-gauge=stand].hot .gl{color:#1E9E5A}
+
+/* ---------- U12 健康儀表板 (G_U12_*) ---------- */
+.win.dash{width:360px}
+.dash .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.dash .dtop{display:flex;align-items:center;justify-content:space-between}
+.dash .dl2{font-size:11.5px;font-weight:700;color:var(--sub)}
+.dash .dmb .money{font-size:30px}
+.dash .dmb .thin{margin-top:6px}
+.dash .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;justify-items:center}
+/* the pet and its line; a prompt's small bubble takes the line's place (the row is as tall as the bubble, so the
+   window keeps its size) */
+.dash .dfoot{display:flex;align-items:center;gap:10px;min-height:104px}
+.dash .dfoot .po{--pw:72px}
+.dash .say{background:#fff;border:2.5px solid var(--line);border-radius:12px 12px 12px 3px;box-shadow:2px 2px 0 var(--line);padding:5px 10px;font-size:12px;font-weight:700}
+.dash.prompting .say{display:none}
+.dash .pslot{position:relative;margin-left:6px}
+.dash .rbub.inl{width:228px}
+.dash .rbub.inl .rb-s{display:none}   /* the rings already say it (G_U12_rem has no sub) */
+
+/* ---------- U13 番茄鐘優先 (G_U13_*) ---------- */
+.win.pomo1{width:300px}
+.pomo1 .body{padding:12px 14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.pomo1 .ptop{align-self:stretch;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.pomo1 .pm{font-family:"Fredoka",var(--font);font-size:19px;font-weight:700;color:var(--money);white-space:nowrap;
+  text-shadow:-1.2px -1.2px 0 var(--line),1.2px -1.2px 0 var(--line),-1.2px 1.2px 0 var(--line),1.2px 1.2px 0 var(--line),1.5px 2px 0 var(--line)}
+.pomo1 .pm .cur{color:var(--cur)}
+.pomo1 .ptop2{align-self:stretch;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--sub);white-space:nowrap}
+.pomo1 .ptop2 .thin{flex:1;height:9px;border-width:2px}
+.pomo1 .ringwrap{position:relative;margin:4px 0 6px}
+.bigring{--p:100;--c:#FFE08A;--hole:80%;--rs:4px 4px 0 var(--line);--glow:rgba(30,158,90,.55);position:relative;width:196px;height:196px;
+  border-radius:50%;border:3px solid var(--line);box-shadow:var(--rs);transition:none;
+  background:radial-gradient(closest-side,#FFF8EC var(--hole),transparent calc(var(--hole) + 2%)),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.u13.p-foc .bigring{--c:var(--tom)}
+.bigring.rest{--c:var(--rest)}
+.bigring b{font-family:"Fredoka",var(--font);font-size:44px;line-height:1;font-weight:700}
+.bigring small{font-size:11.5px;font-weight:700;color:var(--sub)}
+/* idle: the whole ring is the 開始專心 button */
+.bigring .br-go{position:absolute;inset:0;border-radius:50%;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px}
+.bigring .br-go .go{margin-top:6px;font-size:13.5px;font-weight:700;line-height:1.2;background:var(--bar);border:2.5px solid var(--line);border-radius:99px;
+  padding:5px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
+.bigring .br-go:active .go{transform:translate(1px,1px)}
+.bigring .br-run{display:none;flex-direction:column;align-items:center;gap:2px}
+.u13:is(.p-foc,.p-brk) .bigring .br-go{display:none}
+.u13:is(.p-foc,.p-brk) .bigring .br-run{display:flex}
+/* a prompt sits inside the ring (Ruling C4, G_U13_rem): the ring goes full and green with a thinner band, glows, and
+   holds nothing else. Three buttons wrap two and one, without the icon and the sub, so every line stays inside. */
+.u13.prompting .bigring{--p:100!important;--c:var(--rest);--hole:88%;--rs:4px 4px 0 var(--line),0 0 0 4px var(--glow);animation:ringhot 1.3s ease-in-out 3}
+.u13.prompting .bigring > :not(.br-rem){display:none}
+.bigring .br-rem{display:flex;flex-direction:column;align-items:center;gap:1px;width:148px;text-align:center}
+.bigring .br-rem:has(.rb-btns > :nth-child(3)) :is(.rb-ic2,.rb-s){display:none}
+.bigring .br-rem:has(.rb-btns > :nth-child(3)) .rb-btns{max-width:112px}
+.bigring .rb-ic2 svg.ic{width:24px;height:24px}
+.bigring .br-rem .rb-s{font-size:11px;line-height:1.3}
+.bigring .br-rem b.rb-t{font-family:var(--font);font-size:16px;line-height:1.3;margin:1px 0;word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
+.bigring .br-rem .rb-w{font-size:11.5px;font-weight:700;color:var(--text);line-height:1.3}
+.bigring .br-rem .rb-w svg.ic{width:13px;height:13px;margin-right:2px}
+.bigring .rb-btns{margin-top:5px;gap:4px;justify-content:center;flex-wrap:wrap}
+.lay .bigring .rb-btns button{flex:none;font-size:12px;padding:2px 7px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}
+/* the pet sits on the ring's edge; only its painted shape takes a poke, the rest of its box lets the ring take the click */
+.pomo1 .ringwrap .po{position:absolute;right:-44px;bottom:-14px;--pw:86px;margin:0;pointer-events:none}
+.pomo1 .ringwrap .po .pa{pointer-events:visiblePainted}
+.pomo1 .tslots{display:flex;align-items:center;flex-wrap:wrap;justify-content:center;gap:4px;font-size:12px;font-weight:700;color:var(--sub)}
+.pomo1 .tsl{display:inline-flex;gap:4px;margin-right:4px}
+.pomo1 .tsl svg.ic{width:21px;height:21px}
+.pomo1 .tsl.many svg.ic{width:16px;height:16px}
+.pomo1 .tsl svg.ic.e{opacity:.25}
+/* 停止 only while a phase runs; its room is always kept, so the window keeps its size */
+.pomo1 .pbtns{display:flex;gap:8px;visibility:hidden}
+.u13:is(.p-foc,.p-brk) .pbtns{visibility:visible}
+.pomo1 .pbtns .stop{font-size:12.5px;font-weight:700;line-height:1.2;background:#fff;border:2px solid var(--line);border-radius:99px;padding:3px 10px;
+  box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
+.pomo1 .pbtns .stop:active{transform:translate(1px,1px)}
+.pomo1 .pline{display:flex;align-items:center;gap:4px;min-height:16px;font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
+.pomo1 .pline .pp{display:inline-flex;align-items:center;gap:3px}
+.pomo1 .pline svg.ic{width:15px;height:15px}

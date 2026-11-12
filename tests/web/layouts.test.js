@@ -34,11 +34,19 @@
   });
 
   test('layouts: main vs temporary layouts and the way back', function () {
-    eq(QJZ.layouts.MAIN, ['U1', 'U3', 'U5B', 'U7']);
+    eq(QJZ.layouts.MAIN, ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13']);
     ok(U.isMain('U5B') && !U.isMain('M3') && !U.isMain('PANEL') && !U.isMain('U5-B'));
     eq(U.backTarget({ layout: { current: 'U3' } }), 'U3');
     eq(U.backTarget({ layout: { current: 'M3' } }), 'U1', 'a stored temporary layout would loop');
     eq(U.backTarget(null), 'U1');
+  });
+
+  test('layouts: the main layouts include U10 U12 U13', function () {
+    eq(QJZ.layouts.ALL, ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL']);
+    ok(['U10', 'U12', 'U13'].every(U.isMain));
+    eq(U.lastLayout({ layout: { current: 'U12', mini: false } }), 'U12');
+    eq(U.lastLayout({ layout: { current: 'U12', mini: true } }), 'M3');
+    eq([U.backTarget({ layout: { current: 'U10' } }), U.backTarget({ layout: { current: 'U13' } })], ['U10', 'U13']);
   });
 
   test('layouts: item rotates every 4 s by the wall clock', function () {
@@ -1715,5 +1723,335 @@
     eq([p(), text(e, '[data-b=m3sub]')], ['18.75', '上班中 · 還有 06:30:00']);
     eq(getComputedStyle(ring).transitionDuration, '0s');
     done();
+  });
+  // ---------- 1.1 (Task 12): the new layouts U10 頂端小膠囊, U12 健康儀表板, U13 番茄鐘優先 ----------
+  var BOTH = { asked: true, sit: { on: true }, water: { on: true, goal: 8 } };
+  function today(cups, tomatoes, standups) { return { health: { cups: cups, cupGoal: 8, tomatoes: tomatoes, standups: standups } }; }
+  function shown(e) { e.bridge.emit({ type: 'visibility', visible: true }); return e; }   // care prompts only while the window shows
+  function hitsOf(e) { return last(e.sent, 'hitRects').rects; }
+  function sizeOf(e) { var s = last(e.sent, 'setLayout'); return [s.width, s.height]; }
+  // The pointer leaves el: what the 300 ms delay after the mouseout does, at once.
+  function leave(el) {
+    var st = window.setTimeout, run = [];
+    window.setTimeout = function (fn, ms) { if (ms === 300) { run.push(fn); return 0; } return st.apply(window, arguments); };
+    try { mouse(el, 'mouseout', 0, 0, { relatedTarget: document.body, buttons: 0 }); } finally { window.setTimeout = st; }
+    run.forEach(function (f) { f(); });
+  }
+
+  test('layouts DOM: U10: one window size for collapsed / hover / remind / focus', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH }, rec: today(3, 3, 0) }));
+    e.tick(at(12, 9, 49, 59));
+    var win = sizeOf(e);
+    eq(last(e.sent, 'setLayout').layout, 'U10');
+    ok(win[0] >= 440 && win[0] <= 560 && win[1] >= 100 && win[1] <= 130, 'the widest state\'s footprint: ' + win);
+    function check(state, w, h) {
+      var lay = $(e, '.u10'), isl = $(e, '.isl'), box = lay.getBoundingClientRect(), r = isl.getBoundingClientRect();
+      eq(sizeOf(e), win, state + ': the same window');
+      eq([Math.round(box.width), Math.round(box.height)], win, state + ': the window is the layout (the capsule\'s shadow is inside it)');
+      ok(r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.top >= box.top - 0.5 && r.bottom + 5 <= box.bottom + 0.5,
+        state + ': the capsule and its shadow inside ' + JSON.stringify([r.left, r.top, r.right, r.bottom]));
+      if (w) ok(r.width >= w[0] && r.width <= w[1] && r.height >= h[0] && r.height <= h[1], state + ': ' + r.width + 'x' + r.height);
+    }
+    check('collapsed', [180, 280], [34, 40]);
+    mouse($(e, '.isl'), 'mouseover');
+    check('hover', [320, 500], [92, 106]);
+    e.menu('layout:U10');   // built again: collapsed
+    e.tick(at(12, 9, 50));
+    ok($(e, '.u10').classList.contains('prompting'), 'the reminder');
+    check('remind', [300, 560], [50, 90]);
+    // the longest copy there is: every reminder line, the long break with its water line and three buttons, 休息結束
+    ['both', 'sit', 'water'].forEach(function (kind) {
+      QJZ.prompt.LINES[kind].forEach(function (t, i) {
+        QJZ.promptView.render($(e, '.u10'), 'U10', QJZ.prompt.view({ kind: kind, water: false }, { turn: i, min: 120, cups: 12, cupGoal: 20 }));
+        check('remind ' + kind + ' ' + i);
+      });
+    });
+    QJZ.promptView.render($(e, '.u10'), 'U10', QJZ.prompt.view({ kind: 'break', water: true }, { breakMin: 15, done: 12, long: true }));
+    check('the long break');
+    QJZ.promptView.render($(e, '.u10'), 'U10', QJZ.prompt.view({ kind: 'breakEnd', water: false }, {}));
+    check('休息結束');
+    QJZ.promptView.render($(e, '.u10'), 'U10', C.view());
+    clickOn($(e, '[data-answer=later]'));
+    ok(!$(e, '.u10').classList.contains('prompting'), '等一下 closes it');
+    C.toggleFocus();
+    ok(drawn($(e, '.iv-f')), 'the countdown');
+    check('focus', [180, 300], [34, 40]);
+    done();
+  });
+
+  test('layouts DOM: U10: dock classes and setLayout dock', function () {
+    var e = mk(at(12, 10, 0), { first: 'U10', care: true, settings: { layout: { capsule: 'bottomRight' } } });
+    function where() {   // the capsule's place in the window
+      var lay = $(e, '.u10').getBoundingClientRect(), r = $(e, '.isl').getBoundingClientRect();
+      var h = Math.abs(r.left - lay.left) < 1 ? 'left' : Math.abs(r.right - lay.right) < 1 ? 'right' :
+        Math.abs(r.left + r.right - lay.left - lay.right) < 2 ? 'centre' : '?';
+      var v = Math.abs(r.top - lay.top) < 1 ? 'top' : Math.abs(r.bottom + 5 - lay.bottom) < 1 ? 'bottom' : '?';
+      return h + ' ' + v;
+    }
+    var sl = last(e.sent, 'setLayout');
+    eq([sl.layout, sl.dock], ['U10', 'bottomRight']);
+    ok($(e, '.u10').classList.contains('d-bottomRight'));
+    eq(where(), 'right bottom');
+    mouse($(e, '.isl'), 'mouseover');
+    eq(where(), 'right bottom', 'expanded up and to the left, away from its corner');
+    var n = of(e.sent, 'setLayout').length;
+    e.bridge.emit({ type: 'capsuleDock', dock: 'top' });   // the host snapped a drop to the top
+    eq(QJZ.app.state.settings.layout.capsule, 'top', 'saved');
+    eq([of(e.sent, 'setLayout').length, last(e.sent, 'setLayout').dock], [n + 1, 'top'], 'setLayout again, with the new dock');
+    ok($(e, '.u10').classList.contains('d-top') && !$(e, '.u10').classList.contains('d-bottomRight'));
+    eq(where(), 'centre top', 'still expanded, down from the top');
+    e.bridge.emit({ type: 'capsuleDock', dock: 'top' });
+    eq([of(e.sent, 'setLayout').length, last(e.sent, 'setLayout').dock], [n + 2, 'top'],
+      'the same dock: sent again all the same, so no older setLayout in flight can undo the snap');
+    e.menu('capsule:bottomLeft');
+    eq([QJZ.app.state.settings.layout.capsule, last(e.sent, 'setLayout').dock, where()], ['bottomLeft', 'bottomLeft', 'left bottom'], 'the menu\'s 膠囊位置');
+    e.bridge.emit({ type: 'capsuleDock', dock: 'left' });
+    e.bridge.emit({ type: 'capsuleDock' });
+    e.menu('capsule:middle');
+    eq(QJZ.app.state.settings.layout.capsule, 'bottomLeft', 'junk is ignored');
+    QJZ.app.flush();
+    eq(JSON.parse(last(e.sent, 'saveSettings').text).layout.capsule, 'bottomLeft', 'written');
+    e.menu('layout:U1');
+    eq('dock' in last(e.sent, 'setLayout'), false, 'only U10 sends a dock');
+    e.menu('capsule:bottomCenter');
+    eq([QJZ.app.state.settings.layout.capsule, QJZ.layouts.current()], ['bottomCenter', 'U1'], 'kept for U10');
+    e.menu('layout:U10');
+    eq([last(e.sent, 'setLayout').dock, where()], ['bottomCenter', 'centre bottom']);
+    ok(of(e.sent, 'setLayout').every(function (s) { return s.p.layout !== 'U10' || QJZ.settings.DOCKS.indexOf(s.p.dock) >= 0; }),
+      'every U10 setLayout carries its dock');
+    eq(last(e.sent, 'setTopmost'), { on: true }, 'on top by default');
+    done();
+  });
+
+  test('layouts DOM: U10: hover expands, leaving collapses, the hit rect follows; the chips follow the visibility rule', function () {
+    var e = mk(at(12, 10, 0), { first: 'U10', care: true });   // 1.0 settings: water off, nothing logged, nothing asked
+    var isl = $(e, '.isl'), small = isl.getBoundingClientRect();
+    eq(hitsOf(e), [U.outer(small)], 'only the capsule takes clicks');
+    eq(shownText(e.root.querySelectorAll('.iv-c > :not(.gd)')), ['NT$ 284'], 'collapsed: whole dollars, no chips');
+    mouse(isl, 'mouseover');
+    ok(isl.classList.contains('hover'));
+    var big = isl.getBoundingClientRect();
+    ok(big.width > small.width + 100 && big.height > small.height + 40, 'expanded ' + big.width + 'x' + big.height);
+    eq(hitsOf(e), [U.outer(big)], 'the hit rect follows');
+    eq(text(e, '.iv-x .im'), 'NT$ 284.09', '2 decimals');
+    eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['▶'], 'the 番茄鐘 button is always there; no cups, no stand-up');
+    mouse(isl.querySelector('.iv-x .im'), 'mousemove', 3, 3, { buttons: 0 });
+    leave(isl);
+    ok(!isl.classList.contains('hover'), 'leaving collapses');
+    eq(isl.getBoundingClientRect().width, small.width);
+    eq(hitsOf(e), [U.outer(small)]);
+    QJZ.app.saveSettings({ health: BOTH });
+    C.drink();
+    eq(shownText(e.root.querySelectorAll('.iv-c > .ichip')), ['1'], 'a cup today: the cups chip (§4.9 #8)');
+    mouse(isl, 'mouseover');
+    eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['1/8 杯', '▶', '50 分後'], 'water on: the cups; the reminder asked: the next stand-up');
+    clickOn($(e, '.iv-x [data-act=drink]'));
+    eq(C.state.health.cups, 2, 'the cups chip logs a cup');
+    clickOn($(e, '.iv-x [data-act=pomo]'));
+    eq(C.state.p.phase, 'focus', '▶ starts a focus');
+    eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['2/8 杯', '×0■', '50 分後'], 'a focus shows the tomatoes; ■ stops it');
+    clickOn($(e, '.iv-x [data-act=pomo]'));
+    eq(C.state.p.phase, 'idle');
+    eq(of(e.sent, 'dragStart').length, 0, 'buttons never drag');
+    done();
+  });
+
+  test('layouts DOM: U10: remind shows the buttons; focus shows mm:ss and 第 N 顆', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH }, rec: today(3, 2, 0) }));
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    var lay = $(e, '.u10'), call = $(e, '.iv-r');
+    ok(lay.classList.contains('prompting') && drawn(call), 'the call');
+    eq([text(e, '.iv-r .imsg'), text(e, '.iv-r .isub')], ['起來動一動，順便喝口水～', '已經坐 50 分鐘囉・今天 3/8 杯']);
+    eq(Array.prototype.map.call(call.querySelectorAll('[data-answer]'), function (b) { return b.textContent; }), ['喝了', '起來了', '等一下']);
+    ok(!drawn($(e, '.iv-c')) && !drawn($(e, '.iv-x')) && !drawn($(e, '.iv-f')), 'nothing else on it');
+    mouse($(e, '.isl'), 'mouseover');
+    ok(drawn(call) && !drawn($(e, '.iv-x')), 'the pointer on it keeps the call');
+    var cap = U.layoutBox($(e, '.isl')), h0 = U.outer(cap);   // (it may be in the middle of its knock)
+    eq(hitsOf(e)[0], h0, 'the capsule');
+    ok(hitsOf(e).every(function (h) { return h[0] >= h0[0] && h[1] >= h0[1] && h[0] + h[2] <= h0[0] + h0[2] && h[1] + h[3] <= h0[1] + h0[3]; }),
+      'its buttons are on it: nothing outside it takes clicks');
+    clickOn($(e, '[data-answer=up]'));
+    eq([C.state.health.standups, lay.classList.contains('prompting')], [1, false], '起來了 counts and closes');
+    leave($(e, '.isl'));
+    C.toggleFocus();
+    ok(drawn($(e, '.iv-f')) && !drawn($(e, '.iv-c')), 'the countdown instead');
+    eq(shownText(e.root.querySelectorAll('.iv-f > *')), ['', '25:00', '第 3 顆', 'NT$ 236'], 'the donut, mm:ss, 第 N 顆 (two today), whole dollars');
+    eq($(e, '.iv-f .donut').style.getPropertyValue('--p'), '100');
+    e.tick(at(12, 10, 2, 30));
+    eq([text(e, '.iv-f [data-b=mmss]'), $(e, '.iv-f .donut').style.getPropertyValue('--p')], ['12:30', '50']);
+    e.tick(at(12, 10, 15));
+    ok(lay.classList.contains('prompting') && drawn(call) && !drawn($(e, '.iv-f')), 'the break bubble is a call too, alone on it');
+    eq(text(e, '.iv-r .imsg'), '休息 5 分鐘！起來走走～');
+    clickOn($(e, '[data-answer=ok]'));
+    ok(drawn($(e, '.iv-f')) && $(e, '.iv-f .donut').classList.contains('rest'), 'the break counts down, green');
+    eq([text(e, '.iv-f [data-b=mmss]'), text(e, '.iv-f [data-b=phaseNote]')], ['05:00', '休息中']);
+    done();
+  });
+
+  function rings(e) {
+    return Array.prototype.map.call(e.root.querySelectorAll('.u12 [data-gauge]'), function (g) {
+      return g.getAttribute('data-gauge') + ' ' + g.style.getPropertyValue('--p') + ' ' + seen(g.querySelector('.rg')) + ' ' + seen(g.querySelector('.gl'));
+    });
+  }
+  function hots(e) { return Array.prototype.map.call(e.root.querySelectorAll('.u12 [data-gauge]'), function (g) { return g.classList.contains('hot'); }); }
+
+  test('layouts DOM: U12: rings from the three goals, always shown; the water ring drinks; the matching ring glows; the bottom line', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH }, rec: today(3, 3, 5) }));
+    e.tick(at(12, 9, 42));
+    eq(rings(e), ['cups 37.5 3/8 喝水（杯）', 'tom 75 3 番茄（顆）', 'stand 55.6 5 起來動（次）'], 'goals: 8 cups, 4 tomatoes, 9 stand-ups (8 h / 50 min)');
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), ['再 8 分鐘起來動～']);
+    eq(getComputedStyle($(e, '.u12 [data-gauge=cups] .rg')).transitionDuration, '0s', 'no transition on the rings');
+    clickOn($(e, '.u12 [data-gauge=cups]'));
+    eq(C.state.health.cups, 4, 'the water ring logs a cup');
+    eq(rings(e)[0], 'cups 50 4/8 喝水（杯）');
+    var size = sizeOf(e);
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    eq(hots(e), [true, false, true], 'both: the water and the stand-up rings glow');
+    eq(seen($(e, '[data-gauge=stand] .gl')), '該起來了！');
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'the bubble takes the line\'s place');
+    var b = $(e, '.u12 .dfoot [data-prompt] .rbub');
+    ok(b && b.classList.contains('sm') && b.classList.contains('inl') && drawn(b), 'the small bubble beside the pet');
+    ok(b.getBoundingClientRect().left > $(e, '.u12 .dfoot .po').getBoundingClientRect().left, 'right of the pet');
+    eq(sizeOf(e), size, 'the window keeps its size');
+    clickOn($(e, '[data-answer=up]'));
+    eq(hots(e), [false, false, false]);
+    eq(rings(e)[2], 'stand 66.7 6 起來動（次）');
+    QJZ.app.saveSettings({ health: { water: { on: false } } });
+    C._dev({ prompt: 'sit' });
+    eq(hots(e), [false, false, true], 'sit: the stand-up ring');
+    eq(sizeOf(e), size, 'sit: the same size');
+    QJZ.app.saveSettings({ health: { sit: { on: false }, water: { on: true } } });
+    C._dev({ prompt: 'water' });
+    eq(hots(e), [true, false, false], 'water: the water ring');
+    eq(sizeOf(e), size, 'water: the same size');
+    eq(seen($(e, '[data-gauge=stand] .gl')), '起來動（次）');
+    C._dev({ prompt: 'break' });
+    eq(hots(e), [false, true, false], 'a pomodoro bubble: the tomato ring');
+    clickOn($(e, '[data-answer=ok]'));
+    eq(rings(e)[1], 'tom 60 休息03:00 番茄倒數', 'the break counts down in the tomato ring');
+    eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('rest'); }), [false, true, false],
+      'only the countdown turns green');
+    C.toggleFocus();
+    C.toggleFocus();
+    eq(rings(e)[1], 'tom 100 專心25:00第 4 顆 番茄倒數', 'a focus: 專心 mm:ss 第 N 顆');
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), ['專心中～提醒等休息再說']);
+    eq(sizeOf(e), size);
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U12', care: true });   // water off, no cup, nothing asked
+    eq(rings(f), ['cups 0 0/8 喝水（杯）', 'tom 0 0 番茄（顆）', 'stand 0 0 起來動（次）'], 'unused: the rings are still there (§4.9 #8)');
+    ok(Array.prototype.every.call(f.root.querySelectorAll('.u12 [data-gauge]'), drawn));
+    eq(shownText(f.root.querySelectorAll('.u12 .say')), [], 'nothing asked: no line');
+    done();
+  });
+
+  test('layouts DOM: U13: the idle ring starts a focus; 第 1 顆 and 停止 during it; the reminder sits in the ring; four tomato slots', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U13', care: true, settings: { health: BOTH } }));
+    var size = sizeOf(e), go = $(e, '.u13 .br-go'), ring = $(e, '.u13 .bigring'), run = $(e, '.u13 .br-run');
+    function slots(x) {
+      return Array.prototype.map.call(x.root.querySelectorAll('.u13 [data-tslots] svg.ic'), function (s) { return s.classList.contains('e') ? 'o' : 'x'; }).join('');
+    }
+    eq(slots(e), 'oooo', 'four slots: one per the day\'s goal (每 4 顆長休息)');
+    eq(text(e, '.u13 [data-b=tslotText]'), '今天 ×0・每 4 顆長休息');
+    ok(drawn(go) && !drawn(run), 'idle: the ring is the button');
+    eq(seen(go), '下一顆 25 分鐘25:00▶ 開始專心');
+    var gr = go.getBoundingClientRect(), rr = ring.getBoundingClientRect();
+    ok(gr.width >= rr.width - 8 && gr.height >= rr.height - 8, 'the whole ring');
+    eq(getComputedStyle($(e, '.u13 .pbtns')).visibility, 'hidden', 'no 停止 while idle (its room is kept)');
+    eq(shownText(e.root.querySelectorAll('.u13 .pline')), ['0/8 杯・50 分後起來動']);
+    clickOn(go);
+    eq(C.state.p.phase, 'focus');
+    ok(!drawn(go) && drawn(run));
+    eq(seen(run), '專心中25:00第 1 顆');
+    eq(getComputedStyle($(e, '.u13 .pbtns')).visibility, 'visible', '■ 停止');
+    eq(shownText(e.root.querySelectorAll('.u13 .pline')), ['0/8 杯・提醒等休息再說']);
+    eq(sizeOf(e), size, 'the window keeps its size');
+    e.tick(at(12, 9, 10));
+    eq([text(e, '.u13 .br-run [data-b=mmss]'), ring.style.getPropertyValue('--p')], ['15:00', '60']);
+    clickOn($(e, '.u13 .pbtns .stop'));
+    eq(C.state.p.phase, 'idle', '■ 停止 stops it');
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    var rem = $(e, '.u13 [data-prompt-ring]');
+    ok($(e, '.u13').classList.contains('prompting') && drawn(rem) && ring.contains(rem), 'the reminder sits in the ring (Ruling C4)');
+    ok(!drawn(go) && !drawn(run), 'nothing else in it');
+    eq(text(e, '.u13 [data-prompt-ring] .rb-t'), '起來動一動，順便喝口水～');
+    rr = ring.getBoundingClientRect();
+    var cx = (rr.left + rr.right) / 2, cy = (rr.top + rr.bottom) / 2, R = rr.width / 2;
+    Array.prototype.forEach.call(rem.querySelectorAll('[data-answer], .rb-t'), function (n) {
+      var r = n.getBoundingClientRect();
+      [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]].forEach(function (p) {
+        ok(Math.sqrt(Math.pow(p[0] - cx, 2) + Math.pow(p[1] - cy, 2)) <= R - 3, n.textContent + ' inside the ring');
+      });
+    });
+    eq(sizeOf(e), size);
+    clickOn(rem);
+    eq(C.state.p.phase, 'idle', 'a click on the ring starts nothing while it holds the reminder');
+    clickOn($(e, '[data-answer=later]'));
+    ok(!$(e, '.u13').classList.contains('prompting') && drawn(go), 'back to the button');
+    clickOn(go);
+    e.tick(at(12, 10, 15));
+    clickOn($(e, '[data-answer=ok]'));
+    eq([slots(e), text(e, '.u13 [data-b=tslotText]')], ['xooo', '今天 ×1・每 4 顆長休息'], 'one done');
+    ok(ring.classList.contains('rest') && drawn(run), 'the break, green');
+    eq(seen(run), '休息中05:00');
+    eq(sizeOf(e), size);
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U13', care: true, settings: { health: { asked: true, pomodoro: { longEvery: 6 } } }, rec: today(0, 7, 0) });
+    eq([slots(f), text(f, '.u13 [data-b=tslotText]')], ['xxxxxx', '今天 ×7・每 6 顆長休息'], 'the slots follow the goal; more than it are all filled');
+    done();
+  });
+
+  test('layouts: 第 N 顆 is the focus\'s place on the day it started, across 04:00', function () {
+    var e = mk(at(12, 3, 50), { first: 'U13', care: true, start: at(11, 9, 0), rec: today(0, 2, 0) });
+    eq(QJZ.app.state.today.day, '2026-11-11', '03:50 is still the 11th');
+    C.toggleFocus();
+    eq(text(e, '.u13 .br-run [data-b=nth]'), '第 3 顆');
+    e.tick(at(12, 4, 5));
+    eq([QJZ.app.state.today.day, C.state.health.tomatoes], ['2026-11-12', 0], 'a new day, nothing done on it yet');
+    eq(text(e, '.u13 .br-run [data-b=nth]'), '第 3 顆', 'still the third of the 11th');
+    eq(U.model(QJZ.app.state, at(12, 4, 5), C.state).nth, '第 3 顆');
+    e.tick(at(12, 4, 15));
+    eq(QJZ.health.of(QJZ.app.state.history.days['2026-11-11']).tomatoes, 3, 'and it counts there');
+    done();
+  });
+
+  test('layouts: the next stand-up is the one care publishes: after 等一下 the end of the snooze; only while working', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH } }));
+    eq(C.state.standIn, 50);
+    e.tick(at(12, 9, 42));
+    eq([C.state.standIn, text(e, '.u12 .say')], [8, '再 8 分鐘起來動～']);
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    clickOn($(e, '[data-answer=later]'));
+    eq([C.state.standIn, text(e, '.u12 .say')], [10, '再 10 分鐘起來動～'], '等一下: in 10 minutes, not 0');
+    e.tick(at(12, 9, 55, 30));
+    eq(C.state.standIn, 5);
+    e.tick(at(12, 18, 30));   // 可以下班
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'after work: no next stand-up');
+    done();
+  });
+
+  test('layouts DOM: new layouts: no infinite animation outside the pet while nothing happens', function () {
+    function loops(e) {
+      return document.getAnimations().filter(function (a) {
+        var t = a.effect && a.effect.target;
+        return !!t && e.root.contains(t) && !t.closest('[data-pet]') && a.effect.getComputedTiming().iterations === Infinity;
+      }).map(function (a) { return (a.effect.target.getAttribute('class') || a.effect.target.tagName) + (a.effect.pseudoElement || '') + ' ' + a.animationName; });
+    }
+    var u1 = mk(at(12, 10, 0), { care: true });
+    ok(loops(u1).length > 0, 'the check sees U1\'s stripes and pulse');
+    done();
+    ['U10', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true, settings: { health: WATER_ON }, rec: today(3, 3, 5) });
+      ok(e.root.querySelector('[data-pet] svg'), name + ': the pet is drawn (its own loops are its own)');
+      eq(loops(e), [], name + ' working');
+      if (name === 'U10') { mouse($(e, '.isl'), 'mouseover'); eq(loops(e), [], name + ' expanded'); }
+      C.toggleFocus();
+      e.tick(at(12, 10, 0, 1));
+      eq(loops(e), [], name + ' during a focus');
+      done();
+    });
   });
 })();
