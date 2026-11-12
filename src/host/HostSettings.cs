@@ -5,7 +5,7 @@ using System.Web.Script.Serialization;
 // The values in settings.json (written by the page) that the host needs before the page runs: autostart, the hide
 // hotkey, topmost per layout, the capture guard (privacy.hideFromCapture) and the layout the page starts in. Like
 // the page's sanitizer (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default:
-// autostart on, Ctrl+Alt+H, topmost only for U7 and M3, capture guard on, start layout U1.
+// autostart on, Ctrl+Alt+H, topmost only for U7, M3 and U10, capture guard on, start layout U1.
 // The start layout is the one used last, as the page picks it (layouts.js lastLayout): M3 when layout.mini is true,
 // else layout.current when it is a main layout, else U1. A 1.0 file has no layout.mini: there a layout.start of M3
 // counts as mini (1.0's 開啟時的版型 = 迷你徽章); 1.0's layout.start is not read otherwise.
@@ -13,9 +13,11 @@ public class HostSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+H";
     // Must stay in sync with the page's LAYOUTS list in src/web/js/core/settings.js (the web side is not shared).
-    static readonly string[] Layouts = { "U1", "U3", "U5B", "U7", "M3" };
-    // The main layouts (layouts.js MAIN): what layout.current may name.
-    static readonly string[] MainLayouts = { "U1", "U3", "U5B", "U7" };
+    static readonly string[] Layouts = { "U1", "U3", "U5B", "U7", "M3", "U10", "U12", "U13" };
+    // The main layouts (layouts.js MAIN): what layout.current may name. 1.1's U10 / U12 / U13 are main layouts too: a
+    // last used one of them starts, pre-places and rescues as itself, not as U1 (Ruling M5). The page's MAIN gains
+    // them with the layouts themselves; until then nothing stores them in layout.current.
+    static readonly string[] MainLayouts = { "U1", "U3", "U5B", "U7", "U10", "U12", "U13" };
     readonly Dictionary<string, bool> topmost = new Dictionary<string, bool>();
 
     HostSettings()
@@ -24,7 +26,7 @@ public class HostSettings
         Hotkey = DefaultHotkey;
         CaptureGuard = true;
         StartLayout = "U1";
-        foreach (string l in Layouts) topmost[l] = l == "U7" || l == "M3";
+        foreach (string l in Layouts) topmost[l] = l == "U7" || l == "M3" || l == "U10";
     }
 
     public bool Autostart { get; private set; }

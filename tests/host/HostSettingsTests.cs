@@ -47,6 +47,23 @@ public static class HostSettingsTests
         Assert.Eq("U3", HostSettings.Parse("{\"layout\":{\"start\":\"U7\",\"current\":\"U3\"}}").StartLayout, "another start layout: the last used one");
     }
 
+    // 1.1's layouts (§5.7): U10 (the top capsule) floats on top like U7 and M3; U12 and U13 are main windows like U1.
+    // Each one is a last used layout the host starts, pre-places and rescues in (Ruling M5).
+    public static void Test_NewLayoutsAndTheirTopmost()
+    {
+        HostSettings d = HostSettings.Parse(null);
+        Assert.True(Top(d, "U10"), "U10 topmost by default");
+        Assert.True(!Top(d, "U12") && !Top(d, "U13"), "U12 and U13 not topmost by default");
+        Assert.Eq("U12", HostSettings.Parse("{\"layout\":{\"current\":\"U12\"}}").StartLayout, "U12 as the last used layout");
+        Assert.Eq("U10", HostSettings.Parse("{\"layout\":{\"current\":\"U10\"}}").StartLayout, "U10 as the last used layout");
+        Assert.Eq("U13", HostSettings.Parse("{\"layout\":{\"current\":\"U13\"}}").StartLayout, "U13 as the last used layout");
+        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"current\":\"U13\",\"mini\":true}}").StartLayout, "left as the mini badge");
+        Assert.Eq("U1", HostSettings.Parse("{\"layout\":{\"current\":\"U99\"}}").StartLayout, "an unknown layout: U1");
+        HostSettings s = HostSettings.Parse("{\"layout\":{\"topmost\":{\"U10\":false,\"U12\":true,\"U13\":\"yes\"}}}");
+        Assert.True(!Top(s, "U10") && Top(s, "U12"), "a saved topmost for the new layouts is read");
+        Assert.True(!Top(s, "U13"), "a non-boolean keeps the default");
+    }
+
     public static void Test_ReadsConfiguredValues()
     {
         HostSettings s = HostSettings.Parse(

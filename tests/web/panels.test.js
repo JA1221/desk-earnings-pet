@@ -636,7 +636,7 @@
     eq(QJZ.app.state.settings.display.opaque, true);
     eq(t.getAttribute('aria-checked'), 'true');
     ok(root.classList.contains('opaque'));
-    eq(savedSettings(e).display, { opaque: true });
+    eq(savedSettings(e).display, { opaque: true, powerSaver: false });
     t.click();
     eq(QJZ.app.state.settings.display.opaque, false);
     ok(!root.classList.contains('opaque'));

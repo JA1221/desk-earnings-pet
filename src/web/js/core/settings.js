@@ -10,16 +10,35 @@ QJZ.settings = (function () {
     pet: { kind: 'hamster', skin: 'p0', names: { cat: '小橘', hamster: '金金' } },
     // current: the last main layout; mini: it was left as the mini badge (M3). The app starts in mini ? M3 : current
     // (simplification #12). start (1.0's start-layout picker) is no longer read; it is kept so no saved value is lost.
-    layout: { start: 'U1', current: 'U1', topmost: { U1: false, U3: false, U5B: false, U7: true, M3: true }, mini: false },
+    // capsule: U10's dock (§5.7), changed only by dragging or the menu's 膠囊位置; settings never show it.
+    layout: {
+      start: 'U1', current: 'U1',
+      topmost: { U1: false, U3: false, U5B: false, U7: true, M3: true, U10: true, U12: false, U13: false },
+      mini: false, capsule: 'top'
+    },
     milestone: 100,
     items: [{ name: '珍奶', price: 65, icon: '🧋' }, { name: '便當', price: 100, icon: '🍱' }, { name: '拿鐵', price: 120, icon: '☕' }],
     sound: { enabled: false, volume: 0.6 },
     autostart: true,
     privacy: { hideFromCapture: true, hotkey: 'Ctrl+Alt+H' },
-    display: { opaque: false },   // 相容模式: paint the whole window (page-owned; the host has init.forceOpaque)
+    // opaque: 相容模式, paint the whole window (page-owned; the host has init.forceOpaque). powerSaver: 省電模式 (§5.9).
+    display: { opaque: false, powerSaver: false },
+    // §4.9 #6/#7, §5.4: one reminder timer (every minutes) for 起來動 (sit) and 喝水 (water). asked: the user answered
+    // the reminder question (onboarding, or the one-time question after the 1.0 upgrade, §5.5); until then neither
+    // reminder runs whatever sit.on / water.on say (QJZ.reminders.ask).
+    health: { asked: false, every: 50, sit: { on: false }, water: { on: false, goal: 8 }, pomodoro: { focus: 25, short: 5, long: 15, longEvery: 4 } },
     onboarded: false
   };
-  var LAYOUTS = ['U1', 'U3', 'U5B', 'U7', 'M3'];
+  // The layouts layout.current (and the unread layout.start) and the topmost map may name. Kept in sync with
+  // HostSettings.Layouts (src/host).
+  var LAYOUTS = ['U1', 'U3', 'U5B', 'U7', 'M3', 'U10', 'U12', 'U13'];
+  // U10's docks (§5.7): top centre, or just above the taskbar on the left, centre or right.
+  var DOCKS = ['top', 'bottomLeft', 'bottomCenter', 'bottomRight'];
+  // [min, max, step] per health number (§5.4), keyed by its path under health.
+  var HEALTH_RANGES = {
+    'every': [20, 120, 5], 'water.goal': [1, 20, 1],
+    'pomodoro.focus': [10, 90, 5], 'pomodoro.short': [1, 30, 1], 'pomodoro.long': [5, 60, 5], 'pomodoro.longEvery': [2, 8, 1]
+  };
   var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 'h2', 's4', 's5'] };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
@@ -29,6 +48,12 @@ QJZ.settings = (function () {
   function bool(v, def) { return typeof v === 'boolean' ? v : def; }
   function oneOf(v, list, def) { return list.indexOf(v) >= 0 ? v : def; }
   function hm(v, def) { return typeof v === 'string' && !isNaN(QJZ.time.parseHM(v)) ? v : def; }
+  // range [min, max, step]: a number is clamped, then put on the nearest step from min; anything else is def.
+  function ranged(v, range, def) {
+    if (!isNum(v)) return def;
+    var min = range[0], c = Math.min(range[1], Math.max(min, v));
+    return min + Math.round((c - min) / range[2]) * range[2];
+  }
 
   function skinsFor(kind) { return (SKINS[kind] || ['p0']).slice(); }
 
@@ -72,6 +97,7 @@ QJZ.settings = (function () {
     for (var j = 0; j < LAYOUTS.length; j++) out.layout.topmost[LAYOUTS[j]] = bool(top[LAYOUTS[j]], d.layout.topmost[LAYOUTS[j]]);
     // A 1.0 file has no mini: a 1.0 start layout of M3 (開啟時的版型 = 迷你徽章) keeps opening the mini badge (review M-2).
     out.layout.mini = lay.mini === undefined ? out.layout.start === 'M3' : bool(lay.mini, d.layout.mini);
+    out.layout.capsule = oneOf(lay.capsule, DOCKS, d.layout.capsule);
 
     out.milestone = isNum(s.milestone) && s.milestone > 0 ? s.milestone : d.milestone;
 
@@ -96,9 +122,28 @@ QJZ.settings = (function () {
     out.privacy.hotkey = str(pv.hotkey, d.privacy.hotkey);
     var disp = isObj(s.display) ? s.display : {};
     out.display.opaque = bool(disp.opaque, d.display.opaque);
+    out.display.powerSaver = bool(disp.powerSaver, d.display.powerSaver);
+
+    var hs = isObj(s.health) ? s.health : {}, hd = d.health, R = HEALTH_RANGES;
+    var sit = isObj(hs.sit) ? hs.sit : {}, water = isObj(hs.water) ? hs.water : {}, pom = isObj(hs.pomodoro) ? hs.pomodoro : {};
+    out.health.asked = bool(hs.asked, hd.asked);
+    out.health.every = ranged(hs.every, R['every'], hd.every);
+    out.health.sit.on = bool(sit.on, hd.sit.on);
+    out.health.water.on = bool(water.on, hd.water.on);
+    out.health.water.goal = ranged(water.goal, R['water.goal'], hd.water.goal);
+    out.health.pomodoro.focus = ranged(pom.focus, R['pomodoro.focus'], hd.pomodoro.focus);
+    out.health.pomodoro.short = ranged(pom.short, R['pomodoro.short'], hd.pomodoro.short);
+    out.health.pomodoro.long = ranged(pom.long, R['pomodoro.long'], hd.pomodoro.long);
+    out.health.pomodoro.longEvery = ranged(pom.longEvery, R['pomodoro.longEvery'], hd.pomodoro.longEvery);
+
     out.onboarded = bool(s.onboarded, d.onboarded);
     return out;
   }
+
+  // §5.4, derived, never stored. 起來動目標: the working minutes of a day over the reminder interval, rounded down, at
+  // least 1 (8 h, 50 min -> 9). 番茄每日目標: one round, 每幾顆長休息.
+  function standGoal(settings) { return Math.max(1, Math.floor(settings.hoursPerDay * 60 / settings.health.every)); }
+  function tomatoGoal(settings) { return settings.health.pomodoro.longEvery; }
 
   // null / empty / "null" / non-object JSON (array, number, string) -> defaults, not corrupted.
   // Only text that is not valid JSON at all is flagged corrupted.
@@ -126,5 +171,8 @@ QJZ.settings = (function () {
     return { ok: true, value: v };
   }
 
-  return { DEFAULTS: DEFAULTS, parse: parse, validateSalary: validateSalary, skinsFor: skinsFor };
+  return {
+    DEFAULTS: DEFAULTS, LAYOUTS: LAYOUTS, DOCKS: DOCKS, HEALTH_RANGES: HEALTH_RANGES,
+    parse: parse, validateSalary: validateSalary, skinsFor: skinsFor, standGoal: standGoal, tomatoGoal: tomatoGoal
+  };
 })();

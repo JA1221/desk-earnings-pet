@@ -769,7 +769,7 @@
   test('layouts DOM: left as the mini badge, the next start is the mini badge; double-click goes back to the main layout', function () {
     var e = mk(at(12, 10, 0), { settings: { layout: { current: 'U5B' } } });
     e.menu('mini');
-    eq(QJZ.app.state.settings.layout, { start: 'U1', current: 'U5B', topmost: QJZ.settings.DEFAULTS.layout.topmost, mini: true });
+    eq(QJZ.app.state.settings.layout, { start: 'U1', current: 'U5B', topmost: QJZ.settings.DEFAULTS.layout.topmost, mini: true, capsule: 'top' });
     e.menu('settings');
     $(e, '[data-act=back]').click();
     eq(QJZ.app.state.settings.layout.mini, true, 'a panel opened from it changes nothing');
