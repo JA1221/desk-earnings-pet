@@ -296,6 +296,64 @@
     eq(b.change, { from: 'focus', to: 'typing', quiet: false });
   });
 
+  test('behavior: only a 可以下班 that came during the focus celebrates after it; a focus started after it goes back to waitBag', function () {
+    var T = T0 + 3600000, done = { status: 'done', minutesToEnd: 0 }, ended = { status: 'ended', minutesToEnd: 0 };
+    function states(b, info, t0, t1) {
+      var seen = {};
+      for (var t = t0; t <= t1; t += 1000) seen[b.update(t, info)] = true;
+      return Object.keys(seen).sort();
+    }
+    // status turned done during the focus: celebrate after its stretch
+    var b = new B.Brain(B.rng(2));
+    b.update(T - 2000, working(1));
+    b.cue('focus', T - 1000);
+    eq(upTo(b, done, T, T + 600000), 'focus');
+    b.cue('stretch', T + 600000);
+    eq(upTo(b, done, T + 600000, T + 603000), 'stretch');
+    eq(b.update(T + 604000, done), 'celebrate');
+    eq(b.change, { from: 'focus', to: 'celebrate', quiet: false });
+    // a focus started after 可以下班: the stretch, then straight back to waitBag (no celebrate, no jingle)
+    [done, ended].forEach(function (info) {
+      var c = new B.Brain(B.rng(2));
+      eq(upTo(c, info, T, T + 60000), 'waitBag', info.status + ' before the focus');
+      c.cue('focus', T + 61000);
+      eq(upTo(c, info, T + 61000, T + 661000), 'focus');
+      c.cue('stretch', T + 661000);
+      eq(upTo(c, info, T + 661000, T + 664000), 'stretch');
+      eq(c.update(T + 665000, info), 'waitBag', info.status + ': after the stretch');
+      eq(c.change, { from: 'focus', to: 'waitBag', quiet: false }, info.status + ': no celebrate');
+      eq(states(c, info, T + 666000, T + 700000), ['waitBag'], info.status);
+      // the same with no stretch
+      c.cue('focus', T + 701000);
+      upTo(c, info, T + 701000, T + 710000);
+      c.cue(null, T + 711000);
+      eq(c.update(T + 711000, info), 'waitBag', info.status + ': stopped');
+    });
+    // a focus that starts while it still celebrates leaves the clock alone too
+    b = new B.Brain(B.rng(2));
+    b.update(T, working(1));
+    eq(b.update(T + 1000, done), 'celebrate');
+    b.cue('focus', T + 3000);
+    upTo(b, done, T + 3000, T + 20000);
+    b.cue(null, T + 21000);
+    eq(b.update(T + 21000, done), 'waitBag');
+    // the app opened during a focus after 可以下班: the first look is not a change during the focus
+    b = new B.Brain(B.rng(2));
+    b.cue('focus', T);
+    eq(upTo(b, done, T, T + 10000), 'focus');
+    b.cue(null, T + 11000);
+    eq(b.update(T + 11000, done), 'waitBag');
+    // 下班 pressed during a focus started after 可以下班 is a new status: it celebrates after the focus, as in 1.0
+    b = new B.Brain(B.rng(2));
+    upTo(b, done, T, T + 20000);
+    b.cue('focus', T + 21000);
+    upTo(b, done, T + 21000, T + 30000);
+    upTo(b, ended, T + 31000, T + 40000);
+    b.cue(null, T + 41000);
+    eq(b.update(T + 41000, ended), 'celebrate');
+    eq(b.update(T + 49000, ended), 'waitBag');
+  });
+
   test('behavior: wave for 4 s after the cue and each knock, idle between; holdCup holds; stretch for 4 s', function () {
     var t = T0 + 600000, w = working();
     eq([B.WAVE_MS, B.STRETCH_MS, B.SIP_MS], [4000, 4000, 3000]);

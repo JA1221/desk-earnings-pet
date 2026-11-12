@@ -18,8 +18,9 @@ window.QJZ = window.QJZ || {};
 //   1.1 cues (spec §5.1, §5.2, §5.8): cue(name | null, nowMs) with QJZ.care's cue ('focus' | 'wave' | 'holdCup' |
 //       'stretch'), knock(nowMs) for care's re-wave every 2 minutes while a bubble waits. brain.cued is the cue.
 //       focus: the base state is 'focus' whatever the status. A focus lasts until its cue changes, or, when it changes
-//         to 'stretch' (care: the focus ended with its break bubble), until that stretch is over (Ruling M8). Then the
-//         status clock restarts, so 可以下班 during a focus celebrates for 8 s after it, live (§5.2).
+//         to 'stretch' (care: the focus ended with its break bubble), until that stretch is over (Ruling M8). A status
+//         that came during the focus starts its clock then, so 可以下班 during a focus celebrates for 8 s after it, live
+//         (§5.2); a focus started after 可以下班 or 下班 goes back to the state it left (waitBag), with no new celebration.
 //       wave: 'wave' for WAVE_MS after the cue and after each knock, 'idle' in between.
 //       holdCup: 'holdCup' all along; a knock replays its wave (brain.waveAt: when the last wave began).
 //       stretch: 'stretch' for STRETCH_MS, then the base state.
@@ -98,6 +99,7 @@ QJZ.behavior = (function () {
     this.cuedAt = 0;           // when it came
     this.waveAt = -Infinity;   // when the last wave began (a wave or holdCup cue, or a knock)
     this.focusEnd = -Infinity; // when the last focus ended, or ends (after its stretch)
+    this.waited = false;       // the work status changed during the last focus: its clock starts when the focus ends
   }
   // The pose the cue shows at now, or null for none (the base state and its idle actions show).
   function cuePose(br, now) {
@@ -113,11 +115,13 @@ QJZ.behavior = (function () {
     var gap = this.last === null || now - this.last > GAP_MS || back;
     this.last = now;
     if (back && this.cued !== 'focus' && this.focusEnd > now) this.focusEnd = now;   // the clock went back: no long wait
+    var focusing = this.cued === 'focus' || now < this.focusEnd;
+    if (info.status !== this.status && this.status !== null && focusing) this.waited = true;
     if (info.status !== this.status || now < this.since) { this.status = info.status; this.since = now; }
     var b = 'focus';
-    if (this.cued !== 'focus' && now >= this.focusEnd) {
-      // the status clock restarts when a focus ends: 可以下班 during a focus celebrates after it (§5.2)
-      b = base(info.status, info.minutesToEnd, (now - Math.max(this.since, this.focusEnd)) / 1000);
+    if (!focusing) {
+      // 可以下班 that came during a focus celebrates after it (§5.2): its clock starts when the focus ends
+      b = base(info.status, info.minutesToEnd, (now - (this.waited ? Math.max(this.since, this.focusEnd) : this.since)) / 1000);
       if (b === 'lunchSleep' && info.lunchMin !== null && info.lunchMin !== undefined && info.lunchMin < LUNCH_EAT_MIN) b = 'lunchEat';
     }
 
@@ -174,6 +178,7 @@ QJZ.behavior = (function () {
     if (name === this.cued) return;
     if (this.cued === 'focus') this.focusEnd = name === 'stretch' ? now + STRETCH_MS : now;
     else if (now < this.focusEnd) this.focusEnd = now;
+    if (name === 'focus') this.waited = false;
     this.cued = name;
     this.cuedAt = now;
     this.waveAt = name === 'wave' || name === 'holdCup' ? now : -Infinity;
