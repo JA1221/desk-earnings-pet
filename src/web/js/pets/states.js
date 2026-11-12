@@ -3,7 +3,7 @@ QJZ.pets = QJZ.pets || {};
 // The pet states (spec §5.1). Each state picks a body pose, default eyes and mouth, an arm pose and props;
 // compose puts .st-<name> on the root <svg> and pets.css animates the state from there.
 //   pose:  'desk' (sitting behind the desk, the Task 9 art), 'lie' (asleep on the desk), 'dangle' (held up)
-//   arms:  'type' | 'rest' | 'up' | 'hold' | 'scratch' | 'strap'   (see rig.js); a held prop forces 'hold'
+//   arms:  'type' | 'rest' | 'up' | 'hold' | 'scratch' | 'wave'   (see rig.js); a held prop forces 'hold'
 //   alt:   a second frame {eyes, mouth, arms} that pets.css swaps in for part of the loop (.eyes-alt,
 //          .mouth-b, .pose-b); dropped when the caller passes its own expression / mouth
 // label / group are the Chinese names used on the review page.
@@ -21,7 +21,7 @@ QJZ.pets.states = (function () {
     ['lunchSleep', { group: '午休', label: '趴桌睡', pose: 'lie', eyes: 'closed', mouth: 'neutral', arms: 'none', props: ['zzz', 'bubble'] }],
     ['lunchEat', { group: '午休', label: '吃便當', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['bento', 'onigiri'] }],
     ['celebrate', { group: '下班', label: '慶祝', eyes: 'happy', mouth: 'smile', arms: 'up', props: ['confetti'] }],
-    ['waitBag', { group: '下班', label: '背包包等你', eyes: 'sparkle', mouth: 'smile', arms: 'strap', props: ['bag', 'notes', 'sparkle'] }],
+    ['waitBag', { group: '下班', label: '背包包等你', eyes: 'sparkle', mouth: 'smile', arms: 'wave', props: ['bag', 'notes', 'sparkle'] }],
     ['petted', { group: '互動', label: '被摸摸', eyes: 'happy', mouth: 'smile', arms: 'rest', props: ['hearts'] }],
     ['angry', { group: '互動', label: '生氣', eyes: 'angry', mouth: 'pout', arms: 'rest', props: ['smoke', 'anger', 'puff'] }],
     ['eat', { group: '互動', label: '吃零食', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['snack', 'crumbs'] }],

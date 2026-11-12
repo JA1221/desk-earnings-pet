@@ -520,4 +520,32 @@
     near(QJZ.app.state.snap.workedSec, 5400, 0.001);
     QJZ.app._reset();
   });
+
+  test('app init: an open record whose start has seconds is floored to the minute', function () {
+    var e = mk(at(12, 10, 0));
+    var r = rec('2026-11-12', null, {}); r.startMs = at(12, 8, 37) + 58095; r.startSource = 'auto';
+    init(e, { history: hist([r]) });
+    var s = QJZ.app.state;
+    eq(s.today.startMs, at(12, 8, 37));
+    eq(s.history.days['2026-11-12'].startMs, at(12, 8, 37));
+    eq(s.snap.endAtMs, at(12, 17, 37));
+    QJZ.app._reset();
+  });
+  test('app init: a probe with seconds starts the day at the floored minute', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { probeMs: at(12, 8, 37) + 58095 });
+    eq(QJZ.app.state.today.startMs, at(12, 8, 37));
+    QJZ.app._reset();
+  });
+  test('app: the working status flips to done exactly at 17:37:00 for a 08:37:58 start', function () {
+    var e = mk(at(12, 17, 36) + 59000);
+    var r = rec('2026-11-12', null, {}); r.startMs = at(12, 8, 37) + 58095;
+    init(e, { history: hist([r]) });
+    eq(QJZ.app.state.snap.status, 'working');
+    e.clock.ms = at(12, 17, 37);
+    QJZ.app.tickNow();
+    eq(QJZ.app.state.snap.status, 'done');
+    eq(QJZ.app.state.snap.workedSec, 28800);
+    QJZ.app._reset();
+  });
 })();

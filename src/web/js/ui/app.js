@@ -212,6 +212,9 @@ QJZ.app = (function () {
     applyDisplay();
 
     var key = QJZ.time.dayKey(now);
+    for (var dk in state.history.days) {   // open records from older versions may carry a start with seconds
+      if (Object.prototype.hasOwnProperty.call(state.history.days, dk)) state.history.days[dk] = QJZ.day.normalize(state.history.days[dk]);
+    }
     setToday(state.history.days[key] || QJZ.day.empty(key));
     applyExit(msg.lastExitMs, key);
     retireOlder(key);

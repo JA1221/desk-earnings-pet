@@ -49,4 +49,9 @@ test('an off day earns 0 with status off, started, ended or not; off again earns
   p.startMs=null; p.endMs=null; eq(QJZ.earn.snapshot(p).status,'off');
   p.offDay=false; p.startMs=T(540); s=QJZ.earn.snapshot(p); eq(s.status,'working'); near(s.earned,50000/22/8,1e-6); });
 test('endAtMs with start 12:30 is 21:00', function(){ eq(QJZ.earn.endAtMs(T(12*60+30),D,8,L),T(21*60)); });
+
+test('earned at 17:37:00 equals the full day amount (start 08:37)', function(){
+  var s=snap(T(8*60+37),null,T(17*60+37)); eq(s.workedSec,28800); eq(s.status,'done'); eq(s.remainingSec,0); eq(s.endAtMs,T(17*60+37));
+  near(s.earned,2272.727,0.001); near(s.earned,QJZ.earn.rates(SAL,8).daily,1e-9);
+  eq(snap(T(8*60+37),null,T(17*60+37)-1000).status,'working'); });
 })();

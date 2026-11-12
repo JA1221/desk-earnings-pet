@@ -21,12 +21,15 @@ QJZ.day = (function () {
     return -1;
   }
 
+  // A workday start is always a whole minute, floored (08:37:58 -> 08:37:00), so the start shown, the planned end and
+  // the earnings all agree. Every place that sets a start goes through floorMinute.
+
   // logon / unlock / resume / appstart / probe: the first one of a working day starts it.
   function onActivity(rec, ev, settings) {
     var changes = { lastLockMs: null };
     if (rec.startMs === null && !rec.offDay && settings.startMode === 'auto' &&
         indexOf(settings.workDays, QJZ.time.weekday(rec.day)) >= 0) {
-      changes.startMs = ev.ms;
+      changes.startMs = QJZ.time.floorMinute(ev.ms);
       changes.startSource = 'auto';
     }
     return copy(rec, changes);
@@ -48,11 +51,18 @@ QJZ.day = (function () {
   }
 
   // 開始上班 is a fresh start: it also ends a 今天休假 and forgets an earlier 下班.
-  function manualStart(rec, ms) { return copy(rec, { startMs: ms, startSource: 'manual', offDay: false, endMs: null, endSource: null }); }
-  function adjustStart(rec, ms) { return copy(rec, { startMs: ms, adjusted: true }); }
+  function manualStart(rec, ms) { return copy(rec, { startMs: QJZ.time.floorMinute(ms), startSource: 'manual', offDay: false, endMs: null, endSource: null }); }
+  function adjustStart(rec, ms) { return copy(rec, { startMs: QJZ.time.floorMinute(ms), adjusted: true }); }
   function manualEnd(rec, ms) { return copy(rec, { endMs: ms, endSource: 'manual' }); }
   // 繼續上班 after a 下班 (a mis-click): the day runs on from its start, the time in between included.
-  function resume(rec) { return copy(rec, { endMs: null, endSource: null }); }
+  function resume(rec) { return normalize(copy(rec, { endMs: null, endSource: null })); }
+  // An open record (not yet closed: earned null) from an older version may carry a start with seconds: floor it.
+  // Closed records are history and stay as they are.
+  function normalize(rec) {
+    if (!rec || typeof rec.startMs !== 'number' || !isFinite(rec.startMs) || (rec.earned !== null && rec.earned !== undefined)) return rec;
+    var f = QJZ.time.floorMinute(rec.startMs);
+    return f === rec.startMs ? rec : copy(rec, { startMs: f });
+  }
   // 今天休假: the day counts 0 (QJZ.earn.snapshot, QJZ.history.closeDay) whatever its start and end; off again, it
   // counts as before.
   function setOffDay(rec, v) { return copy(rec, { offDay: !!v }); }
@@ -79,7 +89,7 @@ QJZ.day = (function () {
   }
 
   return {
-    empty: empty, onActivity: onActivity, onLock: onLock, onExit: onExit,
+    empty: empty, normalize: normalize, onActivity: onActivity, onLock: onLock, onExit: onExit,
     manualStart: manualStart, adjustStart: adjustStart, manualEnd: manualEnd, resume: resume, setOffDay: setOffDay,
     earlyLeaveQuestion: earlyLeaveQuestion, resolveEarlyLeave: resolveEarlyLeave, rollover: rollover
   };

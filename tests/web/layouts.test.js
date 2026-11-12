@@ -52,7 +52,9 @@
     eq(U.rateText({ mode: 'monthly', amount: 50000, divisor: 22 }, 50000 / 22 / 8 / 3600), '每秒 +NT$ 0.079 ・ 月薪 50,000 ÷ 22 天');
     eq(U.rateText({ mode: 'hourly', amount: 183.5, divisor: 22 }, 183.5 / 3600), '每秒 +NT$ 0.051 ・ 時薪 183.50');
     eq(U.rateText({ mode: 'monthly', amount: 0, divisor: 22 }, 0), '還沒設定薪資（右鍵 → 設定）');
-    eq(U.remainPhrase('working', 3600 * 2 + 59), '還有 02:00 下班');
+    eq(U.remainPhrase('working', 3600 * 2 + 59), '還有 02:01 下班', 'rounded up to the next minute');
+    eq(U.remainPhrase('working', 30), '還有 00:01 下班');
+    eq(U.remainPhrase('working', 3600 * 2), '還有 02:00 下班');
     eq(U.remainPhrase('done', 0), '可以下班囉！');
     eq(U.m3Sub('working', 3725), '上班中 · 還有 01:02:05');
     eq(U.m3Sub('lunch', 3725), '午休中 · 還有 01:02:05');

@@ -61,7 +61,9 @@ QJZ.layouts = (function () {
     sec = Math.max(0, Math.floor(sec || 0));
     return pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec % 3600 / 60)) + ':' + pad(sec % 60);
   }
-  function hm(sec) { return hms(sec).slice(0, 5); }
+  // hh:mm of a remaining duration, counted UP to the next whole minute: with whole-minute start and end times, 17:36:30
+  // reads 還有 00:01, and 可以下班 comes exactly at 17:37:00 (never 還有 00:00 while the status is still working).
+  function hm(sec) { return hms(Math.ceil(Math.max(0, sec || 0) / 60) * 60).slice(0, 5); }
   function dateText(ms) {
     var d = new Date(ms);
     return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '（' + WD.charAt(d.getDay()) + '）';

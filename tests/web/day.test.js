@@ -59,4 +59,24 @@ test('onExit: the host exit counts as a lock on that day, after the start, only 
   eq(QJZ.day.onExit(QJZ.day.empty(D),T(900)).lastLockMs,null,'never started'); });
 test('rollover returns the same day unchanged', function(){ var r=started(510); var x=QJZ.day.rollover(r,T(600)); eq(x.closed,null); eq(x.current.startMs,T(510)); });
 test('clock moving backwards does not roll over', function(){ var r=started(510); var x=QJZ.day.rollover(r,new Date(2026,10,10,10,0).getTime()); eq(x.closed,null); eq(x.current.startMs,T(510)); eq(x.current.day,D); });
+
+// ---- a workday start is a whole minute, floored: 08:37:58 -> 08:37:00, end 17:37:00 ----
+var SEC = T(8*60+37) + 58095;
+test('floorMinute floors to the whole minute', function(){ eq(QJZ.time.floorMinute(SEC), T(8*60+37)); eq(QJZ.time.floorMinute(T(540)), T(540)); eq(QJZ.time.floorMinute(T(540)+59999), T(540)); });
+test('every way to start the day floors the start to the minute', function(){
+  ['logon','unlock','resume','appstart','probe'].forEach(function(t){
+    var r=QJZ.day.onActivity(QJZ.day.empty(D),{type:t,ms:SEC},S); eq(r.startMs,T(8*60+37),t); });
+  eq(QJZ.day.manualStart(QJZ.day.empty(D),SEC).startMs,T(8*60+37),'manual start');
+  eq(QJZ.day.adjustStart(started(540),SEC).startMs,T(8*60+37),'adjust start');
+  var r=QJZ.day.resume({day:D,startMs:SEC,endMs:T(1000),endSource:'manual'}); eq(r.startMs,T(8*60+37),'resume'); eq(r.endMs,null); });
+test('normalize floors an open record start with seconds, leaves the rest alone', function(){
+  var r={day:D,startMs:SEC,startSource:'auto',earned:null,lastLockMs:SEC+5}; var n=QJZ.day.normalize(r);
+  eq(n.startMs,T(8*60+37)); eq(n.lastLockMs,SEC+5); eq(r.startMs,SEC,'pure');
+  eq(QJZ.day.normalize({day:D,startMs:null,earned:null}).startMs,null);
+  eq(QJZ.day.normalize({day:D,startMs:SEC,earned:12.5}).startMs,SEC,'a closed record is history'); });
+test('08:37:58 start: end is 17:37:00, the status is done exactly at 17:37:00', function(){
+  var st=QJZ.day.onActivity(QJZ.day.empty(D),{type:'probe',ms:SEC},S).startMs, end=QJZ.earn.endAtMs(st,D,8,S.lunch);
+  eq(end,T(17*60+37));
+  function stat(now){ return QJZ.earn.snapshot({startMs:st,endMs:null,nowMs:now,day:D,salary:{mode:'monthly',amount:50000,divisor:22},hoursPerDay:8,lunch:S.lunch}).status; }
+  eq(stat(end-1),'working'); eq(stat(end),'done'); });
 })();

@@ -1,14 +1,14 @@
 window.QJZ = window.QJZ || {};
 QJZ.pets = QJZ.pets || {};
 // Prop overlays for the pet states. draw(name, ctx) -> {slot: svg, ...} where slot is one of
-//   back  - behind the pet (moves with the body): worn backpack, flames
+//   back  - behind the pet (moves with the body): flames
 //   desk  - on the desk, after the desk is drawn: lunch box, backpack standing on the desk
-//   front - in front of the desk, moving with the body, behind a cat's head: hugged backpack, straps on a cat's torso
+//   front - in front of the desk, moving with the body, behind a cat's head
 //   held  - held in both paws, inside the head group (compose wraps these + the holding paws in .held)
-//   over  - in front of the face, inside the head group: backpack straps
+//   over  - in front of the face, inside the head group
 //   face  - next to the mouth, inside the head group: snot bubble, tear, sweat drop, anger mark, red cheeks, crumbs
 //   top   - above everything, not attached to the body: Zzz, hearts, smoke, confetti, coin, ?, dots, sparkles, notes
-// ctx = {uid, mode:'sticker'|'flat'|'crayon', L: line colour, kind:'cat'|'hamster', rig, face, bag: backpack style}.
+// ctx = {uid, mode:'sticker'|'flat'|'crayon', L: line colour, kind:'cat'|'hamster', rig, face, bag: 'desk' with the backpack}.
 // Sticker props get the A1 ink outline, crayon props the crayon ink, flat (S4) props no outline.
 // Animated parts carry classes that pets.css drives per state (.zz .snot .hrt .smk .cf .coin .flame ...).
 QJZ.pets.props = (function () {
@@ -41,9 +41,9 @@ QJZ.pets.props = (function () {
   }
   // The backpack seen from the front, centred on 0,0: 42 x 50 body (y -25..25) with a top handle up to y -36, a light
   // flap with a gold buckle and a zipped front pocket. Flat (S4) bags have no ink, a darker blue rim instead.
-  function pack(ctx, handle) {
+  function pack(ctx) {
     var flat = ctx.mode === 'flat', h = 'M-8,-24 q8,-15 16,0';
-    var loop = handle === false ? '' : flat ? `<path d="${h}" fill="none" stroke="${BLUE_D}" stroke-width="4" stroke-linecap="round"/>` :
+    var loop = flat ? `<path d="${h}" fill="none" stroke="${BLUE_D}" stroke-width="4" stroke-linecap="round"/>` :
       `<path d="${h}" fill="none" stroke="${ctx.L}" stroke-width="7" stroke-linecap="round"/><path class="keep" d="${h}" fill="none" stroke="${BLUE_D}" stroke-width="3.4" stroke-linecap="round"/>`;
     return loop + (flat ? '<rect x="-22.6" y="-26.6" width="45.2" height="53.2" rx="14.4" fill="' + BLUE_D + '"/>' : '') +
       `<rect x="-21" y="-25" width="42" height="50" rx="13" fill="${BLUE}" ${ol(ctx, 2.8)}/>` +
@@ -55,15 +55,6 @@ QJZ.pets.props = (function () {
       `<rect x="-4.4" y="-7.6" width="8.8" height="7.4" rx="2" fill="${GOLD}" ${ol(ctx, 1.9)}/>` +
       `<path d="M-14,-19 q2.4,-3.6 6.6,-3.8" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity=".85" class="keep"/>`;
   }
-  // a backpack strap with an ink edge, from the shoulder down: [x1,y1, x2,y2] bowing a little outwards, or
-  // [x1,y1, cx,cy, x2,y2] curving through control point cx,cy (round bodies: it follows the side of the body)
-  function strap(ctx, s) {
-    var d = s.length === 6 ? `M${s[0]},${s[1]} Q${s[2]},${s[3]} ${s[4]},${s[5]}` :
-      `M${s[0]},${s[1]} Q${n((s[0] + s[2]) / 2 + (s[0] < 118 ? -3 : 3))},${n((s[1] + s[3]) / 2)} ${s[2]},${s[3]}`;
-    return ctx.mode === 'flat' ? `<path d="${d}" fill="none" stroke="${BLUE_D}" stroke-width="6.4" stroke-linecap="round"/>` :
-      `<path d="${d}" fill="none" stroke="${ctx.L}" stroke-width="9.6" stroke-linecap="round"/><path class="keep" d="${d}" fill="none" stroke="${BLUE}" stroke-width="5.8" stroke-linecap="round"/>`;
-  }
-
   var HEART = 'M0,4 C-7,-1 -7.5,-6 -4,-7.6 C-2,-8.5 -0.4,-7.4 0,-5.6 C0.4,-7.4 2,-8.5 4,-7.6 C7.5,-6 7,-1 0,4 Z';
   var ZED = 'M-4.5,-5.5 h9 v2.4 l-5.6,6.2 h5.6 v2.4 h-9 v-2.4 l5.6,-6.2 h-5.6 z';
 
@@ -111,20 +102,9 @@ QJZ.pets.props = (function () {
     bubble: function (ctx) {
       return { face: at(ctx.rig.nose, anim('snot', `<circle cx="4.2" cy="1.4" r="4.4" fill="#CDEBFF" fill-opacity=".75" ${ol(ctx, 1.3)}/><path d="M2,-1.2 q1.2,-1.6 3.2,-1.4" fill="none" stroke="#fff" stroke-width="1.2" stroke-linecap="round" class="keep"/>`)) };
     },
-    // the backpack, in the style ctx.bag (rig.pack has the per-skin placement):
-    //   worn - big, behind the body, top and handle over the shoulder, swinging on its own (.bagsw); straps in front
-    //   desk - packed and zipped, standing on the desk beside the pet
-    //   hug  - hugged in front of the chest (in front of the desk, bouncing with the body)
+    // the backpack, packed and zipped, standing on the desk beside the pet (rig.pack.desk has the per-skin placement)
     bag: function (ctx) {
-      var k = ctx.rig.pack, style = ctx.bag || 'worn';
-      if (style === 'desk') {
-        var d = k.desk.bag;
-        return { desk: place(d, `<ellipse cx="0" cy="25.5" rx="23" ry="3.6" fill="${ctx.L}" opacity=".16"/>` + pack(ctx)) };
-      }
-      if (style === 'hug') return { front: place(k.hug.bag, pack(ctx, k.hug.handle)) };
-      var w = k.worn, b = w.bag, out = { back: `<g class="bagsw" style="transform-origin:${b[0]}px ${n(b[1] - 22 * b[2])}px">${place(b, pack(ctx))}</g>` };
-      out[w.slot || 'over'] = w.straps.map(function (s) { return strap(ctx, s); }).join('');
-      return out;
+      return { desk: place(ctx.rig.pack.desk.bag, `<ellipse cx="0" cy="25.5" rx="23" ry="3.6" fill="${ctx.L}" opacity=".16"/>` + pack(ctx)) };
     },
     // crumbs dropping from the mouth while eating
     crumbs: function (ctx) {

@@ -34,11 +34,14 @@ QJZ.time = (function () {
     return new Date(p.y, p.m, p.d, 0, minutes).getTime();
   }
 
+  // A time of day is shown and counted by its whole minute, floored: 08:37:58 is 08:37:00.
+  function floorMinute(ms) { return Math.floor(ms / 60000) * 60000; }
+
   // 0 = Sunday.
   function weekday(day) {
     var p = parseDay(day);
     return new Date(p.y, p.m, p.d).getDay();
   }
 
-  return { parseHM: parseHM, dayKey: dayKey, atMinutes: atMinutes, weekday: weekday };
+  return { floorMinute: floorMinute, parseHM: parseHM, dayKey: dayKey, atMinutes: atMinutes, weekday: weekday };
 })();

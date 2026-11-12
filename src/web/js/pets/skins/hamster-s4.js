@@ -41,9 +41,7 @@
           holdArm: { paws: [[108, 135, 0], [128, 135, 0]] },
           scratch: { paw: [70, 95, 0] },
           pack: { lift: 6,
-            worn: { bag: [80, 96, 1.3, -16], straps: [[84, 84, 66, 118, 84, 158], [152, 84, 170, 118, 152, 158]], paws: [[73, 129, 0], [163, 129, 0]] },
-            desk: { bag: [176, 141, 0.86], wave: [72, 96, 0], rest: [166, 126, 0] },
-            hug: { bag: [118, 155, 0.78, -6], paws: [[102, 138, 0], [134, 138, 0]] } }
+            desk: { bag: [176, 141, 0.86], wave: [72, 96, 0], rest: [166, 126, 0] } }
         },
         poses: {
           // the circle flattens into a wide oval over the keyboard

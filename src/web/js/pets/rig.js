@@ -22,18 +22,11 @@ QJZ.pets = QJZ.pets || {};
 //   scratch: left paw on the head, one of
 //            {ink, fill, w, arm:[root,(elbow,)tip], paw:[x,y,rot]}              (cats) with an arm
 //            {paw:[x,y,rot]}                                                    (hamsters) the paw alone
-//   pack:    the waitBag backpack in its three review styles (QJZ.pets.setBagStyle), sitting up `lift` units
-//            off the keyboard (not in the avatar):
-//            {lift,
-//             worn: {bag:[x,y,s,rot], straps:[[x1,y1,x2,y2],[...]], slot:'over'|'front', paws:[[x,y,rot],[x,y,rot]],
-//                    arms?:[[root,tip],[root,tip]], w?}
-//                   bag behind the body, straps in front (slot: in the head group, or on a cat's torso), paws
-//                   gripping them (cats reach them with short arms)
-//             desk: {bag:[x,y,s], wave?:[x,y,rot], rest:[x,y,rot], restArm?:[root,tip], w?}
-//                   bag standing on the desk; one paw waves (hamsters: `wave`, beside the head; cats: the left
-//                   raised arm of `up`), the other pats the bag (`rest`, cats reach it with `restArm`)
-//             hug:  {bag:[x,y,s,rot], handle?:false, paws:[[x,y,rot],[x,y,rot]], arms?:[[root,tip],[root,tip]], w?}
-//                   bag hugged in front of the chest, paws on its upper corners}
+//   pack:    the waitBag backpack, standing on the desk beside the pet, which sits up `lift` units off the
+//            keyboard (not in the avatar):
+//            {lift, desk: {bag:[x,y,s], wave?:[x,y,rot], rest:[x,y,rot], restArm?:[root,tip], w?}}
+//            one paw waves (hamsters: `wave`, beside the head; cats: the left raised arm of `up`), the other
+//            pats the bag (`rest`, cats reach it with `restArm`)
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 // }
 // Hamsters have no arms at all, only small paws that always touch the body outline (the user's pick in review).
@@ -42,7 +35,7 @@ QJZ.pets = QJZ.pets || {};
 // (holding, hugging) are outlined limbs whose root is patched with fur (front()).
 // arms(rig, mode) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
 // (after the desk, behind a cat's head) and the OVER slot (inside the head group, in front of the face).
-// Modes: type | rest | up | hold | scratch, and the backpack styles strap (worn) | wave (desk) | hug.
+// Modes: type | rest | up | hold | scratch, and wave (the desk backpack: wave with one paw, pat the bag with the other).
 QJZ.pets.rig = (function () {
   function n(v) { return Math.round(v * 100) / 100; }
 
@@ -117,11 +110,6 @@ QJZ.pets.rig = (function () {
         add(r, 'over', `<g class="scr" style="transform-origin:${s.paw[0]}px ${oy}px">${rig.paw(s.paw[0], s.paw[1], s.paw[2])}</g>`);
         return r;
       }
-      case 'strap': {   // worn backpack: paws gripping the straps at the chest
-        var w = rig.pack.worn, o2 = {};
-        o2[w.slot || 'over'] = limbs(rig, w.arms, w.w) + paws(rig, w.paws);
-        return o2;
-      }
       case 'wave': {   // backpack on the desk: wave with the left paw, pat the bag with the right
         var d = rig.pack.desk, u2 = rig.up, o3 = {}, q = d.wave, r2 = d.rest;
         if (u2.paws) {
@@ -136,10 +124,6 @@ QJZ.pets.rig = (function () {
         add(o3, 'front', `<g class="armR" style="transform-origin:${pivot[0]}px ${pivot[1]}px">` +
           limbs(rig, d.restArm ? [d.restArm] : null, d.w) + rig.paw(r2[0], r2[1], r2[2]) + '</g>');
         return o3;
-      }
-      case 'hug': {   // backpack hugged in front of the chest
-        var h2 = rig.pack.hug;
-        return { front: limbs(rig, h2.arms, h2.w) + paws(rig, h2.paws) };
       }
       default: return {};
     }

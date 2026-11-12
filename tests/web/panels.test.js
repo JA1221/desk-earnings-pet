@@ -840,4 +840,17 @@
     done();
     eq(QJZ.app.state.storageErrors, []);
   });
+
+  test('panels DOM: a start with seconds shows 08:37 and 17:37 everywhere', function () {
+    var r = QJZ.day.empty('2026-11-12'); r.startMs = at(12, 8, 37, 58); r.startSource = 'auto';
+    var h = { version: 1, days: { '2026-11-12': r } };
+    var e = mk(at(12, 10, 0), { history: h });
+    eq(QJZ.app.state.today.startMs, at(12, 8, 37));
+    e.menu('settings');
+    $(e, '[data-tab=hours]').click();
+    ok(text(e, '[data-o=endHint]').indexOf('今天 08:37 開始，17:37 就可以下班') === 0, text(e, '[data-o=endHint]'));
+    $(e, '[data-tab=start]').click();
+    ok(text(e, '[data-o=todayStart]').indexOf('08:37') >= 0, text(e, '[data-o=todayStart]'));
+    done();
+  });
 })();

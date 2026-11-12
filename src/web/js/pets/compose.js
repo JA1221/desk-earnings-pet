@@ -6,37 +6,25 @@ QJZ.pets = QJZ.pets || {};
 //             so jumps, coins, hearts and the dangling pose stay inside, the same for every skin and state)
 //   avatar  — portrait cropped to the skin's crop: back + pre + post layers, no desk and no front paws;
 //             shows the state's face, head motion and head props but no whole-body pose
-// opts: {state:'typing', expression, mouth, props, bag, viewBox}
+// opts: {state:'typing', expression, mouth, props, viewBox}
 //   state      — a name from QJZ.pets.states (unknown names fall back to 'typing'); picks pose, face, arms, props
 //   expression — eyes, overrides the state's (and drops its second-frame eyes); mouth likewise
 //   props      — array of prop names, replaces the state's props ([] for none); a held prop brings holding paws
-//   bag        — backpack style 'worn' | 'desk' | 'hug' when the props have the bag (waitBag); defaults to
-//                QJZ.pets.bagStyle(). The style picks the bag's place and the paws (rig.pack), and the pet sits up
-//                rig.pack.lift units off the keyboard (scene and petonly).
+// (the props' backpack (waitBag) stands on the desk beside the pet, which waves and sits up rig.pack.lift units off
+//  the keyboard in the scene and petonly views)
 // The root <svg> carries .pet-svg, .kind-<kind> and .st-<state> (and .bag-<style> with the bag), plus per-skin pivots
 // --hx/--hy (head) and --gx/--gy (dangle).
 // Every call gets a fresh uid, so ids never collide between SVGs.
 //
-// QJZ.pets.setBagStyle(style) / bagStyle(): the backpack style for the whole page (a temporary review switch, like
-// the earlier hamster arm switch: the styles the user does not pick go away). Unknown styles fall back to 'worn'.
 // QJZ.pets.speechAt(id, state) -> [x, y]: where a speech bubble's tail points, in pet coordinates (the scene and
 // petonly views): on the right edge of the head at eye height, following the dangle / lie poses and the backpack lift.
 QJZ.pets.compose = (function () {
   var P = QJZ.pets, C = P.common, seq = 0;
   var PETONLY = '30 4 176 170';
   var SLOT = /<!--(EYES|MOUTH|OVER)-->/g;
-  var BAG_STYLES = ['worn', 'desk', 'hug'], BAG_ARMS = { worn: 'strap', desk: 'wave', hug: 'hug' }, bagStyle = 'worn';
-
-  P.BAG_STYLES = BAG_STYLES.slice();
-  P.setBagStyle = function (style) { bagStyle = BAG_STYLES.indexOf(style) >= 0 ? style : 'worn'; };
-  P.bagStyle = function () { return bagStyle; };
-
-  // the backpack style of a compose call: null when its props have no bag
-  function bagOf(names, opt) {
-    if (names.indexOf('bag') < 0) return null;
-    return BAG_STYLES.indexOf(opt) >= 0 ? opt : bagStyle;
-  }
-  // units the pet sits up off the keyboard (the backpack styles, desk pose, not in the avatar)
+  // 'desk' when the props have the backpack, else null
+  function bagOf(names) { return names.indexOf('bag') < 0 ? null : 'desk'; }
+  // units the pet sits up off the keyboard (the backpack, desk pose, not in the avatar)
   function liftOf(rig, bag, pose, view) {
     return bag && pose === 'desk' && view !== 'avatar' && rig.pack ? rig.pack.lift || 0 : 0;
   }
@@ -51,7 +39,7 @@ QJZ.pets.compose = (function () {
     var side = (a.side || rig.side)[1];
     // a pose that only moves the top of the head moves the face as much
     var dy = !a.side && a.top ? a.top[1] - rig.top[1] : 0;
-    var lift = liftOf(rig, bagOf(st.props, null), pose, 'petonly');
+    var lift = liftOf(rig, bagOf(st.props), pose, 'petonly');
     return [side[0], side[1] + dy - lift + 4];
   };
 
@@ -98,7 +86,7 @@ QJZ.pets.compose = (function () {
       P.expr.mouth(face, mo);
 
     // props, sorted into their slots
-    var names = Array.isArray(opts.props) ? opts.props : st.props, bag = bagOf(names, opts.bag);
+    var names = Array.isArray(opts.props) ? opts.props : st.props, bag = bagOf(names);
     var lift = liftOf(rig, bag, pose, view);
     var ctx = { uid: uid, mode: def.room, L: line[0], kind: def.kind, rig: pl && pl.anchors ? merge(rig, pl.anchors) : rig, face: face, bag: bag };
     var pr = { back: '', desk: '', front: '', held: '', over: '', face: '', top: '' }, held = false;
@@ -109,7 +97,7 @@ QJZ.pets.compose = (function () {
     });
 
     // arms (desk pose only: the lying and dangling drawings bring their own)
-    var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : bag ? BAG_ARMS[bag] : st.arms;
+    var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : bag ? 'wave' : st.arms;
     if (pose === 'desk') {
       var a = P.rig.arms(rig, mode), z = alt.arms ? P.rig.arms(rig, alt.arms) : null;
       ['back', 'front', 'over'].forEach(function (k) {

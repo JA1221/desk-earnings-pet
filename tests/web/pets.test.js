@@ -307,100 +307,76 @@
       '<g filter="url(#x)"><!--c--><g transform="rotate(5)" style="transform-origin:1px 2px"><path d="M0,0"/></g></g>');
   });
 
-  // ---------- waitBag backpack styles (a temporary review switch: QJZ.pets.setBagStyle) ----------
+  // ---------- waitBag: the packed backpack stands on the desk beside the pet ----------
   function norm(svg) { return svg.replace(/pet\d+/g, 'pet#'); }
   function within(el, cls) {
     for (var p = el.parentNode; p && p.nodeType === 1; p = p.parentNode) if (hasClass(p, cls)) return true;
     return false;
   }
 
-  test('pets: bag styles worn / desk / hug compose for every skin and view (excited face, the bag in its place, hamsters paws only)', function () {
+  test('pets: waitBag shows the desk bag for all 8 skins x 3 views, with no unreplaced placeholders, and hamsters have no limbs', function () {
     var P = QJZ.pets;
-    eq(P.BAG_STYLES, ['worn', 'desk', 'hug']);
-    eq(P.bagStyle(), 'worn', 'default style');
+    eq(P.setBagStyle, undefined, 'no style switch any more');
+    eq(P.bagStyle, undefined);
+    eq(P.BAG_STYLES, undefined);
+    eq(all().length, 8, 'eight skins');
     all().forEach(function (d) {
       var b = d.build('pet0'), lift = b.rig.pack.lift;
       ok(lift >= 0 && lift <= 8, d.id + ' lift ' + lift);
-      var looks = {};
-      P.BAG_STYLES.forEach(function (style) {
-        VIEWS.forEach(function (view) {
-          var at = d.id + ' ' + style + ' ' + view + ': ';
-          var svg = P.compose(d.id, view, { state: 'waitBag', bag: style }), doc = parse(svg), root = doc.documentElement;
-          eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parses');
-          ok(!/<!--[A-Z]+-->/.test(svg), at + 'no leftover slot');
-          ok(!/undefined|NaN|\$\{/.test(svg), at + 'no unreplaced value');
-          eq(unresolved(svg), [], at + 'refs');
-          ok(hasClass(root, 'st-waitBag') && hasClass(root, 'bag-' + style), at + 'root classes');
-          ok(inBody(doc.querySelector('.look')), at + 'eyes ride on the head');
-          eq(norm(svg), norm(P.compose(d.id, view, { state: 'waitBag', bag: style, expression: 'sparkle', mouth: 'smile' })), at + 'big shiny eyes, open smile');
-          ok(svg.indexOf('class="note"') > 0 && svg.indexOf('class="spk"') > 0, at + 'notes and sparkles');
-          if (d.kind === 'hamster') ok(svg.indexOf('class="limb"') < 0, at + 'no arm limbs');
-          ok(svg.indexOf('class="pawL"') < 0 && svg.indexOf('class="pawR"') < 0, at + 'paws off the keys');
-          // the bag (its #4DA3FF body): worn behind the body, swinging; desk on the desk, still; hug in front, bouncing
-          var bags = doc.querySelectorAll('rect[fill="#4DA3FF"]');
-          if (view === 'avatar' && style !== 'worn') { eq(bags.length, 0, at + 'no desk or arms in the portrait'); }
-          else {
-            eq(bags.length, 1, at + 'one bag');
-            var bag = bags[0];
-            if (style === 'worn') ok(within(bag, 'bagsw'), at + 'worn bag swings');
-            if (style === 'desk') ok(!within(bag, 'bod'), at + 'the bag stands on the desk');
-            if (style === 'hug') ok(within(bag, 'bod') && !within(bag, 'bagsw'), at + 'hugged bag moves with the body');
-          }
-          if (view !== 'avatar') {
-            ok(svg.indexOf('translate(0 -' + lift + ')') > 0 === lift > 0, at + 'sits up ' + lift);
-            if (style === 'desk') ok(doc.querySelector('.armL') && doc.querySelector('.armR'), at + 'waves and pats the bag');
-            if (style === 'desk' && d.kind === 'cat') ok(within(doc.querySelector('.limb'), 'armL'), at + 'a cat waves with its arm');
-          } else ok(svg.indexOf('translate(0 -') < 0, at + 'the portrait does not sit up');
-          looks[style + view] = norm(svg);
-        });
-      });
+      eq(Object.keys(b.rig.pack).sort(), ['desk', 'lift'], d.id + ' pack data: desk only');
       VIEWS.forEach(function (view) {
-        ok(looks['worn' + view] !== looks['desk' + view] && looks['desk' + view] !== looks['hug' + view] && looks['worn' + view] !== looks['hug' + view], d.id + ' ' + view + ': three different pictures');
+        var at = d.id + ' ' + view + ': ';
+        var svg = P.compose(d.id, view, { state: 'waitBag' }), doc = parse(svg), root = doc.documentElement;
+        eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parses');
+        ok(!/<!--[A-Z]+-->/.test(svg), at + 'no leftover slot');
+        ok(!/undefined|NaN|\$\{/.test(svg), at + 'no unreplaced value');
+        eq(unresolved(svg), [], at + 'refs');
+        ok(hasClass(root, 'st-waitBag') && hasClass(root, 'bag-desk'), at + 'root classes');
+        ok(inBody(doc.querySelector('.look')), at + 'eyes ride on the head');
+        eq(norm(svg), norm(P.compose(d.id, view, { state: 'waitBag', expression: 'sparkle', mouth: 'smile' })), at + 'big shiny eyes, open smile');
+        ok(svg.indexOf('class="note"') > 0 && svg.indexOf('class="spk"') > 0, at + 'notes and sparkles');
+        if (d.kind === 'hamster') ok(svg.indexOf('class="limb"') < 0, at + 'no arm limbs');
+        ok(svg.indexOf('class="pawL"') < 0 && svg.indexOf('class="pawR"') < 0, at + 'paws off the keys');
+        ok(svg.indexOf('bagsw') < 0, at + 'the bag does not swing');
+        var bags = doc.querySelectorAll('rect[fill="#4DA3FF"]');
+        if (view === 'avatar') eq(bags.length, 0, at + 'no desk or arms in the portrait');
+        else {
+          eq(bags.length, 1, at + 'one bag');
+          ok(!within(bags[0], 'bod'), at + 'the bag stands on the desk');
+          ok(svg.indexOf('translate(0 -' + lift + ')') > 0 === lift > 0, at + 'sits up ' + lift);
+          ok(doc.querySelector('.armL') && doc.querySelector('.armR'), at + 'waves and pats the bag');
+          if (d.kind === 'cat') ok(within(doc.querySelector('.limb'), 'armL'), at + 'a cat waves with its arm');
+        }
+        if (view === 'avatar') ok(svg.indexOf('translate(0 -') < 0, at + 'the portrait does not sit up');
       });
     });
-    // the styles' arms: cats with a torso reach the straps and hug with arms; the mochi cat and hamsters press paws
-    ['cat:p0', 'cat:s5'].forEach(function (id) {
-      ['worn', 'hug'].forEach(function (s) { ok(P.compose(id, 'petonly', { state: 'waitBag', bag: s }).indexOf('class="limb"') > 0, id + ' ' + s + ' arms'); });
-    });
   });
 
-  test('pets: setBagStyle sets the default backpack style; the option wins; other states ignore it', function () {
+  test('pets: the bag prop brings the desk bag in any state; others have none; compose ignores a bag option', function () {
     var P = QJZ.pets;
-    try {
-      var typing = norm(P.compose('hamster:p0', 'scene', { state: 'typing' }));
-      P.setBagStyle('hug');
-      eq(P.bagStyle(), 'hug');
-      eq(norm(P.compose('cat:p4', 'petonly', { state: 'waitBag' })), norm(P.compose('cat:p4', 'petonly', { state: 'waitBag', bag: 'hug' })), 'setting = option');
-      ok(P.compose('cat:p4', 'petonly', { state: 'waitBag', bag: 'desk' }).indexOf('bag-desk') > 0, 'the option wins');
-      ok(P.compose('cat:p4', 'petonly', { state: 'waitBag', bag: 'nope' }).indexOf('bag-hug') > 0, 'an unknown option: the setting');
-      eq(norm(P.compose('hamster:p0', 'scene', { state: 'typing' })), typing, 'typing has no bag');
-      ok(P.compose('hamster:p0', 'scene', { state: 'typing' }).indexOf('bag-') < 0, 'no bag class');
-      ok(P.compose('hamster:p0', 'scene', { state: 'typing', props: ['bag'] }).indexOf('bag-hug') > 0, 'the bag prop brings the style');
-      P.setBagStyle('desk');
-      eq(P.bagStyle(), 'desk');
-      P.setBagStyle('nope');
-      eq(P.bagStyle(), 'worn', 'unknown style falls back to worn');
-    } finally { P.setBagStyle('worn'); }
+    ok(P.compose('hamster:p0', 'scene', { state: 'typing', props: ['bag'] }).indexOf('bag-desk') > 0, 'the bag prop brings the desk bag');
+    ok(P.compose('hamster:p0', 'scene', { state: 'typing' }).indexOf('bag-') < 0, 'no bag class without the prop');
+    eq(norm(P.compose('cat:p4', 'petonly', { state: 'waitBag', bag: 'hug' })), norm(P.compose('cat:p4', 'petonly', { state: 'waitBag' })), 'no style option');
   });
 
-  test('pets: crayon skins keep their filters off everything that moves in every bag style', function () {
+  test('pets: crayon skins keep their filters off everything that moves in the waitBag desk bag', function () {
     var host = document.createElement('div');
     host.style.cssText = 'position:absolute;left:-2000px;top:0;width:300px;height:200px';
     document.body.appendChild(host);
     try {
       ['hamster:s5', 'cat:s5'].forEach(function (id) {
-        QJZ.pets.BAG_STYLES.forEach(function (style) {
+        {
           VIEWS.forEach(function (view) {
-            host.innerHTML = QJZ.pets.compose(id, view, { state: 'waitBag', bag: style });
+            host.innerHTML = QJZ.pets.compose(id, view, { state: 'waitBag' });
             var svg = host.firstElementChild, bad = [];
             Array.prototype.forEach.call(svg.querySelectorAll('*'), function (el) {
               if (getComputedStyle(el).animationName === 'none') return;
               var f = el.closest('[filter]');
               if (f && svg.contains(f)) bad.push(el.getAttribute('class') || el.tagName);
             });
-            eq(bad, [], id + ' ' + style + ' ' + view);
+            eq(bad, [], id + ' ' + view);
           });
-        });
+        }
       });
     } finally { host.remove(); }
   });

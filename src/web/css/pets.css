@@ -25,7 +25,7 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 .pet-svg .bod{transform-box:view-box;transform-origin:118px 172px}
 .pet-svg .swing{transform-box:view-box;transform-origin:var(--gx,118px) var(--gy,50px)}
 .pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom}
-.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.bagsw,.note){transform-box:view-box}
+.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.note){transform-box:view-box}
 
 /* ---------- always on ---------- */
 .pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
@@ -181,13 +181,9 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 @keyframes waveR{from{transform:rotate(calc(8deg * var(--m)))}to{transform:rotate(calc(-10deg * var(--m)))}}
 
 /* ---------- waitBag 背包包等你: can't wait to go home — sitting up off the keyboard, sparkly eyes, ♪ ----------
-   Three backpack styles for review (root .bag-worn / .bag-desk / .bag-hug, QJZ.pets.setBagStyle):
-   worn: bouncing on the spot, paws on the straps, the bag swinging behind; hug: bouncing with the bag hugged to the
-   chest; desk: the bag stands on the desk, the pet rocks, waves at you and pats the bag. */
+   The packed backpack stands on the desk (root .bag-desk): the pet rocks, waves at you and pats the bag. */
 .pet-svg.st-waitBag .bod{animation:eager .6s ease-in-out infinite}
 @keyframes eager{0%,100%{transform:translateY(0) scale(calc(1 + .04 * var(--m)),calc(1 - .045 * var(--m)))}18%{transform:translateY(calc(-2px * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .04 * var(--m)))}45%{transform:translateY(calc(-7px * var(--m))) scale(1,1)}75%{transform:translateY(calc(-1.5px * var(--m))) scale(calc(1 - .02 * var(--m)),calc(1 + .02 * var(--m)))}}
-.pet-svg.st-waitBag .bagsw{animation:bagsw .6s ease-in-out infinite;animation-delay:-.45s}
-@keyframes bagsw{0%,100%{transform:rotate(calc(-7deg * var(--m)))}50%{transform:rotate(calc(7deg * var(--m)))}}
 .pet-svg.st-waitBag .head,.pet-svg.st-waitBag .squish{animation:giddy 1.2s ease-in-out infinite}
 @keyframes giddy{0%,100%{transform:rotate(calc(-3deg * var(--m)))}50%{transform:rotate(calc(3deg * var(--m)))}}
 .pet-svg.st-waitBag.bag-desk .bod{animation:rock 1.2s ease-in-out infinite}
