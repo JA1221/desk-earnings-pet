@@ -5,8 +5,8 @@
   var VIEWS = ['scene', 'petonly', 'avatar'];
   var STATES = ['idle', 'doze', 'typing', 'stretch', 'yawn', 'coffee', 'stare', 'scratch', 'sprint', 'lunchSleep', 'lunchEat',
     'celebrate', 'waitBag', 'petted', 'angry', 'eat', 'hop', 'dangle'];
-  var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised'];
-  var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout'];
+  var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised', 'dazed', 'sparkle'];
+  var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout', 'tiny'];
   var SLOTS = ['<!--EYES-->', '<!--MOUTH-->', '<!--OVER-->'];
 
   function all() { return QJZ.pets.list('hamster').concat(QJZ.pets.list('cat')); }

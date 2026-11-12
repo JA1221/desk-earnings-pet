@@ -6,7 +6,7 @@ QJZ.pets = QJZ.pets || {};
 //   held  - held in both paws, inside the head group (compose wraps these + the holding paws in .held)
 //   over  - in front of the face, inside the head group: backpack straps
 //   face  - next to the mouth, inside the head group: snot bubble, tear, sweat drop, anger mark, red cheeks, crumbs
-//   top   - above everything, not attached to the body: Zzz, hearts, smoke, confetti, coin, ?, dots, sparkles
+//   top   - above everything, not attached to the body: Zzz, hearts, smoke, confetti, coin, ?, dots, sparkles, notes
 // ctx = {uid, mode:'sticker'|'flat'|'crayon', L: line colour, kind:'cat'|'hamster', rig, face}.
 // Sticker props get the A1 ink outline, crayon props the crayon ink, flat (S4) props no outline.
 // Animated parts carry classes that pets.css drives per state (.zz .snot .hrt .smk .cf .coin .flame ...).
@@ -90,6 +90,8 @@ QJZ.pets.props = (function () {
         `<path d="M-21,-11 q0,-14 13,-14 h16 q13,0 13,14 v3 q-21,8 -42,0 z" fill="${BAG_D}" ${ol(ctx, 2.4)}/>` +
         `<rect x="-4" y="-7" width="8" height="6.5" rx="1.8" fill="#FFD93D" ${ol(ctx, 1.8)}/>` +
         `<path d="M-14,-19 q2,-3 6,-3.4" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".7" class="keep"/>`);
+      // the bag hangs from the shoulders and swings on its own (.bagsw), a beat behind the bounce
+      back = `<g class="bagsw" style="transform-origin:${b.x}px ${n(b.y - 22 * b.s)}px">${back}</g>`;
       if (b.rot) back = `<g transform="rotate(${b.rot} ${b.x} ${b.y})">${back}</g>`;
       var straps = '';
       b.straps.forEach(function (s) {
@@ -143,6 +145,23 @@ QJZ.pets.props = (function () {
     anger: function (ctx) {
       var d = 'M-6,-2 Q-2,-2 -2,-6 M2,-6 Q2,-2 6,-2 M6,2 Q2,2 2,6 M-2,6 Q-2,2 -6,2';
       return { face: at(ctx.rig.anger, anim('vein', inked(ctx, d, '#FF4D6A', 2.4))) };
+    },
+    // soft pink blush on both cheeks
+    blush: function (ctx) {
+      var out = '';
+      ctx.rig.cheeks.forEach(function (c) {
+        out += `<ellipse cx="${c[0]}" cy="${c[1]}" rx="${n(c[2] * 0.9)}" ry="${n(c[2] * 0.55)}" fill="#FF8FA3" opacity=".55"/>`;
+      });
+      return { face: out };
+    },
+    // two music notes bobbing up beside the head
+    notes: function (ctx) {
+      var t = ctx.rig.top, w = ctx.rig.smoke || 26;
+      function note(c) {
+        return inked(ctx, 'M2.7,2.2 V-8.6 q3.6,1 4.8,4.6', c, 1.8) + `<ellipse cx="0" cy="2.6" rx="3.3" ry="2.5" transform="rotate(-20 0 2.6)" fill="${c}" ${ol(ctx, 1.4)}/>`;
+      }
+      return { top: at([t[0] - w - 12, t[1] + 2], anim('note', note('#FF5C7C'), '--dx:-5px')) +
+        at([t[0] + w + 10, t[1] - 6], anim('note', note('#4DA3FF'), '--dx:5px;animation-delay:-1s')) };
     },
     // red puffed cheeks
     puff: function (ctx) {

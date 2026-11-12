@@ -37,10 +37,10 @@
           cheeks: [[90, 122, 9.5], [146, 122, 9.5]], hold: [118, 130, 0.95], smoke: 32,
           fire: [[62, 154, 1.1], [174, 154, 1.1]], bento: [150, 149, 1],
           bag: { x: 164, y: 104, s: 1.05, rot: 14, straps: [[80, 124, 90, 146], [156, 124, 146, 146]] },
-          paw: paw, limb: { w: 11, fill: O }, pawL: PAW_L, pawR: PAW_R,
-          up: { slot: 'back', arms: [[[88, 118], [62, 88], 0], [[148, 118], [174, 88], 0]] },
+          paw: paw, limb: { fill: O }, pawL: PAW_L, pawR: PAW_R,
+          up: { ink: 'back', fill: 'back', w: [12, 10], arms: [[[74, 104], [63, 92], 0], [[162, 104], [173, 92], 0]] },
           holdArm: { paws: [[108, 135, 0], [128, 135, 0]] },
-          scratch: { slot: 'back', arm: [[86, 128], [56, 110], [64, 92]], paw: [72, 90, 0] },
+          scratch: { ink: 'back', fill: 'back', w: [12, 10], arm: [[74, 104], [66, 91]], paw: [70, 86, 0] },
           strap: [[89, 140, 0], [147, 140, 0]]
         },
         poses: {

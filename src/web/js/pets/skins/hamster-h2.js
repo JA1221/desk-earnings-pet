@@ -1,5 +1,5 @@
-// Hamster H2 鼓鼓頰鼠 — mochi body with seed-stuffed cheeks that puff, a seed in the corner of the mouth.
-// Port of docs/prototypes/shared.js h2Ham.
+// Hamster H2 鼓鼓頰鼠 — mochi body with seed-stuffed cheeks that puff, a sunflower seed balanced on its head
+// (Task 12 review: moved from the corner of the mouth). Port of docs/prototypes/shared.js h2Ham.
 // Poses: lie = flattened mochi asleep on the keyboard, cheeks still full; dangle = lifted mochi drop, cheeks swinging.
 (function (P) {
   var C = P.common, ST = C.ST, L = C.L0;
@@ -19,6 +19,10 @@
   function body(path, clip, st) {
     return `<path d="${path}" fill="${G}"/><g clip-path="url(#${clip})"><ellipse cx="118" cy="166" rx="46" ry="30" fill="${W}"/><ellipse cx="168" cy="140" rx="14" ry="34" fill="#EFA552" opacity=".6"/></g><path d="${path}" fill="none" ${st}/>`;
   }
+  // the sunflower seed balanced on top of the head (inside the head group, so it rides along)
+  function topSeed(x, y, rot) {
+    return `<g transform="rotate(${rot} ${x} ${y})"><ellipse cx="${x}" cy="${y}" rx="5.8" ry="3.1" fill="#3A3A3A" ${ST(1.4)}/><path d="M${x - 4.5},${y - 0.5} h9 M${x - 4},${y + 1.2} h8" stroke="#fff" stroke-width=".9" opacity=".85"/></g>`;
+  }
   function paw(x, y, rot) {
     return `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4.2" fill="${PINK}" ${ST(2.8)}${rot ? ' transform="rotate(' + rot + ' ' + x + ' ' + y + ')"' : ''}/>`;
   }
@@ -31,11 +35,10 @@
     <path d="M94,112 C100,105 106,102 114,101" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" opacity=".8"/>
     ${cheek(82, uid, st)}${cheek(154, uid, st)}
     <!--EYES-->
-    <ellipse cx="118" cy="126" rx="2.4" ry="1.7" fill="#FF8090"/><!--MOUTH-->
-    <g transform="rotate(-25 126 134)"><ellipse cx="126" cy="134" rx="5.6" ry="3" fill="#3A3A3A" ${ST(1.4)}/><path d="M121.5,133.5 h9 M122,135.2 h8" stroke="#fff" stroke-width=".9" opacity=".85"/></g><!--OVER-->`;
+    <ellipse cx="118" cy="126" rx="2.4" ry="1.7" fill="#FF8090"/><!--MOUTH--><!--OVER-->`;
       var art = `
     ${ear(96, 105, st)}${ear(140, 105, st)}
-    ${body(B, uid + '-b', st)}
+    ${body(B, uid + '-b', st)}${topSeed(118, 97.5, -8)}
     ${face}
    `;
       return {
@@ -58,10 +61,10 @@
           cheeks: [[82, 143, 11], [154, 143, 11]], hold: [118, 138, 0.72], smoke: 30,
           fire: [[60, 154, 1], [176, 154, 1]], bento: [152, 149, 0.92],
           bag: { x: 166, y: 118, s: 0.9, rot: 14, sw: 0.8, straps: [[70, 124, 76, 146], [166, 124, 160, 146]] },
-          paw: paw, limb: { w: 8, fill: G }, pawL: PAW_L, pawR: PAW_R,
-          up: { slot: 'back', arms: [[[80, 132], [52, 106], -35], [[156, 132], [184, 106], 35]] },
+          paw: paw, limb: { fill: G }, pawL: PAW_L, pawR: PAW_R,
+          up: { ink: 'back', fill: 'over', w: [9, 7], arms: [[[87, 113], [76, 101], -30], [[149, 113], [160, 101], 30]] },
           holdArm: { paws: [[110, 142, 25], [126, 142, -25]] },
-          scratch: { slot: 'back', arm: [[78, 124], [66, 106]], paw: [76, 104, -40] },
+          scratch: { ink: 'back', fill: 'over', w: [9, 7], arm: [[87, 113], [83, 102]], paw: [87, 98, -50] },
           strap: [[77, 141, 10], [159, 141, -10]]
         },
         poses: {
@@ -74,7 +77,7 @@
           dangle: {
             front: `<g class="swing"><g transform="translate(0 -20)"><g class="legs" style="transform-origin:118px 176px">` +
               `<ellipse cx="106" cy="180" rx="5.5" ry="6.5" fill="${PINK}" ${st}/><ellipse cx="130" cy="180" rx="5.5" ry="6.5" fill="${PINK}" ${st}/></g>` +
-              ear(104, 100, st, -18) + ear(132, 100, st, 18) + body(BD, uid + '-bd', st) + face +
+              ear(104, 100, st, -18) + ear(132, 100, st, 18) + body(BD, uid + '-bd', st) + topSeed(137, 103, 28) + face +
               `<g class="limp" style="transform-origin:118px 140px">${paw(64, 158, 60)}${paw(172, 158, -60)}</g></g></g>`,
             anchors: { top: [118, 64], side: [[64, 98], [172, 98]] }
           }

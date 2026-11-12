@@ -21,6 +21,12 @@
   function tail(d, origin, st) {
     return `<g class="tail" style="transform-origin:${origin}"><path d="${d}" fill="none" stroke="${L}" stroke-width="19" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${COL.body}" stroke-width="13" stroke-linecap="round"/></g>`;
   }
+  // limbs that grow out of the torso without a seam: outlines go before the torso, fur after it (QJZ.pets.rig.grow)
+  function grown(R, pairs, w) {
+    var ink = '', fur = '';
+    pairs.forEach(function (p) { var g = P.rig.grow(R, p, w); ink += g.ink; fur += g.fill; });
+    return { ink: ink, fur: fur };
+  }
   function limb(a, b) {
     var d = `M${a[0]},${a[1]} L${b[0]},${b[1]}`;
     return `<path d="${d}" fill="none" stroke="${L}" stroke-width="17" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${COL.body}" stroke-width="11" stroke-linecap="round"/>`;
@@ -43,6 +49,10 @@
      <path d="M113.5,100 h9 q-1,4 -4.5,5 q-3.5,-1 -4.5,-5 z" fill="${COL.nose}" ${ST(1.6)}/>
      <!--MOUTH-->
      <path d="M74,100 Q64,97 54,97 M74,105 Q64,105 53,107 M75,110 Q66,112 57,116 M162,100 Q172,97 182,97 M162,105 Q172,105 183,107 M161,110 Q170,112 179,116" fill="none" ${ST(2)}/><!--OVER-->`;
+      var R = { line: [L, 3], limb: { fill: COL.body }, mode: 'sticker' };
+      var legs = grown(R, [[[106, 168], [104, 183]], [[130, 168], [132, 183]]], [12, 10]);
+      var limp = grown(R, [[[92, 133], [85, 153]], [[144, 133], [151, 153]]], [12.5, 10]);
+      var LEGS = '<g class="legs" style="transform-origin:118px 164px">', LIMP = '<g class="limp" style="transform-origin:118px 130px">';
       var stripes = `<path d="M68.8,142.8 L64.6,153 M59.2,134.9 L49.8,140.7 M56.1,122.9 L45.1,122.5" stroke="${COL.stripe}" stroke-width="3.6" stroke-linecap="round"/>`;
       return {
         crop: '52 18 132 122',
@@ -67,10 +77,10 @@
           cheeks: [[81, 108, 11], [155, 108, 11]], hold: [118, 125, 1.05], smoke: 42,
           fire: [[68, 152, 1.25], [168, 152, 1.25]], bento: [154, 149, 1],
           bag: { x: 168, y: 122, s: 1, rot: 16, straps: [[100, 132, 102, 146], [136, 132, 134, 146]] },
-          paw: paw, limb: { w: 11, fill: COL.body }, pawL: arm(true, st), pawR: arm(false, st),
-          up: { slot: 'front', arms: [[[96, 138], [54, 74], -30], [[140, 138], [182, 74], 30]] },
-          holdArm: { paws: [[105, 130, 25], [131, 130, -25]], arms: [[[94, 142], [104, 132]], [[142, 142], [132, 132]]] },
-          scratch: { slot: 'front', arm: [[96, 138], [50, 104], [66, 66]], paw: [76, 56, -35] },
+          paw: paw, limb: { fill: COL.body }, pawL: arm(true, st), pawR: arm(false, st),
+          up: { ink: 'front', fill: 'front', w: [14, 9.5], arms: [[[98, 120], [55, 84], -25], [[138, 120], [181, 84], 25]] },
+          holdArm: { paws: [[105, 130, 25], [131, 130, -25]], w: 11, arms: [[[93, 138], [104, 131]], [[143, 138], [132, 131]]] },
+          scratch: { ink: 'front', fill: 'front', w: 11, arm: [[98, 122], [52, 104], [66, 66]], paw: [76, 56, -35] },
           strap: [[101, 140, 0], [135, 140, 0]]
         },
         poses: {
@@ -87,10 +97,11 @@
           dangle: {
             front: `<g class="swing"><g transform="translate(118 22) scale(.93) translate(-118 -44)">` +
               tail('M100,168 C84,178 72,166 72,150', '100px 168px', st) +
-              `<g class="legs" style="transform-origin:118px 164px">${limb([106, 166], [104, 182])}${limb([130, 166], [132, 182])}${paw(104, 186, 180)}${paw(132, 186, 180)}</g>` +
+              LEGS + legs.ink + '</g>' + LIMP + limp.ink + '</g>' +
               `<path d="${TORSO_D}" fill="${COL.body}"/><g clip-path="url(#${uid}-td)"><ellipse cx="156" cy="146" rx="22" ry="40" fill="${COL.shade}"/></g><path d="${TORSO_D}" fill="none" ${st}/>` +
               `<path d="${BELLY}" fill="${COL.belly}"/>${lanyard}` +
-              `<g class="limp" style="transform-origin:118px 130px">${limb([92, 130], [84, 154])}${limb([144, 130], [152, 154])}${paw(84, 158, 170)}${paw(152, 158, -170)}</g>` +
+              LEGS + legs.fur + paw(104, 186, 180) + paw(132, 186, 180) + '</g>' +
+              LIMP + limp.fur + paw(84, 157, 170) + paw(152, 157, -170) + '</g>' +
               head + `</g></g>`,
             anchors: { top: [118, 24], side: [[66, 66], [170, 66]] }
           }

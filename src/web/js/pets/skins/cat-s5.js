@@ -13,9 +13,11 @@
   function tail(d, origin) {
     return `<g class="tail"${origin ? ' style="transform-origin:' + origin + '"' : ''}><path d="${d}" fill="none" stroke="${LC}" stroke-width="17" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${O}" stroke-width="11.5" stroke-linecap="round"/></g>`;
   }
-  function limb(a, b) {
-    var d = `M${a[0]},${a[1]} L${b[0]},${b[1]}`;
-    return `<path d="${d}" fill="none" stroke="${LC}" stroke-width="15.2" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${O}" stroke-width="10" stroke-linecap="round"/>`;
+  // limbs that grow out of the torso without a seam: outlines go before the torso, fur after it (QJZ.pets.rig.grow)
+  function grown(R, pairs, w) {
+    var ink = '', fur = '';
+    pairs.forEach(function (p) { var g = P.rig.grow(R, p, w); ink += g.ink; fur += g.fill; });
+    return { ink: ink, fur: fur };
   }
 
   P.register({
@@ -30,6 +32,10 @@
     <!--EYES-->
     <path d="M115.5,103 h5 l-2.5,3 z" fill="#FF7F9A" ${ST(1.2, LC)}/><!--MOUTH-->
     <path d="M72,100 l-12,-2 M72,105 l-12,2 M164,100 l12,-2 M164,105 l12,2" ${ST(1.6, LC)}/><!--OVER-->`;
+      var R = { line: [LC, 2.6], limb: { fill: O }, mode: 'crayon' };
+      var legs = grown(R, [[[108, 168], [106, 181]], [[128, 168], [130, 181]]], [11, 9.5]);
+      var limp = grown(R, [[[97, 136], [91, 153]], [[139, 136], [145, 153]]], [11.5, 9.5]);
+      var LEGS = '<g class="legs" style="transform-origin:118px 166px">', LIMP = '<g class="limp" style="transform-origin:118px 134px">';
       var bodyD = 'M86,168 C84,142 94,126 118,126 C142,126 152,142 150,168 C148,180 88,180 86,168 Z';
       return {
         crop: '54 20 128 120',
@@ -52,10 +58,10 @@
           cheeks: [[88, 107, 10], [150, 107, 10]], hold: [118, 122, 1], smoke: 38,
           fire: [[72, 152, 1.15], [164, 152, 1.15]], bento: [154, 149, 1],
           bag: { x: 162, y: 128, s: 0.95, rot: 16, straps: [[102, 132, 104, 146], [134, 132, 132, 146]] },
-          paw: paw, limb: { w: 10, fill: O }, pawL: PAW_L, pawR: PAW_R,
-          up: { slot: 'front', arms: [[[100, 140], [60, 80], -25], [[136, 140], [176, 80], 25]] },
+          paw: paw, limb: { fill: O }, pawL: PAW_L, pawR: PAW_R,
+          up: { ink: 'back', fill: 'front', w: [13, 9], arms: [[[96, 138], [62, 88], -25], [[140, 138], [174, 88], 25]] },
           holdArm: { paws: [[106, 127, 20], [130, 127, -20]] },
-          scratch: { slot: 'front', arm: [[100, 140], [60, 106], [74, 70]], paw: [82, 58, -30] },
+          scratch: { ink: 'back', fill: 'front', w: 10, arm: [[98, 138], [60, 106], [74, 70]], paw: [82, 58, -30] },
           strap: [[103, 140, 0], [133, 140, 0]]
         },
         poses: {
@@ -69,9 +75,10 @@
           },
           dangle: {
             front: `<g class="swing"><g transform="translate(118 30) scale(.95) translate(-118 -46)">` + tail('M104,170 C90,180 78,168 78,152', '104px 170px') +
-              `<g class="legs" style="transform-origin:118px 166px">${limb([108, 166], [106, 180])}${limb([128, 166], [130, 180])}${paw(106, 184, 180)}${paw(130, 184, 180)}</g>` +
+              LEGS + legs.ink + '</g>' + LIMP + limp.ink + '</g>' +
               `<path d="${bodyD}" fill="${O}" ${st}/><ellipse cx="118" cy="152" rx="16" ry="17" fill="${CR}"/>` +
-              `<g class="limp" style="transform-origin:118px 134px">${limb([96, 134], [90, 154])}${limb([140, 134], [146, 154])}${paw(90, 158, 170)}${paw(146, 158, -170)}</g>` +
+              LEGS + legs.fur + paw(106, 184, 180) + paw(130, 184, 180) + '</g>' +
+              LIMP + limp.fur + paw(90, 157, 170) + paw(146, 157, -170) + '</g>' +
               head + `</g></g>`,
             anchors: { top: [118, 30], side: [[70, 68], [166, 68]] }
           }

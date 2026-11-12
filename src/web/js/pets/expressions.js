@@ -17,13 +17,14 @@ QJZ.pets = QJZ.pets || {};
 //   hl: number             'flat'/'crayon' only: highlight radius (also its offset)
 // }
 // Expressions: open (the skin's own eyes), happy ^^, closed ‿‿, sleepy (half lids), angry (cut lids + brows),
-// surprised (white eyes, small pupils). Mouths: neutral (the skin's own), smile (open happy mouth), open (small o),
-// chew (munching, animated by .chew), yawn (big oval), pout (little frown). Unknown names fall back to open / neutral.
+// surprised (white eyes, small pupils), dazed (round blank dot eyes, a little stunned), sparkle (shining excited eyes).
+// Mouths: neutral (the skin's own), smile (open happy mouth), open (small o), chew (munching, animated by .chew),
+// yawn (big oval), pout (little frown), tiny (a very small o). Unknown names fall back to open / neutral.
 // Flat (S4) eyes and mouths are filled shapes without outlines; crayon (S5) lines get a second pencil pass.
 QJZ.pets.expr = (function () {
   var C = QJZ.pets.common;
-  var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised'];
-  var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout'];
+  var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised', 'dazed', 'sparkle'];
+  var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout', 'tiny'];
   var INSIDE = '#7A3236', INSIDE_FLAT = '#5A2E3A', TONGUE = '#FF8FA3';
 
   function n(v) { return Math.round(v * 1000) / 1000; }   // keep coordinates free of float noise
@@ -147,6 +148,31 @@ QJZ.pets.expr = (function () {
     return `<g class="blink"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#fff"${line}/>${pupil}<circle cx="${n(cx + pr * 0.38)}" cy="${n(py - pr * 0.4)}" r="${n(Math.max(0.7, pr * 0.34))}" fill="#fff"/></g>`;
   }
 
+  // round blank dot eyes: a little stunned but calm (glossy styles keep one tiny catch-light)
+  function dazedEye(face, p, uid) {
+    var s = size(face), cx = p[0], cy = p[1], st = face.eyeStyle, r, fillc = face.ink, hl = '';
+    if (st === 'dot') r = n(s[0] * 1.15);
+    else if (st === 'flat' || st === 'crayon') r = n(s[0] * 0.82);
+    else {
+      r = n(Math.min(s[0], s[1]) * (st === 'gloss' ? 0.8 : 0.66));
+      fillc = st === 'q' ? '#2E2220' : 'url(#' + uid + '-geye)';
+      hl = `<circle cx="${n(cx + r * 0.38)}" cy="${n(cy - r * 0.38)}" r="${n(r * 0.24)}" fill="#fff"/>`;
+    }
+    return `<g class="blink"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillc}"/>${hl}</g>`;
+  }
+
+  // shining excited eyes: the open eye with a big star catch-light; tiny dot eyes become little ink stars
+  function sparkleEye(face, p, uid) {
+    var s = size(face), cx = p[0], cy = p[1], st = face.eyeStyle;
+    if (st === 'dot') {
+      var R = n(s[0] * 1.7);
+      return `<g class="blink"><path d="${C.star4(cx, cy, R)}" fill="${face.ink}" stroke="${face.ink}" stroke-width="1" stroke-linejoin="round"/><circle cx="${n(cx + 0.5)}" cy="${n(cy - 0.6)}" r="${n(s[0] * 0.28)}" fill="#fff"/></g>`;
+    }
+    var big = st === 'q' || st === 'ham' ? 0.42 : 0.5, k = Math.min(s[0], s[1]);
+    var star = `<path d="${C.star4(n(cx - k * 0.3), n(cy - k * 0.3), n(k * big))}" fill="#fff"/><path d="${C.star4(n(cx + k * 0.42), n(cy + k * 0.4), n(k * 0.22))}" fill="#fff"/>`;
+    return openEye(face, p, uid).replace(/<\/g>$/, star + '</g>');
+  }
+
   function one(face, ex, i, uid) {
     var p = face.eyes[i];
     switch (ex) {
@@ -155,6 +181,8 @@ QJZ.pets.expr = (function () {
       case 'sleepy': return sleepyEye(face, p, i, uid);
       case 'angry': return angryEye(face, p, i, uid);
       case 'surprised': return surprisedEye(face, p, uid);
+      case 'dazed': return dazedEye(face, p, uid);
+      case 'sparkle': return sparkleEye(face, p, uid);
       default: return openEye(face, p, uid);
     }
   }
@@ -217,6 +245,12 @@ QJZ.pets.expr = (function () {
         var top = isY ? `M${x},${y0} q-2,2.2 -4.2,1 M${x},${y0} q2,2.2 4.2,1` : `M${n(x - cw)},${y0} q${ca},${ch} ${cw},0 q${ca},${ch} ${cw},0`;
         var gy = n(y0 + (isY ? 2.6 : ch * 0.55));
         return lead + `<g class="chew" style="transform-origin:${x}px ${gy}px"><ellipse cx="${x}" cy="${n(gy + u * 0.32)}" rx="${n(u * 0.42)}" ry="${n(u * 0.34)}" fill="${isFlat(face) ? INSIDE_FLAT : INSIDE}"/></g><path d="${top}" fill="none" ${lineAttrs(face, sw)}/>`;
+      }
+      case 'tiny': {
+        var tcy = n(y0 + u * 0.55), trx = n(u * 0.3), trY = n(u * 0.38);
+        d = `M${n(x - trx)},${tcy} a${trx},${trY} 0 1,0 ${n(2 * trx)},0 a${trx},${trY} 0 1,0 ${n(-2 * trx)},0 Z`;
+        var inside = isFlat(face) ? INSIDE_FLAT : INSIDE;
+        return lead + `<path d="${d}" fill="${inside}"/>` + (isFlat(face) ? '' : `<path d="${d}" fill="none" ${C.ST(n(face.mouthSW * 0.8), face.ink)}/>`);
       }
       default: {   // pout: a little frown
         var pw = n(u * 0.72);

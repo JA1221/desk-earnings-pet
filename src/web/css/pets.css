@@ -16,7 +16,7 @@
 .pet-svg .bod{transform-box:view-box;transform-origin:118px 172px}
 .pet-svg .swing{transform-box:view-box;transform-origin:var(--gx,118px) var(--gy,50px)}
 .pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom}
-.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk){transform-box:view-box}
+.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.bagsw,.note){transform-box:view-box}
 
 /* ---------- always on ---------- */
 .pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
@@ -70,6 +70,8 @@
 @keyframes chew{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}
 .pet-svg .scr{animation:scr .3s ease-in-out infinite alternate}
 @keyframes scr{from{transform:rotate(calc(-14deg * var(--m)))}to{transform:rotate(calc(10deg * var(--m))) translateY(calc(-1.5px * var(--m)))}}
+.pet-svg .note{opacity:0;animation:note 2s ease-out infinite}
+@keyframes note{0%{transform:translate(0,4px) scale(.5) rotate(0);opacity:0}15%{transform:translate(0,0) scale(1.1) rotate(calc(-10deg * var(--m)));opacity:1}50%{transform:translate(calc(var(--dx,0px) * var(--m)),calc(-8px * var(--m))) scale(1) rotate(calc(10deg * var(--m)))}80%{opacity:1}100%{transform:translate(0,calc(-16px * var(--m))) scale(.9) rotate(calc(-6deg * var(--m)));opacity:0}}
 .pet-svg .breath{animation:breath 3.4s ease-in-out infinite}
 @keyframes breath{0%,100%{transform:scale(1,1)}55%{transform:scale(calc(1 + .012 * var(--m)),calc(1 + .035 * var(--m)))}}
 
@@ -164,11 +166,13 @@
 @keyframes waveL{from{transform:rotate(calc(-8deg * var(--m)))}to{transform:rotate(calc(10deg * var(--m)))}}
 @keyframes waveR{from{transform:rotate(calc(8deg * var(--m)))}to{transform:rotate(calc(-10deg * var(--m)))}}
 
-/* ---------- waitBag 背包包等你: eager little bounces, glances at the door ---------- */
-.pet-svg.st-waitBag .bod{animation:eager 1.6s ease-in-out infinite}
-@keyframes eager{0%,46%,100%{transform:translateY(0) scale(1,1)}8%{transform:translateY(calc(-3.5px * var(--m)))}16%{transform:translateY(0) scale(calc(1 + .03 * var(--m)),calc(1 - .03 * var(--m)))}24%{transform:translateY(calc(-3.5px * var(--m)))}32%{transform:translateY(0) scale(calc(1 + .03 * var(--m)),calc(1 - .03 * var(--m)))}40%{transform:scale(1,1)}}
-.pet-svg.st-waitBag .look{animation:door 4.8s ease-in-out infinite}
-@keyframes door{0%,50%,100%{transform:translate(0,0)}58%,80%{transform:translate(calc(-3px * var(--m)),0)}}
+/* ---------- waitBag 背包包等你: can't wait to go home — bouncing on the spot, backpack swinging, ♪ ---------- */
+.pet-svg.st-waitBag .bod{animation:eager .6s ease-in-out infinite}
+@keyframes eager{0%,100%{transform:translateY(0) scale(calc(1 + .04 * var(--m)),calc(1 - .045 * var(--m)))}18%{transform:translateY(calc(-2px * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .04 * var(--m)))}45%{transform:translateY(calc(-7px * var(--m))) scale(1,1)}75%{transform:translateY(calc(-1.5px * var(--m))) scale(calc(1 - .02 * var(--m)),calc(1 + .02 * var(--m)))}}
+.pet-svg.st-waitBag .bagsw{animation:bagsw .6s ease-in-out infinite;animation-delay:-.45s}
+@keyframes bagsw{0%,100%{transform:rotate(calc(-7deg * var(--m)))}50%{transform:rotate(calc(7deg * var(--m)))}}
+.pet-svg.st-waitBag .head,.pet-svg.st-waitBag .squish{animation:giddy 1.2s ease-in-out infinite}
+@keyframes giddy{0%,100%{transform:rotate(calc(-3deg * var(--m)))}50%{transform:rotate(calc(3deg * var(--m)))}}
 
 /* ---------- petted 被摸摸: leans into the hand left and right ---------- */
 .pet-svg.st-petted .head,.pet-svg.st-petted .squish{animation:nuzzle 1.4s ease-in-out infinite}

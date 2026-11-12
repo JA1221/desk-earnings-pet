@@ -21,12 +21,12 @@ QJZ.pets.states = (function () {
     ['lunchSleep', { group: '午休', label: '趴桌睡', pose: 'lie', eyes: 'closed', mouth: 'neutral', arms: 'none', props: ['zzz', 'bubble'] }],
     ['lunchEat', { group: '午休', label: '吃便當', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['bento', 'onigiri'] }],
     ['celebrate', { group: '下班', label: '慶祝', eyes: 'happy', mouth: 'smile', arms: 'up', props: ['confetti'] }],
-    ['waitBag', { group: '下班', label: '背包包等你', eyes: 'open', mouth: 'smile', arms: 'strap', props: ['bag'] }],
+    ['waitBag', { group: '下班', label: '背包包等你', eyes: 'sparkle', mouth: 'smile', arms: 'strap', props: ['bag', 'notes', 'sparkle'] }],
     ['petted', { group: '互動', label: '被摸摸', eyes: 'happy', mouth: 'smile', arms: 'rest', props: ['hearts'] }],
     ['angry', { group: '互動', label: '生氣', eyes: 'angry', mouth: 'pout', arms: 'rest', props: ['smoke', 'anger', 'puff'] }],
     ['eat', { group: '互動', label: '吃零食', eyes: 'happy', mouth: 'chew', arms: 'hold', props: ['snack', 'crumbs'] }],
     ['hop', { group: '互動', label: '里程碑', eyes: 'happy', mouth: 'smile', arms: 'rest', props: ['coin'], alt: { arms: 'up' } }],
-    ['dangle', { group: '互動', label: '被拎起來', pose: 'dangle', eyes: 'surprised', mouth: 'open', arms: 'none', props: ['sweat'] }]
+    ['dangle', { group: '互動', label: '被拎起來', pose: 'dangle', eyes: 'dazed', mouth: 'tiny', arms: 'none', props: ['blush'] }]
   ];
   var BY = {};
   LIST.forEach(function (e) { BY[e[0]] = e[1]; });
