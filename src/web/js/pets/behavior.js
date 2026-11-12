@@ -20,7 +20,8 @@ window.QJZ = window.QJZ || {};
 //       focus: the base state is 'focus' whatever the status. A focus lasts until its cue changes, or, when it changes
 //         to 'stretch' (care: the focus ended with its break bubble), until that stretch is over (Ruling M8). A status
 //         that came during the focus starts its clock then, so 可以下班 during a focus celebrates for 8 s after it, live
-//         (§5.2); a focus started after 可以下班 or 下班 goes back to the state it left (waitBag), with no new celebration.
+//         (§5.2), or after the next one when 跳過休息 started it within the stretch; a focus started after 可以下班 or
+//         下班 goes back to the state it left (waitBag), with no new celebration.
 //       wave: 'wave' for WAVE_MS after the cue and after each knock, 'idle' in between.
 //       holdCup: 'holdCup' all along; a knock replays its wave (brain.waveAt: when the last wave began).
 //       stretch: 'stretch' for STRETCH_MS, then the base state.
@@ -172,13 +173,14 @@ QJZ.behavior = (function () {
   };
   Brain.prototype.drag = function (on) { this.held = !!on; };
   // care's cue (an unknown name is null). Leaving 'focus' ends the focus now, or after the stretch for 'stretch'; a new
-  // cue during that stretch ends it then. A cue cuts an idle action short.
+  // cue during that stretch ends it then. A cue cuts an idle action short. A focus that starts within the last one's
+  // stretch (跳過休息) goes on from it: a status that changed during the last one still waits (Ruling, Task 11).
   Brain.prototype.cue = function (name, now) {
     name = CUES.hasOwnProperty(name) ? name : null;
     if (name === this.cued) return;
+    if (name === 'focus' && now >= this.focusEnd) this.waited = false;
     if (this.cued === 'focus') this.focusEnd = name === 'stretch' ? now + STRETCH_MS : now;
     else if (now < this.focusEnd) this.focusEnd = now;
-    if (name === 'focus') this.waited = false;
     this.cued = name;
     this.cuedAt = now;
     this.waveAt = name === 'wave' || name === 'holdCup' ? now : -Infinity;

@@ -50,6 +50,15 @@ window.QJZ = window.QJZ || {};
 // or a bubble. Speech: QJZ.lines, in the bubble (U1, U3, U7) every 7–15 s after the last one and on events; bubble
 // timers run only while a bubble shows. Bubble ranks: chatter < pet events < the user's own actions and anything
 // other modules say (those always show).
+// 1.1 prompts (Task 11, spec §4.2, §5.1-5.3): QJZ.care's prompt events draw its bubble through QJZ.promptView (show /
+// update: render, show also knocks once; hide: clear; wave: the pet's knock and one more knock), and a layout switch
+// draws the one that shows; care.setPanel follows PANEL. Its cue is the Brain's cue (the SVG is redrawn on a knock
+// while it holds the cup, which replays the wave). drank plays sip (the cup that reaches the goal: petted and hearts),
+// 「+1」 on the cups and a line; standup from 起來了 plays petted 2 s and a line (from 喝了, a break or a lock, nothing:
+// 喝了 already sips, Ruling M9). While a prompt shows the speech bubble is hidden and says nothing (chatter and pet
+// events wait; the user's own lines become banners). During a focus (§4.3 「不講話、不打擾」, §5.2) the pet keeps
+// quiet: no chatter, no event lines, a milestone hops without its coin, and a poke gets 「專心中～」 once per focus and
+// nothing else.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'M3', 'PANEL'];
@@ -288,10 +297,16 @@ QJZ.layouts = (function () {
   var chatAt = null;     // wall clock of the next chatter line (null: schedule on the next tick)
   var lastTick = null;   // wall clock of the last app tick seen (a gap = the window was hidden)
   var lunchCache = { key: null, s: null };
+  var focusPoked = null; // the start of the focus whose poke was answered (「專心中～」 once per focus)
+  var cupPlus = false;   // a cup was logged: pop 「+1」 on the cups once care's change has them on screen
 
   function app() { return QJZ.app; }
   function ready() { return !!(QJZ.app && QJZ.app.state.ready); }
   function careState() { return QJZ.care ? QJZ.care.state : null; }
+  // A prompt bubble shows (QJZ.care decides; it is set before its prompt event goes out).
+  function prompting() { var cs = careState(); return !!(cs && cs.ready && cs.prompt); }
+  // A pomodoro focus runs: the pet keeps quiet.
+  function focusing() { var cs = careState(); return !!(cs && cs.ready && cs.p && cs.p.phase === 'focus'); }
   function send(type, payload) { if (bridge) bridge.send(type, payload); }
   function all(el, sel) {
     var list = Array.prototype.slice.call(el.querySelectorAll(sel));
@@ -335,10 +350,12 @@ QJZ.layouts = (function () {
     var id = settings.pet.kind + ':' + settings.pet.skin;
     return QJZ.pets && QJZ.pets.get(id) ? id : 'hamster:p0';
   }
+  // holdCup stays the state across care's re-wave: the drawing is keyed by the last knock too, so a knock redraws it and
+  // its wave plays again (brain.waveAt).
   function updatePet(state) {
     var h = view ? view.pet : null;
     if (!h || !state || !QJZ.pets || !QJZ.pets.compose) return;
-    var id = petId(app().state.settings), key = id + '|' + state;
+    var id = petId(app().state.settings), key = id + '|' + state + (state === 'holdCup' && brain ? '|' + brain.waveAt : '');
     if (view.petKey === key) return;
     view.petKey = key;
     view.petState = state;
@@ -396,7 +413,14 @@ QJZ.layouts = (function () {
     renderMoney(st.snap);
     sendMenu(m);
     petTick(app().nowMs());
+    if (cupPlus) popCup();
     return m;
+  }
+  // 「+1」 on the cups the layout shows (a cup logged anywhere: the bubble's 喝了, the menu, the tray, a cups button).
+  function popCup() {
+    cupPlus = false;
+    var c = view.el.querySelector('[data-cups]');
+    if (c && QJZ.fx && c.getClientRects().length) QJZ.fx.plus(c, '+1');
   }
   // [data-show] by the §4.9 #8 rule, the pomodoro phase (p-foc / p-brk on the layout and the M3 ring), the M3 ring's
   // --p (the day's progress w, or the pomodoro's time left) and the countdown rings.
@@ -461,7 +485,7 @@ QJZ.layouts = (function () {
   function onPetChange(ch) {
     if (ch.from === null) return;
     if (ch.to === 'celebrate' && !ch.quiet && QJZ.sound) QJZ.sound.jingle();
-    petSay(line(ch.to), 0, RANK.event);
+    petSay(ch.to, null, 0, RANK.event);
   }
 
   function lineCtx(ms) {
@@ -472,7 +496,8 @@ QJZ.layouts = (function () {
       minutesToLunch: ls !== null && ms < ls ? (ls - ms) / 60000 : undefined,
       minutesToEnd: working ? snap.remainingSec / 60 : undefined,
       hour: new Date(ms).getHours(), off: statusKey(snap, st.today, s) === 'off',
-      energy: st.mood ? st.mood.energy : undefined, mood: st.mood ? st.mood.mood : undefined
+      energy: st.mood ? st.mood.energy : undefined, mood: st.mood ? st.mood.mood : undefined,
+      goal: s.health && s.health.water ? s.health.water.goal : undefined
     };
   }
   // The pet's own rng (seeded by ?rng=), so chatter timing and lines are reproducible.
@@ -485,29 +510,40 @@ QJZ.layouts = (function () {
     for (var k in (extra || {})) c[k] = extra[k];
     return QJZ.lines.pick(state, c);
   }
-  // Pet speech by rank: the user's own actions always show (a banner where there is no bubble); events and
-  // chatter only in a bubble, never over the user's or another module's bubble; chatter only when none shows.
-  function petSay(text, ms, rank) {
-    if (!view || !text) return false;
-    if (rank < RANK.user && (!view.bubble || bubbleRank >= RANK.user || (rank === RANK.chat && bubbleRank))) return false;
-    return say(text, ms, rank);
+  // Pet speech by rank, a line about state (QJZ.lines, with extra context): the user's own actions always show (a
+  // banner where there is no bubble, or while a prompt shows); events and chatter only in a bubble, never over the
+  // user's or another module's bubble, never while a prompt shows or a focus runs; chatter only when none shows. The
+  // line is picked only when it will be said.
+  function petSay(state, extra, ms, rank) {
+    if (!view) return false;
+    if (rank < RANK.user && (!view.bubble || bubbleRank >= RANK.user || (rank === RANK.chat && bubbleRank) || prompting() || focusing())) return false;
+    return say(line(state, extra), ms, rank);
   }
-  // Chatter: 7–15 s after the last bubble went away, about what the pet is doing (not over a reaction).
+  // Chatter: 7–15 s after the last bubble went away, about what the pet is doing (not over a reaction); none while a
+  // prompt shows or a focus runs, and 7–15 s again after they end.
   function chatter(ms) {
     var gap = lastTick !== null && (ms - lastTick > GAP_MS || ms < lastTick);
     lastTick = ms;
     if (!view || !view.bubble || bubbleRank || dragging) return;
+    if (prompting() || focusing()) { chatAt = null; return; }
     if (chatAt === null || gap) { chatAt = nextChat(ms); return; }
     if (ms < chatAt) return;
     chatAt = null;
     var s = brain && brain.state;
-    if (s && !REACTIONS[s]) petSay(line(s), 0, RANK.chat);
+    if (s && !REACTIONS[s]) petSay(s, null, 0, RANK.chat);
   }
 
   // ---- size and hit rects ----
+  // The layout root, and a prompt bubble that reaches past it (U7 / M3: a long one), with its 4px shadow.
   function measure() {
-    var r = view.el.getBoundingClientRect();
-    return { width: Math.ceil(r.right) + SHADOW, height: Math.ceil(r.bottom) + SHADOW };
+    var r = view.el.getBoundingClientRect(), right = r.right, bottom = r.bottom;
+    var p = view.el.classList.contains('prompting') ? view.el.querySelector('[data-prompt] .rbub') : null;
+    if (p) {
+      var b = layoutBox(p);
+      right = Math.max(right, b.left + b.width + 4);
+      bottom = Math.max(bottom, b.top + b.height + 4);
+    }
+    return { width: Math.ceil(right) + SHADOW, height: Math.ceil(bottom) + SHADOW };
   }
   // The element's border box in page px without its own CSS transform (an element in the middle of a transform
   // transition: its hit rect is where it ends up). Offsets are whole px; the chain stops at body, whose
@@ -839,6 +875,7 @@ QJZ.layouts = (function () {
     try {
       if (name === 'PANEL' && panels()) panels()._mount(view.el, panelKind);
       render();
+      drawPrompt();   // the prompt that shows, in this layout's slot, before the size goes out
     } catch (e) {
       if (window.console) console.error('[layouts] render ' + name + ' failed', e);   // still size and show the window
     }
@@ -849,7 +886,12 @@ QJZ.layouts = (function () {
     var s = app().state.settings;
     if (isMain(name) && (s.layout.current !== name || s.layout.mini)) app().saveSettings({ layout: { current: name, mini: false } });
     else if (name === 'M3' && !s.layout.mini) app().saveSettings({ layout: { mini: true } });
+    if (QJZ.care) QJZ.care.setPanel(cur === 'PANEL');   // bubbles wait while the panel is open (Ruling C1)
     return true;
+  }
+  function drawPrompt() {
+    var v = prompting() && QJZ.care.view ? QJZ.care.view() : null;
+    if (QJZ.promptView && view) { if (v) QJZ.promptView.render(view.el, view.name, v); else QJZ.promptView.clear(view.el); }
   }
   function current() { return cur; }
   // The first layout, and where a panel shown first (nothing before it) goes back to: opts.first (dev), the layout
@@ -888,12 +930,21 @@ QJZ.layouts = (function () {
     if (!view || !view.bubble || !view.pet || !ready()) return null;
     return anchorBubble(view.bubble, view.pet.el, view.pet.view, petId(app().state.settings), view.petState, view.el);
   }
-  // A speech bubble where the layout has one (U1, U3, U7), else a short banner. Never interactive (no hit rect).
+  // A click's own line (a poke, a lift) only where it can be said in the bubble: never a banner for every click, so
+  // none while a prompt shows either.
+  function clickSays() { return !!(view && view.bubble) && !prompting(); }
+  // The speech bubble goes away at once (a prompt shows).
+  function hideSay() {
+    stopSay();
+    if (view && view.bubble) view.bubble.classList.remove('show');
+  }
+  // A speech bubble where the layout has one (U1, U3, U7), else a short banner; a banner too while a prompt shows (one
+  // bubble at a time). Never interactive (no hit rect).
   // rank (layouts-internal): RANK of the line; other modules' lines rank with the user's own actions.
   function say(text, ms, rank) {
     if (!view || !text) return false;
     var v = view, b = v.bubble;
-    if (!b) { if (QJZ.fx) QJZ.fx.banner(v.fxWin, text); return true; }
+    if (!b || prompting()) { if (QJZ.fx) QJZ.fx.banner(v.fxWin, text); return true; }
     stopSay();
     bubbleRank = rank || RANK.user;
     b.textContent = '';
@@ -929,14 +980,20 @@ QJZ.layouts = (function () {
     return { x: pr.left + pr.width * at[0] - hr.left, y: pr.top + pr.height * at[1] - hr.top };
   }
   // A plain click on the pet: petted (sound, hearts, mood +5, a line where there is a bubble) or, at the fifth
-  // quick poke, angry for 4 s (mood -5, no sound, no hearts).
+  // quick poke, angry for 4 s (mood -5, no sound, no hearts). During a focus: 「專心中～」 once per focus (a bubble, or
+  // a banner where there is none), and nothing else (§5.2 「被點的時候只回一次」, Ruling: once per focus).
   function poke(e) {
     if (!petSvg() || !brain) return;
+    if (focusing()) {
+      var startMs = careState().p.startMs;
+      if (focusPoked !== startMs) { focusPoked = startMs; say(line('focusPoke')); }
+      return;
+    }
     var now = app().nowMs(), r = brain.poke(now);
     if (r === 'angry') {
       if (!brain.angered) return;
       app().annoy();
-      if (view.bubble) petSay(line('angry'), 3500, RANK.user);
+      if (clickSays()) petSay('angry', null, 3500, RANK.user);
     } else {
       app().pet();
       petSound();
@@ -944,7 +1001,7 @@ QJZ.layouts = (function () {
         var b = view.fx.getBoundingClientRect();
         QJZ.fx.hearts(view.fx, e.clientX - b.left, e.clientY - b.top, 7);
       }
-      if (view.bubble) petSay(line('petted'), 0, RANK.user);   // no banner over a small badge for every click
+      if (clickSays()) petSay('petted', null, 0, RANK.user);
     }
     render();   // the pose and the hearts now
   }
@@ -981,24 +1038,24 @@ QJZ.layouts = (function () {
   }
 
   // ev.quiet: crossed while the window was hidden. The snack is already counted; no coin, confetti or hop, and at
-  // most one bubble, only if nothing else is being said.
+  // most one bubble, only if nothing else is being said. During a focus the hop plays without its coin or line.
   function onMilestone(ev) {
     if (!view) return;
     if (ev && ev.quiet) {
-      if (!bubbleRank) petSay(line('missed', { gained: ev.gained || 1 }), 0, RANK.event);
+      if (!bubbleRank) petSay('missed', { gained: ev.gained || 1 }, 0, RANK.event);
       return;
     }
     if (QJZ.fx && view.fxWin) {
       var c = petCenter(view.fxWin);
       QJZ.fx.confetti(view.fxWin, c.x, c.y);
     }
-    if (QJZ.sound) QJZ.sound.coin();
+    if (QJZ.sound && !focusing()) QJZ.sound.coin();
     if (brain) {
       var now = app().nowMs();
       brain.show('hop', now, QJZ.behavior.HOP_MS);
       petTick(now);
     }
-    petSay(line('hop'), 0, RANK.event);
+    petSay('hop', null, 0, RANK.event);
   }
 
   // 開始上班: starts the day (an off day too: that ends 今天休假); after 下班 it is 繼續上班 (the end is cleared).
@@ -1099,6 +1156,59 @@ QJZ.layouts = (function () {
     if (m && m.plus && QJZ.fx) for (var i = 0; i < view.plus.length; i++) QJZ.fx.plus(view.plus[i], m.plus);
   }
 
+  // ---- QJZ.care events (Task 11) ----
+  // prompt {type: show | update | hide | wave, view}. A hide is also what an answer sends (quiet or not, it clears).
+  function onPrompt(ev) {
+    if (!ev || !view || !ready()) return;
+    var pv = QJZ.promptView, now = app().nowMs();
+    if (ev.type === 'hide') {
+      if (pv) pv.clear(view.el);
+    } else if (ev.type === 'wave') {
+      if (brain) brain.knock(now);   // the pet waves again (holdCup: redrawn, updatePet)
+      petTick(now);
+      if (pv) pv.wave(view.el, view.name);
+      return;
+    } else {
+      hideSay();
+      if (pv) {
+        pv.render(view.el, view.name, ev.view);
+        if (ev.type === 'show') pv.wave(view.el, view.name);
+      }
+    }
+    sync(false);   // U7 and M3 grow right while it shows; its buttons join the hit rects
+  }
+  // cue: 'focus' | 'wave' | 'holdCup' | 'stretch' | null (QJZ.behavior's Brain.cue).
+  function onCue(name) {
+    if (!brain || !ready()) return;
+    var now = app().nowMs();
+    brain.cue(name, now);
+    if (view) petTick(now);
+  }
+  // A cup logged anywhere: the pet sips with you (the cup that reaches the goal: petted, hearts and praise instead),
+  // the cups pop 「+1」 once care shows the new count, and a line (the user's own act: a banner where there is no bubble).
+  function onDrank(ev) {
+    if (!brain || !view || !ready()) return;
+    var now = app().nowMs();
+    cupPlus = true;
+    if (ev && ev.goalReached) {
+      brain.show('petted', now, QJZ.behavior.PET_MS);
+      if (QJZ.fx && view.fx) { var c = petCenter(view.fx); QJZ.fx.hearts(view.fx, c.x, c.y, 7); }
+      say(line('waterGoal'));
+    } else {
+      brain.show('sip', now, QJZ.behavior.SIP_MS);
+      say(line('drank'));
+    }
+    petTick(now);
+  }
+  // standup {count, source}: only 起來了 ('up') plays here; 喝了 ('drink') sips through drank, a break or a lock is quiet.
+  function onStandup(ev) {
+    if (!ev || ev.source !== 'up' || !brain || !view || !ready()) return;
+    var now = app().nowMs();
+    brain.show('petted', now, QJZ.behavior.PET_MS);
+    say(line('standOk'));
+    petTick(now);
+  }
+
   // ---- pointer ----
   function inRoot(t) { return root && t && t.nodeType === 1 && root.contains(t); }
   // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar).
@@ -1127,7 +1237,7 @@ QJZ.layouts = (function () {
       brain.drag(true);
       if (view.dpet) view.dpet.classList.add('held');   // the lifted pet hangs in front of its tag
       petTick(now);
-      if (view.bubble) petSay(line('dangle'), 0, RANK.user);
+      if (clickSays()) petSay('dangle', null, 0, RANK.user);
     }
   }
   // dragEnd from the host (its move loop ended), or the page saw the button go up (released before the move loop
@@ -1150,6 +1260,8 @@ QJZ.layouts = (function () {
   }
   function onClick(e) {
     if (!view || !inRoot(e.target)) return;
+    var ans = e.target.closest('[data-answer]');
+    if (ans) { if (QJZ.care) QJZ.care.answer(ans.getAttribute('data-answer')); return; }   // a stale one does nothing
     var a = e.target.closest('[data-act]');
     if (a) { act(a.getAttribute('data-act')); return; }
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
@@ -1217,7 +1329,10 @@ QJZ.layouts = (function () {
     var A = app();
     offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone),
       A.on('refresh', onRefresh));
-    if (QJZ.care) offs.push(QJZ.care.on('change', onCare));
+    if (QJZ.care) {
+      offs.push(QJZ.care.on('change', onCare), QJZ.care.on('prompt', onPrompt), QJZ.care.on('cue', onCue),
+        QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup));
+    }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
@@ -1261,7 +1376,7 @@ QJZ.layouts = (function () {
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '' };
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
-    lunchCache = { key: null, s: null };
+    lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false;
     cancelBands();
   }
 
@@ -1269,6 +1384,7 @@ QJZ.layouts = (function () {
     show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     dragging: function () { return dragging; },
+    _brain: function () { return brain; },   // tests: the pet's QJZ.behavior.Brain
     MAIN: MAIN, ALL: ALL,
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,

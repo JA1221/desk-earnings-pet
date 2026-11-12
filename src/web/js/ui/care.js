@@ -4,7 +4,9 @@ window.QJZ = window.QJZ || {};
 // QJZ.app.setHealth / setPomodoro, both saved at once.
 //
 // It steps on the app's second event and on a 10 s heartbeat; the heartbeat keeps the pomodoro counting and saved while
-// the page is hidden or locked (the app tick is paused then). Each step, in order:
+// the page is hidden or locked (the app tick is paused then). It also steps on the app's refresh, which the host's
+// menuOpening asks for, so the menu opens with the healthMenu of now (cups, 停止番茄鐘) even on a hidden page.
+// Each step, in order:
 //  1. a new day restarts the timer;
 //  2. the pomodoro walks every phase that has ended: a tomato on the day it started; a break start is a stand-up on its
 //     own day and restarts the timer, after the timer was brought up to the break's start, so a reminder that came due
@@ -368,7 +370,8 @@ QJZ.care = (function () {
     opts = opts || {};
     bridge = opts.bridge || QJZ.bridge;
     nowFn = opts.now || function () { return QJZ.app.nowMs(); };
-    offs.push(QJZ.app.on('change', onAppChange), QJZ.app.on('second', function () { step(); }), QJZ.app.on('started', onStarted));
+    offs.push(QJZ.app.on('change', onAppChange), QJZ.app.on('second', function () { step(); }), QJZ.app.on('started', onStarted),
+      QJZ.app.on('refresh', function () { step(); }));
     [bridge.on('visibility', onVisibility), bridge.on('fullscreen', onFullscreen), bridge.on('session', onSession),
       bridge.on('menu', onMenu)].forEach(function (off) { if (typeof off === 'function') offs.push(off); });
     if (opts.heartbeat !== false) heartbeat = setInterval(step, HEARTBEAT_MS);
@@ -390,8 +393,8 @@ QJZ.care = (function () {
 
   // Dev only (dev.html, Ruling R3), like reset: index.html never calls it. o = {cups, tomatoes, standups (today's counts),
   // pomo: 'focus' (13 min left) | 'break' | 'breakOver', prompt: 'both' | 'sit' | 'water' (the reminder is due; its
-  // switches must be on) | 'break' | 'breakEnd' (that bubble), shown at once}. dev.html has no host, so the window
-  // counts as shown.
+  // switches must be on) | 'break' | 'breakEnd' (that bubble), shown at once, water: the break bubble asks water too (as
+  // when a reminder came due during the focus; 喝水 must be on)}. dev.html has no host, so the window counts as shown.
   function dev(o) {
     if (!state.ready) return;
     o = o || {};
@@ -408,6 +411,7 @@ QJZ.care = (function () {
         state.p = P.sanitize({ phase: phase, startMs: from, endMs: from + cfg.short * MIN, day: key, done: h.tomatoes, notice: notice });
       }
       if (phase) savePomodoro();
+      if (notice === 'break') state.breakWater = o.water === true;
       if (o.prompt === 'both' || o.prompt === 'sit' || o.prompt === 'water') state.r = withR({ ms: s.health.every * MIN, snoozeUntil: null });
       if (o.prompt) {   // shown now, not after the 3 s gate
         if (state.q.prompt) hidden(true);

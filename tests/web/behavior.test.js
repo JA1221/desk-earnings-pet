@@ -354,6 +354,48 @@
     eq(b.update(T + 49000, ended), 'waitBag');
   });
 
+  // Ruling (Task 11): 跳過休息 pressed within the 4 s stretch starts the next focus at once; the 可以下班 that came during
+  // the last focus still waits for this one and celebrates after it.
+  test('behavior: 跳過休息 within the stretch keeps the 可以下班 that waits for the focus', function () {
+    var T = T0 + 3600000, done = { status: 'done', minutesToEnd: 0 };
+    var b = new B.Brain(B.rng(2));
+    b.update(T - 2000, working(1));
+    b.cue('focus', T - 1000);
+    eq(upTo(b, done, T, T + 600000), 'focus', '可以下班 during the focus');
+    b.cue('stretch', T + 600000);
+    eq(upTo(b, done, T + 600000, T + 602000), 'stretch');
+    b.cue('focus', T + 602000);   // 跳過休息: the next tomato
+    eq(upTo(b, done, T + 602000, T + 2102000), 'focus');
+    b.cue('stretch', T + 2102000);
+    eq(upTo(b, done, T + 2102000, T + 2105000), 'stretch');
+    eq(b.update(T + 2106000, done), 'celebrate', 'after this focus and its stretch');
+    eq(b.change, { from: 'focus', to: 'celebrate', quiet: false }, 'seen live: the jingle plays');
+    eq(upTo(b, done, T + 2107000, T + 2113000), 'celebrate');
+    eq(b.update(T + 2114000, done), 'waitBag', 'celebrate for 8 s');
+    // stopped instead of skipped within the stretch: the same
+    b = new B.Brain(B.rng(2));
+    b.update(T - 2000, working(1));
+    b.cue('focus', T - 1000);
+    upTo(b, done, T, T + 600000);
+    b.cue('stretch', T + 600000);
+    b.cue('focus', T + 601000);
+    upTo(b, done, T + 601000, T + 700000);
+    b.cue(null, T + 701000);
+    eq(b.update(T + 701000, done), 'celebrate');
+    // a focus started after the stretch is over is a new one: nothing waits from before it
+    b = new B.Brain(B.rng(2));
+    b.update(T - 2000, working(1));
+    b.cue('focus', T - 1000);
+    upTo(b, done, T, T + 600000);
+    b.cue('stretch', T + 600000);
+    eq(b.update(T + 604000, done), 'celebrate');
+    upTo(b, done, T + 605000, T + 620000);
+    b.cue('focus', T + 621000);
+    upTo(b, done, T + 621000, T + 700000);
+    b.cue(null, T + 701000);
+    eq(b.update(T + 701000, done), 'waitBag', 'no second celebration');
+  });
+
   test('behavior: wave for 4 s after the cue and each knock, idle between; holdCup holds; stretch for 4 s', function () {
     var t = T0 + 600000, w = working();
     eq([B.WAVE_MS, B.STRETCH_MS, B.SIP_MS], [4000, 4000, 3000]);

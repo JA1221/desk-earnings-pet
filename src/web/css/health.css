@@ -95,3 +95,76 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .pring{left:7px;top:50%;width:128px;height:128px;margin-top:-55px}
 .u7 .pring{left:4px;bottom:-1px;width:192px;height:192px}
 .u7 .pring .ptime{transform:translate(-50%,-100%)}
+
+/* ---------- a logged cup pops 「+1」 on the cups (layouts.js, QJZ.fx.plus on [data-cups]) ---------- */
+[data-cups]{position:relative}
+[data-cups] > .plus{color:#2E86DE;font-size:15px;text-shadow:-1.5px -1.5px 0 #fff,1.5px -1.5px 0 #fff,-1.5px 1.5px 0 #fff,1.5px 1.5px 0 #fff}
+
+/* ---------- the prompt (spec §4.2 B 方案 1, §5.1; mockup .rbub / .rb-btns; js/ui/promptview.js) ----------
+   No loop: promptview knocks it once on show and on each re-wave. Above the pet, its props and hearts; below banners. */
+.pslot{position:absolute;z-index:5}
+.rbub{position:relative;width:204px;background:#fff;border:3px solid var(--line);border-radius:18px;box-shadow:4px 4px 0 var(--line);padding:11px 12px 12px 14px;
+  font-family:var(--font);color:var(--text);text-align:left;line-height:normal;white-space:normal;transform-origin:20% 100%}
+.rbub .rb-t{display:block;font-size:15.5px;line-height:1.38;font-weight:700}
+/* the lines break after the copy's own punctuation (，～！), not inside a phrase, and come out about as long */
+.rbub .rb-t,.u5b .call .ct{word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
+.rbub small{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-top:3px;line-height:1.45}
+.rbub .rb-w{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.4}
+.rbub small svg.ic{width:13px;height:13px;margin-right:2px}
+.rb-btns{display:flex;gap:6px;margin-top:9px}
+.lay .rb-btns button{flex:1 1 auto;font-family:var(--font);font-weight:700;font-size:13.5px;line-height:1.3;color:var(--text);border:2.5px solid var(--line);border-radius:99px;
+  padding:4px 5px;background:#fff;box-shadow:2px 2px 0 var(--line);white-space:nowrap}
+.lay .rb-btns button:active{transform:translate(1px,1px)}
+.lay .rb-btns .ok{background:var(--bar)}
+.lay .rb-btns .drink{background:#9AD0FF}
+.rb-ic{position:absolute;left:-13px;top:-15px;width:32px;height:32px;border-radius:50%;background:var(--bar);border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--line);
+  display:grid;place-items:center}
+.rb-ic svg.ic{width:21px;height:21px}
+.rb-ic.w{background:#CDEBFF}
+.rb-ic.r{background:#C4F3D7}
+.rb-ic.t{background:#FFE1DA}
+.rbub::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border:3px solid var(--line);border-top:0;border-left:0}
+/* the tail: down at the pet (U1, U3), or back left at it (U7, M3), near the bubble's foot */
+.rbub.t-bl::after{left:24px;bottom:-9px;transform:rotate(45deg)}
+.rbub.t-l{transform-origin:0 75%}
+.rbub.t-l::after{left:-9px;bottom:20px;transform:rotate(135deg)}
+/* M3: the small one */
+.rbub.sm{width:178px;padding:9px 9px 10px 12px;border-radius:16px}
+.rbub.sm .rb-t{font-size:14px;line-height:1.35}
+.rbub.sm small{font-size:10.5px;margin-top:2px}
+.rbub.sm .rb-w{font-size:11.5px}
+.rbub.sm .rb-btns{gap:4px;margin-top:7px}
+.lay .rbub.sm .rb-btns button{font-size:12.5px;padding:3px 3px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}
+.rbub.sm .rb-ic{left:-11px;top:-13px;width:28px;height:28px}
+.rbub.sm .rb-ic svg.ic{width:18px;height:18px}
+
+/* U1 (B_U1_s/w): top right, over the status row; U3 (C_U3_b): right of the pet, over the side card */
+.u1 .pslot{right:10px;top:50px}
+.u3 .pslot{left:56%;top:54px}
+/* U7 (B_U7_s/w, Ruling: on the right, where the speech bubble goes): the window grows right while it shows (the host
+   keeps it inside the screen). From the pet's foot, so the tail stays at its head when the tag gets its line. */
+.u7.prompting{width:420px;padding-right:202px}
+.u7 .pslot{left:200px;bottom:84px}
+/* M3 (B_M3_s/w): the ring knocks (promptview), the small bubble right of it; the badge grows right by 194px, its
+   content box (min-width 168 - 8 of padding) left as it was, so nothing in it moves */
+.m3 .ring{transform-origin:50% 90%}
+.m3.prompting{padding-right:198px;min-width:362px}
+.m3.prompting .mb.r{right:197px}
+.m3 .pslot{right:8px;top:14px}
+
+/* U5-B (C_U5_b): no room for a bubble; the top line's text becomes the title, a pill that wobbles, the small buttons
+   after it. Laid over the line (its own items stay, unseen, so nothing moves and the window keeps its size), from the
+   line's foot up: the title takes two short lines when it must. */
+.u5b .mline{display:contents}
+.u5b .mtop{position:relative}
+.u5b.prompting .mtop > :not(.dot,.pline){visibility:hidden}
+.u5b .pline{position:absolute;left:17px;right:0;bottom:0;display:flex;align-items:center;gap:5px}
+.u5b .call{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;background:var(--bar);border:2px solid var(--line);border-radius:12px;
+  box-shadow:2px 2px 0 var(--line);padding:1px 8px 1px 4px;color:var(--text);font-size:11.5px;line-height:1.2;white-space:normal}
+.u5b .call.w{background:#CDEBFF}
+.u5b .call.r{background:#C4F3D7}
+.u5b .call.t{background:#FFE1DA}
+.u5b .call svg.ic{width:15px;height:15px}
+.u5b .call .ct{min-width:0;max-height:2.4em;overflow:hidden}
+.u5b .pline .rb-btns{margin:0;gap:4px;flex:none}
+.lay.u5b .pline .rb-btns button{flex:none;font-size:11.5px;padding:1px 7px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}

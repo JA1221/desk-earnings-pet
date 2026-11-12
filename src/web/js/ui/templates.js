@@ -7,7 +7,9 @@ window.QJZ = window.QJZ || {};
 // 1.1 (spec §4.4, the A picks; §4.3 the countdown ring): [data-show=cups|tomatoes|both|any] is hidden (and keeps no
 // space) unless the model shows the cups / the tomatoes / both / either (§4.9 #8, decided by QJZ.care); [data-pring]
 // is the countdown ring (QJZ.ring) around the pet. data-act drink logs a cup, pomo starts or stops the pomodoro. The
-// U7 tag line and the M3 stickers only show (§5.3): no data-act.
+// U7 tag line and the M3 stickers only show (§5.3): no data-act. [data-cups] is where a logged cup pops 「+1」.
+// The prompt (Task 11, QJZ.promptView): [data-prompt] holds the reminder / pomodoro bubble (U1, U3, U7, M3), U5-B's
+// [data-prompt-line] the same in its top line; both are empty and hidden until a prompt shows.
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
   var BAR = '<div class="bar"><span class="logo">$</span><span data-b="title">錢進中</span><div class="dots">' +
@@ -21,7 +23,7 @@ QJZ.templates = (function () {
   // U1 (A_U1_3): cups, tomatoes, and the 番茄鐘 pill that is always there.
   function mpills() {
     return '<div class="mpills">' +
-      '<button type="button" class="mp" data-act="drink" data-show="cups" title="記一杯水">' + ic('drop') + '<span class="n" data-b="cupsLong"></span></button>' +
+      '<button type="button" class="mp" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') + '<span class="n" data-b="cupsLong"></span></button>' +
       '<span class="mp" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span>' +
       '<button type="button" class="mp go" data-act="pomo" data-b="pomoBtn" title="番茄鐘"></button></div>';
   }
@@ -29,7 +31,7 @@ QJZ.templates = (function () {
   // with its count under it. The tomato button is always there; its count and the water slot follow the rule.
   function tomslots() {
     return '<div class="tomslots">' +
-      '<div class="tomslot" data-show="cups"><button type="button" class="tom-btn wat" data-act="drink" title="記一杯水">' + ic('drop') +
+      '<div class="tomslot" data-show="cups"><button type="button" class="tom-btn wat" data-act="drink" data-cups title="記一杯水">' + ic('drop') +
         '</button><span class="n" data-b="cups"></span></div>' +
       '<div class="tomslot"><button type="button" class="tom-btn" data-act="pomo" title="番茄鐘">' + ic('tom') +
         '<span class="play" data-b="pomoGlyph"></span></button><span class="n" data-show="tomatoes" data-b="tomatoes"></span></div></div>';
@@ -38,19 +40,20 @@ QJZ.templates = (function () {
   function rcol() {
     return '<div class="rcol"><button type="button" class="tom-btn" data-act="pomo" title="番茄鐘">' + ic('tom') +
         '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button>' +
-      '<button type="button" class="lbl2" data-act="drink" data-show="cups" title="記一杯水">' + ic('drop') + '<span class="n" data-b="cups"></span></button></div>';
+      '<button type="button" class="lbl2" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') + '<span class="n" data-b="cups"></span></button></div>';
   }
   // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3, each part by its rule; gone when neither shows.
   function hline() {
-    return '<div class="hline" data-show="any"><span class="hpart" data-show="cups">' + ic('drop') + '<span class="n" data-b="cups"></span></span>' +
+    return '<div class="hline" data-show="any"><span class="hpart" data-show="cups" data-cups>' + ic('drop') + '<span class="n" data-b="cups"></span></span>' +
       '<span class="dt" data-show="both">・</span><span class="hpart" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span></div>';
   }
   // M3 (A_M3): two stickers on the ring, cups top left and tomatoes top right.
   function stickers() {
-    return '<span class="mb l" data-show="cups" data-hit>' + ic('drop') + '<span data-b="cups"></span></span>' +
+    return '<span class="mb l" data-show="cups" data-cups data-hit>' + ic('drop') + '<span data-b="cups"></span></span>' +
       '<span class="mb r" data-show="tomatoes" data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></span>';
   }
   function pring() { return QJZ.ring.markup(); }
+  var PSLOT = '<div class="pslot" data-prompt hidden></div>';
   var TEMPLATES = {
     U1: function () {
       return '<div class="win u1 lay" data-hit>' + BAR + '<div class="body">' +
@@ -63,7 +66,7 @@ QJZ.templates = (function () {
           '<div class="chip"><small>本月累計</small><b data-b="month"></b></div></div>' +
         '<div class="vitals"><span>心情 <span class="hearts" data-b="hearts"></span></span><span>體力 <span class="bolt" data-bolts></span></span>' +
           feedBtn('feed') + '</div>' +
-        '</div><div class="fx" data-fxwin></div></div>';
+        '</div>' + PSLOT + '<div class="fx" data-fxwin></div></div>';
     },
     U3: function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' + pring() +
@@ -74,11 +77,12 @@ QJZ.templates = (function () {
         '<div class="hud-bottom money-box" data-plus><div class="coin">$</div>' + MONEY +
           '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div>' +
           tomslots() + '</div>' +
-        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
+        '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     U5B: function () {
       return '<div class="win u5b lay" data-hit><div class="po" data-pet="petonly"></div>' + pring() + '<div class="mid">' +
-        '<div class="mtop"><span class="dot"></span><span data-b="status"></span> ・ <span data-b="hm"></span>' + feedBtn('feed') +
+        '<div class="mtop"><span class="dot"></span><span class="mline"><span data-b="status"></span> ・ <span data-b="hm"></span></span>' +
+          '<span class="pline" data-prompt-line hidden></span>' + feedBtn('feed') +
           '<button type="button" class="x" data-act="menu" title="選單">⋯</button></div>' +
         '<div class="money-box" data-plus>' + MONEY + '</div>' +
         '<div class="thin"><div class="fill" data-fill></div></div>' +
@@ -91,12 +95,12 @@ QJZ.templates = (function () {
         '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
         '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
           '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
-        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
+        '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     M3: function () {
       return '<div class="m3 lay"><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
         '<div class="tagm" data-hit><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div>' +
-        '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + '<div class="fx" data-fx data-fxwin></div></div>';
+        '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     PANEL: function () {
       return '<div class="win panel lay" data-hit>' + BAR + '<div class="pbody" data-panel></div>' +

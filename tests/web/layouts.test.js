@@ -1501,12 +1501,12 @@
   function counts(cups, tomatoes) { return { health: { cups: cups, cupGoal: 8, tomatoes: tomatoes, standups: 0 } }; }
   // the element is drawn (not hidden by the §4.9 #8 rule, and it keeps no space when it is)
   function drawn(n) { var r = n ? n.getBoundingClientRect() : null; return !!r && r.width > 0 && r.height > 0; }
-  // the text of each drawn element in list, without what its hidden parts hold
+  // the text of each drawn element in list, without what its hidden parts hold, nor the 「+1」 a logged cup pops on it
   function seen(n) {
     var out = '';
     (function walk(x) {
       if (x.nodeType === 3) out += x.nodeValue;
-      else if (x.nodeType === 1 && drawn(x)) for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
+      else if (x.nodeType === 1 && drawn(x) && !x.classList.contains('plus')) for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
     })(n);
     return out.replace(/\s+/g, ' ').trim();
   }
@@ -1573,7 +1573,7 @@
     ok(pills.querySelector('[data-act=drink] svg.ic-drop') && pills.querySelector('[data-act=pomo]'), 'drink and pomo buttons');
     clickOn($(e, '.u1 [data-act=drink]'));
     eq(C.state.health.cups, 1);
-    eq(text(e, '.u1 [data-act=drink]'), '1/8 杯');
+    eq(text(e, '.u1 [data-act=drink] [data-b=cupsLong]'), '1/8 杯');
     clickOn($(e, '.u1 [data-act=pomo]'));
     eq(C.state.p.phase, 'focus');
     eq(text(e, '.u1 [data-act=pomo]'), '■ 停止');

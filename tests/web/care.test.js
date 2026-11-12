@@ -568,6 +568,23 @@
     done();
   });
 
+  // The host's menuOpening (app.js: QJZ.app.refresh) steps care too: a hidden page (no app tick, the heartbeat off here)
+  // answers with the healthMenu of now, so 記一杯水 and 開始／停止番茄鐘 are never left from before the page was hidden.
+  test('care: menuOpening while hidden brings healthMenu up to date (a focus that ended meanwhile, a cup)', function () {
+    var e = mk(at(9, 0));
+    menu(e, 'pomodoro');
+    vis(e, false, at(9, 1));
+    var m = mark(e);
+    e.clock.ms = at(9, 25, 5);
+    eq(sends(e, m, 'healthMenu'), [], 'nothing steps while hidden here');
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'break', endsMs: at(9, 30) } }], 'the break, at once');
+    eq(h(), [0, 1, 1]);
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(sends(e, m, 'healthMenu').length, 1, 'only on change');
+    done();
+  });
+
   test('care: reaching the cup goal', function () {
     var e = mk(at(9, 0));
     C.setCups(7);
@@ -662,6 +679,9 @@
     C._dev({ tomatoes: 3, prompt: 'break' });
     eq([C.state.p.phase, C.state.prompt.kind], ['break', 'break']);
     eq(C.view().sub, '第 3 顆番茄完成');
+    eq(C.view().waterLine, null);
+    C._dev({ prompt: 'break', water: true });
+    eq(C.view().waterLine, '順便喝口水吧～', 'and with the water line');
     done();
 
     e = mk(at(9, 10));
