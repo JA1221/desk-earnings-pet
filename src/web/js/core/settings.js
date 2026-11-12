@@ -14,6 +14,7 @@ QJZ.settings = (function () {
     sound: { enabled: false, volume: 0.6 },
     autostart: true,
     privacy: { hideFromCapture: true, hotkey: 'Ctrl+Alt+H' },
+    display: { opaque: false },   // 相容模式: paint the whole window (page-owned; the host has init.forceOpaque)
     onboarded: false
   };
   var LAYOUTS = ['U1', 'U3', 'U5B', 'U7', 'M3'];
@@ -89,6 +90,8 @@ QJZ.settings = (function () {
     var pv = isObj(s.privacy) ? s.privacy : {};
     out.privacy.hideFromCapture = bool(pv.hideFromCapture, d.privacy.hideFromCapture);
     out.privacy.hotkey = str(pv.hotkey, d.privacy.hotkey);
+    var disp = isObj(s.display) ? s.display : {};
+    out.display.opaque = bool(disp.opaque, d.display.opaque);
     out.onboarded = bool(s.onboarded, d.onboarded);
     return out;
   }

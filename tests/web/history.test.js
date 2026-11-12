@@ -18,6 +18,9 @@ test('history parse nulls out non-numeric earned', function(){ eq(QJZ.history.pa
 test('closeDay uses manual end and does not mutate', function(){
   var rec={day:'2026-11-11',startMs:QJZ.time.atMinutes('2026-11-11',510),endMs:QJZ.time.atMinutes('2026-11-11',960),earned:null};
   var r=QJZ.history.closeDay(rec,SETTINGS_50000); near(r.earned,6.5*3600*50000/22/8/3600,0.01); eq(rec.earned,null); });
+test('closeDay for an off day earns 0 even when it had started; flags kept', function(){
+  var rec={day:'2026-11-11',startMs:QJZ.time.atMinutes('2026-11-11',510),endMs:null,offDay:true,earned:null};
+  var r=QJZ.history.closeDay(rec,SETTINGS_50000); eq([r.earned,r.offDay,r.startMs],[0,true,rec.startMs]); });
 test('closeDay with no start earns 0', function(){ eq(QJZ.history.closeDay({day:'2026-11-11',startMs:null,endMs:null},SETTINGS_50000).earned,0); });
 test('monthTotal does not double count today, ignores other months', function(){
   var h={version:1,days:{'2026-11-11':{day:'2026-11-11',earned:100},'2026-11-10':{day:'2026-11-10',earned:50}}};

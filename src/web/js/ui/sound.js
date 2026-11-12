@@ -1,15 +1,33 @@
 window.QJZ = window.QJZ || {};
 // Web Audio synthesis, no audio files. Silent unless enabled; never throws when AudioContext is missing.
+// A running AudioContext keeps the audio device (and a thread) busy even in silence: it is suspended IDLE_MS after
+// the last sound (and at once when sound is switched off) and resumed for the next one.
 QJZ.sound = (function () {
-  var enabled = false, volume = 0.6, ctx = null, master = null, unlockBound = false;
+  var IDLE_MS = 5000;
+  var enabled = false, volume = 0.6, ctx = null, master = null, unlockBound = false, idleTimer = 0;
 
+  function quiet(p) { if (p && p.catch) p.catch(function () {}); }
   function resume() {
     try {
-      if (ctx && ctx.state === 'suspended' && ctx.resume) {
-        var p = ctx.resume();
-        if (p && p.catch) p.catch(function () {});
-      }
+      if (ctx && ctx.state === 'suspended' && ctx.resume) quiet(ctx.resume());
     } catch (e) {}
+  }
+  function sleep() {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; }
+    try {
+      if (ctx && ctx.state === 'running' && ctx.suspend) quiet(ctx.suspend());
+    } catch (e) {}
+  }
+  // (Re)starts the idle countdown; the longest sound (jingle) is well under a second.
+  function armIdle() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(sleep, IDLE_MS);
+  }
+  // A context created outside a user gesture starts suspended; a click lets it run (then it sleeps again when idle).
+  function onPointer() {
+    if (!enabled || !ctx) return;
+    resume();
+    armIdle();
   }
 
   function ensure() {
@@ -23,18 +41,19 @@ QJZ.sound = (function () {
         master.connect(ctx.destination);
       } catch (e) { ctx = null; master = null; return null; }
       if (!unlockBound) {
-        // A context created outside a user gesture starts suspended; the next click resumes it.
         unlockBound = true;
-        document.addEventListener('pointerdown', resume, true);
+        document.addEventListener('pointerdown', onPointer, true);
       }
     }
     resume();
+    armIdle();
     return ctx;
   }
 
   function setEnabled(on) {
     enabled = !!on;
     if (enabled) ensure();   // normally called from a click, so the autoplay policy is satisfied
+    else sleep();
   }
   function setVolume(v) {
     v = typeof v === 'number' && isFinite(v) ? v : 0.6;
@@ -82,6 +101,9 @@ QJZ.sound = (function () {
 
   return {
     setEnabled: setEnabled, setVolume: setVolume, coin: coin, meow: meow, squeak: squeak, jingle: jingle,
-    isEnabled: function () { return enabled; }, getVolume: function () { return volume; }
+    isEnabled: function () { return enabled; }, getVolume: function () { return volume; }, IDLE_MS: IDLE_MS,
+    // tests: run the pending idle timeout now (true if there was one); forget the context
+    _idle: function () { if (!idleTimer) return false; sleep(); return true; },
+    _reset: function () { sleep(); ctx = master = null; enabled = false; }
   };
 })();

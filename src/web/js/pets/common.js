@@ -45,13 +45,65 @@ QJZ.pets.common = (function () {
   }
 
   // per-SVG defs used by the kept skins and rooms: glossy eye gradient, crayon grain, crayon-room wobble and paper.
+  // crayon and wobble go on still parts only (filterStatic), many of them small or thin: their region is a fixed
+  // area around the art in user space, so a displaced edge is never clipped (the noise is the same as before).
   function defs(uid) {
     return `
  <radialGradient id="${uid}-geye" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#55423A"/><stop offset=".55" stop-color="#22160F"/><stop offset="1" stop-color="#120B08"/></radialGradient>
- <filter id="${uid}-crayon" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".5" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" result="d"/><feTurbulence type="fractalNoise" baseFrequency="1.3" numOctaves="2" seed="9" result="g"/><feColorMatrix in="g" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.4 3.1" result="m"/><feComposite in="d" in2="m" operator="in"/></filter>
- <filter id="${uid}-wobble" x="-2%" y="-2%" width="104%" height="104%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="8" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" xChannelSelector="R" yChannelSelector="G"/></filter>
+ <filter id="${uid}-crayon" ${REGION}><feTurbulence type="fractalNoise" baseFrequency=".5" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" result="d"/><feTurbulence type="fractalNoise" baseFrequency="1.3" numOctaves="2" seed="9" result="g"/><feColorMatrix in="g" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.4 3.1" result="m"/><feComposite in="d" in2="m" operator="in"/></filter>
+ <filter id="${uid}-wobble" ${REGION}><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="8" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" xChannelSelector="R" yChannelSelector="G"/></filter>
  <filter id="${uid}-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" seed="11"/><feColorMatrix type="matrix" values="0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .26 0 0 0 -1.5 .95"/></filter>`;
   }
 
-  return { L0: L0, ST: ST, star4: star4, blushLines: blushLines, scribble: scribble, badge: badge, seed: seed, keys: keys, defs: defs };
+  var REGION = 'filterUnits="userSpaceOnUse" x="-100" y="-100" width="500" height="430"';
+
+  // CPU: an SVG filter around something that animates is computed again on every frame (the crayon skins cost about
+  // twice the CPU of the others that way). Around a still subtree it is drawn once and reused while its parent moves.
+  // ANIMATED: every class pets.css animates (tests check that no filter is ever above a moving element).
+  var ANIMATED = ['armL', 'armR', 'bagsw', 'blink', 'bod', 'breath', 'cf', 'chew', 'cloud', 'code', 'coin', 'coinspin', 'crumb',
+    'csp', 'dot0', 'dot1', 'dot2', 'drip', 'eyes-alt', 'eyes-open', 'flame', 'fly', 'head', 'held', 'hrt', 'leaves', 'legs',
+    'limp', 'look', 'mouth-a', 'mouth-b', 'note', 'pawL', 'pawR', 'pose-a', 'pose-b', 'puff', 'qm', 'scr', 'smk', 'snot',
+    'spk', 'squish', 'steam', 'steam2', 'swing', 'tail', 'tear', 'tw', 'vein', 'zz'];
+  var MOVING = new RegExp('(?:^|\\s)(?:' + ANIMATED.join('|') + ')(?:\\s|$)');
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  function moving(el) {
+    if (MOVING.test(el.getAttribute('class') || '')) return true;
+    for (var c = el.firstElementChild; c; c = c.nextElementSibling) if (moving(c)) return true;
+    return false;
+  }
+  // Wraps each run of still siblings under el in <g filter="url">, and goes down into the children that move.
+  function split(el, url) {
+    var run = [];
+    function flush() {
+      for (var i = 0; i < run.length; i++) {
+        if (run[i].nodeType !== 1) continue;
+        var g = el.ownerDocument.createElementNS(SVGNS, 'g');
+        g.setAttribute('filter', url);
+        el.insertBefore(g, run[0]);
+        run.forEach(function (n) { g.appendChild(n); });
+        break;
+      }
+      run = [];
+    }
+    Array.prototype.slice.call(el.childNodes).forEach(function (n) {
+      if (n.nodeType === 1 && moving(n)) { flush(); split(n, url); }
+      else run.push(n);
+    });
+    flush();
+  }
+  // SVG markup (a fragment) with filter `url` on everything in it that does not move. Markup that does not parse
+  // as XML keeps the plain wrapper (the old way: correct, only slower).
+  function filterStatic(markup, url) {
+    if (!markup) return '';
+    var doc = null;
+    try { doc = new DOMParser().parseFromString('<svg xmlns="' + SVGNS + '">' + markup + '</svg>', 'image/svg+xml'); } catch (e) {}
+    if (!doc || doc.getElementsByTagName('parsererror').length) return '<g filter="' + url + '">' + markup + '</g>';
+    split(doc.documentElement, url);
+    var s = new XMLSerializer().serializeToString(doc.documentElement), a = s.indexOf('>') + 1, b = s.lastIndexOf('</svg>');
+    return b > a ? s.slice(a, b) : '';
+  }
+
+  return { L0: L0, ST: ST, star4: star4, blushLines: blushLines, scribble: scribble, badge: badge, seed: seed, keys: keys, defs: defs,
+    ANIMATED: ANIMATED, filterStatic: filterStatic };
 })();

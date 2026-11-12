@@ -36,8 +36,11 @@ QJZ.earn = (function () {
     return end;
   }
 
+  // p: {startMs, endMs, nowMs, day, salary, hoursPerDay, lunch, offDay}. An off day (今天休假) earns 0 with status
+  // 'off', started or not.
   function snapshot(p) {
     var target = p.hoursPerDay * 3600;
+    if (p.offDay) return { status: 'off', workedSec: 0, earned: 0, pct: 0, remainingSec: target, endAtMs: null };
     var r = rates(p.salary, p.hoursPerDay);
     var hasStart = typeof p.startMs === 'number';
     var ended = p.endMs !== null && p.endMs !== undefined;

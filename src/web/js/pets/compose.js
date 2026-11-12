@@ -18,10 +18,11 @@ QJZ.pets.compose = (function () {
   var PETONLY = '30 4 176 170';
   var SLOT = /<!--(EYES|MOUTH|OVER)-->/g;
 
-  // skin render wrapper around each pet layer (prototype PW): crayon skins get grain + wobble
+  // skin render wrapper around each pet layer (prototype PW): crayon skins get grain + wobble, on the parts that
+  // stand still (C.filterStatic: a filter above a moving part would be redrawn every frame)
   function wrap(mode, uid, layer) {
     if (!layer) return '';
-    return mode === 'crayon' ? '<g filter="url(#' + uid + '-crayon)">' + layer + '</g>' : layer;
+    return mode === 'crayon' ? C.filterStatic(layer, 'url(#' + uid + '-crayon)') : layer;
   }
 
   function fill(layer, slots) {

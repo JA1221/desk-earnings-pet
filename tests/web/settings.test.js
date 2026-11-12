@@ -26,6 +26,9 @@ test('validateSalary accepts full-width digits', function(){ var v=QJZ.settings.
 test('validateSalary boundaries and odd input', function(){ var v=QJZ.settings.validateSalary;
   eq(v('10000000').value,10000000); eq(v('10000001').error,'金額太大了'); eq(v('1').value,1); eq(v('12.5').value,12.5);
   eq(v('.').error,'請輸入數字'); eq(v('5,00').error,'請輸入數字'); eq(v('1 000').error,'請輸入數字'); eq(v('NaN').error,'請輸入數字'); eq(v('Infinity').error,'請輸入數字'); eq(v(null).error,'請輸入薪資'); });
+test('display.opaque (相容模式) defaults to false and is sanitised', function(){
+  eq(P(null).settings.display,{opaque:false}); eq(P('{"display":{"opaque":true}}').settings.display,{opaque:true});
+  eq(P('{"display":{"opaque":"yes"}}').settings.display.opaque,false); eq(P('{"display":5}').settings.display,{opaque:false}); });
 test('skinsFor', function(){ eq(QJZ.settings.skinsFor('hamster'),['p0','p4','h2','s4','s5']); eq(QJZ.settings.skinsFor('cat'),['p0','p4','s5']); });
 test('workDays: all-invalid non-empty falls back, empty stays empty, numeric sort', function(){
   eq(P('{"workDays":[9,"x"]}').settings.workDays,[1,2,3,4,5]); eq(P('{"workDays":[]}').settings.workDays,[]); eq(P('{"workDays":[6,0,3]}').settings.workDays,[0,3,6]); });

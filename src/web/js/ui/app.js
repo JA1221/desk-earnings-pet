@@ -7,7 +7,13 @@ window.QJZ = window.QJZ || {};
 //  - Older open records are closed on init / rollover: records that never started (startMs null) are DROPPED
 //    unless they carry an off-day marker (kept, closed with earned 0); started ones ask QJZ.day.earlyLeaveQuestion first. Only the most recent
 //    such question is asked (state.pendingQuestion); older ones are closed directly. Until answered the record
-//    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save.
+//    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save. Before that, init.lastExitMs
+//    (the host's last shutdown / sign-out) counts as a lock of its day's open record (QJZ.day.onExit).
+//  - Unreadable settings / history text (init.settings / init.history do not parse): backupCorrupt {file} for the
+//    main file first, then the .bak copy (init.backups.settings / .history) is used when it parses, else defaults /
+//    an empty history. A settings .bak that was used is saved back as the main file.
+//  - 今天休假 (setOffDay): today counts 0, status 'off', whatever its start and end; off again, it counts as before.
+//    下班 then 繼續上班 (resumeWork): the end is cleared and the day runs on from its start.
 //  - Money is always computed from the wall clock (Date.now() + dev offset), never accumulated from tick counts.
 // Events (on): tick (every 100 ms, snap), second (snap), change (state), milestone ({count, gained, quiet}) when
 // the clock carries today's earnings past another settings.milestone step (gained: how many steps at once). Record /
@@ -23,20 +29,22 @@ window.QJZ = window.QJZ || {};
 //                                         is the saved one and the host still has a working one (active), the
 //                                         saved privacy.hotkey goes back to active, so the next start registers it.
 //   storageError {file, reason}           state.storageError (the last one), state.storageErrors (each file once).
-// Host settings the page changes (saved and sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
+// Host settings the page changes (saved at once, then sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
+// Session: lock / unlock are tracked; a resume while locked is not an arrival (the unlock that follows is).
+// 相容模式: html.opaque (base.css paints the whole page) while settings.display.opaque or init.forceOpaque.
 QJZ.app = (function () {
   var SAVE_DELAY = 1000, TICK_MS = 100, QUIET_GAP_MS = 5000;
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
-    pendingQuestion: null, startHint: null, ready: false, paused: false, version: null,
+    pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, forceOpaque: false,
     hotkeyFailed: null, storageError: null, storageErrors: []
   };
   var listeners = { tick: [], second: [], change: [], milestone: [], notice: [] };
   var tickTimer = null, saveTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
-  var started = false, unloadBound = false, tickEnabled = true, resumed = false, lastTickMs = null;
+  var started = false, unloadBound = false, tickEnabled = true, resumed = false, lastTickMs = null, locked = false;
   var moodMs = 0, moodDay = null, moodStart = null;
   var bridge = null, nowFn = Date.now;
 
@@ -74,16 +82,16 @@ QJZ.app = (function () {
     state.rates = QJZ.earn.rates(s.salary, s.hoursPerDay);
     state.snap = QJZ.earn.snapshot({
       startMs: t.startMs, endMs: t.endMs, nowMs: ms, day: t.day,
-      salary: s.salary, hoursPerDay: s.hoursPerDay, lunch: s.lunch
+      salary: s.salary, hoursPerDay: s.hoursPerDay, lunch: s.lunch, offDay: !!t.offDay
     });
     state.snacks = QJZ.rewards.snacksAvailable(t, state.snap.earned, s.milestone);
     updateMood(ms);
   }
   // Fresh each day; a start that moves (adjustStart) is counted again from the new start, unless the day simply
-  // started now (auto start, 開始上班), which keeps the mood the pet already has.
+  // started now (auto start, 開始上班), which keeps the mood the pet already has. An off day is not a work day.
   function updateMood(ms) {
     if (!QJZ.mood) return;
-    var t = state.today, start = typeof t.startMs === 'number' ? t.startMs : null;
+    var t = state.today, start = typeof t.startMs === 'number' && !t.offDay ? t.startMs : null;
     var fresh = !state.mood || moodDay !== t.day ||
       (start !== moodStart && !(moodStart === null && start !== null && start >= moodMs - 1000));
     moodDay = t.day; moodStart = start;
@@ -95,7 +103,7 @@ QJZ.app = (function () {
     if (ms - moodMs < 1000 && !fresh) return;
     var s = state.settings;
     state.mood = QJZ.mood.advance(state.mood, moodMs, ms,
-      { day: t.day, startMs: t.startMs, endMs: t.endMs, hoursPerDay: s.hoursPerDay, lunch: s.lunch });
+      { day: t.day, startMs: start, endMs: t.endMs, hoursPerDay: s.hoursPerDay, lunch: s.lunch });
     moodMs = ms;
   }
   function milestones() { return QJZ.rewards.milestones(state.snap.earned, state.settings.milestone); }
@@ -161,13 +169,31 @@ QJZ.app = (function () {
   }
 
   // ---- init ----
+  // The main text parsed by parse(text); when it is unreadable, backupCorrupt for it, then the .bak text if that
+  // parses (fromBak), else parse's defaults / empty result.
+  function readFile(file, parse, text, bak) {
+    var r = parse(text === undefined ? null : text);
+    if (!r.corrupted) return r;
+    bridge.send('backupCorrupt', { file: file });   // before anything can overwrite it
+    if (typeof bak === 'string') {
+      var b = parse(bak);
+      if (!b.corrupted) { b.fromBak = true; return b; }
+    }
+    return r;
+  }
+  // R-F2: the host's last exit counts as a lock of its day's open record, before the record is retired.
+  function applyExit(exitMs, todayKey) {
+    if (typeof exitMs !== 'number' || !isFinite(exitMs)) return;
+    var day = QJZ.time.dayKey(exitMs), rec = state.history.days[day];
+    if (day >= todayKey || !rec || rec.earned !== null) return;
+    state.history.days[day] = QJZ.day.onExit(rec, exitMs);
+  }
+
   function onInit(msg) {
     if (state.ready) flush();   // a repeated init: do not lose unsaved changes to the host copy
-    var sp = QJZ.settings.parse(msg.settings === undefined ? null : msg.settings);
-    var hp = QJZ.history.parse(msg.history === undefined ? null : msg.history);
-    // Back up unreadable files before anything can overwrite them.
-    if (sp.corrupted) bridge.send('backupCorrupt', { file: 'settings' });
-    if (hp.corrupted) bridge.send('backupCorrupt', { file: 'history' });
+    var bak = isPlain(msg.backups) ? msg.backups : {};
+    var sp = readFile('settings', QJZ.settings.parse, msg.settings, bak.settings);
+    var hp = readFile('history', QJZ.history.parse, msg.history, bak.history);
 
     if (bridge.mock && typeof msg.nowMs === 'number') clockOffset = msg.nowMs - nowFn();
     var now = typeof msg.nowMs === 'number' ? msg.nowMs : nowMs();
@@ -177,10 +203,13 @@ QJZ.app = (function () {
     state.pendingQuestion = null;
     state.startHint = null;
     state.version = typeof msg.version === 'string' && msg.version ? msg.version : null;   // the host's AppHost.Version (設定 → 關於)
+    state.forceOpaque = msg.forceOpaque === true;   // the host could not make the window transparent
     applySound();
+    applyDisplay();
 
     var key = QJZ.time.dayKey(now);
     setToday(state.history.days[key] || QJZ.day.empty(key));
+    applyExit(msg.lastExitMs, key);
     retireOlder(key);
 
     if (typeof msg.probeMs === 'number' && QJZ.time.dayKey(msg.probeMs) === key) {
@@ -192,6 +221,7 @@ QJZ.app = (function () {
 
     state.ready = true;
     dirtyHistory = true;
+    if (sp.fromBak) dirtySettings = true;   // the .bak copy becomes the main file again
     if (!state.paused) startTick();
     recompute(nowMs());
     lastMilestone = milestones();
@@ -254,11 +284,15 @@ QJZ.app = (function () {
   }
 
   function onSession(msg) {
+    if (msg.kind === 'lock') locked = true;
+    else if (msg.kind === 'unlock' || msg.kind === 'logon') locked = false;
     if (!state.ready) return;
     var ms = typeof msg.ms === 'number' ? msg.ms : nowMs();
     checkRollover(nowMs());
     if (msg.kind === 'lock' || msg.kind === 'suspend') {
       updateToday(QJZ.day.onLock(state.today, ms));
+    } else if (msg.kind === 'resume' && locked) {
+      // waking up to the lock screen is not arriving: the unlock that follows is
     } else if (msg.kind === 'logon' || msg.kind === 'unlock' || msg.kind === 'resume') {
       var before = state.today.startMs;
       updateToday(QJZ.day.onActivity(state.today, { type: msg.kind, ms: ms }, state.settings));
@@ -281,6 +315,9 @@ QJZ.app = (function () {
     QJZ.sound.setVolume(state.settings.sound.volume);
     QJZ.sound.setEnabled(state.settings.sound.enabled);
   }
+  function applyDisplay() {
+    document.documentElement.classList.toggle('opaque', !!(state.settings.display.opaque || state.forceOpaque));
+  }
 
   // ---- actions ----
   function startWork() {
@@ -297,6 +334,14 @@ QJZ.app = (function () {
     if (!state.ready || typeof state.today.startMs !== 'number') return;
     updateToday(QJZ.day.manualEnd(state.today, nowMs()));
     flush();
+  }
+  // 繼續上班: today was ended (下班); clear the end. false when there is nothing to continue.
+  function resumeWork() {
+    var t = state.today;
+    if (!state.ready || typeof t.startMs !== 'number' || t.endMs === null || t.endMs === undefined) return false;
+    updateToday(QJZ.day.resume(t));
+    flush();
+    return true;
   }
   function setOffDay(v) {
     if (!state.ready) return;
@@ -316,6 +361,7 @@ QJZ.app = (function () {
     // Round-trip through the sanitizer so a bad patch can never leave invalid settings behind.
     state.settings = QJZ.settings.parse(JSON.stringify(merge(state.settings, isPlain(patch) ? patch : {}))).settings;
     applySound();
+    applyDisplay();
     markSettings();
     changed();
   }
@@ -327,15 +373,17 @@ QJZ.app = (function () {
     bridge.send('quit', {});
   }
 
-  // ---- host settings (saved in settings.json, which the host reads at start, and applied now) ----
+  // ---- host settings (saved in settings.json at once, which the host reads at start, and applied now) ----
   function setAutostart(on) {
     if (!state.ready) return;
     saveSettings({ autostart: !!on });
+    flush();
     bridge.send('setAutostart', { on: !!on });
   }
   function setCaptureGuard(on) {
     if (!state.ready) return;
     saveSettings({ privacy: { hideFromCapture: !!on } });
+    flush();
     bridge.send('setCaptureGuard', { on: !!on });
   }
   // combo: "Ctrl+Alt+H" style. The host answers only a failure (hotkeyFailed).
@@ -343,6 +391,7 @@ QJZ.app = (function () {
     if (!state.ready || typeof combo !== 'string' || !combo) return;
     state.hotkeyFailed = null;
     saveSettings({ privacy: { hotkey: combo } });
+    flush();
     bridge.send('setHotkey', { combo: combo });
   }
 
@@ -384,17 +433,18 @@ QJZ.app = (function () {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     dirtySettings = dirtyHistory = false;
     clockOffset = 0; lastSec = null; lastMilestone = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
-    resumed = false; lastTickMs = null; moodMs = 0; moodDay = null; moodStart = null; state.mood = null;
+    resumed = false; lastTickMs = null; moodMs = 0; moodDay = null; moodStart = null; state.mood = null; locked = false;
     listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
-    state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null;
+    state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;
     document.documentElement.classList.remove('paused');
+    document.documentElement.classList.remove('opaque');
   }
 
   return {
     state: state, start: start, tickNow: tick, _reset: reset, on: on, nowMs: nowMs, flush: flush,
-    startWork: startWork, adjustStart: adjustStart, endWork: endWork, setOffDay: setOffDay,
+    startWork: startWork, adjustStart: adjustStart, endWork: endWork, resumeWork: resumeWork, setOffDay: setOffDay,
     feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit,
     setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey
   };

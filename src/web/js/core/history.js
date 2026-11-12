@@ -28,6 +28,7 @@ QJZ.history = (function () {
   }
 
   // Fill `earned` (rounded to cents) from the record's end: manual/confirmed end, else the planned end (8 h cap).
+  // An off day (今天休假) closes at 0, started or not.
   function closeDay(rec, settings) {
     var out = {};
     for (var k in rec) if (Object.prototype.hasOwnProperty.call(rec, k)) out[k] = rec[k];
@@ -37,7 +38,7 @@ QJZ.history = (function () {
       var snap = QJZ.earn.snapshot({
         startMs: rec.startMs, endMs: rec.endMs === undefined ? null : rec.endMs,
         nowMs: planned, day: rec.day, salary: settings.salary,
-        hoursPerDay: settings.hoursPerDay, lunch: settings.lunch
+        hoursPerDay: settings.hoursPerDay, lunch: settings.lunch, offDay: !!rec.offDay
       });
       earned = Math.round(snap.earned * 100) / 100;
     }

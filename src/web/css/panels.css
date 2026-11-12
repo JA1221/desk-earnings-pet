@@ -27,6 +27,7 @@
 .panel .hint:empty{display:none}
 .panel pre.lic{margin:6px 0 0;max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.45 Consolas,"Microsoft JhengHei UI",monospace;
   color:var(--line);background:var(--bg);border:2px solid var(--dash);border-radius:10px;padding:7px 9px;user-select:text;-webkit-user-select:text}
+.panel pre.guide{max-height:300px;font-size:11.5px;line-height:1.55}
 .panel .pnote{font-size:12px;font-weight:600;color:var(--sub);line-height:1.5}
 .panel .sub{font-size:12.5px;font-weight:600;color:var(--sub);margin-top:2px}
 .panel .err{font-size:12px;font-weight:700;color:var(--err);margin-top:5px;line-height:1.4}
@@ -75,6 +76,7 @@
 .panel .tgl::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;border:2.5px solid var(--line);box-sizing:border-box;transition:left .18s cubic-bezier(.3,1.4,.5,1)}
 .panel .tgl[aria-checked=true]{background:var(--ok)}
 .panel .tgl[aria-checked=true]::after{left:22px}
+.panel .tgl:disabled{opacity:.55;cursor:default}
 
 /* warnings */
 .panel .pwarn,.panel .warn{flex:none;background:var(--warn);border:2.5px solid var(--line);border-radius:14px;box-shadow:2px 2px 0 var(--shadow);

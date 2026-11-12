@@ -218,13 +218,13 @@
       emit: function (m) { (handlers[m.type] || []).slice().forEach(function (f) { f(m); }); }
     };
     var root = fixture();
-    QJZ.layouts.start(root, { bridge: bridge, first: o.first });
+    QJZ.layouts.start(root, { bridge: bridge, first: o.first, session: o.session });
     QJZ.panels.start();
     QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
     var h = o.history || { version: 1, days: {} }, day = QJZ.time.dayKey(nowMs);
     if (o.start !== null && !h.days[day]) h.days[day] = QJZ.day.manualStart(QJZ.day.empty(day), o.start === undefined ? at(12, 9, 0) : o.start);
     bridge.emit({ type: 'init', settings: JSON.stringify(o.settings === undefined ? READY : o.settings), history: JSON.stringify(h),
-      probeMs: null, nowMs: nowMs, version: 't' });
+      probeMs: null, nowMs: nowMs, version: 't', forceOpaque: !!o.forceOpaque });
     return { bridge: bridge, sent: sent, clock: clock, root: root,
       menu: function (a) { bridge.emit({ type: 'menu', action: a }); },
       tick: function (ms) { clock.ms = ms; QJZ.app.tickNow(); } };
@@ -450,7 +450,7 @@
     done();
   });
 
-  test('panels DOM: 關於 shows the version and loads the licence texts once, as plain text', function () {
+  test('panels DOM: 關於 shows the version and loads the guide and the licence texts once, as plain text', function () {
     var e = mk(at(12, 10, 0));
     var orig = window.fetch, calls = [];
     function now(v) { return { then: function (ok) { var r = ok(v); return r && r.then ? r : now(r); } }; }   // a synchronous fetch
@@ -463,13 +463,16 @@
       ok(visible($(e, '[data-sec=about]')));
       eq(text(e, '[data-o=version]'), '版本 t', 'the version the host sent with init');
       ok(text(e, '[data-sec=about]').indexOf('不會上傳') >= 0, 'the data stays on this PC');
-      eq(calls, ['licenses/WebView2-SDK.txt', 'fonts/OFL.txt']);
-      var pres = $$(e, '[data-lic]');
-      eq(pres.map(function (p) { return p.textContent; }), ['<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>'], 'as text');
-      ok(!pres[0].querySelector('b'), 'never as markup');
+      eq(calls, ['guide.txt', 'licenses/WebView2-SDK.txt', 'fonts/OFL.txt']);
+      var pres = $$(e, '[data-doc]');
+      eq(pres.map(function (p) { return p.textContent; }), ['<b>guide.txt</b>', '<b>licenses/WebView2-SDK.txt</b>', '<b>fonts/OFL.txt</b>'], 'as text');
+      ok(!pres[0].querySelector('b') && !pres[1].querySelector('b'), 'never as markup');
+      eq(pres[0].tagName, 'PRE');
+      ok(text(e, '[data-sec=about]').indexOf('使用說明') >= 0, 'the guide has a title');
+      eq(getComputedStyle(pres[0]).overflowY, 'auto', 'it scrolls');
       $(e, '[data-tab=salary]').click();
       $(e, '[data-tab=about]').click();
-      eq(calls.length, 2, 'loaded once');
+      eq(calls.length, 3, 'loaded once');
     } finally { window.fetch = orig; }
     done();
     var f = mk(at(12, 10, 0)), orig2 = window.fetch;
@@ -477,7 +480,7 @@
     try {
       f.menu('settings');
       $(f, '[data-tab=about]').click();
-      eq($$(f, '[data-lic]').map(function (p) { return p.textContent; }), ['（讀不到授權文字。）', '（讀不到授權文字。）']);
+      eq($$(f, '[data-doc]').map(function (p) { return p.textContent; }), ['（讀不到使用說明。）', '（讀不到授權文字。）', '（讀不到授權文字。）']);
     } finally { window.fetch = orig2; }
     done();
   });
@@ -538,6 +541,73 @@
     $(e, '[data-pa=applyStart]').click();
     eq(QJZ.app.state.today.startMs, at(12, 8, 45));
     ok(text(e, '[data-o=todayStart]').indexOf('08:45') >= 0);
+    done();
+  });
+
+  test('panels DOM: 起算 → 今天休假 zeroes a started day; 繼續上班 shows after 下班 and continues', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    $(e, '[data-tab=start]').click();
+    ok(text(e, '[data-sec=start]').indexOf('不算錢') >= 0, 'the hint says the day counts 0');
+    ok(!visible($(e, '[data-pa=resume]')), 'nothing to continue while working');
+    $(e, '[data-tgl=offDay]').click();
+    eq([QJZ.app.state.snap.status, QJZ.app.state.snap.earned], ['off', 0]);
+    $(e, '[data-tgl=offDay]').click();
+    near(QJZ.app.state.snap.earned, 284.09, 0.01, 'off again: the day earns as before');
+    QJZ.app.endWork();
+    var b = $(e, '[data-pa=resume]');
+    ok(visible(b), 'after 下班');
+    eq(b.textContent, '繼續上班');
+    ok(text(e, '[data-sec=start]').indexOf('10:00') >= 0, 'when the day ended');
+    b.click();
+    eq(QJZ.app.state.today.endMs, null);
+    eq(QJZ.app.state.snap.status, 'working');
+    ok(!visible($(e, '[data-pa=resume]')));
+    QJZ.app.setOffDay(true);
+    QJZ.app.endWork();
+    ok(!visible($(e, '[data-pa=resume]')), 'not on a holiday');
+    done();
+  });
+
+  test('panels DOM: 版型 → 相容模式（不透明背景） toggles display.opaque; forced by the host it stays on', function () {
+    var e = mk(at(12, 10, 0)), root = document.documentElement;
+    e.menu('settings');
+    $(e, '[data-tab=layout]').click();
+    ok(text(e, '[data-sec=layout]').indexOf('相容模式（不透明背景）') >= 0);
+    ok(text(e, '[data-sec=layout]').indexOf('視窗周圍出現黑框時請開啟') >= 0);
+    var t = $(e, '[data-tgl=opaque]');
+    eq([t.getAttribute('aria-checked'), t.disabled], ['false', false]);
+    t.click();
+    eq(QJZ.app.state.settings.display.opaque, true);
+    eq(t.getAttribute('aria-checked'), 'true');
+    ok(root.classList.contains('opaque'));
+    eq(savedSettings(e).display, { opaque: true });
+    t.click();
+    eq(QJZ.app.state.settings.display.opaque, false);
+    ok(!root.classList.contains('opaque'));
+    done();
+    var f = mk(at(12, 10, 0), { forceOpaque: true });
+    f.menu('settings');
+    $(f, '[data-tab=layout]').click();
+    t = $(f, '[data-tgl=opaque]');
+    eq([t.getAttribute('aria-checked'), t.disabled], ['true', true], 'on, and cannot be turned off');
+    t.click();
+    eq(QJZ.app.state.settings.display.opaque, false, 'the saved setting is untouched');
+    ok(text(f, '[data-sec=layout]').indexOf('自動開啟') >= 0, 'says why');
+    ok(root.classList.contains('opaque'));
+    done();
+    ok(!root.classList.contains('opaque'));
+  });
+
+  test('panels DOM: after a reload a pending question still comes first; closing it goes to the remembered layout', function () {
+    var m = {}, s = { getItem: function (k) { return m.hasOwnProperty(k) ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } };
+    var e = mk(at(12, 10, 0), { session: s });
+    e.menu('layout:U5B');
+    var f = mk(at(12, 10, 0), { session: s, history: yesterdayOpen([15, 0]) });
+    eq(QJZ.layouts.current(), 'PANEL');
+    ok($(f, '.panel.p-question'));
+    $(f, '[data-pa=no]').click();
+    eq(QJZ.layouts.current(), 'U5B');
     done();
   });
 

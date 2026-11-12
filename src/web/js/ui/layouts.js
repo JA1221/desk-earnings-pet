@@ -12,7 +12,8 @@ window.QJZ = window.QJZ || {};
 //                                           or the DPR changes.
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
 //                                           through. Sent with every setLayout and whenever the rects change
-//                                           (bubble, hover tools, text growing, resize).
+//                                           (hover tools, text growing, resize). Speech bubbles are never
+//                                           interactive: no rect of their own, pointer-events none.
 //   setTopmost {on}                         after every layout change, from settings.layout.topmost (and when the
 //                                           settings panel changes the setting of the layout PANEL came from).
 //   dragStart {}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click, so
@@ -21,7 +22,9 @@ window.QJZ = window.QJZ || {};
 // Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
 //
 // settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. The first layout
-// after init is settings.layout.start (dev pages may override it with opts.first).
+// after init is settings.layout.start (dev pages may override it with opts.first), except after a reload of the
+// page (the host reloads it after a renderer crash): the layout shown last (M3 included; PANEL: the layout it came
+// from) is kept in sessionStorage, which only lives as long as this WebView, and comes back.
 // Rendering: the odometer follows the 100 ms tick; every other text changes at most once a second (or on a
 // record / settings change), computed from the wall clock, and is only written when it changed.
 // The pet: QJZ.behavior's Brain decides the state from the wall clock on every app tick (base state per status,
@@ -48,6 +51,7 @@ QJZ.layouts = (function () {
   var SNACK = { cat: '🐟', hamster: '🌻' };
   var WD = '日一二三四五六';
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
+  var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
   var REACTIONS = { petted: 1, angry: 1, eat: 1, hop: 1, dangle: 1 };
 
@@ -207,7 +211,7 @@ QJZ.layouts = (function () {
         '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
         '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
           '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
-        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble data-hit data-hit-if=".show"></div></div></div>';
+        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     M3: function () {
       return '<div class="m3 lay"><div class="ring" data-ring data-hit><div class="av" data-pet="avatar"></div></div>' +
@@ -223,7 +227,7 @@ QJZ.layouts = (function () {
   function panelTitle(kind) { return panels() ? panels().title(kind) : ''; }
 
   // ================= runtime =================
-  var root = null, bridge = null, first = null;
+  var root = null, bridge = null, first = null, session = null, resumeAt = null;
   var cur = null, panelKind = 'settings', panelFrom = null, shown = false;
   var view = null;
   var sent = { size: '', hits: '' };
@@ -416,8 +420,8 @@ QJZ.layouts = (function () {
     var r = view.el.getBoundingClientRect();
     return { width: Math.ceil(r.right) + SHADOW, height: Math.ceil(r.bottom) + SHADOW };
   }
-  // The element's border box in page px without its own CSS transform (a bubble pops in with a scale
-  // transition; its hit rect is where it ends up). Offsets are whole px; the chain stops at body, whose
+  // The element's border box in page px without its own CSS transform (an element in the middle of a transform
+  // transition: its hit rect is where it ends up). Offsets are whole px; the chain stops at body, whose
   // children's offsets are already page coordinates.
   function layoutBox(el) {
     var x = 0, y = 0, n = el;
@@ -484,15 +488,28 @@ QJZ.layouts = (function () {
     }
     sync(true);   // synchronous: the first one is what shows the window
     view.live = true;
+    remember(name === 'PANEL' ? panelFrom : name);
     send('setTopmost', { on: topmostFor(name) });
     var s = app().state.settings;
     if (isMain(name) && s.layout.current !== name) app().saveSettings({ layout: { current: name } });
     return true;
   }
   function current() { return cur; }
-  // Where a panel shown first (nothing before it) goes back to.
+  // The first layout, and where a panel shown first (nothing before it) goes back to: opts.first (dev), the layout
+  // shown before a reload, else settings.layout.start.
   function startLayout() {
-    return first && first !== 'PANEL' && ALL.indexOf(first) >= 0 ? first : app().state.settings.layout.start;
+    if (first && first !== 'PANEL' && ALL.indexOf(first) >= 0) return first;
+    return resumeAt || app().state.settings.layout.start;
+  }
+  // sessionStorage can be missing or throw (and is only for the reload): never fatal.
+  function remember(name) {
+    if (!session || !name || name === 'PANEL') return;
+    try { session.setItem(SHOWN_KEY, name); } catch (e) {}
+  }
+  function recalled() {
+    var v = null;
+    try { v = session ? session.getItem(SHOWN_KEY) : null; } catch (e) {}
+    return isMain(v) || v === 'M3' ? v : null;
   }
   function openPanel(kind) {
     panelKind = panels() && panels().has(kind) ? kind : 'settings';
@@ -511,7 +528,7 @@ QJZ.layouts = (function () {
     timers.type = timers.say = 0;
     bubbleRank = 0;
   }
-  // A speech bubble where the layout has one (U1, U3, U7), else a short banner. Kept in the hit rects while shown.
+  // A speech bubble where the layout has one (U1, U3, U7), else a short banner. Never interactive (no hit rect).
   // rank (layouts-internal): RANK of the line; other modules' lines rank with the user's own actions.
   function say(text, ms, rank) {
     if (!view || !text) return false;
@@ -524,7 +541,7 @@ QJZ.layouts = (function () {
     var chars = Array.from(text), i = 0;   // code points: an emoji never shows half drawn
     timers.type = setInterval(function () {
       b.textContent = chars.slice(0, ++i).join('');
-      if (i >= chars.length) { clearInterval(timers.type); timers.type = 0; if (view === v) sync(false); }
+      if (i >= chars.length) { clearInterval(timers.type); timers.type = 0; }
     }, 55);
     timers.say = setTimeout(function () {
       timers.say = 0;
@@ -532,9 +549,7 @@ QJZ.layouts = (function () {
       if (view !== v) return;
       bubbleRank = 0;
       chatAt = nextChat(app().nowMs());
-      sync(false);
     }, ms || 4200);
-    sync(false);
     return true;
   }
 
@@ -625,14 +640,20 @@ QJZ.layouts = (function () {
     petSay(line('hop'), 0, RANK.event);
   }
 
+  // 開始上班: starts the day (an off day too: that ends 今天休假); after 下班 it is 繼續上班 (the end is cleared).
   function startWork() {
     var t = app().state.today;
-    if (typeof t.startMs === 'number') { say(t.endMs !== null && t.endMs !== undefined ? '今天已經下班囉！' : '已經在算錢囉！'); return; }
+    if (typeof t.startMs === 'number' && !t.offDay) {
+      if (t.endMs !== null && t.endMs !== undefined) { app().resumeWork(); say('繼續上班！金額接著算。'); }
+      else say('已經在算錢囉！');
+      return;
+    }
     app().startWork();
     say('開始上班！今天也加油！');
   }
   function endWork() {
     var t = app().state.today;
+    if (t.offDay) { say('今天休假喔～'); return; }
     if (typeof t.startMs !== 'number') { say('還沒開始上班喔～'); return; }
     if (t.endMs !== null && t.endMs !== undefined) return;
     app().endWork();
@@ -682,7 +703,7 @@ QJZ.layouts = (function () {
       shown = true;
       var p = !first && panels() ? panels().initial(app().state) : null;
       if (p) openPanel(p);
-      else show(ALL.indexOf(first) >= 0 ? first : app().state.settings.layout.start);
+      else show(first === 'PANEL' ? first : startLayout());
       return;
     }
     render();
@@ -800,13 +821,17 @@ QJZ.layouts = (function () {
   }
 
   // opts: {bridge (default QJZ.bridge), first: layout to show first instead of settings.layout.start (dev),
-  //        seed: a number to make the pet's idle actions reproducible (dev)}.
+  //        seed: a number to make the pet's idle actions reproducible (dev),
+  //        session: a Storage for the layout to come back to after a reload (default window.sessionStorage)}.
   // Call before QJZ.app.start(); nothing shows until the host's init has arrived.
   function start(rootEl, opts) {
     opts = opts || {};
     root = rootEl;
     bridge = opts.bridge || QJZ.bridge;
     first = opts.first || null;
+    session = opts.session;
+    if (session === undefined) { try { session = window.sessionStorage; } catch (e) { session = null; } }
+    resumeAt = recalled();
     brain = QJZ.behavior ? new QJZ.behavior.Brain(typeof opts.seed === 'number' ? QJZ.behavior.rng(opts.seed) : null) : null;
     var A = app();
     offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone));
@@ -849,7 +874,8 @@ QJZ.layouts = (function () {
       root.innerHTML = '';
     }
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
-    root = bridge = first = view = cur = panelFrom = drag = null;
+    try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
+    root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '' };
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null };

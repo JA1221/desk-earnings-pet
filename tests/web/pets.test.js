@@ -256,6 +256,57 @@
     });
   });
 
+  // CPU (final review R-F5): an SVG filter around something that animates is computed again every frame. The crayon
+  // grain and the room wobble sit on the still parts only (inside the moving groups), so they are drawn once.
+  test('pets: crayon skins keep their filters off everything that animates, in every view and state', function () {
+    var host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-2000px;top:0;width:300px;height:200px';
+    document.body.appendChild(host);
+    try {
+      ['hamster:s5', 'cat:s5'].forEach(function (id) {
+        VIEWS.forEach(function (view) {
+          STATES.forEach(function (st) {
+            host.innerHTML = QJZ.pets.compose(id, view, { state: st });
+            var svg = host.firstElementChild, bad = [], moving = 0;
+            Array.prototype.forEach.call(svg.querySelectorAll('*'), function (el) {
+              if (getComputedStyle(el).animationName === 'none') return;
+              moving++;
+              var f = el.closest('[filter]');
+              if (f && svg.contains(f)) bad.push((el.getAttribute('class') || el.tagName) + ' under ' + f.getAttribute('filter'));
+            });
+            ok(moving > 0, id + ' ' + view + ' ' + st + ': something moves');
+            eq(bad, [], id + ' ' + view + ' ' + st);
+            ok(svg.querySelectorAll('[filter*="-crayon"]').length > 0, id + ' ' + view + ' ' + st + ': still crayon');
+          });
+        });
+      });
+      // the still parts inside a moving group keep the grain: the paws and the body outline
+      host.innerHTML = QJZ.pets.compose('hamster:s5', 'petonly', { state: 'typing' });
+      ['.pawL ellipse', '.pawR ellipse', '.head path[fill="none"]'].forEach(function (sel) {
+        var n = host.querySelector(sel);
+        ok(n && n.closest('[filter*="-crayon"]'), sel + ' is drawn in crayon');
+      });
+      host.innerHTML = QJZ.pets.compose('cat:s5', 'scene', { state: 'typing' });
+      ok(host.querySelector('.tail path').closest('[filter*="-crayon"]'), 'the cat tail is crayon');
+      ok(host.querySelector('.cloud').closest('[filter]') === null, 'the room clouds move outside the wobble');
+      ok(host.querySelector('[filter*="-wobble"]'), 'the still room still wobbles');
+      // the other skins have no pet filters at all
+      host.innerHTML = QJZ.pets.compose('hamster:p0', 'petonly', { state: 'typing' });
+      eq(host.querySelectorAll('[filter]').length, 0);
+    } finally { host.remove(); }
+  });
+
+  test('pets: filterStatic wraps still runs and descends into moving groups', function () {
+    var f = QJZ.pets.common.filterStatic;
+    eq(f('', 'url(#x)'), '');
+    eq(f('<path d="M0,0"/><rect width="1" height="1"/>', 'url(#x)'), '<g filter="url(#x)"><path d="M0,0"/><rect width="1" height="1"/></g>');
+    eq(f('<g class="head"><path d="M0,0"/><g class="blink"><circle r="1"/></g><path d="M1,1"/></g>', 'url(#x)'),
+      '<g class="head"><g filter="url(#x)"><path d="M0,0"/></g><g class="blink"><g filter="url(#x)"><circle r="1"/></g></g><g filter="url(#x)"><path d="M1,1"/></g></g>');
+    eq(f('<path class="tw" d="M0,0"/>', 'url(#x)'), '<path class="tw" d="M0,0"/>', 'a moving leaf stays as it is');
+    eq(f('<!--c--><g transform="rotate(5)" style="transform-origin:1px 2px"><path d="M0,0"/></g>', 'url(#x)'),
+      '<g filter="url(#x)"><!--c--><g transform="rotate(5)" style="transform-origin:1px 2px"><path d="M0,0"/></g></g>');
+  });
+
   test('pets: compose expression option fills eyes-open', function () {
     var svg = QJZ.pets.compose('cat:s5', 'avatar', { expression: 'happy' });
     var doc = parse(svg);

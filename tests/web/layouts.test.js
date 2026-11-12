@@ -179,7 +179,7 @@
       emit: function (m) { (handlers[m.type] || []).slice().forEach(function (f) { f(m); }); }
     };
     var root = fixture();
-    QJZ.layouts.start(root, { bridge: bridge, first: o.first, seed: o.seed });
+    QJZ.layouts.start(root, { bridge: bridge, first: o.first, seed: o.seed, session: o.session });
     QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
     var settings = JSON.parse(JSON.stringify(SETTINGS));
     for (var k in (o.settings || {})) settings[k] = o.settings[k];
@@ -199,6 +199,7 @@
   function last(sent, type) { var l = of(sent, type); return l.length ? l[l.length - 1].p : null; }
   function types(sent) { return sent.map(function (s) { return s.type; }); }
   function $(e, sel) { return e.root.querySelector(sel); }
+  function all(el) { return [el].concat(Array.prototype.slice.call(el.querySelectorAll('*'))); }
   function text(e, sel) { var n = $(e, sel); return n ? n.textContent : null; }
   function mouse(el, type, x, y, extra) {
     var o = { bubbles: true, cancelable: true, button: 0, buttons: 1, screenX: x || 0, screenY: y || 0, clientX: x || 0, clientY: y || 0 };
@@ -301,7 +302,7 @@
     done();
   });
 
-  test('layouts DOM: U7 hit rects are tight (tag + pet), hover tools and bubbles join them', function () {
+  test('layouts DOM: U7 hit rects are tight (tag + pet), hover tools join them, bubbles never do', function () {
     var e = mk(at(12, 10, 0));
     e.menu('layout:U7');
     var sl = last(e.sent, 'setLayout'), rects = last(e.sent, 'hitRects').rects;
@@ -320,8 +321,21 @@
     eq(of(e.sent, 'hitRects').length, n + 1);
     eq(last(e.sent, 'hitRects').rects.length, 3, '+ the ⚙ ✕ tools');
     QJZ.layouts.say('吱！');
-    eq(last(e.sent, 'hitRects').rects.length, 4, '+ the bubble while it shows');
+    ok($(e, '[data-bubble]').classList.contains('show'));
+    eq(last(e.sent, 'hitRects').rects.length, 3, 'a bubble is not interactive: it never joins the hit rects');
     done();
+  });
+
+  test('layouts DOM: speech bubbles take no clicks in any layout (pointer-events none, no data-hit)', function () {
+    ['U1', 'U3', 'U7'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name });
+      var b = $(e, '[data-bubble]');
+      ok(b, name + ' has a bubble');
+      QJZ.layouts.say('吱！');
+      eq(getComputedStyle(b).pointerEvents, 'none', name);
+      ok(!b.hasAttribute('data-hit'), name + ': not a hit rect of its own');
+      done();
+    });
   });
 
   test('layouts DOM: panels are temporary and go back to where they came from', function () {
@@ -441,6 +455,77 @@
     e.menu('end');
     eq(QJZ.app.state.today.endMs, at(12, 11, 0));
     eq(text(e, '[data-b=status]'), '已下班');
+    done();
+  });
+
+  test('layouts DOM: 開始上班 after 下班 continues the day (繼續上班)', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('end');
+    eq(QJZ.app.state.today.endMs, at(12, 10, 0));
+    eq(text(e, '[data-b=status]'), '已下班');
+    e.tick(at(12, 11, 0));
+    e.menu('start');
+    eq([QJZ.app.state.today.endMs, QJZ.app.state.today.startMs], [null, at(12, 9, 0)], 'the end is gone, the start kept');
+    eq(text(e, '[data-b=status]'), '上班中');
+    eq($(e, '[data-odo]').getAttribute('aria-label'), '568.18', 'the time in between counts');
+    ok($(e, '[data-bubble]').classList.contains('show'), 'it says so');
+    e.menu('start');
+    eq(QJZ.app.state.today.startMs, at(12, 9, 0), 'a second 開始上班 changes nothing');
+    done();
+  });
+
+  test('layouts DOM: 今天休假 zeroes a started day (休假日); 開始上班 on an off day starts now', function () {
+    var e = mk(at(12, 10, 0));
+    QJZ.app.setOffDay(true);
+    eq(text(e, '[data-b=status]'), '休假日');
+    ok($(e, '.lay').classList.contains('s-off'));
+    eq($(e, '[data-odo]').getAttribute('aria-label'), '0.00');
+    e.menu('end');
+    eq(QJZ.app.state.today.endMs, null, 'nothing to end on a holiday');
+    e.tick(at(12, 11, 0));
+    e.menu('start');
+    eq([QJZ.app.state.today.offDay, QJZ.app.state.today.startMs], [false, at(12, 11, 0)]);
+    eq(text(e, '[data-b=status]'), '上班中');
+    done();
+  });
+
+  test('layouts DOM: U7 runs no perpetual decorative loop (only the pet moves)', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' });
+    var loops = [];
+    all(e.root.querySelector('.u7')).forEach(function (el) {
+      if (el.closest('[data-pet]')) return;
+      [null, '::before', '::after'].forEach(function (pseudo) {
+        var cs = getComputedStyle(el, pseudo);
+        if (cs.animationName !== 'none' && cs.animationIterationCount === 'infinite') loops.push(el.className + (pseudo || '') + ' ' + cs.animationName);
+      });
+    });
+    eq(loops, []);
+    ok($(e, '.u7 .fill'), 'the progress bar is still there');
+    done();
+    var u1 = mk(at(12, 10, 0));
+    eq(getComputedStyle($(u1, '.u1 .fill'), '::before').animationName, 'stripes', 'U1 keeps its moving stripes');
+    done();
+  });
+
+  test('layouts DOM: a reload (renderer crash) comes back to the layout it showed, not layout.start', function () {
+    function store() {
+      var m = {};
+      return { getItem: function (k) { return m.hasOwnProperty(k) ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); },
+        removeItem: function (k) { delete m[k]; } };
+    }
+    var s = store(), e = mk(at(12, 10, 0), { session: s });
+    eq(QJZ.layouts.current(), 'U1');
+    e.menu('layout:U7');
+    e.menu('mini');
+    e.menu('settings');
+    eq(QJZ.layouts.current(), 'PANEL');
+    mk(at(12, 10, 0), { session: s });   // the host reloads the page: same session storage
+    eq(QJZ.layouts.current(), 'M3', 'back to the mini badge the panel came from');
+    QJZ.layouts.show('U3');
+    mk(at(12, 10, 0), { session: s });
+    eq(QJZ.layouts.current(), 'U3');
+    mk(at(12, 10, 0), { session: store() });   // a new start: a fresh session
+    eq(QJZ.layouts.current(), 'U1', 'layout.start');
     done();
   });
 

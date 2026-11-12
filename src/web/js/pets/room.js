@@ -11,10 +11,11 @@ QJZ.pets.room = (function () {
   // [line colour, line width] for a room mode
   function line(mode) { return mode === 'crayon' ? ['#4A3A30', 2.4] : [C.L0, 3]; }
 
-  // render-mode wrapper for room parts (flat strips outlines via pets.css, crayon wobbles the edges)
+  // render-mode wrapper for room parts (flat strips outlines via pets.css, crayon wobbles the edges of the parts that
+  // stand still: the clouds, code, steam and plant move outside the filter)
   function wrap(mode, uid, m) {
     if (mode === 'flat') return '<g class="flat">' + m + '</g>';
-    if (mode === 'crayon') return '<g filter="url(#' + uid + '-wobble)">' + m + '</g>';
+    if (mode === 'crayon') return C.filterStatic(m, 'url(#' + uid + '-wobble)');
     return m;
   }
 

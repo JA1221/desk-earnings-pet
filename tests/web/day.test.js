@@ -34,6 +34,25 @@ test('functions are pure', function(){
   eq(JSON.stringify(r),before); });
 test('activity on a non-start day still clears lastLockMs', function(){
   var r=QJZ.day.onLock(QJZ.day.empty('2026-11-14'),123); r=QJZ.day.onActivity(r,{type:'unlock',ms:456},S); eq(r.lastLockMs,null); eq(r.startMs,null); });
+// ---- final review R-F1 / R-F2 ----
+test('manual start on an off day clears the marker and any end: a fresh start', function(){
+  var r=QJZ.day.manualEnd(QJZ.day.setOffDay(started(510),true),T(600));
+  r=QJZ.day.manualStart(r,T(840)); eq([r.startMs,r.startSource,r.offDay,r.endMs,r.endSource],[T(840),'manual',false,null,null]); });
+test('resume clears the end and keeps the start (繼續上班)', function(){
+  var r=QJZ.day.resume(QJZ.day.manualEnd(started(510),T(900)));
+  eq([r.startMs,r.endMs,r.endSource],[T(510),null,null]); });
+test('no early-leave question for an off day', function(){
+  eq(QJZ.day.earlyLeaveQuestion(QJZ.day.setOffDay(QJZ.day.onLock(started(510),T(900)),true),S),null); });
+test('onExit: the host exit counts as a lock on that day, after the start, the later of the two', function(){
+  var r=started(540);
+  eq(QJZ.day.onExit(r,T(900)).lastLockMs,T(900),'no lock yet');
+  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(960)),T(900)).lastLockMs,T(960),'a later lock stays');
+  eq(QJZ.day.onExit(QJZ.day.onLock(r,T(840)),T(900)).lastLockMs,T(900),'a later exit wins');
+  eq(QJZ.day.onExit(r,T(500)).lastLockMs,null,'before the start');
+  eq(QJZ.day.onExit(r,new Date(2026,10,12,9,0).getTime()).lastLockMs,null,'another day');
+  eq(QJZ.day.onExit(r,new Date(2026,10,12,2,0).getTime()).lastLockMs,new Date(2026,10,12,2,0).getTime(),'02:00 still belongs to the day');
+  eq(QJZ.day.onExit(r,null).lastLockMs,null); eq(QJZ.day.onExit(r,'900').lastLockMs,null); eq(QJZ.day.onExit(r,NaN).lastLockMs,null);
+  eq(QJZ.day.onExit(QJZ.day.empty(D),T(900)).lastLockMs,null,'never started'); });
 test('rollover returns the same day unchanged', function(){ var r=started(510); var x=QJZ.day.rollover(r,T(600)); eq(x.closed,null); eq(x.current.startMs,T(510)); });
 test('clock moving backwards does not roll over', function(){ var r=started(510); var x=QJZ.day.rollover(r,new Date(2026,10,10,10,0).getTime()); eq(x.closed,null); eq(x.current.startMs,T(510)); eq(x.current.day,D); });
 })();

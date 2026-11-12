@@ -42,5 +42,11 @@ test('dayKey with custom boundary', function(){ eq(QJZ.time.dayKey(new Date(2026
 test('snapshot exact boundaries', function(){
   eq(snap(T(540),null,T(12*60)).status,'lunch'); eq(snap(T(540),null,T(13*60)).status,'working');
   var end=QJZ.earn.endAtMs(T(540),D,8,L); eq(snap(T(540),null,end).status,'done'); eq(snap(T(540),null,end-1).status,'working'); });
+test('an off day earns 0 with status off, started, ended or not; off again earns as before', function(){
+  var p={startMs:T(540),endMs:null,nowMs:T(600),day:D,salary:SAL,hoursPerDay:8,lunch:L,offDay:true};
+  var s=QJZ.earn.snapshot(p); eq([s.status,s.earned,s.workedSec,s.pct,s.endAtMs],['off',0,0,0,null]);
+  p.endMs=T(570); eq(QJZ.earn.snapshot(p).status,'off'); eq(QJZ.earn.snapshot(p).earned,0);
+  p.startMs=null; p.endMs=null; eq(QJZ.earn.snapshot(p).status,'off');
+  p.offDay=false; p.startMs=T(540); s=QJZ.earn.snapshot(p); eq(s.status,'working'); near(s.earned,50000/22/8,1e-6); });
 test('endAtMs with start 12:30 is 21:00', function(){ eq(QJZ.earn.endAtMs(T(12*60+30),D,8,L),T(21*60)); });
 })();

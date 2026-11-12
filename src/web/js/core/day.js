@@ -35,14 +35,29 @@ QJZ.day = (function () {
   // Lock or suspend.
   function onLock(rec, ms) { return copy(rec, { lastLockMs: ms }); }
 
-  function manualStart(rec, ms) { return copy(rec, { startMs: ms, startSource: 'manual' }); }
+  // The host's last shutdown / sign-out (init.lastExitMs) counts as a lock of that day's record: the later of the
+  // two, when it falls on the record's day (QJZ.time.dayKey) after its start. Anything else leaves rec as it is.
+  function onExit(rec, ms) {
+    if (typeof ms !== 'number' || !isFinite(ms) || typeof rec.startMs !== 'number' || !(ms > rec.startMs) ||
+        QJZ.time.dayKey(ms) !== rec.day) return rec;
+    if (typeof rec.lastLockMs === 'number' && rec.lastLockMs >= ms) return rec;
+    return copy(rec, { lastLockMs: ms });
+  }
+
+  // 開始上班 is a fresh start: it also ends a 今天休假 and forgets an earlier 下班.
+  function manualStart(rec, ms) { return copy(rec, { startMs: ms, startSource: 'manual', offDay: false, endMs: null, endSource: null }); }
   function adjustStart(rec, ms) { return copy(rec, { startMs: ms, adjusted: true }); }
   function manualEnd(rec, ms) { return copy(rec, { endMs: ms, endSource: 'manual' }); }
+  // 繼續上班 after a 下班 (a mis-click): the day runs on from its start, the time in between included.
+  function resume(rec) { return copy(rec, { endMs: null, endSource: null }); }
+  // 今天休假: the day counts 0 (QJZ.earn.snapshot, QJZ.history.closeDay) whatever its start and end; off again, it
+  // counts as before.
   function setOffDay(rec, v) { return copy(rec, { offDay: !!v }); }
 
   // Yesterday's record that ended with a lock before the planned end: ask whether that was the end of the day.
+  // Never for an off day (it counts 0 either way).
   function earlyLeaveQuestion(prevRec, settings) {
-    if (!prevRec || prevRec.startMs === null || prevRec.endMs !== null || prevRec.lastLockMs === null) return null;
+    if (!prevRec || prevRec.offDay || prevRec.startMs === null || prevRec.endMs !== null || prevRec.lastLockMs === null) return null;
     var planned = QJZ.earn.endAtMs(prevRec.startMs, prevRec.day, settings.hoursPerDay, settings.lunch);
     if (prevRec.lastLockMs < planned) return { day: prevRec.day, lockMs: prevRec.lastLockMs };
     return null;
@@ -61,8 +76,8 @@ QJZ.day = (function () {
   }
 
   return {
-    empty: empty, onActivity: onActivity, onLock: onLock,
-    manualStart: manualStart, adjustStart: adjustStart, manualEnd: manualEnd, setOffDay: setOffDay,
+    empty: empty, onActivity: onActivity, onLock: onLock, onExit: onExit,
+    manualStart: manualStart, adjustStart: adjustStart, manualEnd: manualEnd, resume: resume, setOffDay: setOffDay,
     earlyLeaveQuestion: earlyLeaveQuestion, resolveEarlyLeave: resolveEarlyLeave, rollover: rollover
   };
 })();

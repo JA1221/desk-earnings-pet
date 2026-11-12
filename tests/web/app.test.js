@@ -15,11 +15,13 @@
     return { bridge: bridge, sent: sent, clock: clock };
   }
   function init(env, o) {
-    env.bridge.emit({
+    var msg = {
       type: 'init', settings: o.settings === undefined ? SETTINGS : o.settings,
       history: o.history === undefined ? null : o.history,
       probeMs: o.probeMs === undefined ? null : o.probeMs, nowMs: env.clock.ms, version: 't'
-    });
+    };
+    ['lastExitMs', 'backups', 'forceOpaque'].forEach(function (k) { if (o[k] !== undefined) msg[k] = o[k]; });
+    env.bridge.emit(msg);
   }
   function hist(recs) {
     var h = { version: 1, days: {} };
@@ -33,6 +35,7 @@
     return r;
   }
   function typesOf(sent) { return sent.map(function (s) { return s.type; }); }
+  function of(sent, type) { return sent.filter(function (s) { return s.type === type; }).map(function (s) { return s.p; }); }
   function lastSave(sent, type) {
     for (var i = sent.length - 1; i >= 0; i--) if (sent[i].type === type) return sent[i];
     return null;
@@ -261,6 +264,210 @@
     eq([got[1].count, got[1].quiet], [4, false], 'a normal 1 s step is loud');
     QJZ.app._reset();
   });
+  // ---- final review: R-F1 holiday / undo ----
+  test('app: 今天休假 on a started day earns 0 and shows off; turning it off restores the day', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    var s = QJZ.app.state;
+    near(s.snap.earned, 284.09, 0.01);
+    QJZ.app.setOffDay(true);
+    eq([s.snap.status, s.snap.earned], ['off', 0]);
+    eq(s.today.startMs, at(12, 9, 0), 'the start is kept');
+    eq(QJZ.history.monthTotal(s.history, '2026-11', s.today, s.snap.earned), 0, 'nothing counts today');
+    e.clock.ms = at(12, 11, 0); QJZ.app.tickNow();
+    eq(s.snap.earned, 0, 'the clock does not pay a holiday');
+    QJZ.app.setOffDay(false);
+    eq(s.snap.status, 'working');
+    near(s.snap.earned, 568.18, 0.01, 'from the original start');
+    QJZ.app._reset();
+  });
+  test('app: an off day that had started closes at 0 the next day, with no question', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, { offDay: true, lastLockMs: at(11, 15, 0) })]) });
+    eq(QJZ.app.state.pendingQuestion, null);
+    eq(QJZ.app.state.history.days['2026-11-11'].earned, 0);
+    eq(QJZ.app.state.history.days['2026-11-11'].offDay, true);
+    QJZ.app._reset();
+    var f = mk(at(11, 16, 0));
+    init(f, { history: hist([rec('2026-11-11', 540, {})]) });
+    QJZ.app.setOffDay(true);
+    f.clock.ms = at(12, 8, 0); QJZ.app.tickNow();
+    eq(QJZ.app.state.history.days['2026-11-11'].earned, 0, 'closed by the rollover');
+    eq(QJZ.app.state.today.day, '2026-11-12');
+    QJZ.app._reset();
+  });
+  test('app: 開始上班 on an off day clears the marker and starts now', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-12', null, { offDay: true })]) });
+    var s = QJZ.app.state;
+    eq([s.today.startMs, s.snap.status], [null, 'off'], 'no auto start on an off day');
+    QJZ.app.startWork();
+    eq([s.today.offDay, s.today.startMs, s.snap.status], [false, at(12, 10, 0), 'working']);
+    QJZ.app._reset();
+  });
+  test('app: 下班 then 繼續上班 (resumeWork) clears the end and the day earns on', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    var s = QJZ.app.state;
+    eq(QJZ.app.resumeWork(), false, 'nothing to continue');
+    QJZ.app.endWork();
+    e.clock.ms = at(12, 11, 0); QJZ.app.tickNow();
+    eq(s.snap.status, 'ended');
+    near(s.snap.earned, 284.09, 0.01);
+    e.sent.length = 0;
+    eq(QJZ.app.resumeWork(), true);
+    eq([s.today.endMs, s.today.endSource, s.today.startMs, s.snap.status], [null, null, at(12, 9, 0), 'working']);
+    near(s.snap.earned, 568.18, 0.01, 'the time in between counts');
+    var saved = lastSave(e.sent, 'saveHistory');
+    ok(saved, 'saved at once');
+    eq(JSON.parse(saved.p.text).days['2026-11-12'].endMs, null);
+    QJZ.app._reset();
+  });
+
+  // ---- R-F2: the host's last exit (shutdown / sign-out) ----
+  test('app init: lastExitMs on an open earlier day counts as its last lock (shut down at 15:00 -> the question)', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]), lastExitMs: at(11, 15, 0) });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 0) });
+    eq(QJZ.app.answerEarlyLeave(true), true);
+    eq(QJZ.app.state.history.days['2026-11-11'].endMs, at(11, 15, 0));
+    QJZ.app._reset();
+  });
+  test('app init: lastExitMs takes the later of lock and exit; after the planned end there is no question', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, { lastLockMs: at(11, 16, 0) })]), lastExitMs: at(11, 15, 0) });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 16, 0) }, 'the later lock');
+    QJZ.app._reset();
+    e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, { lastLockMs: at(11, 14, 0) })]), lastExitMs: at(11, 15, 30) });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 30) }, 'the later exit');
+    QJZ.app._reset();
+    e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]), lastExitMs: at(11, 18, 30) });
+    eq(QJZ.app.state.pendingQuestion, null);
+    near(QJZ.app.state.history.days['2026-11-11'].earned, 2272.73, 0.001, 'a full day');
+    QJZ.app._reset();
+  });
+  test('app init: lastExitMs on another day, before the start, or junk is ignored', function () {
+    [at(10, 15, 0), at(11, 8, 0), null, '15:00', NaN].forEach(function (x) {
+      var e = mk(at(12, 10, 0));
+      init(e, { history: hist([rec('2026-11-11', 540, {})]), lastExitMs: x });
+      eq(QJZ.app.state.pendingQuestion, null, 'exit ' + x);
+      near(QJZ.app.state.history.days['2026-11-11'].earned, 2272.73, 0.001, 'exit ' + x);
+      QJZ.app._reset();
+    });
+  });
+
+  // ---- R-F4: .bak copies ----
+  test('app init: a corrupt settings.json is backed up, then its .bak is used and saved back', function () {
+    var e = mk(at(12, 10, 0));
+    var bak = JSON.stringify({ salary: { mode: 'monthly', amount: 60000, divisor: 22 }, milestone: 50, onboarded: true });
+    init(e, { settings: '{bad', backups: { settings: bak, history: null } });
+    eq(of(e.sent, 'backupCorrupt'), [{ file: 'settings' }], 'the main file is still backed up');
+    eq([QJZ.app.state.settings.salary.amount, QJZ.app.state.settings.milestone], [60000, 50]);
+    QJZ.app.flush();
+    var t = typesOf(e.sent);
+    ok(t.indexOf('saveSettings') > t.indexOf('backupCorrupt'), 'the repaired copy goes back after the backup');
+    eq(JSON.parse(lastSave(e.sent, 'saveSettings').p.text).salary.amount, 60000);
+    QJZ.app._reset();
+  });
+  test('app init: a corrupt (zero-filled) history.json falls back to its .bak', function () {
+    var e = mk(at(12, 10, 0));
+    var bak = hist([rec('2026-11-10', 540, { endMs: at(10, 17, 0), earned: 2000 })]);
+    init(e, { history: '\u0000\u0000\u0000\u0000', backups: { settings: null, history: bak } });
+    eq(of(e.sent, 'backupCorrupt'), [{ file: 'history' }]);
+    eq(QJZ.app.state.history.days['2026-11-10'].earned, 2000);
+    ok(QJZ.app.state.history.days['2026-11-12'], 'today is there too');
+    QJZ.app._reset();
+  });
+  test('app init: when the .bak is broken too (or missing): defaults / an empty history', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { settings: '{bad', history: '{bad', backups: { settings: '{also bad', history: 'nope' } });
+    eq(of(e.sent, 'backupCorrupt'), [{ file: 'settings' }, { file: 'history' }]);
+    eq(QJZ.app.state.settings.salary.amount, 0);
+    eq(Object.keys(QJZ.app.state.history.days), ['2026-11-12']);
+    QJZ.app._reset();
+    e = mk(at(12, 10, 0));
+    init(e, { settings: '{bad', backups: 'junk' });
+    eq(QJZ.app.state.settings.salary.amount, 0);
+    QJZ.app._reset();
+  });
+  test('app init: a readable main file ignores its .bak', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { backups: { settings: JSON.stringify({ salary: { amount: 1 } }), history: hist([rec('2026-11-01', 540, { earned: 1 })]) } });
+    eq(QJZ.app.state.settings.salary.amount, 50000);
+    eq(QJZ.app.state.history.days['2026-11-01'], undefined);
+    eq(of(e.sent, 'backupCorrupt'), []);
+    QJZ.app._reset();
+  });
+
+  // ---- M1: resume while locked ----
+  test('app: resume while the session is locked does not start the day; the unlock that follows does', function () {
+    var e = mk(at(11, 16, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]) });
+    e.clock.ms = at(11, 17, 0);
+    e.bridge.emit({ type: 'session', kind: 'lock', ms: at(11, 17, 0) });
+    e.clock.ms = at(12, 7, 50);
+    e.bridge.emit({ type: 'session', kind: 'resume', ms: at(12, 7, 50) });
+    eq([QJZ.app.state.today.day, QJZ.app.state.today.startMs], ['2026-11-12', null], 'still locked');
+    e.clock.ms = at(12, 8, 30);
+    e.bridge.emit({ type: 'session', kind: 'unlock', ms: at(12, 8, 30) });
+    eq(QJZ.app.state.today.startMs, at(12, 8, 30));
+    QJZ.app._reset();
+  });
+  test('app: resume without a lock (sleep while unlocked) still starts the day', function () {
+    var e = mk(at(11, 16, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]) });
+    e.clock.ms = at(11, 17, 0);
+    e.bridge.emit({ type: 'session', kind: 'suspend', ms: at(11, 17, 0) });
+    e.clock.ms = at(12, 8, 0);
+    e.bridge.emit({ type: 'session', kind: 'resume', ms: at(12, 8, 0) });
+    eq(QJZ.app.state.today.startMs, at(12, 8, 0));
+    QJZ.app._reset();
+  });
+
+  // ---- M3: host settings are saved at once ----
+  test('app: setAutostart / setCaptureGuard / setHotkey save settings at once (no 1 s debounce)', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    QJZ.app.flush();
+    e.sent.length = 0;
+    QJZ.app.setAutostart(false);
+    ok(lastSave(e.sent, 'saveSettings'), 'autostart saved');
+    eq(JSON.parse(lastSave(e.sent, 'saveSettings').p.text).autostart, false);
+    ok(typesOf(e.sent).indexOf('setAutostart') >= 0);
+    e.sent.length = 0;
+    QJZ.app.setCaptureGuard(false);
+    eq(JSON.parse(lastSave(e.sent, 'saveSettings').p.text).privacy.hideFromCapture, false);
+    e.sent.length = 0;
+    QJZ.app.setHotkey('Ctrl+Alt+J');
+    eq(JSON.parse(lastSave(e.sent, 'saveSettings').p.text).privacy.hotkey, 'Ctrl+Alt+J');
+    QJZ.app._reset();
+  });
+
+  // ---- R-F6: 相容模式 ----
+  test('app: display.opaque or init.forceOpaque paints the whole page background #FFF8EC', function () {
+    var root = document.documentElement;
+    var e = mk(at(12, 10, 0));
+    init(e, {});
+    ok(!root.classList.contains('opaque'));
+    eq(QJZ.app.state.forceOpaque, false);
+    QJZ.app.saveSettings({ display: { opaque: true } });
+    ok(root.classList.contains('opaque'));
+    eq(getComputedStyle(root).backgroundColor, 'rgb(255, 248, 236)');
+    QJZ.app.saveSettings({ display: { opaque: false } });
+    ok(!root.classList.contains('opaque'));
+    init(e, { forceOpaque: true });
+    ok(root.classList.contains('opaque'), 'forced by the host');
+    eq(QJZ.app.state.forceOpaque, true);
+    QJZ.app.saveSettings({ display: { opaque: false } });
+    ok(root.classList.contains('opaque'), 'the setting cannot turn a forced one off');
+    init(e, { settings: JSON.stringify({ display: { opaque: true } }) });
+    ok(root.classList.contains('opaque'), 'from settings.json');
+    QJZ.app._reset();
+    ok(!root.classList.contains('opaque'));
+  });
+
   test('app: tickNow recomputes from the clock, no accumulation', function () {
     var e = mk(at(12, 10, 0));
     init(e, {});

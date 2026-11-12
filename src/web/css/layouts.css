@@ -88,6 +88,8 @@
 .u7 .mtag::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bg);border-right:3px solid var(--line);border-bottom:3px solid var(--line);transform:translateX(-50%) rotate(45deg)}
 .u7 .mtag .money{font-size:24px}
 .u7 .mtag .thin{height:7px;margin-top:3px;border-width:2px}
+/* CPU: U7 stays on screen all day; only the pet moves (no perpetual decorative loop: the stripes stand still) */
+.u7 .fill::before{animation:none;will-change:auto}
 .u7 .tools{position:absolute;right:-6px;top:-10px;z-index:3;display:flex;gap:4px;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
 .u7 .dpet.hover .tools{opacity:1;visibility:visible;transition:opacity .2s}
 .u7 .tools button{width:24px;height:24px;border-radius:50%;background:#fff;border:2.5px solid var(--line);display:grid;place-items:center;font-size:12px;padding:0;box-shadow:2px 2px 0 var(--shadow)}

@@ -3,9 +3,11 @@ window.QJZ = window.QJZ || {};
 //   onboarding  step 1 salary (月薪/時薪, the amount checked by QJZ.settings.validateSalary, ÷22/÷30), step 2 the
 //               pet (all 8 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
 //               settings.salary.amount is 0 or settings.onboarded is false.
-//   settings    the nine sections of §5.3 as tabs, plus 關於 (version, the third-party licence texts). Every change
-//               is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /
-//               setHotkey, topmost through layouts.refreshTopmost). 'adjust' (menu 調整起算時間) opens it at 起算.
+//   settings    the nine sections of §5.3 as tabs, plus 關於 (version, 使用說明, the third-party licence texts). Every
+//               change is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /
+//               setHotkey, topmost through layouts.refreshTopmost). 'adjust' (menu 調整起算時間) opens it at 起算,
+//               which also has 今天休假 (today counts 0) and, after 下班, 繼續上班 (app.resumeWork). 版型 has
+//               相容模式 (display.opaque; shown on and locked while the host forces it, init.forceOpaque).
 //   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
 //               totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
@@ -22,12 +24,14 @@ QJZ.panels = (function () {
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
   // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
-  // covers]. The texts load the first time 關於 shows and only ever go into textContent.
+  // covers]. 關於 → 使用說明: GUIDE, the plain-text copy of docs/使用說明.md (build.ps1 ships it in web.zip too).
+  // The texts load the first time 關於 shows and only ever go into textContent.
   var LICENSES = [
     ['licenses/WebView2-SDK.txt', 'Microsoft Edge WebView2 SDK', '顯示畫面用的元件（Microsoft.Web.WebView2 的 DLL 與 WebView2Loader.dll）。'],
     ['fonts/OFL.txt', 'Fredoka 字型（SIL Open Font License 1.1）', '金額數字使用的字型。']
   ];
-  var LIC_FAIL = '（讀不到授權文字。）';
+  var GUIDE = 'guide.txt';
+  var LIC_FAIL = '（讀不到授權文字。）', GUIDE_FAIL = '（讀不到使用說明。）';
   var WD = '日一二三四五六';
   var TALL = 633;            // settings / history / onboarding: 640 with the 7px shadow
   var DAY_START_MIN = 4 * 60;
@@ -326,7 +330,9 @@ QJZ.panels = (function () {
       return '<div class="card">' +
         line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint')) +
         line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始，但可以手動開始上班。')) +
-        line(row('今天休假', tgl('offDay', '今天休假')) + hint('打開後，今天不會自動開始算錢。')) +
+        line(row('今天休假', tgl('offDay', '今天休假')) + hint('打開後，今天不算錢（已經開始算的也歸零），狀態顯示「休假日」；關掉就恢復。')) +
+        line(row('<span data-o="endedAt"></span>', '<button type="button" class="btn sm" data-pa="resume">繼續上班</button>') +
+          hint('按錯「下班」了？按「繼續上班」就接著算，中間的時間也照算。'), ' data-o="resumeLine"') +
         line('<label class="lbl">調整今天的起算時間</label><div class="adj">' +
           textIn('startAt', 'tm', ' inputmode="numeric" maxlength="5" aria-label="今天的起算時間"') +
           '<button type="button" class="btn sm" data-pa="applyStart">套用</button></div>' + err('startAt') + hint('', 'todayStart')) +
@@ -346,7 +352,9 @@ QJZ.panels = (function () {
         line('<span class="lbl">開啟時的版型</span>' +
           seg('layoutStart', LAYOUTS.map(function (l) { return [l[0], l[1] + ' <small>' + l[2] + '</small>']; }), 'opts') +
           hint('隨時可以從右鍵選單切換版型。')) +
-        '</div><div class="card compact">' + line('<span class="lbl">永遠在最上層（置頂）</span>') + top + '</div>';
+        '</div><div class="card compact">' + line('<span class="lbl">永遠在最上層（置頂）</span>') + top + '</div>' +
+        '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
+          hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) + '</div>';
     },
     boost: function () {
       return '<div class="card">' +
@@ -384,12 +392,14 @@ QJZ.panels = (function () {
     about: function () {
       var lic = '';
       LICENSES.forEach(function (l) {
-        lic += line('<span class="lbl">' + esc(l[1]) + '</span>' + hint(l[2]) + '<pre class="lic" data-lic="' + l[0] + '"></pre>');
+        lic += line('<span class="lbl">' + esc(l[1]) + '</span>' + hint(l[2]) + '<pre class="lic" data-doc="' + l[0] + '" data-fail="' + LIC_FAIL + '"></pre>');
       });
       return '<div class="card">' +
         line(row('錢進中', '<b data-o="version"></b>') + hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，不會上傳。')) +
-        '</div><div class="card">' + line('<span class="lbl">第三方授權</span>') + lic + '</div>';
+        '</div><div class="card">' + line('<span class="lbl">使用說明</span>' +
+          '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') + '</div>' +
+        '<div class="card">' + line('<span class="lbl">第三方授權</span>') + lic + '</div>';
     }
   };
 
@@ -584,6 +594,9 @@ QJZ.panels = (function () {
       out(c, 'modeHint', s.startMode === 'auto' ? '每天第一次登入或解鎖 Windows 時自動開始。' : '每天要自己按「開始上班」（右鍵選單）。');
       qa(c, '[data-wd]').forEach(function (b) { b.classList.toggle('on', s.workDays.indexOf(+b.getAttribute('data-wd')) >= 0); });
       tglOn(c, 'offDay', t && t.offDay);
+      var ended = begun && !t.offDay && isNum(t.endMs);
+      show(node(c, 'resumeLine'), ended);
+      if (ended) out(c, 'endedAt', '今天 ' + hmOf(t.endMs) + ' 已下班');
       out(c, 'todayStart', begun ? '今天從 ' + hmOf(t.startMs) + ' 開始計算' + (t.adjusted ? '（調整過）' : t.startSource === 'manual' ? '（手動）' : '（自動）') + '。' :
         '今天還沒開始。填時間按「套用」，就從那時開始算。');
       // 寵物
@@ -591,6 +604,10 @@ QJZ.panels = (function () {
       // 版型
       segOn(c, 'layoutStart', s.layout.start);
       for (i = 0; i < LAYOUTS.length; i++) tglOn(c, 'top.' + LAYOUTS[i][0], s.layout.topmost[LAYOUTS[i][0]]);
+      var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
+      tglOn(c, 'opaque', s.display.opaque || forced);
+      if (op && op.disabled !== forced) op.disabled = forced;
+      out(c, 'opaqueNote', forced ? '這台電腦目前無法顯示透明背景，已自動開啟。' : '');
       // 音效 / 開機 / 隱私
       tglOn(c, 'sound', s.sound.enabled);
       var vol = q(c, '[data-f=volume]'), pct = Math.round(s.sound.volume * 100);
@@ -607,7 +624,7 @@ QJZ.panels = (function () {
       if (hf) { out(c, 'hkFailText', hf.text); out(c, 'hkFailSub', hf.sub); }
       // 關於
       out(c, 'version', '版本 ' + (st().version || '開發版'));
-      if (tab === 'about' && !c.licLoaded) { c.licLoaded = true; loadLicenses(c); }
+      if (tab === 'about' && !c.docsLoaded) { c.docsLoaded = true; loadDocs(c); }
     },
     history: function (c) {
       var s = st(), m = historyModel(s.history, s.today, s.snap.earned);
@@ -617,7 +634,7 @@ QJZ.panels = (function () {
         out(c, 'month', m.title);
         node(c, 'chart').innerHTML = chartSvg(m);
         out(c, 'total', 'NT$ ' + money(m.total));
-        var begun = isNum(s.today.startMs);
+        var begun = isNum(s.today.startMs) && !s.today.offDay;
         out(c, 'worked', m.worked ? '上班 ' + m.worked + ' 天' + (begun ? ' ＋ 今天' : '') : begun ? '只有今天' : '');
       }
       var count = Object.keys(s.history.days).length + '|' + m.month;
@@ -628,13 +645,13 @@ QJZ.panels = (function () {
     }
   };
 
-  // The licence texts for 關於, fetched as plain text from the files beside the page (https://app.qjz/...).
-  function loadLicenses(c) {
-    qa(c, '[data-lic]').forEach(function (pre) {
-      var fail = function () { pre.textContent = LIC_FAIL; };
+  // The guide and the licence texts for 關於, fetched as plain text from the files beside the page (https://app.qjz/...).
+  function loadDocs(c) {
+    qa(c, '[data-doc]').forEach(function (pre) {
+      var fail = function () { pre.textContent = pre.getAttribute('data-fail'); };
       pre.textContent = '讀取中…';
       try {
-        window.fetch(pre.getAttribute('data-lic')).then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+        window.fetch(pre.getAttribute('data-doc')).then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
           .then(function (text) { pre.textContent = text; }, fail);
       } catch (e) { fail(); }
     });
@@ -848,6 +865,8 @@ QJZ.panels = (function () {
     else if (name === 'sound') {
       save({ sound: { enabled: !s.sound.enabled } });
       if (st().settings.sound.enabled && QJZ.sound) QJZ.sound.coin();
+    } else if (name === 'opaque') {
+      if (!st().forceOpaque) save({ display: { opaque: !s.display.opaque } });
     } else if (name === 'autostart') app().setAutostart(!s.autostart);
     else if (name === 'capture') app().setCaptureGuard(!s.privacy.hideFromCapture);
     else if (name.indexOf('top.') === 0) {
@@ -897,6 +916,7 @@ QJZ.panels = (function () {
         setErr(c, 'hotkey', '');
         app().setHotkey(DEFAULT_HOTKEY);
         break;
+      case 'resume': app().resumeWork(); break;
     }
   }
 
