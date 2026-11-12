@@ -55,7 +55,18 @@ QJZ.layouts = (function () {
   // their painted pixels over every state's whole animation) fit inside both, and inside PET_HIT in every other state
   // but for cat H2's tail tip: up to 4 units left of it while the mochi squashes (celebrate, angry), as cat P4's does.
   var PET_HIT_BY_STATE = { hop: [34, 11, 170, 161], dangle: [30, 4, 176, 168] };
-  function petHit(state) { return PET_HIT_BY_STATE.hasOwnProperty(state) ? PET_HIT_BY_STATE[state] : PET_HIT; }
+  // States whose head rises above PET_HIT's top (measured over every skin, N-1 of the d9bba4f re-review): cat P0 13
+  // units while it stretches or celebrates and 6 waiting with the bag, cat S5 6 stretching or celebrating, cat P0 1
+  // yawning. Their bands may reach up to the viewBox top (they still follow the painted pet), and so does the box that
+  // serves until the bands are measured.
+  var PET_REACH = { stretch: 1, celebrate: 1, waitBag: 1, yawn: 1 };
+  var PET_HIT_TALL = [38, 4, 160, 168];
+  function petHit(state) {
+    if (PET_HIT_BY_STATE.hasOwnProperty(state)) return PET_HIT_BY_STATE[state];
+    return PET_REACH.hasOwnProperty(state) ? PET_HIT_TALL : PET_HIT;
+  }
+  // hop and dangle move too much for bands: their box serves the whole time.
+  function boxOnly(state) { return PET_HIT_BY_STATE.hasOwnProperty(state); }
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
@@ -517,7 +528,7 @@ QJZ.layouts = (function () {
   }
   function petRects(el, box) {
     var state = view.petState, lim = petHit(state), id = petId(app().state.settings);
-    if (PET_HIT_BY_STATE.hasOwnProperty(state)) return [subRect(box, PETONLY_VB, lim)];
+    if (boxOnly(state)) return [subRect(box, PETONLY_VB, lim)];
     var bands = bandCache[bandKey(id, state)];
     if (!bands) { queueBands(id, state); return [subRect(box, PETONLY_VB, lim)]; }
     return bandRects(bands, state, box);

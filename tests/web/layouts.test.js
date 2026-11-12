@@ -806,6 +806,13 @@
       ok(covers(r, edges(U.PET_HIT)), s + ' contains the base box');
       ok(covers(vb, edges(r)), s + ' stays inside the viewBox');
     });
+    // N-1: a head that rises above the box (cat P0 13 units stretching or celebrating) may reach the viewBox top
+    ['stretch', 'celebrate', 'waitBag', 'yawn'].forEach(function (s) {
+      var r = U.petHit(s);
+      ok(covers(r, edges(U.PET_HIT)) && r[1] <= 24 - 13 - 3, s + ' reaches above the base box: ' + r);
+      ok(covers(vb, edges(r)), s + ' stays inside the viewBox');
+      eq([r[0], r[0] + r[2], r[1] + r[3]], [U.PET_HIT[0], U.PET_HIT[0] + U.PET_HIT[2], U.PET_HIT[1] + U.PET_HIT[3]], s + ' only taller');
+    });
   });
 
   test('layouts DOM: U7 widens the pet hit rect at once while it dangles and narrows it again after dragEnd', function () {
@@ -954,11 +961,15 @@
   // The reviewer's scan (I-1): the U7 pet's painted pixels, stepped through its animations off the measuring grid, all
   // inside the hit rects (where the measured box lets them be). The cases are the worst ones found: stretching
   // hamsters, whiskers and ear tips of a tilting or puffing head, crayon sparkles, the waving and sleeping new cats.
-  test('layouts DOM: while the U7 pet moves, every painted pixel of it (inside the measured box) stays inside its hit rects', function () {
+  // N-1 (re-review of d9bba4f): a head can rise above the box's top (cat P0 stretching or celebrating, up to 15.5 px;
+  // cat S5 7.5 px; cat P0 waiting with the bag 7.5 px), so the scan also covers everything above the box, up to the
+  // top of the viewBox: a painted ear tip there must click and drag too.
+  test('layouts DOM: while the U7 pet moves, every painted pixel of it (inside the measured box, or above it) stays inside its hit rects', function () {
     var U = QJZ.layouts.util, wrap = document.createElement('div');
     var CASES = [['hamster:p0', 'stretch'], ['hamster:s4', 'stretch'], ['hamster:s5', 'stretch'], ['hamster:h2', 'stretch'], ['cat:p0', 'stretch'],
       ['cat:p0', 'angry'], ['cat:p0', 'petted'], ['cat:p0', 'typing'], ['cat:s5', 'doze'], ['cat:s5', 'celebrate'], ['hamster:s5', 'waitBag'],
-      ['cat:s4', 'scratch'], ['cat:s4', 'waitBag'], ['cat:h2', 'celebrate'], ['cat:h2', 'angry'], ['cat:h2', 'lunchSleep']];
+      ['cat:s4', 'scratch'], ['cat:s4', 'waitBag'], ['cat:h2', 'celebrate'], ['cat:h2', 'angry'], ['cat:h2', 'lunchSleep'],
+      ['cat:p0', 'celebrate'], ['cat:p0', 'waitBag'], ['cat:s5', 'stretch']];
     wrap.style.cssText = 'position:fixed;left:0;top:0;z-index:99';
     wrap.innerHTML = '<div class="u7 lay"><div class="dpet"><div class="po" data-pet="petonly" data-hit="pet"></div></div></div>';
     document.body.appendChild(wrap);
@@ -980,10 +991,11 @@
         po.innerHTML = QJZ.pets.compose(c[0], 'petonly', { state: c[1] });
         var svg = po.firstElementChild, box = po.getBoundingClientRect();
         var rects = U.bandRects(U.measureBands(c[0], c[1]), c[1], box).map(U.outer), lim = U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(c[1])));
+        var top = U.outer(U.subRect(box, U.PETONLY_VB, U.PETONLY_VB))[1];   // the viewBox top: above the box too (N-1)
         ok(rects.length > 1, c.join(' ') + ': bands, not the box');
         var anims = svg.getAnimations({ subtree: true }), pts = [], worst = 0, at = null;
         anims.forEach(function (a) { a.pause(); });
-        for (var y = lim[1] + 1.5; y < lim[1] + lim[3]; y += 3) for (var x = lim[0] + 1.5; x < lim[0] + lim[2]; x += 3) if (dist(x, y, rects) > 0) pts.push([x, y]);
+        for (var y = top + 1.5; y < lim[1] + lim[3]; y += 3) for (var x = lim[0] + 1.5; x < lim[0] + lim[2]; x += 3) if (dist(x, y, rects) > 0) pts.push([x, y]);
         for (var t = 35; t <= 4800; t += 265) {   // off the measuring grid (every 100 ms)
           anims.forEach(function (a) { a.currentTime = t; });
           pts.forEach(function (p) {
