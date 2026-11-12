@@ -19,7 +19,8 @@ window.QJZ = window.QJZ || {};
 // Hidden or locked (visibility false) the tick stops; refresh() catches up from the wall clock instead (the 04:00
 // rollover, today's numbers) and announces it with the refresh event (snap), without celebrating: every REFRESH_MS
 // while hidden, and whenever the host sends menuOpening (its menu is about to show the work status and the snacks).
-// Events (on): tick (every 100 ms, snap), second (snap), refresh (snap), change (state), milestone ({count, gained, quiet}) when
+// Events (on): tick (every 100 ms, snap), second (snap), refresh (snap), change (state), started (today) on a fresh
+// 開始上班 (startWork; not the auto start, 繼續上班 or 調整起算時間), milestone ({count, gained, quiet}) when
 // the clock carries today's earnings past another settings.milestone step (gained: how many steps at once). Record /
 // settings changes (adjustStart, a new step, init, a new day) only move the baseline, so they never celebrate by
 // themselves. quiet: the step was crossed while nobody was watching — the first tick after visibility comes back, or
@@ -44,7 +45,7 @@ QJZ.app = (function () {
     pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, forceOpaque: false,
     hotkeyFailed: null, storageError: null, storageErrors: []
   };
-  var listeners = { tick: [], second: [], refresh: [], change: [], milestone: [], notice: [] };
+  var listeners = { tick: [], second: [], refresh: [], change: [], started: [], milestone: [], notice: [] };
   var tickTimer = null, saveTimer = null, refreshTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
@@ -352,6 +353,7 @@ QJZ.app = (function () {
     if (!state.ready) return;
     state.startHint = null;
     updateToday(QJZ.day.manualStart(state.today, nowMs()));
+    emit('started', state.today);
   }
   function adjustStart(ms) {
     if (!state.ready || typeof ms !== 'number' || !isFinite(ms)) return;
@@ -393,7 +395,8 @@ QJZ.app = (function () {
     markSettings();
     changed();
   }
-  // Health counts of a day (§5.6). Saved at once: a cup is a small, deliberate act.
+  // Health counts of a day (§5.6). Saved at once: a cup is a small, deliberate act. A past day keeps the cup goal it
+  // already has (a closed day keeps its goal); one without gets today's setting.
   function setHealth(day, h) {
     if (!state.ready || typeof day !== 'string') return;
     if (day === state.today.day) {
@@ -402,7 +405,9 @@ QJZ.app = (function () {
       return;
     } else {
       var rec = state.history.days[day] || QJZ.history.closeDay(QJZ.day.empty(day), state.settings);
-      state.history.days[day] = QJZ.health.seal(QJZ.health.withHealth(rec, h), state.settings.health.water.goal);
+      var goal = QJZ.health.of(rec).cupGoal, next = QJZ.health.withHealth(rec, h);
+      if (goal !== null) next.health.cupGoal = goal;
+      state.history.days[day] = QJZ.health.seal(next, state.settings.health.water.goal);
     }
     markHistory();
     flush();
@@ -486,7 +491,7 @@ QJZ.app = (function () {
     dirtySettings = dirtyHistory = false;
     clockOffset = 0; lastSec = null; lastMilestone = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
     resumed = false; lastTickMs = null; moodMs = 0; moodDay = null; moodStart = null; state.mood = null; locked = false;
-    listeners.tick = []; listeners.second = []; listeners.refresh = []; listeners.change = []; listeners.milestone = []; listeners.notice = [];
+    listeners.tick = []; listeners.second = []; listeners.refresh = []; listeners.change = []; listeners.started = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
     state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;

@@ -647,4 +647,28 @@
     eq(after['2026-11-11'], before['2026-11-11']);
     QJZ.app._reset();
   });
+  test('app: setHealth keeps the cup goal a past day was closed with (§5.6)', function () {
+    var e = mk(at(12, 10, 0));
+    var old = rec('2026-11-10', 9 * 60, { earned: 1000, health: { cups: 3, cupGoal: 6, tomatoes: 0, standups: 0 } });
+    init(e, { history: hist([old]) });
+    QJZ.app.setHealth('2026-11-10', { cups: 4, cupGoal: null, tomatoes: 1, standups: 0 });
+    eq(QJZ.app.state.history.days['2026-11-10'].health, { cups: 4, cupGoal: 6, tomatoes: 1, standups: 0 });
+    QJZ.app.setHealth('2026-11-10', { cups: 4, cupGoal: 10, tomatoes: 1, standups: 0 });
+    eq(QJZ.app.state.history.days['2026-11-10'].health.cupGoal, 6);
+    QJZ.app._reset();
+  });
+  test('app: 開始上班 announces started; 繼續上班 and 調整起算時間 do not', function () {
+    var e = mk(at(12, 10, 0)), seen = [];
+    QJZ.app.on('started', function (t) { seen.push(t.startMs); });
+    init(e, {});
+    eq(seen, [], 'the auto start at init is not a 開始上班');
+    QJZ.app.endWork();
+    QJZ.app.resumeWork();
+    QJZ.app.adjustStart(at(12, 9, 0));
+    eq(seen, []);
+    e.clock.ms = at(12, 11, 0);
+    QJZ.app.startWork();
+    eq(seen, [at(12, 11, 0)]);
+    QJZ.app._reset();
+  });
 })();

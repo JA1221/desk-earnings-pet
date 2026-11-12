@@ -1,0 +1,625 @@
+// QJZ.care with QJZ.app on one fake bridge and one fake clock. 2026-11-12 is a Thursday (at() from harness.js);
+// other days use day(d, h, m, s). Work starts 09:00 (the app's auto start at init), lunch 12:00-13:00, done 18:00.
+(function () {
+  var C = QJZ.care, A = QJZ.app, MIN = 60000;
+  function day(d, h, m, s) { return new Date(2026, 10, d, h, m || 0, s || 0, 0).getTime(); }
+  var BOTH = { asked: true, sit: { on: true }, water: { on: true } };
+  var SIT = { asked: true, sit: { on: true }, water: { on: false } };
+  var WATER = { asked: true, sit: { on: false }, water: { on: true } };
+  // health: the settings' health section (null: none, a 1.0 file); extra: more top-level keys.
+  function S(health, extra) {
+    var s = { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true };
+    if (health !== null) s.health = health || BOTH;
+    for (var k in extra) s[k] = extra[k];
+    return s;
+  }
+  function hist(recs, pomodoro) {
+    var h = { version: 1, days: {} };
+    recs.forEach(function (r) { h.days[r.day] = r; });
+    if (pomodoro) h.pomodoro = pomodoro;
+    return JSON.stringify(h);
+  }
+  function startedAt(key, h, m) { return QJZ.day.manualStart(QJZ.day.empty(key), new Date(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10), h, m).getTime()); }
+
+  // A fake bridge that keeps every handler of a type (app and care both listen to session and visibility).
+  function mk(now, settings, history) {
+    A._reset(); C._reset();
+    var sent = [], handlers = {}, clock = { ms: now }, log = [];
+    var bridge = {
+      send: function (t, p) { sent.push({ type: t, p: p }); },
+      on: function (t, f) {
+        (handlers[t] = handlers[t] || []).push(f);
+        return function () { var l = handlers[t], i = l.indexOf(f); if (i >= 0) l.splice(i, 1); };
+      },
+      emit: function (m) { (handlers[m.type] || []).slice().forEach(function (f) { f(m); }); }
+    };
+    function nowFn() { return clock.ms; }
+    C.start({ bridge: bridge, now: nowFn, heartbeat: false });
+    A.start({ bridge: bridge, now: nowFn, tick: false });
+    ['prompt', 'cue', 'drank', 'standup'].forEach(function (n) { C.on(n, function (x) { log.push({ n: n, x: x }); }); });
+    bridge.emit({ type: 'init', settings: JSON.stringify(settings || S()), history: history || null, probeMs: null, nowMs: now, version: 't' });
+    bridge.emit({ type: 'visibility', visible: true });
+    return { bridge: bridge, sent: sent, clock: clock, log: log };
+  }
+  function done() { C._reset(); A._reset(); }
+  // A visible page: the app ticks and care steps. While hidden only the heartbeat steps (beat).
+  function go(e, t) { e.clock.ms = t; A.tickNow(); C.stepNow(); }
+  function beat(e, t) { e.clock.ms = t; C.stepNow(); }
+  function walk(e, from, to, every) { for (var t = from; t <= to; t += every) go(e, t); }
+  function vis(e, on, t) { e.clock.ms = t; e.bridge.emit({ type: 'visibility', visible: on }); }
+  function sess(e, kind, t) { e.clock.ms = t; e.bridge.emit({ type: 'session', kind: kind, ms: t }); }
+  function menu(e, action) { e.bridge.emit({ type: 'menu', action: action }); }
+  function mark(e) { return { log: e.log.length, sent: e.sent.length }; }
+  function events(e, m, n) { return e.log.slice(m.log).filter(function (x) { return x.n === n; }).map(function (x) { return x.x; }); }
+  function prompts(e, m) {
+    return events(e, m, 'prompt').map(function (x) {
+      return x.type + (x.prompt && x.type !== 'wave' ? ':' + x.prompt.kind + (x.prompt.water ? '+w' : '') : '') + (x.quiet ? ':quiet' : '');
+    });
+  }
+  function sends(e, m, type) { return e.sent.slice(m.sent).filter(function (s) { return s.type === type; }).map(function (s) { return s.p; }); }
+  function raises(e, m) { return sends(e, m, 'raise').map(function (p) { return p.on; }); }
+  function h() { var x = C.state.health; return [x.cups, x.tomatoes, x.standups]; }
+
+  test('care: the reminder shows at 09:50:00, asks both and raises the window', function () {
+    var e = mk(at(9, 0)), m = mark(e);
+    go(e, at(9, 49, 59));
+    eq(prompts(e, m), []);
+    eq(raises(e, m), []);
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:both']);
+    eq(raises(e, m), [true]);
+    eq(events(e, m, 'cue'), ['holdCup']);
+    eq(C.state.prompt.kind, 'both');
+    var v = C.view();
+    eq([v.title, v.sub], ['起來動一動，順便喝口水～', '已經坐 50 分鐘囉・今天 0/8 杯']);
+    eq(v.buttons.map(function (b) { return b.label; }), ['喝了', '起來了', '等一下']);
+    done();
+  });
+
+  test('care: 起來了 counts a stand-up and closes the bubble; the next reminder is at 10:40', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 50));
+    var m = mark(e);
+    eq(C.answer('up'), true);
+    eq(h(), [0, 0, 1]);
+    eq(prompts(e, m), ['hide']);
+    eq(raises(e, m), [false]);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'up' }]);
+    eq(C.view(), null);
+    eq(C.answer('up'), false, 'a second press on a bubble already gone does nothing');
+    eq(h(), [0, 0, 1]);
+    go(e, at(10, 39, 59));
+    eq(prompts(e, m), ['hide']);
+    go(e, at(10, 40));
+    eq(prompts(e, m), ['hide', 'show:both']);
+    done();
+  });
+
+  test('care: 喝了 counts a cup and a stand-up, saved at once', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 50));
+    var m = mark(e);
+    C.answer('drink');
+    eq(h(), [1, 0, 1]);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'drink' }]);
+    eq(events(e, m, 'drank'), [{ cups: 1, goalReached: false }]);
+    ok(sends(e, m, 'saveHistory').some(function (p) { return p.text.indexOf('"cups":1') >= 0; }), 'saved before any later step');
+    eq(A.state.history.days['2026-11-12'].health, { cups: 1, cupGoal: 8, tomatoes: 0, standups: 1 });
+    go(e, at(10, 39, 59));
+    eq(prompts(e, m), ['hide']);
+    go(e, at(10, 40));
+    eq(prompts(e, m), ['hide', 'show:both']);
+    done();
+  });
+
+  test('care: a fresh 開始上班 restarts the timer; 繼續上班 does not', function () {
+    var e = mk(at(9, 0)), m = mark(e);
+    go(e, at(9, 40));
+    A.setOffDay(true);
+    walk(e, at(9, 41), at(9, 59), MIN);
+    e.clock.ms = at(10, 0);
+    A.startWork();
+    walk(e, at(10, 0), at(10, 49), MIN);
+    go(e, at(10, 49, 59));
+    eq(prompts(e, m), [], 'not at 10:10');
+    go(e, at(10, 50));
+    eq(prompts(e, m), ['show:both']);
+    done();
+
+    e = mk(at(9, 0)); m = mark(e);
+    go(e, at(9, 40));
+    A.endWork();
+    walk(e, at(9, 41), at(9, 44), MIN);
+    e.clock.ms = at(9, 45);
+    eq(A.resumeWork(), true);
+    walk(e, at(9, 45), at(9, 49), MIN);
+    go(e, at(9, 49, 59));
+    eq(prompts(e, m), []);
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:both'], 'the time between 下班 and 繼續上班 counts, as for the money');
+    done();
+  });
+
+  test('care: 等一下 brings it back at 10:00:00', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 50));
+    var m = mark(e);
+    C.answer('later');
+    eq(prompts(e, m), ['hide']);
+    eq(h(), [0, 0, 0]);
+    walk(e, at(9, 51), at(9, 59), MIN);
+    go(e, at(9, 59, 59));
+    eq(prompts(e, m), ['hide']);
+    go(e, at(10, 0));
+    eq(prompts(e, m), ['hide', 'show:both']);
+    done();
+  });
+
+  test('care: only one switch on asks only that', function () {
+    var e = mk(at(9, 0), S(SIT)), m = mark(e);
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:sit']);
+    eq(events(e, m, 'cue'), ['wave']);
+    eq(C.view().buttons.map(function (b) { return b.id; }), ['up', 'later']);
+    done();
+
+    e = mk(at(9, 0), S(WATER)); m = mark(e);
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:water']);
+    eq(events(e, m, 'cue'), ['holdCup']);
+    eq(C.view().sub, '今天 0 杯，目標 8 杯');
+    done();
+
+    e = mk(at(9, 0), S(WATER)); m = mark(e);
+    go(e, at(9, 40));
+    menu(e, 'drink');
+    eq(h(), [1, 0, 0]);
+    walk(e, at(9, 41), at(10, 29), MIN);
+    go(e, at(10, 29, 59));
+    eq(prompts(e, m), [], 'the cup restarted the timer');
+    go(e, at(10, 30));
+    eq(prompts(e, m), ['show:water']);
+    done();
+  });
+
+  test('care: at the cup goal the bubble stops asking water', function () {
+    var e = mk(at(9, 0)), m = mark(e);
+    C.setCups(8);
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:sit']);
+    done();
+
+    e = mk(at(9, 0), S(WATER)); m = mark(e);
+    C.setCups(8);
+    walk(e, at(9, 0), at(17, 59), 15 * MIN);
+    eq(prompts(e, m), [], 'water only and 8/8: no reminder all day');
+    eq(C.minutesToStand(), null);
+    done();
+  });
+
+  test('care: a lock of 5:00 is a stand-up, 4:59 is not', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 30));
+    var m = mark(e);
+    sess(e, 'lock', at(9, 30));
+    eq(C.state.away, true);
+    beat(e, at(9, 33));
+    sess(e, 'unlock', at(9, 35));
+    eq(C.state.away, false);
+    eq(h(), [0, 0, 1]);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'lock' }]);
+    go(e, at(10, 24, 59));
+    eq(prompts(e, m), []);
+    go(e, at(10, 25));
+    eq(prompts(e, m), ['show:both']);
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(9, 30));
+    m = mark(e);
+    sess(e, 'lock', at(9, 30));
+    sess(e, 'unlock', at(9, 34, 59));
+    eq(h(), [0, 0, 0]);
+    go(e, at(9, 54, 58));
+    eq(prompts(e, m), []);
+    go(e, at(9, 54, 59));
+    eq(prompts(e, m), ['show:both'], 'the 4:59 away did not count');
+    done();
+  });
+
+  test('care: suspend / resume while unlocked is the same as a lock; a resume while locked waits for the unlock', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 30));
+    sess(e, 'suspend', at(9, 30));
+    sess(e, 'resume', at(9, 35));
+    eq(h(), [0, 0, 1]);
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(9, 30));
+    sess(e, 'lock', at(9, 30));
+    sess(e, 'suspend', at(9, 31));
+    sess(e, 'resume', at(9, 40));
+    eq(h(), [0, 0, 0]);
+    eq(C.state.away, true);
+    sess(e, 'unlock', at(9, 41));
+    eq(h(), [0, 0, 1]);
+    done();
+  });
+
+  test('care: hidden → no bubble and no raise; shown again → 3 s later', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 49));
+    vis(e, false, at(9, 49));
+    var m = mark(e);
+    beat(e, at(9, 50));
+    beat(e, at(9, 54));
+    eq(prompts(e, m), []);
+    eq(raises(e, m), []);
+    vis(e, true, at(9, 55));
+    go(e, at(9, 55, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 55, 3));
+    eq(prompts(e, m), ['show:both']);
+    eq(raises(e, m), [true]);
+    done();
+  });
+
+  test('care: fullscreen queues the same way', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 49));
+    var m = mark(e);
+    e.bridge.emit({ type: 'fullscreen', on: true });
+    eq(C.state.fullscreen, true);
+    walk(e, at(9, 50), at(9, 54), MIN);
+    e.clock.ms = at(9, 55);
+    e.bridge.emit({ type: 'fullscreen', on: false });
+    go(e, at(9, 55, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 55, 3));
+    eq(prompts(e, m), ['show:both']);
+    done();
+  });
+
+  test('care: PANEL blocks prompts', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 49));
+    var m = mark(e);
+    C.setPanel(true);
+    walk(e, at(9, 50), at(9, 51), MIN);
+    e.clock.ms = at(9, 52);
+    C.setPanel(false);
+    go(e, at(9, 52, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 52, 3));
+    eq(prompts(e, m), ['show:both']);
+    done();
+  });
+
+  // Work 09:00, a focus from 09:40: the reminder due at 09:50 waits; at 10:05 the focus ends.
+  function focusFrom940() {
+    var e = mk(at(9, 0));
+    go(e, at(9, 40));
+    e.m = mark(e);
+    C.toggleFocus();
+    eq(C.state.p.phase, 'focus');
+    walk(e, at(9, 41), at(10, 4), MIN);
+    go(e, at(10, 4, 59));
+    eq(prompts(e, e.m), [], 'the reminder waits for the focus');
+    go(e, at(10, 5));
+    return e;
+  }
+
+  test('care: focus from 09:40 holds the reminder; at 10:05 a tomato, a stand-up and the break bubble with the water line', function () {
+    var e = focusFrom940();
+    eq(h(), [0, 1, 1]);
+    eq(C.state.p.phase, 'break');
+    eq(prompts(e, e.m), ['show:break+w']);
+    eq([C.state.prompt.kind, C.state.prompt.water], ['break', true]);
+    eq(C.state.r.ms, 0);
+    eq(events(e, e.m, 'cue'), ['focus', 'stretch']);
+    eq(events(e, e.m, 'standup'), [{ count: 1, source: 'break' }]);
+    var v = C.view();
+    eq([v.title, v.sub, v.waterLine], ['休息 5 分鐘！起來走走～', '第 1 顆番茄完成', '順便喝口水吧～']);
+    eq(v.buttons.map(function (b) { return b.id; }), ['ok', 'drink', 'skip']);
+    done();
+  });
+
+  test('care: 跳過休息 restores the timer and undoes the stand-up', function () {
+    var e = focusFrom940();
+    e.clock.ms = at(10, 6);
+    var m = mark(e);
+    C.answer('skip');
+    eq(prompts(e, m), ['hide']);
+    eq(C.state.p.phase, 'focus');
+    eq(C.state.p.endMs, at(10, 31));
+    eq(h(), [0, 1, 0]);
+    eq(C.state.r.ms, 66 * MIN);
+    walk(e, at(10, 7), at(10, 30), MIN);
+    go(e, at(10, 30, 59));
+    eq(prompts(e, m), ['hide'], 'nothing until the focus ends');
+    go(e, at(10, 31));
+    eq(prompts(e, m), ['hide', 'show:break+w']);
+    eq(h(), [0, 2, 1]);
+    done();
+  });
+
+  var FOCUS_900 = { phase: 'focus', startMs: at(9, 0), endMs: at(9, 25), day: '2026-11-12', long: false, done: 0, notice: null };
+
+  test('care: a restart after the focus ended counts the tomato; the break bubble shows 3 s after the window is visible', function () {
+    var e = mk(at(9, 27), S(), hist([startedAt('2026-11-12', 9, 0)], FOCUS_900)), m = mark(e);
+    eq(h(), [0, 1, 1]);
+    eq(C.state.p.phase, 'break');
+    eq(C.state.p.endMs, at(9, 30));
+    var saved = sends(e, { log: 0, sent: 0 }, 'saveHistory').pop();
+    eq(JSON.parse(saved.text).pomodoro.phase, 'break', 'the phase change is saved at once');
+    go(e, at(9, 27, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 27, 3));
+    eq(prompts(e, m), ['show:break']);
+    done();
+  });
+
+  test('care: a restart after the break ended asks 休息結束 and never starts by itself', function () {
+    var e = mk(at(9, 40), S(), hist([startedAt('2026-11-12', 9, 0)], FOCUS_900)), m = mark(e);
+    eq(h(), [0, 1, 1]);
+    eq(C.state.p.phase, 'breakOver');
+    go(e, at(9, 40, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 40, 3));
+    eq(prompts(e, m), ['show:breakEnd']);
+    eq(C.view().title, '休息結束～要開始下一顆嗎？');
+    eq(events(e, m, 'cue'), [], 'no pose of its own');
+    walk(e, at(9, 41), at(10, 30), MIN);
+    eq(C.state.p.phase, 'breakOver');
+    eq(C.state.prompt.kind, 'breakEnd');
+    done();
+  });
+
+  test('care: a tomato started 03:50 counts for the day before', function () {
+    var e = mk(day(12, 3, 50));
+    C.toggleFocus();
+    eq(C.state.p.day, '2026-11-11');
+    go(e, day(12, 4, 0));
+    go(e, day(12, 4, 15));
+    eq(A.state.history.days['2026-11-11'].health.tomatoes, 1);
+    eq(A.state.today.day, '2026-11-12');
+    eq(h(), [0, 0, 1], 'the break started on 11-12: its stand-up counts there');
+    done();
+  });
+
+  test('care: the 04:00 rollover closes yesterday\'s bubble and restarts the timer', function () {
+    var e = mk(day(11, 20, 30), S(BOTH, { startMode: 'manual' }));
+    A.startWork();
+    var m = mark(e);
+    go(e, day(11, 21, 19, 59));
+    eq(prompts(e, m), []);
+    go(e, day(11, 21, 20));
+    eq(prompts(e, m), ['show:both']);
+    m = mark(e);
+    go(e, day(12, 4, 0));
+    eq(prompts(e, m), ['hide:quiet']);
+    eq(raises(e, m), [false]);
+    eq(C.state.r.day, '2026-11-12');
+    eq(C.state.r.ms, 0);
+    done();
+  });
+
+  test('care: lunch closes the bubble quietly', function () {
+    var e = mk(at(11, 5)), m = mark(e);
+    go(e, at(11, 54, 59));
+    eq(prompts(e, m), []);
+    go(e, at(11, 55));
+    eq(prompts(e, m), ['show:both']);
+    m = mark(e);
+    go(e, at(12, 0));
+    eq(prompts(e, m), ['hide:quiet']);
+    eq(raises(e, m), [false]);
+    done();
+  });
+
+  test('care: a pomodoro after work shows its bubbles, no water line', function () {
+    var e = mk(at(9, 0));
+    go(e, at(18, 30));
+    var m = mark(e);
+    C.toggleFocus();
+    go(e, at(18, 54, 59));
+    eq(prompts(e, m), []);
+    go(e, at(18, 55));
+    eq(prompts(e, m), ['show:break']);
+    eq(h(), [0, 1, 1]);
+    eq(A.state.today.day, '2026-11-12');
+    done();
+  });
+
+  test('care: a window hidden from 10:30 to 14:00 shows one bubble 3 s after it is back (the lunch end restarted the timer)', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 50));
+    go(e, at(10, 29));
+    vis(e, false, at(10, 30));
+    var m = mark(e);
+    for (var t = at(10, 30, 10); t < at(14, 0); t += 10 * MIN) beat(e, t);
+    vis(e, true, at(14, 0));
+    eq(C.state.r.ms, 60 * MIN);
+    go(e, at(14, 0, 2));
+    eq(prompts(e, m), []);
+    go(e, at(14, 0, 3));
+    walk(e, at(14, 0, 4), at(14, 1, 0), 1000);
+    eq(prompts(e, m), ['show:both']);
+    done();
+  });
+
+  test('care: waking after 18:00 shows nothing', function () {
+    var e = mk(at(9, 0));
+    go(e, at(17, 0));
+    sess(e, 'suspend', at(17, 0));
+    vis(e, false, at(17, 0));
+    var m = mark(e);
+    sess(e, 'resume', at(18, 30));
+    vis(e, true, at(18, 30));
+    walk(e, at(18, 30, 1), at(18, 30, 5), 1000);
+    walk(e, at(18, 31), at(18, 40), MIN);
+    eq(prompts(e, m), []);
+    eq(raises(e, m), []);
+    done();
+  });
+
+  test('care: a cup from the tray while the bubble is open', function () {
+    var e = mk(at(9, 0));
+    C.setCups(7);
+    go(e, at(9, 50));
+    var m = mark(e);
+    menu(e, 'drink');
+    eq(h(), [8, 0, 0]);
+    eq(events(e, m, 'drank'), [{ cups: 8, goalReached: true }]);
+    go(e, at(9, 50, 1));
+    eq(prompts(e, m), ['update:sit']);
+    eq(C.answer('drink'), false, '喝了 has left the bubble: a stale press does nothing');
+    eq(h(), [8, 0, 0]);
+    menu(e, 'drink');
+    eq(h(), [9, 0, 0], 'each press counts once');
+    done();
+
+    e = mk(at(9, 0), S(WATER));
+    C.setCups(7);
+    go(e, at(9, 50));
+    m = mark(e);
+    menu(e, 'drink');
+    eq(h(), [8, 0, 0]);
+    go(e, at(9, 50, 1));
+    eq(prompts(e, m), ['hide:quiet']);
+    eq(raises(e, m), [false]);
+    eq(C.answer('drink'), false);
+    eq(h(), [8, 0, 0]);
+    done();
+  });
+
+  test('care: menu pomodoro starts and stops; healthMenu follows only on change', function () {
+    var e = mk(at(9, 0));
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } }], 'sent after init');
+    go(e, at(10, 0));
+    eq(C.state.prompt.kind, 'both');
+    var m = mark(e);
+    menu(e, 'pomodoro');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'focus', endsMs: at(10, 25) } }]);
+    eq(prompts(e, m), ['hide:quiet'], 'a focus sends the open reminder back to its queue at once');
+    eq(events(e, m, 'cue'), ['focus']);
+    menu(e, 'pomodoro');
+    eq(sends(e, m, 'healthMenu')[1], { cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } });
+    eq(sends(e, m, 'healthMenu').length, 2);
+    m = mark(e);
+    for (var i = 1; i <= 30; i++) go(e, at(10, 0, i));
+    eq(sends(e, m, 'healthMenu'), []);
+    eq(sends(e, m, 'saveHistory'), []);
+    done();
+
+    e = mk(at(9, 0), S(SIT));
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: null, pomodoro: { phase: 'idle', endsMs: null } }]);
+    eq([C.state.show.cups, C.state.cupsText], [false, '0/8']);
+    C.drink();
+    eq([C.state.show.cups, C.state.cupsText], [true, '1/8'], 'a cup logged today shows the count');
+    done();
+  });
+
+  test('care: reaching the cup goal', function () {
+    var e = mk(at(9, 0));
+    C.setCups(7);
+    var m = mark(e);
+    C.drink();
+    eq(events(e, m, 'drank'), [{ cups: 8, goalReached: true }]);
+    C.drink();
+    eq(events(e, m, 'drank')[1], { cups: 9, goalReached: false });
+    done();
+  });
+
+  test('care: a 1.0 user is never reminded before answering', function () {
+    var e = mk(at(9, 0), S(null)), m = mark(e);
+    walk(e, at(9, 0), at(17, 59), 10 * MIN);
+    eq(prompts(e, m), []);
+    eq([C.state.show.cups, C.state.show.tomatoes], [false, false]);
+    eq(C.minutesToStand(), null);
+    done();
+
+    e = mk(at(9, 0), S({ asked: false, sit: { on: true }, water: { on: true } })); m = mark(e);
+    walk(e, at(9, 0), at(11, 0), 10 * MIN);
+    eq(prompts(e, m), [], 'switches on in a hand-edited file, but never asked (§5.5)');
+    done();
+  });
+
+  test('care: state: goals, what shows, the time to the next stand-up', function () {
+    var e = mk(at(9, 0));
+    eq(C.state.ready, true);
+    eq(C.state.goals, { cups: 8, tomatoes: 4, standups: 9 });
+    eq([C.state.show.cups, C.state.show.tomatoes], [true, false]);
+    go(e, at(9, 20));
+    eq(C.minutesToStand(), 30);
+    C.toggleFocus();
+    eq(C.state.show.tomatoes, true, 'a running focus shows the tomatoes');
+    C.toggleFocus();
+    eq(C.state.show.tomatoes, false);
+    done();
+  });
+
+  test('care: a clock set back never holds the bubble, its re-wave or 等一下 for the size of the jump', function () {
+    // the 3 s gate after the window comes back
+    var e = mk(at(9, 0));
+    go(e, at(9, 49));
+    vis(e, false, at(9, 49));
+    vis(e, true, at(9, 55));
+    var m = mark(e);
+    go(e, at(9, 35));
+    go(e, at(9, 35, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 35, 3));
+    eq(prompts(e, m), ['show:both']);
+    done();
+
+    // the re-wave, 2 min after the bubble showed
+    e = mk(at(9, 0));
+    go(e, at(9, 50));
+    go(e, at(9, 51));
+    m = mark(e);
+    go(e, at(9, 31));
+    go(e, at(9, 31, 59));
+    eq(prompts(e, m), []);
+    go(e, at(9, 32));
+    eq(prompts(e, m), ['wave']);
+    done();
+
+    // 等一下: 10 min, whatever the clock did
+    e = mk(at(9, 0));
+    go(e, at(9, 50));
+    C.answer('later');
+    go(e, at(9, 55));
+    m = mark(e);
+    go(e, at(9, 35));
+    go(e, at(9, 39, 59));
+    eq(prompts(e, m), []);
+    go(e, at(9, 40));
+    eq(prompts(e, m), ['show:both']);
+    eq(C.state.r.ms >= 50 * MIN, true, 'no negative time');
+    done();
+  });
+
+  test('care: _dev seeds counts, a pomodoro and a prompt (dev.html only)', function () {
+    var e = mk(at(10, 0));
+    vis(e, false, at(10, 0));
+    C._dev({ cups: 3, tomatoes: 2, standups: 4, pomo: 'focus' });
+    eq(h(), [3, 2, 4]);
+    eq(C.state.p.phase, 'focus');
+    eq(QJZ.pomodoro.minutesLeft(C.state.p, at(10, 0)), 13);
+    eq(C.state.visible, true, 'dev.html has no host to say the window shows');
+    done();
+
+    e = mk(at(10, 0));
+    C._dev({ tomatoes: 3, prompt: 'break' });
+    eq([C.state.p.phase, C.state.prompt.kind], ['break', 'break']);
+    eq(C.view().sub, '第 3 顆番茄完成');
+    done();
+
+    e = mk(at(9, 10));
+    C._dev({ prompt: 'both' });
+    eq(C.state.prompt.kind, 'both');
+    done();
+  });
+})();
