@@ -40,7 +40,7 @@
           mouth: [118, 115.5], mouthStyle: 'w', mouthSize: [4.5, 2.6], mouthSW: 2
         },
         rig: {
-          mode: 'crayon', line: [LC, 2.6], pivot: [118, 174], grab: [118, 58],
+          mode: 'crayon', line: [LC, 2.6], pivot: [118, 174], grab: [118, 49],
           top: [118, 74], qm: [158, 66], zzz: [152, 80], side: [[68, 100], [168, 100]], nose: [120, 112.5], anger: [142, 92],
           cheeks: [[88, 119, 9.5], [150, 119, 9.5]], hold: [118, 126, 0.95], smoke: 32,
           fire: [[60, 154, 1.1], [176, 154, 1.1]], bento: [150, 149, 1],

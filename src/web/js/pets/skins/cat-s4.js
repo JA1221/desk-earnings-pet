@@ -42,8 +42,8 @@
         `<path d="M70.5,117 l-8.5,-2 M70.5,123 l-8.5,2 M165.5,117 l8.5,-2 M165.5,123 l8.5,2" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>`;
       var lowTail = tail('M86,160 C64,163 51,153 51,137', '60px 156px');
       var R = { line: [INK, 0], limb: { fill: `url(#${uid}-lf)` }, mode: 'flat' };
-      // the scruff pulled up into a soft tip, two-tone like the rest
-      var tuft = `<path d="${C.softTri([104, 78], TIP, [132, 78], 0.4, 1.5)}" fill="url(#${uid}-lf)"/>`;
+      // the scruff pulled up into a soft tip, two-tone like the rest (its rounded apex lies 2.1 below TIP: rig.grab)
+      var tuft = `<path d="${C.softTri([105, 78], TIP, [131, 78], 0.2, 1.2)}" fill="url(#${uid}-lf)"/>`;
       return {
         crop: '58 52 120 120',
         seed: false,
@@ -60,7 +60,7 @@
           mouth: [118, 122.4], mouthStyle: 'w', mouthSize: [4.4, 2.6], mouthSW: 1.6
         },
         rig: {
-          mode: 'flat', line: [INK, 0], pivot: [118, 174], grab: [118, TIP[1] + DANGLE_DY],
+          mode: 'flat', line: [INK, 0], pivot: [118, 174], grab: [118, TIP[1] + DANGLE_DY + 2.5],
           top: [118, 64], qm: [146, 58], zzz: [158, 74], side: [[66, 110], [170, 110]], nose: [119.5, 119], anger: [146, 88],
           cheeks: [[86, 124, 9], [150, 124, 9]], hold: [118, 132, 0.95], smoke: 34,
           fire: [[62, 154, 1.1], [174, 154, 1.1]], bento: [152, 149, 1],

@@ -294,7 +294,7 @@
     eq(QJZ.app.state.settings.layout.current, 'U3', 'M3 is never stored');
     eq(last(e.sent, 'setLayout').layout, 'M3');
     eq(last(e.sent, 'setTopmost'), { on: true }, 'M3 floats on top by default');
-    eq(last(e.sent, 'hitRects').rects.length, 3, 'ring, money tag, status line');
+    eq(last(e.sent, 'hitRects').rects.length, 7, 'the ring as five bands along the disc, money tag, status line');
     eq(text(e, '[data-b=m3sub]'), '上班中 · 還有 07:00:00');
     mouse($(e, '.ring'), 'dblclick');
     eq(QJZ.layouts.current(), 'U3');
@@ -310,8 +310,8 @@
     var sl = last(e.sent, 'setLayout'), rects = last(e.sent, 'hitRects').rects;
     eq(sl.layout, 'U7');
     eq(last(e.sent, 'setTopmost'), { on: true });
-    eq(rects.length, 2);
-    var area = 0;
+    ok(rects.length >= 3 && rects.length <= 16, 'the tag and the pet as a few bands along its shape: ' + rects.length);
+    var area = 0, n0 = rects.length;
     rects.forEach(function (r) {
       area += r[2] * r[3];
       ok(r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= sl.width && r[1] + r[3] <= sl.height, 'inside the window: ' + r);
@@ -321,10 +321,10 @@
     mouse($(e, '.mtag'), 'mouseover');
     ok($(e, '.dpet').classList.contains('hover'));
     eq(of(e.sent, 'hitRects').length, n + 1);
-    eq(last(e.sent, 'hitRects').rects.length, 3, '+ the ⚙ ✕ tools');
+    eq(last(e.sent, 'hitRects').rects.length, n0 + 1, '+ the ⚙ ✕ tools');
     QJZ.layouts.say('吱！');
     ok($(e, '[data-bubble]').classList.contains('show'));
-    eq(last(e.sent, 'hitRects').rects.length, 3, 'a bubble is not interactive: it never joins the hit rects');
+    eq(last(e.sent, 'hitRects').rects.length, n0 + 1, 'a bubble is not interactive: it never joins the hit rects');
     done();
   });
 
@@ -663,6 +663,19 @@
     names.forEach(function (k) { orig[k] = QJZ.sound[k]; n[k] = 0; QJZ.sound[k] = function () { n[k]++; return true; }; });
     try { fn(n); } finally { names.forEach(function (k) { QJZ.sound[k] = orig[k]; }); done(); }
   }
+  // a painted part of the animal itself (compose's .pa, not a .prop), and a click on it at its centre
+  function petPart(e) {
+    var parts = e.root.querySelectorAll('[data-pet] .pa path, [data-pet] .pa ellipse, [data-pet] .pa circle');
+    for (var i = 0; i < parts.length; i++) {
+      var r = parts[i].getBoundingClientRect();
+      if (!parts[i].closest('.prop') && parts[i].getAttribute('fill') !== 'none' && r.width > 20 && r.height > 20) return parts[i];
+    }
+    return null;
+  }
+  function clickOn(el) {
+    var r = el.getBoundingClientRect();
+    return mouse(el, 'click', r.left + r.width / 2, r.top + r.height / 2, { buttons: 0 });
+  }
   function petState(e) {
     var svg = $(e, '[data-pet] svg');
     var m = svg && /\bst-(\w+)/.exec(svg.getAttribute('class'));
@@ -709,14 +722,14 @@
   test('layouts DOM: poking pets (sound, hearts, mood +5); five quick pokes make it angry (mood -5, no sound)', function () {
     sounds(function (n) {
       var e = mk(at(12, 10, 0));
-      var pet = $(e, '[data-pet]'), m0 = QJZ.app.state.mood.mood;
-      pet.click();
+      var m0 = QJZ.app.state.mood.mood;
+      clickOn(petPart(e));
       eq(petState(e), 'petted');
       eq(n.squeak, 1, 'hamster squeaks');
       eq(n.meow, 0);
       ok(e.root.querySelectorAll('.heart').length > 0, 'hearts');
       near(QJZ.app.state.mood.mood, m0 + 5, 0.01);
-      for (var i = 0; i < 4; i++) pet.click();
+      for (var i = 0; i < 4; i++) clickOn(petPart(e));
       eq(petState(e), 'angry');
       near(QJZ.app.state.mood.mood, m0 + 20 - 5, 0.01, 'four pets, then angry');
       eq(n.squeak, 4, 'no squeak when it gets angry');
@@ -729,7 +742,7 @@
   test('layouts DOM: a cat meows when petted', function () {
     sounds(function (n) {
       var e = mk(at(12, 10, 0), { settings: { pet: { kind: 'cat', skin: 'p0' } } });
-      $(e, '[data-pet]').click();
+      clickOn(petPart(e));
       eq([n.meow, n.squeak], [1, 0]);
     });
   });
@@ -799,8 +812,11 @@
     var box = $(e, '[data-hit=pet]').getBoundingClientRect();
     function petRect(state) { return JSON.stringify(U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(state)))); }
     function has(rects, r) { return rects.map(function (x) { return JSON.stringify(x); }).indexOf(r) >= 0; }
+    function inBox(r, state) { var b = JSON.parse(petRect(state)); return r[0] >= b[0] && r[1] >= b[1] && r[0] + r[2] <= b[0] + b[2] && r[1] + r[3] <= b[1] + b[3]; }
+    function petBands(rects) { var tag = $(e, '.mtag').getBoundingClientRect(); return rects.filter(function (r) { return r[1] >= tag.bottom - 1; }); }
     ok(petRect('dangle') !== petRect('typing'), 'a different box');
-    ok(has(last(e.sent, 'hitRects').rects, petRect('typing')), 'the tight box first');
+    var first = petBands(last(e.sent, 'hitRects').rects);
+    ok(first.length >= 2 && first.every(function (r) { return inBox(r, 'typing'); }) && !has(first, petRect('typing')), 'bands along the pet, inside the tight box: ' + JSON.stringify(first));
     var n = of(e.sent, 'hitRects').length;
     var pet = $(e, '[data-pet]');
     mouse(pet, 'mousedown', 100, 100);
@@ -812,8 +828,116 @@
     e.bridge.emit({ type: 'dragEnd' });
     eq(petState(e), 'typing');
     var after = last(e.sent, 'hitRects').rects;
-    ok(has(after, petRect('typing')) && !has(after, petRect('dangle')), 'back to the tight box: ' + JSON.stringify(after));
+    ok(!has(after, petRect('dangle')) && petBands(after).every(function (r) { return inBox(r, 'typing'); }), 'back to the bands: ' + JSON.stringify(after));
     done();
+  });
+
+  // ---- 拎起來: U7 hangs from the cursor by the scruff tip of the lifted pose ----
+  test('layouts DOM: U7 dragStart carries the lifted pet\'s scruff tip, which is the top of its painted shape, for every skin', function () {
+    SKINS.forEach(function (id) {
+      var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf(id).settings }), part = petPart(e), r = part.getBoundingClientRect();
+      mouse(part, 'mousedown', r.left + 10, r.top + 10);
+      mouse(part, 'mousemove', r.left + 20, r.top + 10);
+      eq(petState(e), 'dangle', id + ' lifted');
+      var g = last(e.sent, 'dragStart').grab, sl = last(e.sent, 'setLayout');
+      ok(Array.isArray(g) && g.length === 2, id + ' grab: ' + JSON.stringify(g));
+      ok(g[0] > 0 && g[1] > 0 && g[0] < sl.width && g[1] < sl.height, id + ' the tip is inside the window');
+      // the host moves the window so the cursor sits at grab: the painted tip must be right there
+      var below = document.elementFromPoint(g[0], g[1] + 2.5), above = document.elementFromPoint(g[0], g[1] - 3.5);
+      function what(n) { return n ? '<' + n.tagName + ' ' + (n.getAttribute('class') || '') + (n.parentNode && n.parentNode.getAttribute ? ' in ' + (n.parentNode.getAttribute('class') || n.parentNode.tagName) : '') + '>' : 'nothing'; }
+      ok(below && below.closest('[data-pet] .pa'), id + ' the pet is painted just below the grab point ' + JSON.stringify(g) + ': ' + what(below));
+      ok(!above || !above.closest('[data-pet] .pa'), id + ' nothing of the pet above it: the topmost point');
+      // and it is the swing pivot, so it stays under the cursor while the pet swings
+      var svg = $(e, '[data-pet] svg'), gb = QJZ.pets.grabAt(id), st = svg.getAttribute('style'), m = /--gx:\s*([\d.]+)px;\s*--gy:\s*([\d.]+)px/.exec(st);
+      ok(m && +m[1] === gb[0] && +m[2] === gb[1], id + ' swings around the tip: ' + st);
+      ok($(e, '.dpet').classList.contains('held'), id + ' held: in front of its tag');
+      e.bridge.emit({ type: 'dragEnd' });
+      ok(!$(e, '.dpet').classList.contains('held'), id + ' put down');
+      done();
+    });
+  });
+
+  test('layouts DOM: only U7 sends a grab point; the other layouts move like any window', function () {
+    ['U1', 'U3', 'U5B', 'M3'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name === 'M3' ? 'U1' : name });
+      if (name === 'M3') e.menu('mini');
+      var t = name === 'M3' ? $(e, '.ring') : $(e, '[data-hit]') || e.root.firstElementChild;
+      mouse(t, 'mousedown', 100, 100);
+      mouse(t, 'mousemove', 110, 100);
+      eq(last(e.sent, 'dragStart'), {}, name);
+      done();
+    });
+  });
+
+  // ---- 摸摸: only the animal itself ----
+  test('layouts DOM: a click on the animal pets it; a click on the empty space, the desk, the room or a bubble does not', function () {
+    sounds(function () {
+      ['U7', 'U1', 'U3', 'U5B'].forEach(function (name) {
+        var e = mk(at(12, 10, 0), { first: name }), holder = $(e, '[data-pet]'), svg = $(e, '[data-pet] svg');
+        // not the animal: the holder and the SVG's empty space, every painted thing outside .pa (desk, keyboard, room)
+        var misses = [holder, svg].concat(Array.prototype.slice.call(svg.querySelectorAll('rect, path')).filter(function (n) {
+          return !n.closest('.pa') && !n.closest('defs,clipPath,pattern');
+        }).slice(0, 12));
+        var b = $(e, '[data-bubble]');
+        if (b) { QJZ.layouts.say('吱！'); misses.push(b); }
+        misses.forEach(function (n, i) {
+          clickOn(n);
+          eq(petState(e), 'typing', name + ' miss #' + i + ' <' + n.tagName + ' ' + (n.getAttribute('class') || '') + '>');
+        });
+        // the real thing: a point next to the pet, in the transparent part of the holder
+        var hr = holder.getBoundingClientRect(), x = hr.left + 3, y = hr.top + 3, at0 = document.elementFromPoint(x, y);
+        if (at0) { mouse(at0, 'click', x, y, { buttons: 0 }); eq(petState(e), 'typing', name + ' empty corner of the pet area'); }
+        clickOn(petPart(e));
+        eq(petState(e), 'petted', name + ' the animal itself');
+        done();
+      });
+      // M3: the ring around the portrait is not the animal; the portrait's painted pet is
+      var m = mk(at(12, 10, 0));
+      m.menu('mini');
+      clickOn($(m, '.ring'));
+      eq(petState(m), 'typing', 'M3 ring');
+      clickOn(petPart(m));
+      eq(petState(m), 'petted', 'M3 portrait');
+      done();
+    });
+  });
+
+  test('layouts DOM: U7 pet hit rects follow the painted pet for every skin: they cover it, leave the empty corners to the desktop', function () {
+    var U = QJZ.layouts.util;
+    SKINS.forEach(function (id) {
+      var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf(id).settings });
+      var holder = $(e, '[data-pet]'), box = holder.getBoundingClientRect(), tag = $(e, '.mtag').getBoundingClientRect();
+      var big = U.outer(U.subRect(box, U.PETONLY_VB, U.PET_HIT)), rects = last(e.sent, 'hitRects').rects.filter(function (r) { return r[1] >= tag.bottom - 1; });
+      function inside(x, y) { return rects.some(function (r) { return x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]; }); }
+      var area = 0;   // the union of the rects, sampled every 2 px
+      for (var ay = big[1]; ay < big[1] + big[3]; ay += 2) for (var ax = big[0]; ax < big[0] + big[2]; ax += 2) if (inside(ax + 1, ay + 1)) area += 4;
+      ok(rects.length >= 2 && area < big[2] * big[3] * 0.85, id + ' smaller than the old box: ' + Math.round(area) + ' of ' + big[2] * big[3]);
+      ok(rects.every(function (r) { return r[0] >= big[0] && r[1] >= big[1] && r[0] + r[2] <= big[0] + big[2] && r[1] + r[3] <= big[1] + big[3]; }), id + ' inside the old box');
+      // everything the animal paints inside the old box (the measured pet area; the rects stay within it) is covered
+      var missed = [];
+      for (var y = big[1] + 1; y < big[1] + big[3]; y += 6) {
+        for (var x = big[0] + 1; x < big[0] + big[2]; x += 6) {
+          var n = document.elementFromPoint(x, y);
+          if (n && n.closest('[data-pet] .pa') && !inside(x, y)) missed.push([Math.round(x - box.left), Math.round(y - box.top)]);
+        }
+      }
+      eq(missed, [], id + ' every painted point of the pet is in a rect');
+      // the top corners of the old box are empty and now click through
+      var c1 = U.vbPoint(box, U.PETONLY_VB, [U.PET_HIT[0] + 2, U.PET_HIT[1] + 2], false), c2 = U.vbPoint(box, U.PETONLY_VB, [U.PET_HIT[0] + U.PET_HIT[2] - 2, U.PET_HIT[1] + 2], false);
+      ok(!inside(box.left + c1.x, box.top + c1.y) && !inside(box.left + c2.x, box.top + c2.y), id + ' the empty top corners click through');
+      done();
+    });
+  });
+
+  test('layouts: a disc hit area is covered by its bands and leaves its corners out', function () {
+    var U = QJZ.layouts.util, r = { left: 10, top: 20, width: 100, height: 100 }, bands = U.discRects(r, 5);
+    eq(bands.length, 5);
+    function inside(x, y) { return bands.some(function (b) { return x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height; }); }
+    for (var a = 0; a < 360; a += 10) {
+      var t = a * Math.PI / 180, x = 60 + Math.cos(t) * 49.5, y = 70 + Math.sin(t) * 49.5;
+      ok(inside(x, y), 'covers the disc edge at ' + a + '°');
+    }
+    ok(!inside(12, 22) && !inside(108, 22) && !inside(12, 118) && !inside(108, 118), 'the corners stay out');
   });
 
   test('layouts DOM: the pet talks every 7–15 s where there is a bubble, never as banners in U5-B', function () {

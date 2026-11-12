@@ -32,7 +32,7 @@
           mouth: [118, 121], mouthStyle: 'w', mouthSize: [4, 2.4], mouthSW: 1.6
         },
         rig: {
-          mode: 'flat', line: [INK, 0], pivot: [118, 174], grab: [118, 50],
+          mode: 'flat', line: [INK, 0], pivot: [118, 174], grab: [118, 44.5],
           top: [118, 64], qm: [168, 56], zzz: [152, 68], side: [[70, 102], [166, 102]], nose: [119.5, 116], anger: [144, 86],
           cheeks: [[90, 122, 9.5], [146, 122, 9.5]], hold: [118, 130, 0.95], smoke: 32,
           fire: [[62, 154, 1.1], [174, 154, 1.1]], bento: [150, 149, 1],

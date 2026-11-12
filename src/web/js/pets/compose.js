@@ -13,11 +13,16 @@ QJZ.pets = QJZ.pets || {};
 // (the props' backpack (waitBag) stands on the desk beside the pet, which waves and sits up rig.pack.lift units off
 //  the keyboard in the scene and petonly views)
 // The root <svg> carries .pet-svg, .kind-<kind> and .st-<state> (and .bag-<style> with the bag), plus per-skin pivots
-// --hx/--hy (head) and --gx/--gy (dangle).
+// --hx/--hy (head) and --gx/--gy (dangle: the scruff tip, rig.grab).
 // Every call gets a fresh uid, so ids never collide between SVGs.
+// Marked groups (for clicks and hit areas): .pa holds the animal's own painted parts (body, head, ears, tail, arms,
+// paws, face); inside it, .prop marks what is not the animal (held items, flames behind it); .tops holds the props
+// that fly over everything (Zzz, hearts, confetti, notes...). The room, desk and desk props are outside .pa.
 //
 // QJZ.pets.speechAt(id, state) -> [x, y]: where a speech bubble's tail points, in pet coordinates (the scene and
 // petonly views): on the right edge of the head at eye height, following the dangle / lie poses and the backpack lift.
+// QJZ.pets.grabAt(id) -> [x, y]: the scruff tip of the dangle pose (rig.grab), in pet coordinates: the point that
+// hangs under the cursor while U7 is dragged.
 QJZ.pets.compose = (function () {
   var P = QJZ.pets, C = P.common, seq = 0;
   var PETONLY = '30 4 176 170';
@@ -30,10 +35,18 @@ QJZ.pets.compose = (function () {
   }
 
   var rigs = {};   // id -> {rig, poses} (anchors only: built once, the markup is not kept)
-  P.speechAt = function (id, state) {
+  function rigOf(id) {
     var def = P.get(id);
     if (!def) return null;
     if (!rigs[id]) { var b0 = def.build('speech'); rigs[id] = { rig: b0.rig, poses: b0.poses }; }
+    return rigs[id];
+  }
+  P.grabAt = function (id) {
+    var r = rigOf(id);
+    return r ? r.rig.grab.slice() : null;
+  };
+  P.speechAt = function (id, state) {
+    if (!rigOf(id)) return null;
     var rig = rigs[id].rig, st = P.states.get(state) || P.states.get('typing'), pose = st.pose || 'desk';
     var a = pose !== 'desk' && rigs[id].poses[pose] ? rigs[id].poses[pose].anchors || {} : {};
     var side = (a.side || rig.side)[1];
@@ -61,7 +74,9 @@ QJZ.pets.compose = (function () {
     return o;
   }
 
-  function bod(m) { return m ? '<g class="bod">' + m + '</g>' : ''; }
+  function bod(m) { return m ? '<g class="bod pa">' + m + '</g>' : ''; }
+  function prop(m) { return m ? '<g class="prop">' + m + '</g>' : ''; }
+  function tops(m) { return m ? '<g class="tops">' + m + '</g>' : ''; }
 
   return function compose(id, view, opts) {
     var def = P.get(id);
@@ -105,7 +120,7 @@ QJZ.pets.compose = (function () {
         else arms[k] = (a[k] ? '<g class="pose-a">' + a[k] + '</g>' : '') + (z[k] ? '<g class="pose-b">' + z[k] + '</g>' : '');
       });
     }
-    var over = pr.over + (mode === 'hold' && pose === 'desk' ? '<g class="held" style="transform-origin:' + rig.hold[0] + 'px ' + rig.hold[1] + 'px">' + pr.held + arms.over + '</g>' : arms.over);
+    var over = prop(pr.over) + (mode === 'hold' && pose === 'desk' ? '<g class="held" style="transform-origin:' + rig.hold[0] + 'px ' + rig.hold[1] + 'px">' + prop(pr.held) + arms.over + '</g>' : arms.over);
     var slots = { EYES: eyes, MOUTH: mouth + pr.face, OVER: over };
     function layer(s) { return wrap(def.wrap, uid, fill(s, slots)); }
     function extra(m) { return wrap(def.wrap, uid, m); }
@@ -117,7 +132,7 @@ QJZ.pets.compose = (function () {
 
     if (view === 'avatar') {
       return open + 'viewBox="' + b.crop + '" style="width:100%;height:100%;' + style + '"><defs>' + defs + '</defs>' +
-        layer(pr.back + arms.back + (L.back || '')) + layer(L.pre) + layer(L.post) + extra(pr.top) + '</svg>';
+        '<g class="pa">' + layer(prop(pr.back) + arms.back + (L.back || '')) + layer(L.pre) + layer(L.post) + '</g>' + tops(extra(pr.top)) + '</svg>';
     }
 
     var seed = b.seed ? wrap(def.wrap, uid, C.seed(line[0])) : '';
@@ -125,19 +140,19 @@ QJZ.pets.compose = (function () {
     function up(m) { return lift && m ? '<g transform="translate(0 ' + -lift + ')">' + m + '</g>' : m; }
     if (pl) {
       behind = '';
-      front = layer(pr.back + (pl.back || '')) + layer(pl.pre) + layer(pl.front) + layer(pr.front) + layer(pl.post);
+      front = '<g class="pa">' + layer(prop(pr.back) + (pl.back || '')) + layer(pl.pre) + layer(pl.front) + layer(prop(pr.front)) + layer(pl.post) + '</g>';
     } else {
-      behind = bod(up(layer(pr.back + arms.back + (L.back || '')) + layer(L.pre)));
-      front = bod(up(layer(pr.front + arms.front) + layer(L.post)));
+      behind = bod(up(layer(prop(pr.back) + arms.back + (L.back || '')) + layer(L.pre)));
+      front = bod(up(layer(prop(pr.front) + arms.front) + layer(L.post)));
     }
     var desk = seed + extra(pr.desk);
 
     if (view === 'petonly') {
       return open + 'viewBox="' + PETONLY + '" style="' + style + '"><defs>' + defs + '</defs>' +
-        behind + P.room.miniDesk(uid, def.room) + desk + front + extra(pr.top) + '</svg>';
+        behind + P.room.miniDesk(uid, def.room) + desk + front + tops(extra(pr.top)) + '</svg>';
     }
     var r = P.room.build(uid, def.room);
     return open + 'viewBox="' + (opts.viewBox || '0 0 300 200') + '" preserveAspectRatio="xMidYMid slice" style="' + style + '"><defs>' + defs + r.defs + '</defs>' +
-      r.before + behind + r.desk + desk + front + extra(pr.top) + r.paper + '</svg>';
+      r.before + behind + r.desk + desk + front + tops(extra(pr.top)) + r.paper + '</svg>';
   };
 })();

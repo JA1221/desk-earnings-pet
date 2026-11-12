@@ -89,7 +89,7 @@
           mouth: [118, 130.2], mouthStyle: 'w', mouthSize: [3.6, 2.3], mouthSW: 1.7
         },
         rig: {
-          mode: 'sticker', line: [L, 2.8], pivot: [118, 172], grab: [118, DANGLE_TIP_Y],
+          mode: 'sticker', line: [L, 2.8], pivot: [118, 172], grab: [118, DANGLE_TIP_Y - 1],
           top: [118, 82], qm: [142, 76], zzz: [154, 92], side: [[62, 122], [174, 122]], nose: [120, 126], anger: [142, 104],
           cheeks: [[86, 135, 10], [150, 135, 10]], hold: [118, 140, 0.8], smoke: 36,
           fire: [[56, 154, 1], [180, 154, 1]], bento: [154, 149, 0.92],

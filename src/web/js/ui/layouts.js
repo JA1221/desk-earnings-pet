@@ -12,12 +12,17 @@ window.QJZ = window.QJZ || {};
 //                                           or the DPR changes.
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
 //                                           through. Sent with every setLayout and whenever the rects change
-//                                           (hover tools, text growing, resize). Speech bubbles are never
-//                                           interactive: no rect of their own, pointer-events none.
+//                                           (hover tools, text growing, resize, the pet's pose). Speech bubbles
+//                                           are never interactive: no rect of their own, pointer-events none.
+//                                           Two elements give several rects that follow their shape: the U7 pet
+//                                           (data-hit="pet": bands along the painted pet and its desk, see
+//                                           petRects) and the M3 ring (data-hit-shape="disc": bands along the disc).
 //   setTopmost {on}                         after every layout change, from settings.layout.topmost (and when the
 //                                           settings panel changes the setting of the layout PANEL came from).
-//   dragStart {}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click, so
-//                 pets can be poked and M3 double-clicked).
+//   dragStart {grab?}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click,
+//                 so pets can be poked and M3 double-clicked). U7 sends grab: [x, y], page CSS px, where the
+//                 lifted pet's scruff tip is (QJZ.pets.grabAt): the host should move the window so that point sits
+//                 under the cursor before its move loop starts, and the pet then hangs from the cursor by it.
 //   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
 // Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
 //
@@ -31,9 +36,11 @@ window.QJZ = window.QJZ || {};
 // idle actions, reactions); the holder node stays and the SVG is swapped only when the state or the skin changes.
 // Reactions: a plain click on the pet is a poke (petted / angry), 餵食 plays eat when the snack lands, a milestone
 // hops (with confetti and the coin sound; quietly, one bubble at most, when it was crossed while hidden), U7 dangles
-// from dragStart until dragEnd, a live 可以下班 plays the jingle. Speech: QJZ.lines, in the bubble (U1, U3, U7)
-// every 7–15 s after the last one and on events; bubble timers run only while a bubble shows. Bubble ranks: chatter
-// < pet events < the user's own actions and anything other modules say (those always show).
+// from dragStart until dragEnd (hanging in front of its tag), a live 可以下班 plays the jingle. Only a click on the
+// animal's own painted shape pets it (compose's .pa, not .prop): not the desk, the room, the empty space around it
+// or a bubble. Speech: QJZ.lines, in the bubble (U1, U3, U7) every 7–15 s after the last one and on events; bubble
+// timers run only while a bubble shows. Bubble ranks: chatter < pet events < the user's own actions and anything
+// other modules say (those always show).
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'M3', 'PANEL'];
@@ -247,7 +254,7 @@ QJZ.layouts = (function () {
         '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     M3: function () {
-      return '<div class="m3 lay"><div class="ring" data-ring data-hit><div class="av" data-pet="avatar"></div></div>' +
+      return '<div class="m3 lay"><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
         '<div class="tagm" data-hit><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div>' +
         '<div class="sub" data-hit data-b="m3sub"></div><div class="fx" data-fx data-fxwin></div></div>';
     },
@@ -326,7 +333,6 @@ QJZ.layouts = (function () {
     var id = petId(app().state.settings), key = id + '|' + state;
     if (view.petKey === key) return;
     view.petKey = key;
-    var hitBefore = petHit(view.petState);
     view.petState = state;
     var opts = { state: state }, svgText = '';
     if (h.view === 'hud') opts.viewBox = HUD_VB;
@@ -336,7 +342,7 @@ QJZ.layouts = (function () {
     var svg = h.el.firstElementChild;
     if (svg) svg.style.setProperty('--bd', (-Math.random() * 4.6).toFixed(2) + 's');   // blinks out of step
     if (view.bubble && view.bubble.classList.contains('show')) placeBubble();   // the head moved (dangle, lie, sit up)
-    if (view.live && h.view === 'petonly' && petHit(state) !== hitBefore) sync(false);   // hop / dangle: the hit area follows at once
+    if (view.live && h.el.getAttribute('data-hit') === 'pet') sync(false);   // the hit area follows the pose at once
   }
 
   function renderMoney(snap) {
@@ -477,10 +483,131 @@ QJZ.layouts = (function () {
       if (el.hidden || (cond && !el.matches(cond))) return;
       var r = boxOf(el);
       if (!(r.width > 0 && r.height > 0)) return;
-      if (el.getAttribute('data-hit') === 'pet') r = subRect(r, PETONLY_VB, petHit(view.petState));
-      out.push(outer(r));
+      if (el.getAttribute('data-hit') === 'pet') petRects(el, r).forEach(function (q) { out.push(outer(q)); });
+      else if (el.getAttribute('data-hit-shape') === 'disc') discRects(r, 5).forEach(function (q) { out.push(outer(q)); });
+      else out.push(outer(r));
     });
     return out;
+  }
+
+  // ---- hit areas that follow a shape (the transparent space next to it clicks through to the desktop) ----
+  // A disc (the M3 ring) as n horizontal bands, each as wide as the disc gets inside it, so the disc stays covered.
+  function discRects(r, n) {
+    var R = Math.min(r.width, r.height) / 2, cx = r.left + r.width / 2, cy = r.top + r.height / 2, h = 2 * R / n, out = [];
+    for (var i = 0; i < n; i++) {
+      var y0 = cy - R + i * h, y1 = y0 + h, d = y0 > cy ? y0 - cy : y1 < cy ? cy - y1 : 0, hw = Math.sqrt(Math.max(0, R * R - d * d));
+      out.push({ left: cx - hw, top: y0, width: 2 * hw, height: h });
+    }
+    return out;
+  }
+  // The U7 pet: bands along the painted pet and its desk (petonly viewBox units), found by sampling the pet's shapes
+  // once per skin and state, padded for the state's motion and kept inside petHit. Hop and dangle move too much for
+  // that and keep their measured boxes; anything that cannot be measured falls back to the box.
+  var SIL_BAND = 10, SIL_STEP = 2, SIL_PAD = 5, SIL_MERGE = 4, SIL_GAP = 14;
+  var SIL_UP = { celebrate: 16, waitBag: 8, stretch: 6, yawn: 3 };   // how far the state lifts the pet (pets.css)
+  // parts that swing about their own transform-origin, and how far (degrees, pets.css): swept when measuring
+  var SIL_SWEEP = { tail: 10, armL: 16, armR: 16, scr: 14, legs: 7, limp: 7 };
+  var silCache = {};
+  function petRects(el, box) {
+    var state = view.petState, lim = petHit(state);
+    if (PET_HIT_BY_STATE.hasOwnProperty(state)) return [subRect(box, PETONLY_VB, lim)];
+    var svg = el.querySelector('svg'), key = petId(app().state.settings) + '|' + state, bands = silCache[key];
+    if (!bands && svg) { bands = silhouette(svg); if (bands && bands.length) silCache[key] = bands; }
+    if (!bands || !bands.length || bands.length > 30) return [subRect(box, PETONLY_VB, lim)];   // (the host takes 64 rects)
+    var up = SIL_UP[state] || 0, L = lim[0], T = lim[1], R = lim[0] + lim[2], B = lim[1] + lim[3], out = [];
+    // a band touching another one above / below (overlapping in x) needs no padding towards it
+    function touches(b, edge, side) {
+      return bands.some(function (c) { return c !== b && c[side] === edge && c[0] < b[2] && c[2] > b[0]; });
+    }
+    bands.forEach(function (b) {
+      var x0 = Math.max(L, b[0] - SIL_PAD), x1 = Math.min(R, b[2] + SIL_PAD);
+      var y0 = Math.max(T, b[1] - (touches(b, b[1], 3) ? 0 : SIL_PAD) - up), y1 = Math.min(B, b[3] + (touches(b, b[3], 1) ? 0 : SIL_PAD));
+      if (x1 > x0 && y1 > y0) out.push(subRect(box, PETONLY_VB, [x0, y0, x1 - x0, y1 - y0]));
+    });
+    return out.length ? out : [subRect(box, PETONLY_VB, lim)];
+  }
+  // [[x0, y0, x1, y1], ...] in viewBox units: for each band of SIL_BAND units, the runs of points some shape of the pet
+  // SVG paints (its fill, or its stroke when unfilled), sampled every SIL_STEP at rest (animations off for the moment
+  // of measuring), the swinging parts swept over their range; a gap of SIL_GAP or more splits a band, and runs of
+  // neighbouring bands that line up are merged. The flying props (.tops) do not count, nor what a clip keeps inside
+  // another shape.
+  function silhouette(svg) {
+    svg.classList.add('sil-rest');
+    try {
+      var M = svg.getScreenCTM();
+      if (!M || !M.a) return null;
+      var shapes = [];
+      Array.prototype.forEach.call(svg.querySelectorAll('path,circle,ellipse,rect,polygon,polyline,line'), function (s) {
+        if (s.closest('defs,clipPath,mask,pattern,.tops')) return;
+        var sweep = null;
+        for (var p = s.parentNode; p && p !== svg; p = p.parentNode) {
+          if (!p.getAttribute) continue;
+          if (p.getAttribute('clip-path')) return;
+          var cls = (p.getAttribute('class') || '').split(/\s+/);
+          for (var c = 0; c < cls.length && !sweep; c++) {
+            if (!SIL_SWEEP.hasOwnProperty(cls[c])) continue;
+            var o = getComputedStyle(p).transformOrigin.split(' ').map(parseFloat);
+            sweep = { deg: SIL_SWEEP[cls[c]], o: o };
+          }
+        }
+        var r = s.getBoundingClientRect();
+        if (!(r.width > 0 || r.height > 0)) return;
+        var tag = s.tagName.toLowerCase(), fill = s.getAttribute('fill'), stroke = s.getAttribute('stroke');
+        var grow = sweep ? Math.max(r.width, r.height) * 1.2 : 1;   // a swept part reaches beyond its box at rest
+        shapes.push({ el: s, l: r.left - grow, t: r.top - grow, rr: r.right + grow, b: r.bottom + grow, m: s.getScreenCTM().inverse(),
+          fill: fill !== 'none' && tag !== 'line' && tag !== 'polyline', stroke: !!stroke && stroke !== 'none', sweep: sweep });
+      });
+      if (!shapes.length) return null;
+      var pt = svg.createSVGPoint();
+      var hits = function (sh, vx, vy) {
+        var x = M.a * vx + M.c * vy + M.e, y = M.b * vx + M.d * vy + M.f;
+        if (x < sh.l || x > sh.rr || y < sh.t || y > sh.b) return false;
+        pt.x = x; pt.y = y;
+        var q = pt.matrixTransform(sh.m);
+        return (sh.fill && sh.el.isPointInFill(q)) || (sh.stroke && sh.el.isPointInStroke(q));
+      };
+      var painted = function (vx, vy) {
+        for (var i = 0; i < shapes.length; i++) {
+          var sh = shapes[i];
+          if (!sh.sweep) { if (hits(sh, vx, vy)) return true; continue; }
+          for (var k = -2; k <= 2; k++) {   // the part turned by k/2 of its range: the point turned back by as much
+            var a = -k / 2 * sh.sweep.deg * Math.PI / 180, ox = sh.sweep.o[0], oy = sh.sweep.o[1], dx = vx - ox, dy = vy - oy;
+            if (hits(sh, ox + dx * Math.cos(a) - dy * Math.sin(a), oy + dx * Math.sin(a) + dy * Math.cos(a))) return true;
+          }
+        }
+        return false;
+      };
+      var vb = PETONLY_VB, x0 = vb[0], x1 = vb[0] + vb[2], segs = [];
+      for (var by = vb[1]; by < vb[1] + vb[3]; by += SIL_BAND) {
+        var rows = [by + 1, by + SIL_BAND / 2, by + SIL_BAND - 1], run = null;
+        for (var a = x0; a <= x1; a += SIL_STEP) {
+          var on = false;
+          for (var k = 0; k < rows.length && !on; k++) on = painted(a, rows[k]);
+          if (!on) continue;
+          if (run && a - run[2] < SIL_GAP) run[2] = a;
+          else { run = [a, by, a, by + SIL_BAND]; segs.push(run); }
+        }
+      }
+      var merged = [];   // a run joins the rect right above it when their sides line up
+      segs.forEach(function (b) {
+        for (var i = merged.length - 1; i >= 0; i--) {
+          var m = merged[i];
+          if (m[3] === b[1] && Math.abs(m[0] - b[0]) <= SIL_MERGE && Math.abs(m[2] - b[2]) <= SIL_MERGE) {
+            m[0] = Math.min(m[0], b[0]); m[2] = Math.max(m[2], b[2]); m[3] = b[3];
+            return;
+          }
+        }
+        merged.push(b.slice());
+      });
+      return merged;
+    } catch (e) { return null; } finally { svg.classList.remove('sil-rest'); }
+  }
+  // Where the lifted pet's scruff tip is in U7, page CSS px (dragStart's grab).
+  function grabPoint() {
+    var h = view && view.pet, g = QJZ.pets && QJZ.pets.grabAt ? QJZ.pets.grabAt(petId(app().state.settings)) : null;
+    if (!h || h.view !== 'petonly' || !g) return null;
+    var r = boxOf(h.el), p = vbPoint(r, PETONLY_VB, g, false);
+    return [Math.round((r.left + p.x) * 10) / 10, Math.round((r.top + p.y) * 10) / 10];
   }
   // Sends setLayout when the size (or DPR) changed and hitRects when the rects changed or setLayout went out.
   // force: send both anyway (layout switch, DPR change); forceHits: hitRects anyway (resize).
@@ -785,11 +912,13 @@ QJZ.layouts = (function () {
     if (Math.abs(e.screenX - drag.x) + Math.abs(e.screenY - drag.y) < DRAG_PX) return;
     drag = null;
     dragging = dragged = true;
-    send('dragStart', {});
+    var grab = cur === 'U7' ? grabPoint() : null;
+    send('dragStart', grab ? { grab: grab } : {});
     if (cur === 'U7' && brain) {   // picked up by the scruff
       var now = app().nowMs();
       dragAt = now;
       brain.drag(true);
+      if (view.dpet) view.dpet.classList.add('held');   // the lifted pet hangs in front of its tag
       petTick(now);
       if (view.bubble) petSay(line('dangle'), 0, RANK.user);
     }
@@ -798,6 +927,7 @@ QJZ.layouts = (function () {
   // started: then the host sends no dragEnd).
   function endDrag() {
     dragging = false;
+    if (view && view.dpet) view.dpet.classList.remove('held');
     if (brain && brain.held) {
       brain.drag(false);
       if (view && ready()) petTick(app().nowMs());
@@ -816,7 +946,11 @@ QJZ.layouts = (function () {
     var a = e.target.closest('[data-act]');
     if (a) { act(a.getAttribute('data-act')); return; }
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
-    if (e.target.closest('[data-pet],.scene-wrap')) poke(e);
+    if (isPetPart(e.target)) poke(e);
+  }
+  // The animal's own painted shape (compose's .pa, not a .prop it holds): what a click pets.
+  function isPetPart(t) {
+    return !!(t && t.closest && t.closest('[data-pet] .pa') && !t.closest('.prop'));
   }
   function onDbl(e) {
     if (cur === 'M3' && inRoot(e.target)) show(backTarget(app().state.settings));
@@ -929,7 +1063,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox,
+      heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX
     }
   };

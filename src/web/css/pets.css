@@ -27,6 +27,9 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 .pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom}
 .pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.note){transform-box:view-box}
 
+/* measuring the pet at rest (QJZ.layouts' hit bands): set and removed within one task, never painted */
+.pet-svg.sil-rest,.pet-svg.sil-rest *{animation:none!important}
+
 /* ---------- always on ---------- */
 .pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
 @keyframes puff{0%,100%{transform:scale(1)}50%{transform:scale(calc(1 + .06 * var(--m)))}}

@@ -3,7 +3,10 @@ QJZ.pets = QJZ.pets || {};
 // Arm poses shared by the skins. A skin's build(uid) returns a `rig` describing where its paws go:
 //
 // rig = {
-//   pivot: [x,y],            head (or mochi) tilt pivot -> --hx/--hy; grab: [x,y] dangle pivot -> --gx/--gy
+//   pivot: [x,y],            head (or mochi) tilt pivot -> --hx/--hy
+//   grab: [x,y]              the scruff tip of the dangle pose: its topmost painted point on the centre line, in the
+//                            petonly / scene coordinates. The swing pivot (--gx/--gy), and the point U7 hangs under the
+//                            cursor while it is dragged (QJZ.pets.grabAt, layouts' dragStart {grab})
 //   top: [x,y],              top of the head (hearts, coin, smoke come from here); qm: [x,y] the ? mark
 //   zzz: [x,y],              where Zzz / dots start (upper right of the head)
 //   side: [[x,y],[x,y]],     left / right of the head at eye height (sweat drops)
