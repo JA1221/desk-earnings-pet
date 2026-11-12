@@ -13,6 +13,7 @@ public static class HostSettingsTests
             Assert.True(!s.Topmost("U1") && !s.Topmost("U3") && !s.Topmost("U5B"), "main layouts default not topmost");
             Assert.True(!s.Topmost("spike") && !s.Topmost(null), "unknown layout not topmost");
             Assert.True(s.CaptureGuard, "capture guard defaults on");
+            Assert.Eq("U1", s.StartLayout, "start layout defaults to U1");
         }
     }
 
@@ -28,6 +29,8 @@ public static class HostSettingsTests
         Assert.True(s.Topmost("M3"), "M3 keeps its default");
         Assert.True(!s.Topmost("U3"), "U3 keeps its default");
         Assert.True(s.CaptureGuard, "hideFromCapture true");
+        Assert.Eq("U7", s.StartLayout, "layout.start");
+        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\"}}").StartLayout, "M3 may be the start layout");
         Assert.True(!HostSettings.Parse("{\"privacy\":{\"hideFromCapture\":false}}").CaptureGuard, "hideFromCapture false turns the guard off");
     }
 
@@ -43,7 +46,7 @@ public static class HostSettingsTests
         string[] bad = { "{not json", "[]", "42", "\"x\"", "null",
                          "{\"autostart\":\"false\",\"layout\":{\"topmost\":{\"U1\":\"yes\",\"U7\":0}},\"privacy\":null}",
                          "{\"layout\":{\"topmost\":[true,true]}}", "{\"privacy\":{\"hideFromCapture\":\"false\"}}",
-                         "{\"privacy\":{\"hideFromCapture\":0}}" };
+                         "{\"privacy\":{\"hideFromCapture\":0}}", "{\"layout\":{\"start\":\"PANEL\"}}", "{\"layout\":{\"start\":7}}" };
         foreach (string text in bad)
         {
             HostSettings s = HostSettings.Parse(text);
@@ -51,6 +54,7 @@ public static class HostSettingsTests
             Assert.Eq("Ctrl+Alt+H", s.Hotkey, "hotkey default for " + text);
             Assert.True(!s.Topmost("U1") && s.Topmost("U7"), "topmost defaults for " + text);
             Assert.True(s.CaptureGuard, "capture guard default for " + text);
+            Assert.Eq("U1", s.StartLayout, "start layout default for " + text);
         }
     }
 }

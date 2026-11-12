@@ -108,6 +108,7 @@ public class AppHost
         session.Activity += OnSession;
         SingleInstance.Listen(OnSecondInstance);
 
+        placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
         window.CreateHidden();   // capture guard + hotkey (OnHandleCreated), then the page loads while hidden
         Application.Run(context);
     }

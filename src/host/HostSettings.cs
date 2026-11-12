@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Web.Script.Serialization;
 
 // The values in settings.json (written by the page) that the host needs before the page runs: autostart, the hide
-// hotkey, topmost per layout and the capture guard (privacy.hideFromCapture). Like the page's sanitizer
-// (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default: autostart on,
-// Ctrl+Alt+H, topmost only for U7 and M3, capture guard on.
+// hotkey, topmost per layout, the capture guard (privacy.hideFromCapture) and the layout the page starts in. Like
+// the page's sanitizer (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default:
+// autostart on, Ctrl+Alt+H, topmost only for U7 and M3, capture guard on, start layout U1.
 public class HostSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+H";
@@ -17,6 +17,7 @@ public class HostSettings
         Autostart = true;
         Hotkey = DefaultHotkey;
         CaptureGuard = true;
+        StartLayout = "U1";
         foreach (string l in Layouts) topmost[l] = l == "U7" || l == "M3";
     }
 
@@ -24,6 +25,9 @@ public class HostSettings
 
     // privacy.hideFromCapture: keep the window out of screen captures and sharing.
     public bool CaptureGuard { get; private set; }
+
+    // layout.start: the page's first layout (WindowPlacer.PrePlace puts the hidden window at its saved spot).
+    public string StartLayout { get; private set; }
 
     // Canonical combo (HotKey.Normalize).
     public string Hotkey { get; private set; }
@@ -59,7 +63,9 @@ public class HostSettings
             if (combo != null) s.Hotkey = combo;
         }
         if (privacy != null && privacy.TryGetValue("hideFromCapture", out v) && v is bool) s.CaptureGuard = (bool)v;
-        Dictionary<string, object> top = Child(Child(d, "layout"), "topmost");
+        Dictionary<string, object> layout = Child(d, "layout");
+        if (layout != null && layout.TryGetValue("start", out v) && v is string && Array.IndexOf(Layouts, (string)v) >= 0) s.StartLayout = (string)v;
+        Dictionary<string, object> top = Child(layout, "topmost");
         if (top != null)
             foreach (string l in Layouts)
                 if (top.TryGetValue(l, out v) && v is bool) s.topmost[l] = (bool)v;

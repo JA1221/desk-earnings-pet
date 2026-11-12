@@ -24,6 +24,23 @@ public class WindowPlacer
         positions = WindowPositions.Parse(files.Window.Text);
     }
 
+    // Before the window exists: puts it at the saved spot of the layout the page will start in (when there is one),
+    // so the page loads at that monitor's DPR. Otherwise the page would lay out for the creation monitor, the first
+    // setLayout would move the window across a DPI change, and the first frame would show the old-size surface.
+    public void PrePlace(Control window, string layout)
+    {
+        Point saved;
+        Rectangle? r = StartBounds(positions.TryGet(layout, out saved) ? saved : (Point?)null, window.Size, WorkAreas());
+        if (r.HasValue) window.Bounds = r.Value;
+    }
+
+    // The saved spot kept on screen (the same rule as Place), or null without one.
+    public static Rectangle? StartBounds(Point? saved, Size size, Rectangle[] areas)
+    {
+        if (!saved.HasValue) return null;
+        return ScreenFit.Clamp(new Rectangle(saved.Value, size), areas);
+    }
+
     // Moves window to its spot for layout; call after the window has the layout's size.
     public void Place(Control window, string layout)
     {
