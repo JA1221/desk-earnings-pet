@@ -405,6 +405,53 @@
     done();
   });
 
+  test('care: yesterday\'s 休息結束 closes quietly at 04:00; nothing is counted and the window is not raised again', function () {
+    var e = mk(day(11, 17, 40));
+    C.toggleFocus();
+    go(e, day(11, 18, 5));
+    go(e, day(11, 18, 10));
+    eq([C.state.p.phase, C.state.prompt.kind], ['breakOver', 'breakEnd']);
+    var before = JSON.stringify(A.state.history.days['2026-11-11'].health);
+    go(e, day(12, 3, 59, 59));
+    eq(C.state.prompt.kind, 'breakEnd', 'still the same day');
+    var m = mark(e);
+    go(e, day(12, 4, 0));
+    eq(prompts(e, m), ['hide:quiet']);
+    eq(raises(e, m), [false]);
+    eq(C.state.p.phase, 'idle');
+    eq(events(e, m, 'cue'), [], 'no pose of its own before or after');
+    eq('pomodoro' in JSON.parse(sends(e, m, 'saveHistory').pop().text), false, 'saved');
+    eq(sends(e, m, 'healthMenu').pop().pomodoro, { phase: 'idle', endsMs: null });
+    eq(JSON.stringify(A.state.history.days['2026-11-11'].health), before, 'no tomato, no stand-up');
+    eq(events(e, m, 'standup'), []);
+    walk(e, day(12, 4, 0, 1), day(12, 4, 0, 5), 1000);
+    eq(prompts(e, m), ['hide:quiet']);
+    done();
+  });
+
+  test('care: a restart the next day drops yesterday\'s break; a focus that ended overnight still counts on its own day', function () {
+    var y = startedAt('2026-11-11', 9, 0);
+    var pomo = { phase: 'breakOver', startMs: day(11, 18, 5), endMs: day(11, 18, 10), day: '2026-11-11', long: false, done: 1, notice: 'breakEnd' };
+    var e = mk(at(9, 0), S(), hist([y], pomo)), m = mark(e);
+    eq(C.state.p.phase, 'idle');
+    eq('pomodoro' in JSON.parse(sends(e, { log: 0, sent: 0 }, 'saveHistory').pop().text), false, 'saved');
+    walk(e, at(9, 0, 1), at(9, 0, 5), 1000);
+    eq(prompts(e, m), []);
+    eq(raises(e, m), []);
+    eq(h(), [0, 0, 0]);
+    done();
+
+    pomo = { phase: 'focus', startMs: day(11, 17, 40), endMs: day(11, 18, 5), day: '2026-11-11', long: false, done: 0, notice: null };
+    e = mk(at(9, 0), S(), hist([y], pomo)); m = mark(e);
+    eq(C.state.p.phase, 'idle');
+    eq([A.state.history.days['2026-11-11'].health.tomatoes, A.state.history.days['2026-11-11'].health.standups], [1, 1], '照算 (§5.2), on 11-11');
+    eq(h(), [0, 0, 0], 'nothing on today');
+    walk(e, at(9, 0, 1), at(9, 0, 5), 1000);
+    eq(prompts(e, m), []);
+    eq(raises(e, m), []);
+    done();
+  });
+
   test('care: lunch closes the bubble quietly', function () {
     var e = mk(at(11, 5)), m = mark(e);
     go(e, at(11, 54, 59));

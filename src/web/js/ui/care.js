@@ -8,7 +8,8 @@ window.QJZ = window.QJZ || {};
 //  1. a new day restarts the timer;
 //  2. the pomodoro walks every phase that has ended: a tomato on the day it started; a break start is a stand-up on its
 //     own day and restarts the timer, after the timer was brought up to the break's start, so a reminder that came due
-//     during the focus adds its water line to the break bubble (Ruling M3);
+//     during the focus adds its water line to the break bubble (Ruling M3); a break or 休息結束 left from an earlier
+//     day then ends quietly;
 //  3. the timer runs to now;
 //  4. the arbiter decides the bubble: blocked while hidden, fullscreen or the panel is open (Ruling C1);
 //  5. prompt events, raise {on} to the host, then the pet's cue.
@@ -125,6 +126,12 @@ QJZ.care = (function () {
     emit('standup', { count: addHealth(ev.day, 'standups', 1), source: 'break' });
     if (same) state.r = R.breakStarted(state.r);
   }
+  // A break or 休息結束 left from an earlier day ends quietly at 04:00, or at the next start: nothing more is counted
+  // and its bubble closes (Review Focus #2). A focus is never stale: it counts on the day it started, even across 04:00
+  // or overnight while the app was closed (§5.2 照算), and only its break can be stale.
+  function isStale(p, day) {
+    return (p.phase === 'break' || p.phase === 'breakOver') && QJZ.time.dayKey(p.startMs) < day;
+  }
   function step() {
     if (!state.ready || stepping) return;
     var now = nowFn();
@@ -142,8 +149,10 @@ QJZ.care = (function () {
           if (ev.type === 'focusDone') addHealth(ev.day, 'tomatoes', 1);
           else if (ev.type === 'breakStart') onBreakStart(ev, rec, s);
         });
-        if (adv.events.length) savePomodoro();
         rec = today();   // the counts above replaced today's record
+        var stale = isStale(state.p, rec.day);
+        if (stale) state.p = P.stop();
+        if (adv.events.length || stale) savePomodoro();
         state.r = R.advance(state.r, now, rec, s);
         seenRec = { day: rec.day, startMs: rec.startMs, endMs: rec.endMs };
         var cups = QJZ.health.of(rec).cups;
