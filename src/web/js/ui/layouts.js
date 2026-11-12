@@ -374,9 +374,13 @@ QJZ.layouts = (function () {
       energy: st.mood ? st.mood.energy : undefined, mood: st.mood ? st.mood.mood : undefined
     };
   }
+  // The pet's own rng (seeded by ?rng=), so chatter timing and lines are reproducible.
+  function rnd() { return brain ? brain.rng() : Math.random(); }
+  function nextChat(ms) { return ms + CHAT_GAP[0] + rnd() * (CHAT_GAP[1] - CHAT_GAP[0]); }
   function line(state, extra) {
     if (!QJZ.lines || !ready()) return '';
     var c = lineCtx(app().nowMs());
+    if (brain) c.rng = brain.rng;
     for (var k in (extra || {})) c[k] = extra[k];
     return QJZ.lines.pick(state, c);
   }
@@ -392,7 +396,7 @@ QJZ.layouts = (function () {
     var gap = lastTick !== null && (ms - lastTick > GAP_MS || ms < lastTick);
     lastTick = ms;
     if (!view || !view.bubble || bubbleRank || dragging) return;
-    if (chatAt === null || gap) { chatAt = ms + CHAT_GAP[0] + Math.random() * (CHAT_GAP[1] - CHAT_GAP[0]); return; }
+    if (chatAt === null || gap) { chatAt = nextChat(ms); return; }
     if (ms < chatAt) return;
     chatAt = null;
     var s = brain && brain.state;
@@ -461,6 +465,7 @@ QJZ.layouts = (function () {
     if (ALL.indexOf(name) < 0 || !root || !ready()) return false;
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     stopSay();
+    chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
     cur = name;
     view = build(name);
     try {
@@ -517,7 +522,7 @@ QJZ.layouts = (function () {
       b.classList.remove('show');
       if (view !== v) return;
       bubbleRank = 0;
-      chatAt = app().nowMs() + CHAT_GAP[0] + Math.random() * (CHAT_GAP[1] - CHAT_GAP[0]);
+      chatAt = nextChat(app().nowMs());
       sync(false);
     }, ms || 4200);
     sync(false);

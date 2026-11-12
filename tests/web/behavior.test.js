@@ -172,8 +172,33 @@
     b.poke(T0 + 12200);
     eq(b.update(T0 + 12300, w), 'dangle', 'dangle beats everything');
     b.drag(false);
-    eq(b.update(T0 + 12400, w), 'petted');
+    eq(b.update(T0 + 12400, w), 'hop', 'the poke did not take the hop slot');
     eq(b.update(T0 + 30000, w), 'typing');
+  });
+
+  test('behavior: brain — a poke during the snack flight, eat or hop does not drop that pose', function () {
+    var b = new B.Brain(B.rng(2)), w = working();
+    b.update(T0, w);
+    b.show('eat', T0 + 100, 3000, 800);
+    eq(b.poke(T0 + 300), 'petted', 'the poke itself still counts');
+    eq(b.update(T0 + 400, w), 'typing', 'still flying: no petted pose either');
+    eq(b.update(T0 + 1000, w), 'eat', 'the eat pose plays');
+    b.poke(T0 + 1500);
+    eq(b.update(T0 + 1600, w), 'eat', 'a poke while eating is ignored');
+    eq(b.update(T0 + 3800, w), 'eat');
+    eq(b.update(T0 + 3900, w), 'typing');
+    b.show('hop', T0 + 10000, 2400);
+    b.poke(T0 + 10100);
+    eq(b.update(T0 + 10200, w), 'hop');
+    eq(b.update(T0 + 12400, w), 'typing');
+    // an angry streak pauses the pose, it does not eat it
+    b.show('eat', T0 + 20000, 3000, 800);
+    for (var i = 0; i < 5; i++) b.poke(T0 + 20100 + i * 50);
+    eq(b.update(T0 + 20400, w), 'angry');
+    eq(b.update(T0 + 21000, w), 'angry');
+    eq(b.update(T0 + 24500, w), 'typing', 'angry is over; the eat window has passed');
+    b.poke(T0 + 30000);
+    eq(b.update(T0 + 30100, w), 'petted', 'with nothing playing a poke pets as before');
   });
 
   test('behavior: brain — change reports base transitions; a gap or the first look is quiet', function () {

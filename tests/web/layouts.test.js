@@ -139,7 +139,7 @@
   });
 
   // CPU: animating background-position repainted the U7 tag (money text and its outline shadows) every frame,
-  // 2.50 % -> 1.71 % of the machine with U7 shown. The stripes must move by transform on their own layer.
+  // 2.50 % -> 1.63 % of the machine with U7 shown. The stripes must move by transform on their own layer.
   test('layouts: progress stripes move by transform on ::before, not by repainting the bar', function () {
     var host = document.createElement('div');
     host.innerHTML = '<div class="thin"><div class="fill" style="width:50%"></div></div>';
@@ -179,7 +179,7 @@
       emit: function (m) { (handlers[m.type] || []).slice().forEach(function (f) { f(m); }); }
     };
     var root = fixture();
-    QJZ.layouts.start(root, { bridge: bridge, first: o.first });
+    QJZ.layouts.start(root, { bridge: bridge, first: o.first, seed: o.seed });
     QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
     var settings = JSON.parse(JSON.stringify(SETTINGS));
     for (var k in (o.settings || {})) settings[k] = o.settings[k];
@@ -595,6 +595,129 @@
     var f = mk(at(12, 10, 0), { first: 'U5B' });
     steps(f, t0 + 1000, t0 + 40000);
     eq(f.root.querySelectorAll('.banner').length, 0);
+    done();
+  });
+
+  // Math.random held at a constant for fn (the Brain captures it when the layouts start, so call mk inside fn).
+  function withRandom(v, fn) {
+    var orig = Math.random;
+    Math.random = function () { return v; };
+    try { return fn(); } finally { Math.random = orig; }
+  }
+  // The first second (from the start of the run) at which the pet says something.
+  function firstChatter(seed, rv) {
+    return withRandom(rv, function () {
+      var e = mk(at(12, 10, 0), { seed: seed }), b = $(e, '[data-bubble]'), t0 = at(12, 10, 0);
+      try {
+        for (var s = 1; s <= 40; s++) {
+          e.tick(t0 + s * 1000);
+          if (b.classList.contains('show')) return { s: s, text: b.textContent };
+        }
+        return null;
+      } finally { done(); }
+    });
+  }
+  test('layouts DOM: chatter timing follows the injected rng, not Math.random (?rng= is reproducible)', function () {
+    var a = firstChatter(5, 0.05), b = firstChatter(5, 0.95);
+    ok(a && b, 'it talks within 40 s');
+    eq(a.s, b.s, 'same seed, same moment, whatever Math.random says');
+    ok(a.s >= 8 && a.s <= 16, 'within 7–15 s of the first tick: ' + a.s);
+    eq(a.text, b.text, 'and the same line');
+  });
+
+  test('layouts DOM: a layout switch reschedules the next chatter line 7–15 s out', function () {
+    withRandom(0, function () {
+      var e = mk(at(12, 10, 0)), t0 = at(12, 10, 0), b;
+      steps(e, t0, t0 + 6000);   // chatter due at t0 + 7 s (random 0)
+      e.clock.ms = t0 + 6000;
+      QJZ.layouts.show('U3');
+      b = $(e, '[data-bubble]');
+      ok(b, 'U3 has a bubble');
+      steps(e, t0 + 6500, t0 + 12500, 500);
+      ok(!b.classList.contains('show'), 'nothing for 7 s after the switch');
+      steps(e, t0 + 13000, t0 + 22000);
+      ok(b.classList.contains('show'), 'then it talks');
+      done();
+    });
+  });
+
+  test('layouts DOM: a buttonless mousemove ends the dangle', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    mouse(pet, 'mousemove', 112, 100, { buttons: 0 });
+    ok(!QJZ.layouts.dragging());
+    eq(petState(e), 'typing');
+    done();
+  });
+
+  test('layouts DOM: the next mousedown ends a dangle whose dragEnd never came', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    mouse(pet, 'mousedown', 100, 100);
+    ok(!QJZ.layouts.dragging());
+    eq(petState(e), 'typing');
+    done();
+  });
+
+  test('layouts DOM: a dangle with no dragEnd and no mouse event ends after 60 s', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    e.tick(at(12, 10, 0) + 59000);
+    eq(petState(e), 'dangle', 'still held at 59 s');
+    e.tick(at(12, 10, 0) + 61000);
+    ok(!QJZ.layouts.dragging());
+    eq(petState(e), 'typing');
+    done();
+  });
+
+  test('layouts DOM: a layout switch in the middle of a drag does not leave the pet dangling', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    QJZ.layouts.show('U1');
+    mouse($(e, '.bar'), 'mousemove', 120, 100, { buttons: 0 });
+    ok(!QJZ.layouts.dragging(), 'the buttonless move ended the drag');
+    QJZ.layouts.show('U7');
+    e.tick(at(12, 10, 0) + 1000);
+    eq(petState(e), 'typing', 'back in U7 the pet is not held');
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U7' });
+    mouse($(f, '[data-pet]'), 'mousedown', 100, 100);
+    mouse($(f, '[data-pet]'), 'mousemove', 110, 100);
+    QJZ.layouts.show('U1');
+    f.bridge.emit({ type: 'dragEnd' });
+    QJZ.layouts.show('U7');
+    f.tick(at(12, 10, 0) + 1000);
+    eq(petState(f), 'typing', 'dragEnd after the switch frees it too');
+    done();
+  });
+
+  test('layouts DOM: the U7 hover tools expire 4 s after the last move', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' }), tag = $(e, '.mtag'), pend = [];
+    var st = window.setTimeout, ct = window.clearTimeout, dn = Date.now, T = 1000000;
+    window.setTimeout = function (fn, ms) { var h = { fn: fn, ms: ms, live: true }; pend.push(h); return h; };
+    window.clearTimeout = function (h) { if (h && h.live !== undefined) h.live = false; };
+    Date.now = function () { return T; };
+    function fire() {   // the pending idle timer (the only one that is not the 300 ms mouseout delay)
+      var l = pend.filter(function (h) { return h.live && h.ms !== 300; });
+      pend = pend.filter(function (h) { return !(h.live && h.ms !== 300); });
+      l.forEach(function (h) { h.live = false; h.fn(); });
+    }
+    try {
+      mouse(tag, 'mouseover');
+      ok($(e, '.dpet').classList.contains('hover'), 'shown');
+      T += 3000; mouse(tag, 'mousemove', 5, 0, { buttons: 0 });
+      T += 3900; fire();
+      ok($(e, '.dpet').classList.contains('hover'), 'only 3.9 s since the last move');
+      T += 200; fire();
+      ok(!$(e, '.dpet').classList.contains('hover'), 'gone 4 s after the last move');
+    } finally { window.setTimeout = st; window.clearTimeout = ct; Date.now = dn; }
     done();
   });
 

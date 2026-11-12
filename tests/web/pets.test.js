@@ -240,6 +240,22 @@
     ok(QJZ.pets.compose('hamster:h2', 'avatar', { state: 'dangle' }).indexOf('class="swing"') < 0, 'avatar has no dangling body');
   });
 
+  test('pets: two DIFFERENT skins in one document share no ids', function () {
+    VIEWS.forEach(function (view) {
+      var a = svgIds(QJZ.pets.compose('hamster:p0', view, { state: 'idle' }));
+      var b = svgIds(QJZ.pets.compose('cat:s5', view, { state: 'idle' }));
+      var host = document.createElement('div');
+      host.innerHTML = QJZ.pets.compose('hamster:p0', view, { state: 'idle' }) + QJZ.pets.compose('cat:s5', view, { state: 'idle' });
+      document.body.appendChild(host);
+      try {
+        a.forEach(function (x) { ok(b.indexOf(x) < 0, view + ': id shared by hamster:p0 and cat:s5: ' + x); });
+        var seen = {}, dup = [];
+        Array.prototype.forEach.call(host.querySelectorAll('[id]'), function (n) { if (seen[n.id]) dup.push(n.id); seen[n.id] = 1; });
+        eq(dup, [], view + ': duplicate ids in the composed document');
+      } finally { host.remove(); }
+    });
+  });
+
   test('pets: compose expression option fills eyes-open', function () {
     var svg = QJZ.pets.compose('cat:s5', 'avatar', { expression: 'happy' });
     var doc = parse(svg);

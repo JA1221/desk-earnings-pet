@@ -121,8 +121,11 @@ QJZ.behavior = (function () {
   Brain.prototype.poke = function (now) {
     var was = this.poker.angry(now), r = this.poker.poke(now);
     this.angered = r === 'angry' && !was;
-    if (r === 'petted') this.over = { state: 'petted', from: now, until: now + PET_MS };
-    else this.over = null;
+    // The snack is already spent and a milestone hop is a one-off: a poke that lands during the flight, eat or hop
+    // still counts (r) but does not take their slot, so that pose always plays. Angry shows over it meanwhile.
+    var keep = this.over && this.over.state !== 'petted' && now < this.over.until;
+    if (r === 'petted') { if (!keep) this.over = { state: 'petted', from: now, until: now + PET_MS }; }
+    else if (!keep) this.over = null;
     return r;
   };
   // A reaction shown for ms, starting delayMs from now (feeding: when the snack lands).

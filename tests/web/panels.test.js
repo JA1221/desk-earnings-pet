@@ -87,6 +87,11 @@
     eq(c({ key: 'K', code: 'KeyK', ctrlKey: true, metaKey: true }), { combo: 'Ctrl+Win+K' }, 'host order Ctrl, Alt, Shift, Win');
     eq(c({ key: 'k', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+K' }, 'no code: the key');
     eq(c({ key: 'Process', code: 'KeyH', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+H' }, 'IME on: the code');
+    eq(c({ key: 'a', code: 'KeyQ', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+A' }, 'AZERTY: the key cap, not the position');
+    eq(c({ key: 'p', code: 'KeyR', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+P' }, 'Dvorak');
+    eq(c({ key: 'Q', code: 'KeyQ', ctrlKey: true, shiftKey: true }), { combo: 'Ctrl+Shift+Q' }, 'Shift gives a capital: still one letter');
+    eq(c({ key: 'é', code: 'Digit2', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+2' }, 'not a plain letter: the code');
+    eq(c({ key: 'ㄘ', code: 'KeyH', ctrlKey: true, altKey: true }), { combo: 'Ctrl+Alt+H' }, 'a non-Latin key: the code');
     eq(c({ key: 'Control', code: 'ControlLeft', ctrlKey: true }), { partial: 'Ctrl+' });
     eq(c({ key: 'Alt', code: 'AltRight', ctrlKey: true, altKey: true }), { partial: 'Ctrl+Alt+' });
     eq(c({ key: 'A', code: 'KeyA', shiftKey: true }), { error: '要按住 Ctrl 或 Alt，再加一個按鍵' });
@@ -388,7 +393,67 @@
     eq(QJZ.app.state.settings.salary.divisor, 30);
     $(e, '[data-seg=mode] [data-v=hourly]').click();
     eq(QJZ.app.state.settings.salary.mode, 'hourly');
-    eq(savedSettings(e).salary, { mode: 'hourly', amount: 44000, divisor: 30 });
+    eq(savedSettings(e).salary, { mode: 'hourly', amount: 183.33, divisor: 30 }, '44,000 / 30 / 8 h, converted');
+    done();
+  });
+
+  test('panels DOM: switching 月薪 and 時薪 converts the amount, hints, and never saves an invalid amount', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    $(e, '[data-tab=salary]').click();
+    var amount = $(e, '[data-f=amount]');
+    eq(amount.value, '50,000');
+    $(e, '[data-seg=mode] [data-v=hourly]').click();
+    var s = QJZ.app.state.settings.salary;
+    eq(s.mode, 'hourly');
+    ok(s.amount !== 50000, 'NT$50,000 an hour is not what anybody meant');
+    near(s.amount, 284.09, 0.005, '50,000 / 22 / 8 h');
+    eq(amount.value, '284.09', 'the field shows it');
+    ok(text(e, '[data-o=modeNote]').indexOf('已切換為時薪') >= 0, 'with a hint: ' + text(e, '[data-o=modeNote]'));
+    ok(QJZ.settings.validateSalary(amount.value).ok, 'what is shown and saved passes validateSalary');
+    commit(amount, '300');
+    eq(QJZ.app.state.settings.salary.amount, 300);
+    eq(text(e, '[data-o=modeNote]'), '', 'typing a new amount clears the hint');
+    $(e, '[data-seg=mode] [data-v=monthly]').click();
+    s = QJZ.app.state.settings.salary;
+    eq([s.mode, s.amount], ['monthly', 52800], '300 x 8 h x 22 days');
+    eq(amount.value, '52,800');
+    ok(text(e, '[data-o=modeNote]').indexOf('已切換為月薪') >= 0);
+    commit(amount, '44,000');
+    $(e, '[data-seg=mode] [data-v=monthly]').click();
+    eq(QJZ.app.state.settings.salary.amount, 44000, 'clicking the mode that is already on changes nothing');
+    commit(amount, '0.01');
+    $(e, '[data-seg=mode] [data-v=hourly]').click();   // 0.01 / 22 / 8 rounds to 0.00
+    s = QJZ.app.state.settings.salary;
+    ok(s.amount > 0 && QJZ.settings.validateSalary(String(s.amount)).ok, 'never saved as 0 or invalid');
+    done();
+  });
+
+  test('panels DOM: an invalid item row keeps its last saved item while another row is edited', function () {
+    var e = mk(at(12, 10, 0));
+    e.menu('settings');
+    $(e, '[data-tab=boost]').click();
+    var before = JSON.parse(JSON.stringify(QJZ.app.state.settings.items));
+    eq(before.length, 3);
+    var rows = $$(e, '[data-item]');
+    commit(rows[1].querySelector('[data-f="item.price"]'), 'x');
+    ok(text(e, '[data-item="1"] .err').indexOf('請輸入數字') >= 0);
+    eq(QJZ.app.state.settings.items[1], before[1], 'the bad edit is not saved');
+    commit(rows[0].querySelector('[data-f="item.name"]'), '大杯珍奶');
+    var items = QJZ.app.state.settings.items;
+    eq(items.length, 3, 'the invalid row did not vanish');
+    eq(items[0].name, '大杯珍奶');
+    eq(items[1], before[1], 'row 2 keeps its last good value');
+    eq(items[2], before[2]);
+    commit(rows[2].querySelector('[data-f="item.name"]'), '');
+    commit(rows[0].querySelector('[data-f="item.price"]'), '80');
+    items = QJZ.app.state.settings.items;
+    eq([items.length, items[2]], [3, before[2]], 'an emptied name keeps the saved row too');
+    commit(rows[1].querySelector('[data-f="item.price"]'), '65');
+    eq(QJZ.app.state.settings.items[1].price, 65, 'fixing the row saves it');
+    $(e, '[data-pa=addItem]').click();
+    commit(rows[0].querySelector('[data-f="item.price"]'), '81');
+    eq(QJZ.app.state.settings.items.length, 3, 'a new row that was never valid is simply not saved');
     done();
   });
 
@@ -584,7 +649,10 @@
     ok($(e, '.panel.p-history'));
     eq(text(e, '.ptitle'), '紀錄');
     eq($$(e, '.hist-chart [data-bar]').length, 30, 'one slot per date');
-    eq($$(e, '.hist-chart rect.bar').length, 5, '4 completed days (one is 0) + today');
+    eq($$(e, '.hist-chart rect.bar').length, 4, '3 completed days that earned something + today; the 0 day has no bar');
+    var zero = $$(e, '.hist-chart [data-bar]')[5];
+    eq(zero.querySelector('rect.bar'), null, 'a closed off day with 0 draws nothing, not a 2px stub');
+    ok(zero.querySelector('title').textContent.indexOf('NT$ 0.00') >= 0, 'but its tooltip still says 0');
     var bar = $(e, '.hist-chart rect.bar');
     eq(bar.getAttribute('fill'), '#FFC857');
     eq(bar.getAttribute('stroke'), '#3D2C24');

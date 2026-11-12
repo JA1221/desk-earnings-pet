@@ -69,6 +69,15 @@ QJZ.panels = (function () {
     var r = QJZ.settings.validateSalary(text);
     return r.ok ? r : { ok: false, error: NEUTRAL[r.error] || r.error };
   }
+  // The amount in the other pay mode (月薪 <-> 時薪, by the divisor and the hours a day), rounded to cents; null when the
+  // result would not pass validateSalary (then the old amount stays).
+  function convertAmount(amount, toMode, divisor, hours) {
+    var h = hours > 0 ? hours : 8, d = divisor === 30 ? 30 : 22;
+    var v = toMode === 'hourly' ? amount / d / h : amount * h * d;
+    v = Math.round(v * 100) / 100;
+    return v > 0 && QJZ.settings.validateSalary(String(v)).ok ? v : null;
+  }
+  function modeNote(to) { return '已切換為' + (to === 'hourly' ? '時薪' : '月薪') + '，金額已換算，請確認'; }
   // 50000 -> '50,000', 183.5 -> '183.5', 0 -> '' (what an amount field shows).
   function amountInputText(n) {
     if (!(n > 0)) return '';
@@ -127,9 +136,11 @@ QJZ.panels = (function () {
   var MOD_KEYS = { Control: 1, Alt: 1, Shift: 1, Meta: 1, OS: 1, AltGraph: 1 };
   var FKEY = /^F([1-9]|1[0-9]|2[0-4])$/;
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
-  // The physical key (e.code: the keyboard layout and an IME do not change it), else e.key.
+  // A letter is the one on the key cap (e.key: AZERTY and Dvorak differ from the physical position); everything
+  // else is the physical key (e.code: an IME does not change it), else e.key.
   function keyName(e) {
     var c = e.code || '', m;
+    if (/^[a-z]$/i.test(e.key || '')) return e.key.toUpperCase();
     if (c) {
       if ((m = /^Key([A-Z])$/.exec(c))) return m[1];
       if ((m = /^Digit([0-9])$/.exec(c))) return m[1];
@@ -282,7 +293,7 @@ QJZ.panels = (function () {
   }
   var SALARY_ROWS =
     line(row('薪資方式', seg('mode', [['monthly', '月薪'], ['hourly', '時薪']]))) +
-    line('<label class="lbl" data-o="amountLabel">月薪金額</label>' + moneyIn('amount', 'big') + err('amount')) +
+    line('<label class="lbl" data-o="amountLabel">月薪金額</label>' + moneyIn('amount', 'big') + err('amount') + hint('', 'modeNote')) +
     line(row('日薪怎麼算', seg('divisor', [['22', '÷ 22 工作天'], ['30', '÷ 30 天']])), ' data-only="monthly"') +
     hint('', 'preview');
 
@@ -401,7 +412,8 @@ QJZ.panels = (function () {
       c.body.innerHTML = '<div class="ph"><h2 class="ptitle">設定</h2><button type="button" class="btn sm" data-act="back">完成</button></div>' +
         WARN + '<div class="tabs" role="tablist">' + tabs + '</div><div class="pscroll" data-nodrag>' + secs + '</div>';
       var s = st().settings;
-      c.draft = s.items.map(function (it) { return { icon: it.icon, name: it.name, priceText: amountInputText(it.price), touched: { name: true, price: true } }; });
+      c.draft = s.items.map(function (it) { return { icon: it.icon, name: it.name, priceText: amountInputText(it.price), touched: { name: true, price: true },
+        saved: { name: it.name, price: it.price, icon: it.icon } }; });
       fillInputs(c);
       renderItems(c);
     },
@@ -519,6 +531,7 @@ QJZ.panels = (function () {
       segOn(c, 'divisor', ob.divisor);
       show(q(c, '[data-only=monthly]'), ob.mode === 'monthly');
       out(c, 'amountLabel', ob.mode === 'hourly' ? '時薪' : '月薪');
+      out(c, 'modeNote', c.modeNote || '');
       var a = q(c, '[data-f=amount]');
       if (a) a.placeholder = ob.mode === 'hourly' ? '輸入時薪' : '輸入月薪';
       var r = QJZ.settings.validateSalary(ob.amountText);
@@ -540,6 +553,7 @@ QJZ.panels = (function () {
       segOn(c, 'divisor', s.salary.divisor);
       show(q(c, '[data-only=monthly]'), s.salary.mode === 'monthly');
       out(c, 'amountLabel', s.salary.mode === 'hourly' ? '時薪金額' : '月薪金額');
+      out(c, 'modeNote', c.modeNote || '');
       out(c, 'preview', salaryPreview(s.salary, s.hoursPerDay) || '還沒設定薪資。');
       // 工時
       out(c, 'hours', String(s.hoursPerDay));
@@ -634,7 +648,7 @@ QJZ.panels = (function () {
     m.days.forEach(function (d, i) {
       var cx = L + (i + 0.5) * slot;
       h += '<g data-bar><title>' + esc(shortDate(d.day) + (d.earned === null ? ' 沒有紀錄' : ' NT$ ' + money(d.earned)) + (d.today ? '（今天）' : '')) + '</title>';
-      if (d.earned !== null) {
+      if (d.earned !== null && d.earned > 0) {   // 0 is no bar: a 2px stub would look like data
         var bh = Math.max(2, (Math.min(d.earned, top) / top) * ph);
         h += '<rect class="bar' + (d.today ? ' today' : '') + '" x="' + (cx - bw / 2).toFixed(1) + '" y="' + (T + ph - bh).toFixed(1) +
           '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + (d.today ? 'url(#qjz-hist-today)' : '#FFC857') +
@@ -701,7 +715,11 @@ QJZ.panels = (function () {
   }
   function saveItems(c) {
     var items = [];
-    c.draft.forEach(function (r) { var x = checkItem(r); if (x.ok) items.push(x.item); });
+    c.draft.forEach(function (r) {
+      var x = checkItem(r);
+      if (x.ok) { r.saved = x.item; items.push(x.item); }
+      else if (r.saved) items.push(r.saved);   // an invalid row keeps its last good value
+    });
     if (items.length) save({ items: items });   // never empty: the sanitizer would bring the defaults back
   }
 
@@ -752,12 +770,34 @@ QJZ.panels = (function () {
   }
   function pickSeg(c, name, v) {
     if (c.kind === 'onboarding') {
-      if (name === 'mode') c.ob.mode = v === 'hourly' ? 'hourly' : 'monthly';
+      if (name === 'mode') {
+        var to = v === 'hourly' ? 'hourly' : 'monthly', r0 = QJZ.settings.validateSalary(c.ob.amountText);
+        if (to !== c.ob.mode && r0.ok) {
+          var cv = convertAmount(r0.value, to, c.ob.divisor, st().settings.hoursPerDay);
+          if (cv !== null) {
+            c.ob.amountText = amountInputText(cv);
+            var af = q(c, '[data-f=amount]');
+            if (af) af.value = c.ob.amountText;
+            c.modeNote = modeNote(to);
+          }
+        }
+        c.ob.mode = to;
+      }
       if (name === 'divisor') c.ob.divisor = v === '30' ? 30 : 22;
       _update();
       return;
     }
-    if (name === 'mode') save({ salary: { mode: v } });
+    if (name === 'mode') {
+      var s0 = st().settings, to2 = v === 'hourly' ? 'hourly' : 'monthly';
+      if (to2 === s0.salary.mode) return;
+      var cv2 = s0.salary.amount > 0 ? convertAmount(s0.salary.amount, to2, s0.salary.divisor, s0.hoursPerDay) : null;
+      save({ salary: cv2 === null ? { mode: to2 } : { mode: to2, amount: cv2 } });
+      var af2 = q(c, '[data-f=amount]');
+      if (af2) af2.value = amountInputText(st().settings.salary.amount);
+      c.modeNote = cv2 === null ? '' : modeNote(to2);
+      setErr(c, 'amount', '');
+      _update();
+    }
     else if (name === 'divisor') save({ salary: { divisor: +v } });
     else if (name === 'startMode') save({ startMode: v });
     else if (name === 'layoutStart') save({ layout: { start: v } });
@@ -830,7 +870,7 @@ QJZ.panels = (function () {
     var c = cur, f = e.target.getAttribute && e.target.getAttribute('data-f');
     if (!c || !f) return;
     if (c.kind === 'onboarding') {
-      if (f === 'amount') { c.ob.amountText = e.target.value; obAmountCheck(c, false); _update(); }
+      if (f === 'amount') { c.ob.amountText = e.target.value; c.modeNote = ''; obAmountCheck(c, false); _update(); }
       if (f === 'petName') { var p = petParts(c.ob.pet); if (p) c.ob.names[p.kind] = e.target.value; }
       return;
     }
@@ -848,6 +888,7 @@ QJZ.panels = (function () {
       case 'amount':
         r = QJZ.settings.validateSalary(el.value);
         setErr(c, 'amount', r.ok ? '' : r.error);
+        c.modeNote = '';
         if (r.ok) { save({ salary: { amount: r.value } }); el.value = amountInputText(r.value); }
         break;
       case 'lunchStart': case 'lunchEnd':

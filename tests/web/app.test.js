@@ -246,6 +246,21 @@
     eq([got[1].count, got[1].quiet, got[1].gained], [4, false, 1]);
     QJZ.app._reset();
   });
+  test('app: a tick gap over 5 s without a visibility event makes the milestone quiet', function () {
+    var e = mk(at(12, 10, 3));
+    var got = [];
+    QJZ.app.on('milestone', function (m) { got.push(m); });
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    e.clock.ms = at(12, 10, 3, 5); QJZ.app.tickNow();
+    e.clock.ms = at(12, 10, 5); QJZ.app.tickNow();   // 115 s later: the timers were throttled, nothing told us
+    eq(got.length, 1);
+    eq([got[0].count, got[0].quiet], [3, true]);
+    eq(QJZ.app.state.snacks, 3, 'awarded silently');
+    e.clock.ms = at(12, 10, 24) + 28000; QJZ.app.tickNow();
+    e.clock.ms = at(12, 10, 24) + 29000; QJZ.app.tickNow();
+    eq([got[1].count, got[1].quiet], [4, false], 'a normal 1 s step is loud');
+    QJZ.app._reset();
+  });
   test('app: tickNow recomputes from the clock, no accumulation', function () {
     var e = mk(at(12, 10, 0));
     init(e, {});
