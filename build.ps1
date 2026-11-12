@@ -1,7 +1,7 @@
 ﻿# Builds build\錢進中.exe (icon assets\app.ico, version from AppHost.Version via src\host\AssemblyInfo.cs).
 #   .\build.ps1           dev build: the page loads from src\web on disk; the WebView2 DLLs are copied beside the exe.
-#   .\build.ps1 -Release  one self-contained exe, nothing beside it: web.zip (index.html, everything it loads, and the
-#                         licence texts), the two WebView2 DLLs and the x64/x86/arm64 WebView2Loader.dll are embedded
+#   .\build.ps1 -Release  one self-contained exe, nothing beside it: web.zip (index.html, everything it loads, the
+#                         licence texts and the guide), the two WebView2 DLLs and the x64/x86/arm64 WebView2Loader.dll are embedded
 #                         as plain resources, which Payload.cs unpacks to %LocalAppData%\錢進中\app\<id>\ at the first start.
 param([switch]$Release)
 $ErrorActionPreference = 'Stop'
@@ -20,8 +20,9 @@ $webLicenses = Join-Path $root 'src\web\licenses'
 New-Item -ItemType Directory -Force $webLicenses | Out-Null
 Copy-Item (Join-Path $wv 'LICENSE.txt') (Join-Path $webLicenses 'WebView2-SDK.txt') -Force
 
-# What a release ships besides index.html and what it loads: files the page fetches at run time (licence texts).
-$ShipExtra = @('fonts/OFL.txt', 'licenses/WebView2-SDK.txt')
+# What a release ships besides index.html and what it loads: files the page fetches at run time (the licence texts
+# and the plain-text guide that 設定 → 關於 → 使用說明 shows).
+$ShipExtra = @('fonts/OFL.txt', 'licenses/WebView2-SDK.txt', 'guide.txt')
 
 # index.html and everything it loads: each <script src> and <link href>, and each url(...) in those stylesheets (the
 # font). Paths are '/' separated and relative to webDir. Fails on a remote URL or a file that does not exist.
@@ -112,7 +113,7 @@ if ($Release) {
         if (Test-Path $p) { Remove-Item $p -Force }
     }
     $id = (Get-FileHash $webZip -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant()
-    Write-Host ('Built {0} (release, {1:N0} bytes; web.zip {2} files: index.html + {3} it loads + {4} licence texts; unpacks to app\{5})' -f
+    Write-Host ('Built {0} (release, {1:N0} bytes; web.zip {2} files: index.html + {3} it loads + {4} texts it fetches; unpacks to app\{5})' -f
         $exe, (Get-Item $exe).Length, $entries.Count, ($closure.Count - 1), $ShipExtra.Count, $id)
 } else {
     # dev build: DLLs next to the exe
