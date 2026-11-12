@@ -1,0 +1,239 @@
+/* Pet + room animation. The typing look is ported from docs/prototypes/shared.css; the other states are Task 12.
+   Root element: svg.pet-svg.kind-<kind>.st-<state> (from QJZ.pets.compose). compose also sets the per-skin pivots
+   --hx/--hy (head or mochi) and --gx/--gy (dangle grab point) on the root.
+   --m scales every movement: 1 normally, .3 under prefers-reduced-motion (states keep their look, just calmer), and
+   the perpetual idle loops (blink, look, tail, puff, zz, dots) stop there: html.calm, set by QJZ.fx from the same
+   media query (pages without fx.js, such as the review pages, only get the scaled motion).
+   Add .happy to switch to ^^ eyes and a little jump/wiggle. Blink offset per pet: set --bd on the svg.
+   Pausing while hidden is handled by html.paused in base.css; everything here is a CSS animation. */
+
+.pet-svg{--m:1}
+@media (prefers-reduced-motion:reduce){
+  .pet-svg{--m:.3}
+  .pet-svg .cf{animation-duration:5s!important}
+}
+html.calm .pet-svg{--m:.3}
+html.calm .pet-svg :is(.blink,.look,.tail,.puff,.zz,.dot0,.dot1,.dot2){animation:none!important}
+/* the Zzz stay, as a still staircase */
+html.calm .pet-svg .zz{opacity:1}
+html.calm .pet-svg .zz:nth-child(1){transform:scale(.6)}
+html.calm .pet-svg .zz:nth-child(2){transform:translate(7px,-12px) scale(.8)}
+html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
+
+/* pivots: view-box boxes resolve px origins in the element's own user space */
+.pet-svg .head,.pet-svg .squish{transform-box:view-box;transform-origin:var(--hx,118px) var(--hy,132px)}
+.pet-svg .bod{transform-box:view-box;transform-origin:118px 172px}
+.pet-svg .swing{transform-box:view-box;transform-origin:var(--gx,118px) var(--gy,50px)}
+.pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom}
+.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.bagsw,.note){transform-box:view-box}
+
+/* ---------- always on ---------- */
+.pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
+@keyframes puff{0%,100%{transform:scale(1)}50%{transform:scale(calc(1 + .06 * var(--m)))}}
+.pet-svg .tail{transform-box:view-box;transform-origin:86px 152px;animation:tail 1.8s ease-in-out infinite alternate}
+@keyframes tail{from{transform:rotate(calc(-9deg * var(--m)))}to{transform:rotate(calc(10deg * var(--m)))}}
+.pet-svg .blink{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite;animation-delay:var(--bd,0s)}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}96.5%{transform:scaleY(1)}}
+.pet-svg .look{animation:look 9s ease-in-out infinite}
+@keyframes look{0%,32%{transform:translate(0,0)}38%,68%{transform:translate(calc(3px * var(--m)),calc(1px * var(--m)))}74%,100%{transform:translate(0,0)}}
+.pet-svg .eyes-happy{display:none}
+.pet-svg .eyes-alt,.pet-svg .mouth-b,.pet-svg .pose-b{opacity:0}
+
+/* ---------- props (same motion in every state that shows them) ---------- */
+.pet-svg .zz{opacity:0;animation:zz 3s linear infinite}
+@keyframes zz{0%{transform:translate(0,0) scale(.45);opacity:0}15%,80%{opacity:1}100%{transform:translate(calc(14px * var(--m)),calc(-24px * var(--m))) scale(1.1);opacity:0}}
+.pet-svg .snot{animation:snot 3.4s ease-in-out infinite}
+@keyframes snot{0%,100%{transform:scale(.3)}55%{transform:scale(1.15)}}
+.pet-svg .hrt{opacity:0;animation:hrt 2.1s ease-out infinite}
+@keyframes hrt{0%{transform:translate(0,6px) scale(.3);opacity:0}14%{transform:translate(0,0) scale(1.15);opacity:1}24%{transform:translate(0,-2px) scale(1)}70%{opacity:1}100%{transform:translate(calc(var(--dx,0px) * var(--m)),calc(-24px * var(--m))) scale(.85);opacity:0}}
+.pet-svg .smk{opacity:0;animation:smk 1.5s ease-out infinite}
+@keyframes smk{0%{transform:translate(0,4px) scale(.4);opacity:0}20%{opacity:1}100%{transform:translate(calc(var(--dx,0px) * var(--m)),calc(-16px * var(--m))) scale(1.3);opacity:0}}
+.pet-svg .cf{animation:cf 2.2s linear infinite}
+@keyframes cf{from{transform:translateY(-14px) rotate(0)}to{transform:translateY(calc(-14px + 200px * var(--m))) rotate(calc(var(--m) * var(--r,360deg)))}}
+.pet-svg .flame{animation:flick .42s ease-in-out infinite alternate}
+@keyframes flick{from{transform:scale(1,1) skewX(0)}to{transform:scale(calc(1 - .08 * var(--m)),calc(1 + .14 * var(--m))) skewX(calc(5deg * var(--m)))}}
+.pet-svg .drip{animation:drip 1.4s ease-in infinite}
+@keyframes drip{0%{transform:translateY(-2px);opacity:0}18%{opacity:1}78%{transform:translateY(calc(6px * var(--m)));opacity:1}100%{transform:translateY(calc(8px * var(--m)));opacity:0}}
+.pet-svg .fly{opacity:0;animation:fly .8s ease-out infinite}
+@keyframes fly{0%{transform:translate(0,0) scale(.6);opacity:0}20%{opacity:1}100%{transform:translate(calc(var(--fx,8px) * var(--m)),calc(-7px * var(--m))) scale(1);opacity:0}}
+.pet-svg .vein{animation:vein .5s ease-in-out infinite alternate}
+@keyframes vein{from{transform:scale(.82)}to{transform:scale(calc(1 + .2 * var(--m)))}}
+.pet-svg .qm{animation:qm 1.6s ease-in-out infinite}
+@keyframes qm{0%,100%{transform:translateY(0) rotate(calc(-8deg * var(--m)))}50%{transform:translateY(calc(-3px * var(--m))) rotate(calc(8deg * var(--m)))}}
+.pet-svg .crumb{opacity:0;animation:crumb .9s ease-in infinite}
+@keyframes crumb{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(calc(10px * var(--m)));opacity:0}}
+.pet-svg .steam2{opacity:0;animation:steam2 1.8s ease-out infinite}
+@keyframes steam2{0%{transform:translateY(3px);opacity:0}30%{opacity:.9}100%{transform:translateY(calc(-7px * var(--m)));opacity:0}}
+.pet-svg .dot0{animation:dot0 2.4s infinite}
+.pet-svg .dot1{animation:dot1 2.4s infinite}
+.pet-svg .dot2{animation:dot2 2.4s infinite}
+@keyframes dot0{0%,8%{opacity:0}14%,88%{opacity:1}94%,100%{opacity:0}}
+@keyframes dot1{0%,28%{opacity:0}34%,88%{opacity:1}94%,100%{opacity:0}}
+@keyframes dot2{0%,48%{opacity:0}54%,88%{opacity:1}94%,100%{opacity:0}}
+.pet-svg .coin{opacity:0;animation:coin 2.4s ease-out infinite}
+@keyframes coin{0%,18%{opacity:0;transform:translateY(calc(8px * var(--m))) scale(.3)}26%{opacity:1;transform:translateY(calc(-6px * var(--m))) scale(1.15)}36%{transform:translateY(calc(-12px * var(--m))) scale(1)}70%{opacity:1;transform:translateY(calc(-16px * var(--m))) scale(1)}82%,100%{opacity:0;transform:translateY(calc(-20px * var(--m))) scale(1)}}
+.pet-svg .coinspin{animation:coinspin .8s ease-in-out infinite}
+@keyframes coinspin{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.15)}}
+.pet-svg .csp,.pet-svg .spk{animation:twinkle 1.2s ease-in-out infinite}
+.pet-svg .chew{animation:chew .45s ease-in-out infinite}
+@keyframes chew{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}
+.pet-svg .scr{animation:scr .3s ease-in-out infinite alternate}
+@keyframes scr{from{transform:rotate(calc(-14deg * var(--m)))}to{transform:rotate(calc(10deg * var(--m))) translateY(calc(-1.5px * var(--m)))}}
+.pet-svg .note{opacity:0;animation:note 2s ease-out infinite}
+@keyframes note{0%{transform:translate(0,4px) scale(.5) rotate(0);opacity:0}15%{transform:translate(0,0) scale(1.1) rotate(calc(-10deg * var(--m)));opacity:1}50%{transform:translate(calc(var(--dx,0px) * var(--m)),calc(-8px * var(--m))) scale(1) rotate(calc(10deg * var(--m)))}80%{opacity:1}100%{transform:translate(0,calc(-16px * var(--m))) scale(.9) rotate(calc(-6deg * var(--m)));opacity:0}}
+.pet-svg .breath{animation:breath 3.4s ease-in-out infinite}
+@keyframes breath{0%,100%{transform:scale(1,1)}55%{transform:scale(calc(1 + .012 * var(--m)),calc(1 + .035 * var(--m)))}}
+
+/* ---------- typing 打字 / sprint 衝刺 ---------- */
+.pet-svg.st-typing .pawL,.pet-svg.st-typing .pawR{animation:tap .3s ease-in-out infinite}
+.pet-svg.st-typing .pawR{animation-delay:-.15s}
+@keyframes tap{0%,100%{transform:translateY(0)}50%{transform:translateY(calc(-6px * var(--m)))}}
+.pet-svg.st-typing .head{animation:bob .6s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(calc(1.6px * var(--m)))}}
+.pet-svg.st-typing .squish{animation:squish .6s ease-in-out infinite}
+@keyframes squish{0%,100%{transform:scale(1,1)}50%{transform:scale(calc(1 + .025 * var(--m)),calc(1 - .035 * var(--m)))}}
+.pet-svg.st-sprint .pawL,.pet-svg.st-sprint .pawR{animation:tap .16s ease-in-out infinite}
+.pet-svg.st-sprint .pawR{animation-delay:-.08s}
+.pet-svg.st-sprint .head{animation:bob .32s ease-in-out infinite}
+.pet-svg.st-sprint .squish{animation:squish .32s ease-in-out infinite}
+.pet-svg.st-sprint .bod{animation:jitter .14s linear infinite}
+@keyframes jitter{0%,100%{transform:translateX(0)}25%{transform:translateX(calc(.7px * var(--m)))}75%{transform:translateX(calc(-.7px * var(--m)))}}
+
+/* ---------- idle 發呆: slow sway, eyes wander around ---------- */
+.pet-svg.st-idle .head,.pet-svg.st-idle .squish{animation:sway 5s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(0)}25%{transform:rotate(calc(-2.5deg * var(--m)))}50%{transform:translateY(calc(.8px * var(--m)))}75%{transform:rotate(calc(2.5deg * var(--m)))}}
+.pet-svg.st-idle .look{animation:around 6s ease-in-out infinite}
+@keyframes around{0%,12%,100%{transform:translate(0,0)}20%,38%{transform:translate(calc(-2.6px * var(--m)),calc(.4px * var(--m)))}46%,58%{transform:translate(0,calc(-1.2px * var(--m)))}66%,86%{transform:translate(calc(2.6px * var(--m)),calc(.4px * var(--m)))}}
+
+/* ---------- doze 打瞌睡: head droops, jerks awake (eyes pop open), droops again ---------- */
+.pet-svg.st-doze .head{animation:nod 4s ease-in infinite}
+@keyframes nod{0%,8%{transform:translateY(0) rotate(0)}62%{transform:translateY(calc(3.5px * var(--m))) rotate(calc(3deg * var(--m)))}69%{transform:translateY(calc(4.6px * var(--m))) rotate(calc(4deg * var(--m)))}73%{transform:translateY(calc(-1.6px * var(--m))) rotate(calc(-1deg * var(--m)))}79%,100%{transform:translateY(0) rotate(0)}}
+.pet-svg.st-doze .squish{animation:sag 4s ease-in infinite}
+@keyframes sag{0%,8%{transform:scale(1,1)}69%{transform:scale(calc(1 + .035 * var(--m)),calc(1 - .06 * var(--m)))}73%{transform:scale(calc(1 - .02 * var(--m)),calc(1 + .04 * var(--m)))}79%,100%{transform:scale(1,1)}}
+.pet-svg.st-doze .eyes-open{animation:dozeA 4s infinite}
+.pet-svg.st-doze .eyes-alt{animation:dozeB 4s infinite}
+@keyframes dozeA{0%,70.9%,84%,100%{opacity:1}71%,83.9%{opacity:0}}
+@keyframes dozeB{0%,70.9%,84%,100%{opacity:0}71%,83.9%{opacity:1}}
+
+/* ---------- stretch 伸懶腰: crouch, reach up with eyes shut, relax, pause ---------- */
+.pet-svg.st-stretch .bod{animation:reach 4.4s ease-in-out infinite}
+@keyframes reach{0%,24%,84%,100%{transform:scale(1,1)}30%{transform:scale(calc(1 + .04 * var(--m)),calc(1 - .05 * var(--m)))}40%{transform:translateY(calc(-3px * var(--m))) scale(calc(1 - .04 * var(--m)),calc(1 + .07 * var(--m)))}52%{transform:translateY(calc(-3.5px * var(--m))) rotate(calc(-1.5deg * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .08 * var(--m)))}64%{transform:translateY(calc(-3.5px * var(--m))) rotate(calc(1.5deg * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .08 * var(--m)))}74%{transform:scale(calc(1 + .04 * var(--m)),calc(1 - .04 * var(--m)))}}
+.pet-svg.st-stretch :is(.pose-a,.eyes-open,.mouth-a){animation:stretchA 4.4s infinite}
+.pet-svg.st-stretch :is(.pose-b,.eyes-alt,.mouth-b){animation:stretchB 4.4s infinite}
+@keyframes stretchA{0%,33.9%,72%,100%{opacity:1}34%,71.9%{opacity:0}}
+@keyframes stretchB{0%,33.9%,72%,100%{opacity:0}34%,71.9%{opacity:1}}
+.pet-svg.st-stretch .spk{animation:stretchSpk 4.4s infinite}
+/* hamsters have no arms, so they sell the stretch with the body: a taller squash-and-stretch and the face tipped up */
+.pet-svg.kind-hamster.st-stretch .bod{animation:reachTall 4.4s ease-in-out infinite}
+@keyframes reachTall{0%,24%,84%,100%{transform:scale(1,1)}30%{transform:scale(calc(1 + .06 * var(--m)),calc(1 - .07 * var(--m)))}40%{transform:translateY(calc(-4px * var(--m))) scale(calc(1 - .07 * var(--m)),calc(1 + .12 * var(--m)))}52%{transform:translateY(calc(-5px * var(--m))) rotate(calc(-1.5deg * var(--m))) scale(calc(1 - .06 * var(--m)),calc(1 + .13 * var(--m)))}64%{transform:translateY(calc(-5px * var(--m))) rotate(calc(1.5deg * var(--m))) scale(calc(1 - .06 * var(--m)),calc(1 + .13 * var(--m)))}74%{transform:scale(calc(1 + .05 * var(--m)),calc(1 - .05 * var(--m)))}}
+.pet-svg.kind-hamster.st-stretch .look{animation:faceUp 4.4s ease-in-out infinite}
+@keyframes faceUp{0%,30%,76%,100%{transform:translate(0,0)}40%,68%{transform:translate(0,calc(-2px * var(--m)))}}
+@keyframes stretchSpk{0%,38%,72%,100%{opacity:0;transform:scale(.3)}46%{opacity:1;transform:scale(1.15)}54%{transform:scale(.85)}62%{opacity:1;transform:scale(1.1)}}
+
+/* ---------- yawn 打哈欠: head tips back, eyes squeeze, mouth opens wide, a tear ---------- */
+.pet-svg.st-yawn .head{animation:yawnHead 4.6s ease-in-out infinite}
+@keyframes yawnHead{0%,20%,84%,100%{transform:translateY(0) rotate(0)}32%,64%{transform:translateY(calc(-2px * var(--m))) rotate(calc(-3deg * var(--m)))}74%{transform:translateY(calc(.6px * var(--m)))}}
+.pet-svg.st-yawn .squish{animation:yawnSquish 4.6s ease-in-out infinite}
+@keyframes yawnSquish{0%,20%,84%,100%{transform:scale(1,1)}32%,64%{transform:scale(calc(1 - .03 * var(--m)),calc(1 + .05 * var(--m)))}74%{transform:scale(calc(1 + .02 * var(--m)),calc(1 - .02 * var(--m)))}}
+.pet-svg.st-yawn :is(.eyes-open,.mouth-a){animation:yawnA 4.6s infinite}
+.pet-svg.st-yawn .eyes-alt{animation:yawnB 4.6s infinite}
+.pet-svg.st-yawn .mouth-b{animation:yawnMouth 4.6s ease-out infinite}
+@keyframes yawnA{0%,25.9%,72%,100%{opacity:1}26%,71.9%{opacity:0}}
+@keyframes yawnB{0%,25.9%,72%,100%{opacity:0}26%,71.9%{opacity:1}}
+@keyframes yawnMouth{0%,25.9%,72%,100%{opacity:0;transform:scale(.5)}26%{opacity:1;transform:scale(.5)}40%{transform:scale(1)}62%{transform:scale(1.06)}71.9%{opacity:1;transform:scale(.7)}}
+.pet-svg.st-yawn .tear{animation:tearIn 4.6s infinite}
+@keyframes tearIn{0%,58%{opacity:0;transform:translateY(0) scale(.4)}66%{opacity:1;transform:translateY(0) scale(1)}90%{opacity:1;transform:translateY(calc(2.5px * var(--m)))}100%{opacity:0;transform:translateY(calc(3px * var(--m)))}}
+
+/* ---------- coffee 喝咖啡: lift the mug, sip with eyes closed, lower ---------- */
+.pet-svg.st-coffee .held{animation:sip 4s ease-in-out infinite}
+@keyframes sip{0%,22%,86%,100%{transform:translateY(0) rotate(0)}34%,66%{transform:translateY(calc(-6px * var(--m))) rotate(calc(-14deg * var(--m)))}}
+.pet-svg.st-coffee .head,.pet-svg.st-coffee .squish{animation:sipHead 4s ease-in-out infinite}
+@keyframes sipHead{0%,22%,86%,100%{transform:rotate(0)}34%,66%{transform:translateY(calc(-.8px * var(--m))) rotate(calc(-2deg * var(--m)))}}
+.pet-svg.st-coffee .eyes-open{animation:sipA 4s infinite}
+.pet-svg.st-coffee .eyes-alt{animation:sipB 4s infinite}
+@keyframes sipA{0%,35.9%,68%,100%{opacity:1}36%,67.9%{opacity:0}}
+@keyframes sipB{0%,35.9%,68%,100%{opacity:0}36%,67.9%{opacity:1}}
+
+/* ---------- stare 盯螢幕: leans in towards the screen, eyes locked on it, hardly blinks ---------- */
+.pet-svg.st-stare .head,.pet-svg.st-stare .squish{animation:lean 5s ease-in-out infinite}
+@keyframes lean{0%,100%{transform:translate(0,0) rotate(0) scale(1)}35%,80%{transform:translate(calc(1.6px * var(--m)),calc(1px * var(--m))) rotate(calc(2.5deg * var(--m))) scale(calc(1 + .025 * var(--m)))}}
+.pet-svg.st-stare .look{animation:none;transform:translate(2.4px,.6px)}
+.pet-svg.st-stare .blink{animation-duration:8s}
+
+/* ---------- scratch 抓頭: head tilted, paw scratching ---------- */
+.pet-svg.st-scratch .head,.pet-svg.st-scratch .squish{animation:puzzle 2.6s ease-in-out infinite}
+@keyframes puzzle{0%,100%{transform:rotate(calc(-3deg * var(--m)))}50%{transform:translateY(calc(.6px * var(--m))) rotate(calc(-5deg * var(--m)))}}
+
+/* ---------- lunchEat 吃便當 / eat 吃零食: bites and chewing ---------- */
+.pet-svg.st-lunchEat .held{animation:bite 1.8s ease-in-out infinite}
+@keyframes bite{0%,55%,100%{transform:translateY(0) rotate(0)}18%,32%{transform:translateY(calc(-4px * var(--m))) rotate(calc(-6deg * var(--m)))}}
+.pet-svg.st-eat .held{animation:nibble .5s ease-in-out infinite}
+@keyframes nibble{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-1.6px * var(--m))) rotate(calc(4deg * var(--m)))}}
+.pet-svg:is(.st-lunchEat,.st-eat) :is(.head,.squish){animation:munch .45s ease-in-out infinite}
+@keyframes munch{0%,100%{transform:translateY(0)}50%{transform:translateY(calc(.8px * var(--m)))}}
+
+/* ---------- celebrate 慶祝: bouncing with both arms up, confetti ---------- */
+.pet-svg.st-celebrate .bod{animation:bounce 1s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0) scale(calc(1 + .06 * var(--m)),calc(1 - .07 * var(--m)))}14%{transform:translateY(calc(-4px * var(--m))) scale(calc(1 - .04 * var(--m)),calc(1 + .06 * var(--m)))}42%{transform:translateY(calc(-16px * var(--m))) scale(1,1)}70%{transform:translateY(calc(-5px * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .04 * var(--m)))}84%{transform:translateY(0) scale(calc(1 + .07 * var(--m)),calc(1 - .08 * var(--m)))}}
+.pet-svg.st-celebrate .armL{animation:waveL .25s ease-in-out infinite alternate}
+.pet-svg.st-celebrate .armR{animation:waveR .25s ease-in-out infinite alternate}
+@keyframes waveL{from{transform:rotate(calc(-8deg * var(--m)))}to{transform:rotate(calc(10deg * var(--m)))}}
+@keyframes waveR{from{transform:rotate(calc(8deg * var(--m)))}to{transform:rotate(calc(-10deg * var(--m)))}}
+
+/* ---------- waitBag 背包包等你: can't wait to go home — bouncing on the spot, backpack swinging, ♪ ---------- */
+.pet-svg.st-waitBag .bod{animation:eager .6s ease-in-out infinite}
+@keyframes eager{0%,100%{transform:translateY(0) scale(calc(1 + .04 * var(--m)),calc(1 - .045 * var(--m)))}18%{transform:translateY(calc(-2px * var(--m))) scale(calc(1 - .03 * var(--m)),calc(1 + .04 * var(--m)))}45%{transform:translateY(calc(-7px * var(--m))) scale(1,1)}75%{transform:translateY(calc(-1.5px * var(--m))) scale(calc(1 - .02 * var(--m)),calc(1 + .02 * var(--m)))}}
+.pet-svg.st-waitBag .bagsw{animation:bagsw .6s ease-in-out infinite;animation-delay:-.45s}
+@keyframes bagsw{0%,100%{transform:rotate(calc(-7deg * var(--m)))}50%{transform:rotate(calc(7deg * var(--m)))}}
+.pet-svg.st-waitBag .head,.pet-svg.st-waitBag .squish{animation:giddy 1.2s ease-in-out infinite}
+@keyframes giddy{0%,100%{transform:rotate(calc(-3deg * var(--m)))}50%{transform:rotate(calc(3deg * var(--m)))}}
+
+/* ---------- petted 被摸摸: leans into the hand left and right ---------- */
+.pet-svg.st-petted .head,.pet-svg.st-petted .squish{animation:nuzzle 1.4s ease-in-out infinite}
+@keyframes nuzzle{0%,100%{transform:rotate(calc(-4deg * var(--m))) scale(1,1)}25%{transform:rotate(0) scale(calc(1 + .03 * var(--m)),calc(1 - .04 * var(--m)))}50%{transform:rotate(calc(4deg * var(--m))) scale(1,1)}75%{transform:rotate(0) scale(calc(1 + .03 * var(--m)),calc(1 - .04 * var(--m)))}}
+
+/* ---------- angry 生氣: cheeks puff up, a shake, paws pound the desk ---------- */
+.pet-svg.st-angry .head,.pet-svg.st-angry .squish{animation:fume 1.6s ease-in-out infinite}
+@keyframes fume{0%,100%{transform:scale(1,1)}18%,58%{transform:scale(calc(1 + .06 * var(--m)),calc(1 - .03 * var(--m)))}64%{transform:translateX(calc(1.3px * var(--m))) scale(calc(1 + .06 * var(--m)),calc(1 - .03 * var(--m)))}70%{transform:translateX(calc(-1.3px * var(--m))) scale(calc(1 + .06 * var(--m)),calc(1 - .03 * var(--m)))}76%{transform:translateX(calc(1.3px * var(--m))) scale(calc(1 + .05 * var(--m)),calc(1 - .02 * var(--m)))}86%{transform:scale(1,1)}}
+.pet-svg.st-angry .pawL,.pet-svg.st-angry .pawR{animation:pound .5s ease-in infinite}
+.pet-svg.st-angry .pawR{animation-delay:-.25s}
+@keyframes pound{0%,100%{transform:translateY(0)}35%{transform:translateY(calc(-7px * var(--m)))}55%{transform:translateY(calc(1px * var(--m)))}}
+
+/* ---------- hop 里程碑: crouch, one happy hop with arms up, land, rest (coin pops at the top) ---------- */
+.pet-svg.st-hop .bod{animation:hopOnce 2.4s ease-in-out infinite}
+@keyframes hopOnce{0%,10%{transform:translateY(0) scale(1,1)}16%{transform:translateY(0) scale(calc(1 + .06 * var(--m)),calc(1 - .07 * var(--m)))}24%{transform:translateY(calc(-8px * var(--m))) scale(calc(1 - .04 * var(--m)),calc(1 + .06 * var(--m)))}34%{transform:translateY(calc(-14px * var(--m))) scale(1,1)}46%{transform:translateY(calc(-3px * var(--m))) scale(calc(1 - .02 * var(--m)),calc(1 + .03 * var(--m)))}52%{transform:translateY(0) scale(calc(1 + .07 * var(--m)),calc(1 - .08 * var(--m)))}60%{transform:scale(calc(1 - .02 * var(--m)),calc(1 + .02 * var(--m)))}66%,100%{transform:scale(1,1)}}
+.pet-svg.st-hop .pose-a{animation:hopA 2.4s infinite}
+.pet-svg.st-hop .pose-b{animation:hopB 2.4s infinite}
+@keyframes hopA{0%,17.9%,58%,100%{opacity:1}18%,57.9%{opacity:0}}
+@keyframes hopB{0%,17.9%,58%,100%{opacity:0}18%,57.9%{opacity:1}}
+
+/* ---------- dangle 被拎起來: swinging from the scruff, legs trailing behind the swing ---------- */
+.pet-svg .swing{animation:swing 1.7s ease-in-out infinite alternate}
+@keyframes swing{from{transform:rotate(calc(-7deg * var(--m)))}to{transform:rotate(calc(7deg * var(--m)))}}
+.pet-svg .legs{animation:legs 1.7s ease-in-out infinite alternate;animation-delay:-.3s}
+@keyframes legs{from{transform:rotate(calc(7deg * var(--m)))}to{transform:rotate(calc(-7deg * var(--m)))}}
+.pet-svg .limp{animation:legs 1.7s ease-in-out infinite alternate;animation-delay:-.2s}
+
+/* ---------- .happy (quick reaction on top of any state) ---------- */
+.pet-svg.happy .eyes-open,.pet-svg.happy .eyes-alt{display:none}
+.pet-svg.happy .eyes-happy{display:inline}
+.pet-svg.happy .pawL,.pet-svg.happy .pawR{animation-play-state:paused}
+.pet-svg.happy .head{animation:wiggle .45s ease-in-out 3}
+.pet-svg.happy .squish{animation:jump .5s ease-out 2}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(calc(-5deg * var(--m)))}75%{transform:rotate(calc(5deg * var(--m)))}}
+@keyframes jump{0%,100%{transform:translateY(0) scale(1,1)}30%{transform:translateY(calc(-9px * var(--m))) scale(.96,1.05)}60%{transform:translateY(0) scale(1.05,.94)}}
+
+/* room: drifting clouds, scrolling code, mug steam, swaying plant, S5 twinkling stars */
+.pet-svg .cloud{animation:cloud 18s linear infinite}
+@keyframes cloud{from{transform:translateX(0)}to{transform:translateX(92px)}}
+.pet-svg .code{animation:code 6s linear infinite}
+@keyframes code{to{transform:translateY(-84px)}}
+.pet-svg .steam{animation:steam 2.6s ease-out infinite;opacity:0}
+@keyframes steam{0%{transform:translateY(4px);opacity:0}30%{opacity:.85}100%{transform:translateY(-12px);opacity:0}}
+.pet-svg .leaves{transform-box:view-box;transform-origin:21px 134px;animation:sway2 3.4s ease-in-out infinite alternate}
+@keyframes sway2{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+.pet-svg .tw{animation:twinkle 1.6s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.25}}
+
+/* flat room mode (S4): no outlines except elements marked .keep */
+.pet-svg .flat [stroke]:not(.keep){stroke:none!important}
