@@ -285,7 +285,8 @@
     ok(visible($(e, '[data-step="2"]')), 'pet step');
     eq($$(e, '[data-step="2"] [data-skin]').length, 10, 'all 10 skins');
     eq($$(e, '[data-step="2"] [data-skin^="cat:"]').map(function (b) { return b.getAttribute('data-skin'); }), ['cat:p0', 'cat:p4', 'cat:h2', 'cat:s4', 'cat:s5'], 'five cats, in the hamster order');
-    eq([$(e, '[data-step="2"] [data-skin="cat:h2"]').title, text(e, '[data-step="2"] [data-skin="cat:h2"] small')], ['鼓鼓頰貓', '鼓鼓頰'], 'cat H2');
+    eq([$(e, '[data-step="2"] [data-skin="cat:h2"]').title, text(e, '[data-step="2"] [data-skin="cat:h2"] small')], ['貪吃貓', '貪吃'], 'cat H2');
+    eq([$(e, '[data-step="2"] [data-skin="hamster:h2"]').title, text(e, '[data-step="2"] [data-skin="hamster:h2"] small')], ['貪吃鼠', '貪吃'], 'hamster H2');
     eq([$(e, '[data-step="2"] [data-skin="cat:s4"]').title, text(e, '[data-step="2"] [data-skin="cat:s4"] small')], ['扁平幾何貓', '扁平幾何'], 'cat S4');
     ok($(e, '[data-step="2"] [data-skin="cat:h2"] svg') && $(e, '[data-step="2"] [data-skin="cat:s4"] svg'), 'the new cats have avatars');
     ok($(e, '[data-skin="cat:p4"] svg'), 'an avatar');

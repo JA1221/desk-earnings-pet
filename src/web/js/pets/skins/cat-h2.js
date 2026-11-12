@@ -1,4 +1,4 @@
-// Cat H2 鼓鼓頰貓 — the cat of hamster H2: an orange tabby mochi whose whisker pads puff out into big round cheeks,
+// Cat H2 貪吃貓 — the cat of hamster H2: an orange tabby mochi whose whisker pads puff out into big round cheeks,
 // with a little dried fish balanced on its head where H2 keeps its sunflower seed. Same 2.8 line, two-tone cheeks,
 // highlights and round build as H2; pointed ears, whiskers, forehead stripes and a curled tail make it a cat.
 // Poses: lie = flattened mochi asleep on the keyboard, cheeks still full; dangle = lifted mochi drop, cheeks swinging,
@@ -42,7 +42,7 @@
   }
 
   P.register({
-    id: 'cat:h2', kind: 'cat', skin: 'h2', name: '鼓鼓頰貓', room: 'sticker', wrap: null,
+    id: 'cat:h2', kind: 'cat', skin: 'h2', name: '貪吃貓', room: 'sticker', wrap: null,
     build: function (uid) {
       var st = ST(2.8);
       var face = `<path d="M108,100 v6 M118,98 v8 M128,100 v6" stroke="${STRIPE}" stroke-width="3" stroke-linecap="round"/>

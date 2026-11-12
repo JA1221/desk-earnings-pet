@@ -48,6 +48,11 @@
     eq(QJZ.pets.list('dog'), []);
   });
 
+  test('pets: the H2 skins are called 貪吃鼠 and 貪吃貓 (no skin keeps the old 鼓鼓頰 name)', function () {
+    eq([QJZ.pets.get('hamster:h2').name, QJZ.pets.get('cat:h2').name], ['貪吃鼠', '貪吃貓']);
+    all().forEach(function (d) { ok(d.name.indexOf('鼓鼓頰') < 0, d.id + ' ' + d.name); });
+  });
+
   test('pets: skin defs carry the contract fields', function () {
     all().forEach(function (d) {
       eq(d.id, d.kind + ':' + d.skin, d.id + ' id');
@@ -222,10 +227,10 @@
     });
   });
 
-  // ---------- the cats of hamster H2 and S4: 鼓鼓頰貓 and 扁平幾何貓 ----------
-  var NEW_CATS = [['cat:h2', 'hamster:h2', '鼓鼓頰貓'], ['cat:s4', 'hamster:s4', '扁平幾何貓']];
+  // ---------- the cats of hamster H2 and S4: 貪吃貓 and 扁平幾何貓 ----------
+  var NEW_CATS = [['cat:h2', 'hamster:h2', '貪吃貓'], ['cat:s4', 'hamster:s4', '扁平幾何貓']];
 
-  test('pets: cat H2 鼓鼓頰貓 and cat S4 扁平幾何貓 share their hamster\'s look and keep seamless cat arms', function () {
+  test('pets: cat H2 貪吃貓 and cat S4 扁平幾何貓 share their hamster\'s look and keep seamless cat arms', function () {
     NEW_CATS.forEach(function (e) {
       var cat = QJZ.pets.get(e[0]), ham = QJZ.pets.get(e[1]);
       ok(cat, e[0] + ' registered');

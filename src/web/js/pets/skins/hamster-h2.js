@@ -1,4 +1,4 @@
-// Hamster H2 鼓鼓頰鼠 — mochi body with seed-stuffed cheeks that puff, a sunflower seed balanced on its head
+// Hamster H2 貪吃鼠 — mochi body with seed-stuffed cheeks that puff, a sunflower seed balanced on its head
 // (Task 12 review: moved from the corner of the mouth). Port of docs/prototypes/shared.js h2Ham.
 // Poses: lie = flattened mochi asleep on the keyboard, cheeks still full; dangle = lifted mochi drop, cheeks swinging.
 (function (P) {
@@ -31,7 +31,7 @@
   }
 
   P.register({
-    id: 'hamster:h2', kind: 'hamster', skin: 'h2', name: '鼓鼓頰鼠', room: 'sticker', wrap: null,
+    id: 'hamster:h2', kind: 'hamster', skin: 'h2', name: '貪吃鼠', room: 'sticker', wrap: null,
     build: function (uid) {
       var st = ST(2.8);
       var face = `<path d="M118,104 v7" stroke="#E0923E" stroke-width="3" stroke-linecap="round"/>
