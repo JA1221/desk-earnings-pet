@@ -420,6 +420,7 @@
         hop = hop || brain().state === 'hop';
       }
       ok(n.coin === 1 && hop && spoke, 'without a focus: coin ' + n.coin + ', hop ' + hop + ', a line ' + spoke);
+      ok($$(e, '.confetti').length > 0, 'and throws confetti');
       done();
       n.coin = 0;
       // a focus from 11:47 to 12:12, over the milestone and the start of lunch: ten minutes and more of ticks
@@ -436,6 +437,7 @@
       eq(QJZ.app.state.snap.status, 'lunch', 'and lunch began');
       ok(hop, 'the hop plays');
       eq([n.coin, n.jingle], [0, 0], 'silently');
+      eq($$(e, '.confetti').length, 0, 'no confetti either (不打擾)');
       eq([C.state.p.phase, brain().base], ['focus', 'focus']);
       done();
       // a milestone crossed while hidden during a focus: no 'missed' line when the window is back

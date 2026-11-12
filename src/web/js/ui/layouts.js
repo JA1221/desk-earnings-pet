@@ -57,8 +57,8 @@ window.QJZ = window.QJZ || {};
 // 「+1」 on the cups and a line; standup from 起來了 plays petted 2 s and a line (from 喝了, a break or a lock, nothing:
 // 喝了 already sips, Ruling M9). While a prompt shows the speech bubble is hidden and says nothing (chatter and pet
 // events wait; the user's own lines become banners). During a focus (§4.3 「不講話、不打擾」, §5.2) the pet keeps
-// quiet: no chatter, no event lines, a milestone hops without its coin, and a poke gets 「專心中～」 once per focus and
-// nothing else.
+// quiet: no chatter, no event lines, a milestone only hops (no confetti, coin or line), and a poke gets 「專心中～」
+// once per focus and nothing else.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'M3', 'PANEL'];
@@ -1038,18 +1038,20 @@ QJZ.layouts = (function () {
   }
 
   // ev.quiet: crossed while the window was hidden. The snack is already counted; no coin, confetti or hop, and at
-  // most one bubble, only if nothing else is being said. During a focus the hop plays without its coin or line.
+  // most one bubble, only if nothing else is being said. During a focus (§4.3 「不講話、不打擾」) only the hop plays:
+  // no confetti, coin or line; the snack is counted all the same, so nothing is replayed after it.
   function onMilestone(ev) {
     if (!view) return;
     if (ev && ev.quiet) {
       if (!bubbleRank) petSay('missed', { gained: ev.gained || 1 }, 0, RANK.event);
       return;
     }
-    if (QJZ.fx && view.fxWin) {
+    var hush = focusing();
+    if (QJZ.fx && view.fxWin && !hush) {
       var c = petCenter(view.fxWin);
       QJZ.fx.confetti(view.fxWin, c.x, c.y);
     }
-    if (QJZ.sound && !focusing()) QJZ.sound.coin();
+    if (QJZ.sound && !hush) QJZ.sound.coin();
     if (brain) {
       var now = app().nowMs();
       brain.show('hop', now, QJZ.behavior.HOP_MS);
@@ -1384,7 +1386,7 @@ QJZ.layouts = (function () {
     show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     dragging: function () { return dragging; },
-    _brain: function () { return brain; },   // tests: the pet's QJZ.behavior.Brain
+    _brain: function () { return brain; },   // tests only (Ruling R3, like _reset and _bands): the pet's Brain
     MAIN: MAIN, ALL: ALL,
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
