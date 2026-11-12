@@ -10,8 +10,9 @@ window.QJZ = window.QJZ || {};
 //    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save. Before that, init.lastExitMs
 //    (the host's last shutdown / sign-out) counts as a lock of its day's open record (QJZ.day.onExit).
 //  - Unreadable settings / history text (init.settings / init.history do not parse): backupCorrupt {file} for the
-//    main file first, then the .bak copy (init.backups.settings / .history) is used when it parses, else defaults /
-//    an empty history. A settings .bak that was used is saved back as the main file.
+//    main file first. Then, and also when the main text is missing / empty / whitespace (a power loss), the .bak copy
+//    (init.backups.settings / .history) is used when it has content that parses, else defaults / an empty history.
+//    A settings .bak that was used is saved back as the main file.
 //  - 今天休假 (setOffDay): today counts 0, status 'off', whatever its start and end; off again, it counts as before.
 //    下班 then 繼續上班 (resumeWork): the end is cleared and the day runs on from its start.
 //  - Money is always computed from the wall clock (Date.now() + dev offset), never accumulated from tick counts.
@@ -169,13 +170,16 @@ QJZ.app = (function () {
   }
 
   // ---- init ----
-  // The main text parsed by parse(text); when it is unreadable, backupCorrupt for it, then the .bak text if that
-  // parses (fromBak), else parse's defaults / empty result.
+  function blank(text) { return text === null || text === undefined || String(text).replace(/\s+/g, '') === ''; }
+  // The main text parsed by parse(text). The .bak text (only there after an earlier good save) is used instead
+  // (fromBak) when the main text does not parse, or is missing / empty / whitespace (what a power loss can leave),
+  // and the .bak has content that parses; else parse's defaults / empty result. backupCorrupt goes out for a main
+  // text with content that does not parse, before anything can overwrite it.
   function readFile(file, parse, text, bak) {
-    var r = parse(text === undefined ? null : text);
-    if (!r.corrupted) return r;
-    bridge.send('backupCorrupt', { file: file });   // before anything can overwrite it
-    if (typeof bak === 'string') {
+    var r = parse(blank(text) ? null : text);
+    if (!r.corrupted && !blank(text)) return r;
+    if (r.corrupted) bridge.send('backupCorrupt', { file: file });
+    if (typeof bak === 'string' && !blank(bak)) {
       var b = parse(bak);
       if (!b.corrupted) { b.fromBak = true; return b; }
     }

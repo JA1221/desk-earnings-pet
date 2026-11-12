@@ -392,9 +392,45 @@
     eq(QJZ.app.state.settings.salary.amount, 0);
     QJZ.app._reset();
   });
+  // A power loss can leave a 0-byte main file; a .bak only exists after an earlier good save, so it is used.
+  test('app init: an empty (0-byte / whitespace / missing) settings.json falls back to its .bak, with no backupCorrupt', function () {
+    var bak = JSON.stringify({ salary: { mode: 'monthly', amount: 60000, divisor: 22 }, onboarded: true });
+    ['', '   \r\n\t', null].forEach(function (main) {
+      var e = mk(at(12, 10, 0));
+      init(e, { settings: main, backups: { settings: bak, history: null } });
+      eq(QJZ.app.state.settings.salary.amount, 60000, 'main ' + JSON.stringify(main));
+      eq(of(e.sent, 'backupCorrupt'), [], 'nothing to back up: ' + JSON.stringify(main));
+      QJZ.app.flush();
+      eq(JSON.parse(lastSave(e.sent, 'saveSettings').p.text).salary.amount, 60000, 'written back: ' + JSON.stringify(main));
+      QJZ.app._reset();
+    });
+  });
+  test('app init: an empty (0-byte / whitespace / missing) history.json falls back to its .bak, with no backupCorrupt', function () {
+    var bak = hist([rec('2026-11-10', 540, { endMs: at(10, 17, 0), earned: 2000 })]);
+    ['', ' \n ', null].forEach(function (main) {
+      var e = mk(at(12, 10, 0));
+      init(e, { history: main, backups: { settings: null, history: bak } });
+      eq(QJZ.app.state.history.days['2026-11-10'].earned, 2000, 'main ' + JSON.stringify(main));
+      eq(of(e.sent, 'backupCorrupt'), [], 'nothing to back up: ' + JSON.stringify(main));
+      QJZ.app.flush();
+      eq(JSON.parse(lastSave(e.sent, 'saveHistory').p.text).days['2026-11-10'].earned, 2000, 'written back: ' + JSON.stringify(main));
+      QJZ.app._reset();
+    });
+  });
+  test('app init: an empty main file with no usable .bak gives defaults / an empty history', function () {
+    [null, '', '  ', '{bad', 'null'].forEach(function (b) {
+      var e = mk(at(12, 10, 0));
+      init(e, { settings: '', history: '', backups: { settings: b, history: b } });
+      eq(QJZ.app.state.settings.salary.amount, 0, 'bak ' + JSON.stringify(b));
+      eq(Object.keys(QJZ.app.state.history.days), ['2026-11-12'], 'bak ' + JSON.stringify(b));
+      eq(of(e.sent, 'backupCorrupt'), [], 'bak ' + JSON.stringify(b));
+      QJZ.app._reset();
+    });
+  });
+
   test('app init: a readable main file ignores its .bak', function () {
     var e = mk(at(12, 10, 0));
-    init(e, { backups: { settings: JSON.stringify({ salary: { amount: 1 } }), history: hist([rec('2026-11-01', 540, { earned: 1 })]) } });
+    init(e, { history: hist([]), backups: { settings: JSON.stringify({ salary: { amount: 1 } }), history: hist([rec('2026-11-01', 540, { earned: 1 })]) } });
     eq(QJZ.app.state.settings.salary.amount, 50000);
     eq(QJZ.app.state.history.days['2026-11-01'], undefined);
     eq(of(e.sent, 'backupCorrupt'), []);
