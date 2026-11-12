@@ -36,6 +36,17 @@ public static class HostSettingsTests
         Assert.Eq("U7", HostSettings.Parse("{\"layout\":{\"current\":\"U7\",\"mini\":\"yes\"}}").StartLayout, "mini must be a boolean");
     }
 
+    // Review M-2: a 1.0 file whose start layout was M3 (開啟時的版型 = 迷你徽章) and that has no layout.mini yet opens in M3,
+    // as the page reads it (settings.js). A layout.mini that is there wins.
+    public static void Test_A10StartLayoutOfM3StillOpensTheMiniBadge()
+    {
+        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\",\"current\":\"U3\"}}").StartLayout, "start M3, no mini");
+        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\"}}").StartLayout, "start M3 alone");
+        Assert.Eq("U3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\",\"current\":\"U3\",\"mini\":false}}").StartLayout, "a saved mini wins");
+        Assert.Eq("U1", HostSettings.Parse("{\"layout\":{\"start\":\"M3\",\"mini\":\"yes\"}}").StartLayout, "a mini that is there but not a boolean: not mini");
+        Assert.Eq("U3", HostSettings.Parse("{\"layout\":{\"start\":\"U7\",\"current\":\"U3\"}}").StartLayout, "another start layout: the last used one");
+    }
+
     public static void Test_ReadsConfiguredValues()
     {
         HostSettings s = HostSettings.Parse(

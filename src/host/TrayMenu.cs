@@ -14,6 +14,7 @@ using System.Windows.Forms;
 //   版型 ▶: U1 U3 U5-B U7  |  縮成迷你  |  永遠在最上層 (for the current layout)
 // The work item follows the status the page reports (SetWork): 開始上班 (start) before work, 下班 (end) while the
 // day runs, 繼續上班 (start: the page continues an ended day) after 下班. 餵食 shows the snack count (SetSnacks).
+// 縮成迷你 is checked in M3; clicking it there goes back to the main layout (the page toggles).
 // The tray icon (tooltip 錢進中) is a coin drawn at runtime; double-clicking it raises IconDoubleClick.
 public class TrayMenu : IDisposable
 {

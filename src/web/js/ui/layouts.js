@@ -1034,7 +1034,7 @@ QJZ.layouts = (function () {
     if (typeof a !== 'string' || !ready()) return;
     if (a.indexOf('layout:') === 0) { if (isMain(a.slice(7))) show(a.slice(7)); return; }
     switch (a) {
-      case 'mini': show('M3'); break;
+      case 'mini': show(cur === 'M3' ? backTarget(app().state.settings) : 'M3'); break;   // in M3 (checked): back
       case 'feed': feed(); break;
       case 'start': startWork(); break;
       case 'end': endWork(); break;

@@ -7,7 +7,8 @@ using System.Web.Script.Serialization;
 // the page's sanitizer (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default:
 // autostart on, Ctrl+Alt+H, topmost only for U7 and M3, capture guard on, start layout U1.
 // The start layout is the one used last, as the page picks it (layouts.js lastLayout): M3 when layout.mini is true,
-// else layout.current when it is a main layout, else U1. 1.0's layout.start is no longer read.
+// else layout.current when it is a main layout, else U1. A 1.0 file has no layout.mini: there a layout.start of M3
+// counts as mini (1.0's 開啟時的版型 = 迷你徽章); 1.0's layout.start is not read otherwise.
 public class HostSettings
 {
     public const string DefaultHotkey = "Ctrl+Alt+H";
@@ -79,7 +80,11 @@ public class HostSettings
         if (privacy != null && privacy.TryGetValue("hideFromCapture", out v) && v is bool) s.CaptureGuard = (bool)v;
         Dictionary<string, object> layout = Child(d, "layout");
         if (layout != null && layout.TryGetValue("current", out v) && v is string && Array.IndexOf(MainLayouts, (string)v) >= 0) s.StartLayout = (string)v;
-        if (layout != null && layout.TryGetValue("mini", out v) && v is bool && (bool)v) s.StartLayout = "M3";
+        if (layout != null)
+        {
+            if (layout.TryGetValue("mini", out v)) { if (v is bool && (bool)v) s.StartLayout = "M3"; }
+            else if (layout.TryGetValue("start", out v) && v as string == "M3") s.StartLayout = "M3";   // a 1.0 file
+        }
         Dictionary<string, object> top = Child(layout, "topmost");
         if (top != null)
             foreach (string l in Layouts)

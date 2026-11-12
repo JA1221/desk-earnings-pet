@@ -70,7 +70,8 @@ QJZ.settings = (function () {
     out.layout.current = oneOf(lay.current, LAYOUTS, d.layout.current);
     var top = isObj(lay.topmost) ? lay.topmost : {};
     for (var j = 0; j < LAYOUTS.length; j++) out.layout.topmost[LAYOUTS[j]] = bool(top[LAYOUTS[j]], d.layout.topmost[LAYOUTS[j]]);
-    out.layout.mini = bool(lay.mini, d.layout.mini);
+    // A 1.0 file has no mini: a 1.0 start layout of M3 (開啟時的版型 = 迷你徽章) keeps opening the mini badge (review M-2).
+    out.layout.mini = lay.mini === undefined ? out.layout.start === 'M3' : bool(lay.mini, d.layout.mini);
 
     out.milestone = isNum(s.milestone) && s.milestone > 0 ? s.milestone : d.milestone;
 

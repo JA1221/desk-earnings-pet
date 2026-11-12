@@ -45,6 +45,20 @@ test('an old 1.0 settings.json reads back with every value unchanged (only layou
   var s=P(JSON.stringify(old)).settings, want=JSON.parse(JSON.stringify(old));
   want.layout.mini=false;
   eq(s,want); });
+// Review M-2: a 1.0 user who picked 開啟時的版型 = 迷你徽章 (layout.start 'M3') keeps opening in the mini badge: a file
+// without layout.mini gets mini = (start === 'M3'). A mini that is there wins; no other value changes.
+test('layout.mini comes from a 1.0 start layout of M3 when the file has no mini', function(){
+  eq(P('{"layout":{"start":"M3","current":"U3"}}').settings.layout,
+    {start:'M3',current:'U3',topmost:QJZ.settings.DEFAULTS.layout.topmost,mini:true});
+  eq(P('{"layout":{"start":"M3","current":"U3","mini":false}}').settings.layout.mini,false,'a saved mini wins');
+  eq(P('{"layout":{"start":"M3","mini":"yes"}}').settings.layout.mini,false,'a mini that is there but not a boolean: false, as before');
+  eq(P('{"layout":{"start":"U7","current":"U1"}}').settings.layout.mini,false);
+  eq(P('{"layout":{"start":"m3"}}').settings.layout.mini,false,'only a valid M3');
+  var old={version:1,salary:{mode:'monthly',amount:42000,divisor:22},layout:{start:'M3',current:'U1',topmost:{U1:false,U3:true,U5B:false,U7:true,M3:false}},
+    milestone:100,onboarded:true};
+  var s=P(JSON.stringify(old)).settings;
+  eq(s.layout,{start:'M3',current:'U1',topmost:{U1:false,U3:true,U5B:false,U7:true,M3:false},mini:true},'start and topmost kept');
+  eq([s.salary,s.milestone,s.onboarded],[old.salary,100,true]); });
 test('skinsFor', function(){ eq(QJZ.settings.skinsFor('hamster'),['p0','p4','h2','s4','s5']); eq(QJZ.settings.skinsFor('cat'),['p0','p4','h2','s4','s5']); });
 test('workDays: all-invalid non-empty falls back, empty stays empty, numeric sort', function(){
   eq(P('{"workDays":[9,"x"]}').settings.workDays,[1,2,3,4,5]); eq(P('{"workDays":[]}').settings.workDays,[]); eq(P('{"workDays":[6,0,3]}').settings.workDays,[0,3,6]); });

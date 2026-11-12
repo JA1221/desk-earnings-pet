@@ -767,6 +767,36 @@
     done();
   });
 
+  // Review M-1: in M3 the menu shows 「✓ 縮成迷你」; clicking it again goes back, as a double-click on the badge does.
+  test('layouts DOM: 縮成迷你 from the menu is a toggle: in M3 it goes back to the main layout', function () {
+    var e = mk(at(12, 10, 0), { settings: { layout: { current: 'U3' } } });
+    e.menu('mini');
+    eq([QJZ.layouts.current(), QJZ.app.state.settings.layout.mini], ['M3', true]);
+    e.menu('mini');
+    eq([QJZ.layouts.current(), QJZ.app.state.settings.layout.current, QJZ.app.state.settings.layout.mini], ['U3', 'U3', false], 'back, like a double-click');
+    e.menu('mini');
+    eq(QJZ.layouts.current(), 'M3', 'and down again');
+    e.menu('settings');
+    e.menu('mini');
+    eq(QJZ.layouts.current(), 'M3', 'from a panel (opened from the badge) it is the badge');
+    done();
+  });
+
+  // Review M-2: 1.0's 開啟時的版型 = 迷你徽章 (layout.start 'M3', no layout.mini) still opens the badge after the update.
+  test('layouts DOM: a 1.0 start layout of M3 opens the mini badge; once the user goes back it is the last used layout again', function () {
+    var e = mk(at(12, 10, 0), { settings: { layout: { start: 'M3', current: 'U3' } } });
+    eq(QJZ.layouts.current(), 'M3');
+    mouse($(e, '.ring'), 'dblclick');
+    eq(QJZ.layouts.current(), 'U3');
+    QJZ.app.flush();
+    var saved = JSON.parse(last(e.sent, 'saveSettings').text).layout;
+    eq([saved.start, saved.current, saved.mini], ['M3', 'U3', false], 'start kept as it was; mini is now there');
+    done();
+    mk(at(12, 10, 0), { settings: { layout: saved } });
+    eq(QJZ.layouts.current(), 'U3', 'the next start: the layout used last');
+    done();
+  });
+
   test('layouts DOM: a reload (renderer crash) comes back to the layout it showed, not layout.start', function () {
     function store() {
       var m = {};
