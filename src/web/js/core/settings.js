@@ -18,7 +18,7 @@ QJZ.settings = (function () {
     onboarded: false
   };
   var LAYOUTS = ['U1', 'U3', 'U5B', 'U7', 'M3'];
-  var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 's5'] };
+  var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 'h2', 's4', 's5'] };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
   function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }

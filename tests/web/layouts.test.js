@@ -339,7 +339,7 @@
     eq(U.VIEWBOX, { petonly: [30, 4, 176, 170], scene: [0, 0, 300, 200], hud: [0, -4, 300, 236] });
   });
 
-  var SKINS = ['hamster:p0', 'hamster:p4', 'hamster:h2', 'hamster:s4', 'hamster:s5', 'cat:p0', 'cat:p4', 'cat:s5'];
+  var SKINS = ['hamster:p0', 'hamster:p4', 'hamster:h2', 'hamster:s4', 'hamster:s5', 'cat:p0', 'cat:p4', 'cat:h2', 'cat:s4', 'cat:s5'];
   var MID = '你今天很努力喔，金金都有看到吱！', LONG = '今天賺到兩杯珍奶，回家路上犒賞自己一下吧吱！';
   function petOf(id) { var k = id.split(':'); return { settings: { pet: { kind: k[0], skin: k[1] } } }; }
   // say a line and show all of it at once (say types it in, 55 ms a character)

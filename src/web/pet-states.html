@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/pets.css">
 <style>
-  /* Review page for Task 12: 8 skins x 18 states. Not shipped in the app.
+  /* Review page for Task 12: 10 skins x 18 states. Not shipped in the app.
      URL params: ?t=<ms> freeze every animation at that time; ?view=scene|avatar; ?rows=hamster:p0,cat:p0 (or hamster / cat);
      ?cols=typing,idle; ?size=<px> cell width; ?open=<skin id>/<state> open the enlarged view; ?rm=1 reduced motion. */
   :root{--cell:124px}
@@ -96,7 +96,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="title"><div class="logo" id="logo"></div><h1>寵物狀態審稿<small><span class="num">8</span> 個造型 × <span class="num">18</span> 個狀態 ・ 桌面寵物 U7 的樣子</small></h1></div>
+  <div class="title"><div class="logo" id="logo"></div><h1>寵物狀態審稿<small><span class="num">10</span> 個造型 × <span class="num">18</span> 個狀態 ・ 桌面寵物 U7 的樣子</small></h1></div>
   <p class="lede">每一格都是會動的寵物，背景是桌面桌布（U7 直接站在桌面上）。<b>點任何一格放大</b>，可以同時看桌面寵物、房間場景和大頭照；放大後用方向鍵切換狀態和造型。有想改的地方，記下「造型＋狀態」告訴我就好。</p>
   <div class="ctrl">
     <div class="seg" id="viewSeg"><button data-v="petonly" class="on">桌面寵物</button><button data-v="scene">房間場景</button><button data-v="avatar">大頭照</button></div>
@@ -133,6 +133,8 @@
 <script src="js/pets/skins/hamster-s5.js"></script>
 <script src="js/pets/skins/cat-p0.js"></script>
 <script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-h2.js"></script>
+<script src="js/pets/skins/cat-s4.js"></script>
 <script src="js/pets/skins/cat-s5.js"></script>
 <script src="js/pets/compose.js"></script>
 <script>
@@ -287,7 +289,7 @@
   $('rmBtn').onclick = function () { this.classList.toggle('on', document.documentElement.classList.toggle('rm')); };
   if (q.get('rm') === '1') $('rmBtn').classList.add('on');
 
-  // pause cells that are scrolled out of view (144 animated SVGs are a lot for one page)
+  // pause cells that are scrolled out of view (180 animated SVGs are a lot for one page)
   if ('IntersectionObserver' in window && frozenAt === null) {
     var io = new IntersectionObserver(function (list) {
       list.forEach(function (en) { en.target.classList.toggle('off', !en.isIntersecting); });

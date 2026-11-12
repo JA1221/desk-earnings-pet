@@ -41,9 +41,9 @@ QJZ.layouts = (function () {
   var DRAG_PX = 4;
   var PETONLY_VB = [30, 4, 176, 170];    // QJZ.pets.compose 'petonly' viewBox
   var PET_HIT = [38, 24, 160, 148];      // the pet and its desk inside that viewBox, every skin and base state
-  // Reactions that leave PET_HIT, measured over all 8 skins and the whole animation (normal motion), clipped to the
-  // viewBox: hop rises up to 12.7 above it (cat P0) and squashes 3.4 left / 5.6 right on landing; dangle swings to
-  // both viewBox sides (hamster P0, S5) and up to its top (cat P0). Only while they play.
+  // Reactions that leave PET_HIT, measured over the first 8 skins and the whole animation (normal motion), clipped to
+  // the viewBox: hop rises up to 12.7 above it (cat P0) and squashes 3.4 left / 5.6 right on landing; dangle swings to
+  // both viewBox sides (hamster P0, S5) and up to its top (cat P0). Only while they play. Cat H2 / S4 fit inside both.
   var PET_HIT_BY_STATE = { hop: [34, 11, 170, 161], dangle: [30, 4, 176, 168] };
   function petHit(state) { return PET_HIT_BY_STATE.hasOwnProperty(state) ? PET_HIT_BY_STATE[state] : PET_HIT; }
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)

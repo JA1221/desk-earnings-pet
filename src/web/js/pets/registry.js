@@ -1,7 +1,7 @@
 window.QJZ = window.QJZ || {};
 QJZ.pets = QJZ.pets || {};
 // Skin registry. Skin files call register(def) when they load; list(kind) keeps registration order
-// (hamster p0,p4,h2,s4,s5 then cat p0,p4,s5 — the order the skin scripts are included).
+// (hamster p0,p4,h2,s4,s5 then cat p0,p4,h2,s4,s5 — the order the skin scripts are included).
 // def = {id:'kind:skin', kind, skin, name, room:'sticker'|'flat'|'crayon', wrap:null|'crayon',
 //        build(uid) -> {defs, crop, seed, layers:{back, pre, front, post}, face}}  (face: see expressions.js)
 (function (P) {

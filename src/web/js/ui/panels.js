@@ -1,7 +1,7 @@
 window.QJZ = window.QJZ || {};
 // The content of the PANEL layout (spec §5.3 設定, §5.4 紀錄, §4.4 忘記按下班, §4.8 first run):
 //   onboarding  step 1 salary (月薪/時薪, the amount checked by QJZ.settings.validateSalary, ÷22/÷30), step 2 the
-//               pet (all 8 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
+//               pet (all 10 skins) and its name; 開始 saves {salary, pet, onboarded:true}. It is the first panel while
 //               settings.salary.amount is 0 or settings.onboarded is false.
 //   settings    the nine sections of §5.3 as tabs, plus 關於 (version, 使用說明, the third-party licence texts). Every
 //               change is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /

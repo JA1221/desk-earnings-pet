@@ -36,11 +36,15 @@
     return ((layers.back || '') + (layers.pre || '') + (layers.front || '') + (layers.post || '')).split(slot).length - 1;
   }
 
-  test('pets: list gives 5 hamsters and 3 cats in skin order', function () {
+  test('pets: list gives 5 hamsters and 5 cats in skin order', function () {
     eq(QJZ.pets.list('hamster').length, 5);
-    eq(QJZ.pets.list('cat').length, 3);
+    eq(QJZ.pets.list('cat').length, 5);
     eq(idsOf(QJZ.pets.list('hamster')), ['hamster:p0', 'hamster:p4', 'hamster:h2', 'hamster:s4', 'hamster:s5']);
-    eq(idsOf(QJZ.pets.list('cat')), ['cat:p0', 'cat:p4', 'cat:s5']);
+    eq(idsOf(QJZ.pets.list('cat')), ['cat:p0', 'cat:p4', 'cat:h2', 'cat:s4', 'cat:s5']);
+    // every hamster skin has its cat, in the same order, and settings allows exactly the registered skins
+    eq(QJZ.pets.list('cat').map(function (d) { return d.skin; }), QJZ.pets.list('hamster').map(function (d) { return d.skin; }));
+    eq(QJZ.pets.list('cat').map(function (d) { return d.skin; }), QJZ.settings.skinsFor('cat'));
+    eq(QJZ.pets.list('hamster').map(function (d) { return d.skin; }), QJZ.settings.skinsFor('hamster'));
     eq(QJZ.pets.list('dog'), []);
   });
 
@@ -218,6 +222,56 @@
     });
   });
 
+  // ---------- the cats of hamster H2 and S4: 鼓鼓頰貓 and 扁平幾何貓 ----------
+  var NEW_CATS = [['cat:h2', 'hamster:h2', '鼓鼓頰貓'], ['cat:s4', 'hamster:s4', '扁平幾何貓']];
+
+  test('pets: cat H2 鼓鼓頰貓 and cat S4 扁平幾何貓 share their hamster\'s look and keep seamless cat arms', function () {
+    NEW_CATS.forEach(function (e) {
+      var cat = QJZ.pets.get(e[0]), ham = QJZ.pets.get(e[1]);
+      ok(cat, e[0] + ' registered');
+      eq([cat.kind, cat.skin, cat.name, cat.room, cat.wrap], ['cat', ham.skin, e[2], ham.room, ham.wrap], e[0] + ' def');
+      var b = cat.build('c0'), hb = ham.build('h0');
+      eq([b.face.eyeStyle, b.face.ink, b.rig.mode, b.rig.line], [hb.face.eyeStyle, hb.face.ink, hb.rig.mode, hb.rig.line], e[0] + ' face and line of ' + e[1]);
+      eq(b.seed, false, e[0] + ' no sunflower seed on the desk');
+      ok(b.rig.up.arms && !b.rig.up.paws && b.rig.scratch.arm && b.rig.limb && b.rig.limb.fill, e[0] + ' arms that grow out of the body');
+      eq(Object.keys(b.rig.pack.desk).indexOf('wave'), -1, e[0] + ' waves with the raised arm, not a loose paw');
+    });
+    // H2: two puffing cheeks like the hamster, a little dried fish on the head instead of the seed
+    var h2 = QJZ.pets.compose('cat:h2', 'petonly', { state: 'idle' });
+    eq(h2.split('class="puff"').length - 1, 2, 'cat H2 has two puffy cheeks');
+    ok(h2.indexOf('#C9D4DE') > 0 && h2.indexOf('#33302E') < 0, 'cat H2 carries a fish, not a sunflower seed');
+    // S4: flat, no A1 ink outlines anywhere in the art (hamster S4 likewise)
+    ['hamster:s4', 'cat:s4'].forEach(function (id) {
+      var b = QJZ.pets.get(id).build('f0'), art = [b.layers.back, b.layers.pre, b.layers.front, b.layers.post, b.poses.lie.front, b.poses.dangle.front].join('');
+      ok(art.indexOf(QJZ.pets.common.L0) < 0 && art.indexOf('stroke-linejoin') < 0, id + ' has no ink outlines');
+    });
+  });
+
+  test('pets: cat H2 and S4 compose every state, expression and mouth in every view: no placeholders, refs resolve, ids scoped to the SVG', function () {
+    function check(id, view, opts, at) {
+      var svg = QJZ.pets.compose(id, view, opts), doc = parse(svg), m = svg.match(/\sid="(pet\d+)-/), uid = m && m[1];
+      eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parses');
+      ok(!/<!--[A-Z]+-->/.test(svg) && !/undefined|NaN|\$\{|\[object/.test(svg), at + 'no unreplaced placeholder');
+      eq(unresolved(svg), [], at + 'url(#) and href refs resolve');
+      ok(uid, at + 'has a uid');
+      eq(svgIds(svg).filter(function (x) { return x.indexOf(uid + '-') !== 0; }), [], at + 'every id is scoped to the uid');
+      ok(hasClass(doc.documentElement, 'kind-cat'), at + 'kind-cat');
+      ok(inBody(doc.querySelector('.look')), at + 'eyes ride on the head');
+      return doc;
+    }
+    NEW_CATS.forEach(function (e) {
+      var id = e[0];
+      VIEWS.forEach(function (view) {
+        STATES.forEach(function (s) {
+          var doc = check(id, view, { state: s }, id + ' ' + s + ' ' + view + ': ');
+          ok(hasClass(doc.documentElement, 'st-' + s), id + ' ' + s + ' ' + view + ': state class');
+        });
+        EXPRESSIONS.forEach(function (x) { check(id, view, { state: 'typing', expression: x }, id + ' eyes ' + x + ' ' + view + ': '); });
+        MOUTHS.forEach(function (x) { check(id, view, { state: 'typing', mouth: x }, id + ' mouth ' + x + ' ' + view + ': '); });
+      });
+    });
+  });
+
   test('pets: compose state defaults and overrides', function () {
     function el(svg, sel) { return parse(svg).querySelector(sel); }
     ok(hasClass(parse(QJZ.pets.compose('cat:p0', 'avatar', { state: 'nope' })).documentElement, 'st-typing'), 'unknown state falls back to typing');
@@ -314,12 +368,12 @@
     return false;
   }
 
-  test('pets: waitBag shows the desk bag for all 8 skins x 3 views, with no unreplaced placeholders, and hamsters have no limbs', function () {
+  test('pets: waitBag shows the desk bag for all 10 skins x 3 views, with no unreplaced placeholders, and hamsters have no limbs', function () {
     var P = QJZ.pets;
     eq(P.setBagStyle, undefined, 'no style switch any more');
     eq(P.bagStyle, undefined);
     eq(P.BAG_STYLES, undefined);
-    eq(all().length, 8, 'eight skins');
+    eq(all().length, 10, 'ten skins');
     all().forEach(function (d) {
       var b = d.build('pet0'), lift = b.rig.pack.lift;
       ok(lift >= 0 && lift <= 8, d.id + ' lift ' + lift);

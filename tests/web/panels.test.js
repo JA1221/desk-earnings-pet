@@ -283,7 +283,11 @@
     ok(text(e, '[data-o=preview]').indexOf('1,666.67') >= 0, 'daily wage preview ÷30: ' + text(e, '[data-o=preview]'));
     $(e, '[data-pa=next]').click();
     ok(visible($(e, '[data-step="2"]')), 'pet step');
-    eq($$(e, '[data-step="2"] [data-skin]').length, 8, 'all 8 skins');
+    eq($$(e, '[data-step="2"] [data-skin]').length, 10, 'all 10 skins');
+    eq($$(e, '[data-step="2"] [data-skin^="cat:"]').map(function (b) { return b.getAttribute('data-skin'); }), ['cat:p0', 'cat:p4', 'cat:h2', 'cat:s4', 'cat:s5'], 'five cats, in the hamster order');
+    eq([$(e, '[data-step="2"] [data-skin="cat:h2"]').title, text(e, '[data-step="2"] [data-skin="cat:h2"] small')], ['鼓鼓頰貓', '鼓鼓頰'], 'cat H2');
+    eq([$(e, '[data-step="2"] [data-skin="cat:s4"]').title, text(e, '[data-step="2"] [data-skin="cat:s4"] small')], ['扁平幾何貓', '扁平幾何'], 'cat S4');
+    ok($(e, '[data-step="2"] [data-skin="cat:h2"] svg') && $(e, '[data-step="2"] [data-skin="cat:s4"] svg'), 'the new cats have avatars');
     ok($(e, '[data-skin="cat:p4"] svg'), 'an avatar');
     $(e, '[data-skin="cat:p4"]').click();
     eq($(e, '[data-f=petName]').value, '小橘', 'the default name of the picked kind');
@@ -626,7 +630,12 @@
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     $(e, '[data-tab=pet]').click();
-    eq($$(e, '[data-sec=pet] [data-skin]').length, 8);
+    eq($$(e, '[data-sec=pet] [data-skin]').length, 10);
+    $(e, '[data-skin="cat:h2"]').click();
+    eq([QJZ.app.state.settings.pet.kind, QJZ.app.state.settings.pet.skin], ['cat', 'h2'], 'cat H2 can be picked');
+    $(e, '[data-skin="cat:s4"]').click();
+    eq([QJZ.app.state.settings.pet.kind, QJZ.app.state.settings.pet.skin], ['cat', 's4'], 'cat S4 can be picked');
+    $(e, '[data-skin="hamster:p0"]').click();
     ok($(e, '[data-skin="hamster:p0"]').classList.contains('on'));
     $(e, '[data-skin="cat:s5"]').click();
     eq([QJZ.app.state.settings.pet.kind, QJZ.app.state.settings.pet.skin], ['cat', 's5']);
