@@ -60,6 +60,31 @@ public class WindowPlacer
         if (fit != now) window.Bounds = fit;
     }
 
+    // CSS size the first-show safety net uses when the page has not reported one (about U1's size).
+    public static readonly Size DefaultRescueCss = new Size(360, 600);
+
+    // The page's size for layout as last remembered (CSS px), or null.
+    public Size? SavedSize(string layout)
+    {
+        Size s;
+        return positions.TryGetSize(layout, out s) ? s : (Size?)null;
+    }
+
+    // The page reported layout's size: keep it for the safety net (written only when it changed).
+    public void RememberSize(string layout, Size cssSize)
+    {
+        Size old;
+        if (layout == null || (positions.TryGetSize(layout, out old) && old == cssSize)) return;
+        positions.SetSize(layout, cssSize);
+        files.Save(files.Window, positions.ToJson());
+    }
+
+    // The size the safety net shows the window at: the saved one, else DefaultRescueCss.
+    public static Size RescueSize(Size? saved)
+    {
+        return saved.HasValue && saved.Value.Width >= 1 && saved.Value.Height >= 1 ? saved.Value : DefaultRescueCss;
+    }
+
     // The user finished moving the window (WM_EXITSIZEMOVE): remember the spot for this layout.
     public void Remember(string layout, Point location)
     {

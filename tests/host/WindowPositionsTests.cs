@@ -72,4 +72,35 @@ public static class WindowPositionsTests
         Assert.Eq("{}", p.ToJson(), "nothing stored");
         Missing(p, null);
     }
+
+    public static void Test_SizesRoundTripNextToPositions()
+    {
+        var p = new WindowPositions();
+        p.SetSize("U1", new Size(347, 593));
+        p.Set("U1", new Point(-599, 463));
+        p.SetSize("M3", new Size(175, 175));   // a size without a position is kept too
+        Assert.Eq("{\"M3\":{\"w\":175,\"h\":175},\"U1\":{\"x\":-599,\"y\":463,\"w\":347,\"h\":593}}", p.ToJson(), "json shape");
+        WindowPositions q = WindowPositions.Parse(p.ToJson());
+        Size s;
+        Assert.True(q.TryGetSize("U1", out s) && s == new Size(347, 593), "U1 size");
+        Assert.Eq(new Point(-599, 463), Get(q, "U1"), "U1 position unchanged by the size");
+        Assert.True(q.TryGetSize("M3", out s) && s == new Size(175, 175), "M3 size");
+        Missing(q, "M3");
+        Assert.True(!q.TryGetSize("U7", out s), "no size for U7");
+    }
+
+    public static void Test_BadSizesAreSkipped()
+    {
+        WindowPositions p = WindowPositions.Parse(
+            "{\"U1\":{\"x\":1,\"y\":2,\"w\":0,\"h\":593},\"U3\":{\"w\":5000,\"h\":10},\"U7\":{\"w\":\"a\",\"h\":1},\"M3\":{\"w\":100.4,\"h\":99.6}}");
+        Size s;
+        Assert.True(!p.TryGetSize("U1", out s), "zero width");
+        Assert.Eq(new Point(1, 2), Get(p, "U1"), "the position survives a bad size");
+        Assert.True(!p.TryGetSize("U3", out s), "too large");
+        Assert.True(!p.TryGetSize("U7", out s), "not a number");
+        Assert.True(p.TryGetSize("M3", out s) && s == new Size(100, 100), "fractions rounded");
+        p.SetSize("U5B", new Size(0, 10));
+        Assert.True(!p.TryGetSize("U5B", out s), "SetSize ignores an empty size");
+    }
 }
+

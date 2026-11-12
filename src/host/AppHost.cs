@@ -32,6 +32,7 @@ public class AppHost
     const int ProbeWaitMs = 3000;    // longest wait for the event-log probe before init goes out without it
     const int QuitWaitMs = 1500;     // how long quit waits for the page's quit {}
     const int MaxPageCrashes = 3;    // page reloads after renderer crashes allowed per minute
+    const int FirstShowWaitMs = 4000;   // after navigation / init: no visible window by then -> safety net
 
     readonly string startUrl;
     readonly bool devPage;
@@ -45,6 +46,10 @@ public class AppHost
     readonly ApplicationContext context = new ApplicationContext();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
     readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
+    readonly System.Windows.Forms.Timer firstShowTimer = new System.Windows.Forms.Timer();
+    string startLayout = "U1";   // settings.json layout.start: what the safety net sizes and places the window for
+    bool firstShown;             // the window has been visible to the user (IsWindowVisible) at least once
+    bool rescued;                // shown by the safety net before the page reported a layout
     uint uiThread;
     Dictionary<string, bool> topmost = HostSettings.Parse(null).TopmostByLayout();   // per layout, from settings.json + setTopmost
     string configuredHotkey = HostSettings.DefaultHotkey;
@@ -90,6 +95,8 @@ public class AppHost
 
         quitTimer.Interval = QuitWaitMs;
         quitTimer.Tick += delegate { Quit(); };
+        firstShowTimer.Interval = FirstShowWaitMs;
+        firstShowTimer.Tick += delegate { firstShowTimer.Stop(); CheckFirstShow(); };
     }
 
     public void Run()
@@ -121,6 +128,7 @@ public class AppHost
         session.Activity += OnSession;
         SingleInstance.Listen(OnSecondInstance);
 
+        startLayout = settings.StartLayout;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
         window.CreateHidden();   // capture guard + hotkey (OnHandleCreated), then the page loads while hidden
         Application.Run(context);
@@ -175,7 +183,13 @@ public class AppHost
         web.NewWindowRequested += delegate(object s, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; };
         web.NavigationCompleted += delegate(object s, CoreWebView2NavigationCompletedEventArgs e)
         {
-            if (!e.IsSuccess) { ErrorLog.Write("page failed to load: " + e.WebErrorStatus); return; }
+            if (!e.IsSuccess)
+            {
+                ErrorLog.Write("page failed to load: " + e.WebErrorStatus);
+                RescueFirstShow("the page failed to load (" + e.WebErrorStatus + ")");   // show what WebView2 shows
+                return;
+            }
+            ArmFirstShow();
             SendInit(navigation);
         };
         web.ProcessFailed += delegate(object s, CoreWebView2ProcessFailedEventArgs e) { OnProcessFailed(e.ProcessFailedKind); };
@@ -208,6 +222,7 @@ public class AppHost
         catch (Exception ex) { ErrorLog.Write("event log probe", ex); }
         if (nav != navigation || quitting) return;   // the page changed meanwhile
         bridge.Open("init", new { settings = files.Settings.Text, history = files.History.Text, probeMs = probe, nowMs = NowMs(), version = Version });
+        ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
         if (hotkeyFailure != null) Send("hotkeyFailed", hotkeyFailure);
@@ -304,6 +319,7 @@ public class AppHost
         window.SetContentSize((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)), Dpr(d));
         if (changed)
         {
+            placer.RememberSize(name, new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize))));
             placer.Place(window, name);
             bool on;
             window.TopMostEnabled = topmost.TryGetValue(name, out on) && on;
@@ -326,18 +342,70 @@ public class AppHost
 
     // ---- visibility and pause ----
 
+    // Hides the window only when the user can see it; otherwise (hidden, or still starting) it means "show".
     void ToggleVisible()
     {
-        wantVisible = !wantVisible;
+        wantVisible = ShowRescue.NextWantVisible(ShownToUser());
         ApplyVisibility();
     }
 
     void ApplyVisibility()
     {
-        bool show = wantVisible && layout != null && !quitting;
+        bool show = wantVisible && (layout != null || rescued) && !quitting;
         if (show && !window.Visible) window.Show();   // never activates (PetWindow.ShowWithoutActivation)
         else if (!show && window.Visible) window.Hide();
+        else if (show && !ShownToUser() && window.IsHandleCreated)
+            Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms says shown, Windows disagrees (or minimized)
         if (gate.SetShown(window.Visible)) PauseChanged();
+        if (!firstShown && ShownToUser())
+        {
+            firstShown = true;
+            firstShowTimer.Stop();
+        }
+        UpdateTray();
+    }
+
+    // What the user sees: Windows' own visibility, not WinForms' Visible.
+    bool ShownToUser()
+    {
+        return window.IsHandleCreated && Native.IsWindowVisible(window.Handle) && !Native.IsIconic(window.Handle);
+    }
+
+    // ---- first-show safety net ----
+    // The window should become visible right after the page's first setLayout. If it is not visible
+    // FirstShowWaitMs after navigation / init (or the page failed to load) while the user wants it, show it at the
+    // start layout's saved or default size and log one line, so the user never ends up with nothing on screen.
+
+    void ArmFirstShow()
+    {
+        if (firstShown || quitting) return;
+        firstShowTimer.Stop();
+        firstShowTimer.Start();
+    }
+
+    void CheckFirstShow()
+    {
+        if (firstShown) return;
+        string reason = ShowRescue.Reason(quitting, wantVisible, ShownToUser(), layout != null);
+        if (reason != null) RescueFirstShow(reason + " " + FirstShowWaitMs / 1000 + " s after init");
+        else if (ShownToUser()) firstShown = true;
+    }
+
+    void RescueFirstShow(string reason)
+    {
+        firstShowTimer.Stop();
+        if (firstShown || ShowRescue.Reason(quitting, wantVisible, ShownToUser(), layout != null) == null) return;
+        if (layout == null)
+        {
+            Size css = WindowPlacer.RescueSize(placer.SavedSize(startLayout));
+            window.SetContentSize(css.Width, css.Height, 0);
+            placer.Place(window, startLayout);
+            rescued = true;
+        }
+        ApplyVisibility();
+        if (!ShownToUser() && window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);   // WinForms thinks it is shown
+        firstShown = ShownToUser();
+        ErrorLog.Write("first show fallback: " + reason + "; window " + (firstShown ? "shown" : "STILL NOT VISIBLE") + " at " + window.Bounds);
         UpdateTray();
     }
 
@@ -367,7 +435,7 @@ public class AppHost
 
     void UpdateTray()
     {
-        tray.SetState(layout, window.TopMostEnabled, wantVisible);
+        tray.SetState(layout, window.TopMostEnabled, ShownToUser());   // the menu offers 顯示 while nothing is visible
     }
 
     // ---- menu ----
@@ -490,6 +558,7 @@ public class AppHost
     {
         quitting = true;
         quitTimer.Stop();
+        firstShowTimer.Stop();
         menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered
         files.FlushAll();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);

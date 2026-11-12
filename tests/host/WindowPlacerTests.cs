@@ -78,4 +78,13 @@ public static class WindowPlacerTests
         Rectangle mostlyOut = new Rectangle(-900, 1300, 780, 510);
         Assert.Eq(new Rectangle(-900, 893, 780, 510), WindowPlacer.Refit(mostlyOut, false, Areas), "user's spot under 50 % inside is clamped");
     }
+
+    public static void Test_RescueSizeIsSavedElseDefault()
+    {
+        Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");
+        Assert.Eq(WindowPlacer.DefaultRescueCss, WindowPlacer.RescueSize(null), "no saved size: default");
+        Assert.Eq(WindowPlacer.DefaultRescueCss, WindowPlacer.RescueSize(new Size(0, 593)), "an unusable size: default");
+        Assert.True(WindowPlacer.DefaultRescueCss.Width > 0 && WindowPlacer.DefaultRescueCss.Height > 0, "default is a real size");
+    }
 }
+

@@ -24,3 +24,24 @@ public class PauseGate
         return was != Running;
     }
 }
+
+// Showing the window, decided on what the user actually sees (IsWindowVisible), not on WinForms' state. Lives here
+// next to PauseGate: both are about whether the window is shown.
+public static class ShowRescue
+{
+    // A show/hide toggle (Ctrl+Alt+H, tray double-click, the menu) hides the window only when it is visible now.
+    // While nothing is visible, for example during the hidden start before the page's first setLayout, a toggle
+    // means "show". It used to flip the pending first show into "stay hidden" for good.
+    public static bool NextWantVisible(bool shownToUser)
+    {
+        return !shownToUser;
+    }
+
+    // Why the first-show safety net must show the window (null: no need). Only when the user wants it, it is not
+    // visible, and the app is not quitting.
+    public static string Reason(bool quitting, bool wantVisible, bool shownToUser, bool layoutReported)
+    {
+        if (quitting || !wantVisible || shownToUser) return null;
+        return layoutReported ? "setLayout arrived but the window is not visible" : "no setLayout from the page";
+    }
+}
