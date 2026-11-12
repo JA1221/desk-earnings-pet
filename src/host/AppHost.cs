@@ -91,8 +91,8 @@ public class AppHost
     bool promptRaised;           // the page's raise {on}: a prompt bubble shows, so the window is topmost (ApplyTopmost)
     Size layoutCss;              // the page size (CSS px) of the last setLayout
     string capsuleDock = "top";  // U10's dock: the page's setLayout dock, or where a drop snapped it
-    Point? growFrom;             // a same-layout grow pushed the window in from growFrom to growTo; the shrink after
-    Point? growTo;               // it goes back (WindowPlacer.AfterShrink)
+    Rectangle? growFrom;         // a same-layout grow pushed the window in from this rect to growTo; size changes while
+    Point? growTo;               // it is still at growTo start from growFrom (WindowPlacer.ResizeInside)
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
     // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
@@ -442,25 +442,13 @@ public class AppHost
         return true;
     }
 
-    // The same layout changed size (a prompt bubble beside U7 / M3): a grow stays inside if the window was inside, and
-    // where it was pushed from is kept; the shrink after it goes back there unless the user moved it meanwhile. Neither
-    // spot is saved.
+    // The same layout changed size (a prompt bubble beside U7 / M3): a window that was inside stays fully inside through
+    // every grow and partial shrink, and goes back to where it was once it fits there, unless the user moved it
+    // meanwhile (WindowPlacer.ResizeInside). No spot is saved.
     void FitAfterResize(Rectangle before)
     {
-        Size now = window.Size;
-        if (now.Width <= before.Width && now.Height <= before.Height)
-        {
-            Point back = WindowPlacer.AfterShrink(window.Location, growFrom, growTo);
-            growFrom = null;
-            growTo = null;
-            if (back != window.Location) window.Location = back;
-            return;
-        }
-        Point fit = WindowPlacer.FitAfterGrow(before, now, WindowPlacer.WorkAreas()).Location;
-        if (fit == before.Location) return;
-        if (growTo != before.Location) growFrom = before.Location;   // else it grew again: it goes back to the first spot
-        growTo = fit;
-        window.Location = fit;
+        Point at = WindowPlacer.ResizeInside(before, window.Size, WindowPlacer.WorkAreas(), ref growFrom, ref growTo);
+        if (at != window.Location) window.Location = at;
     }
 
     // U10's dock rect is 6 CSS px in from the work-area edges.

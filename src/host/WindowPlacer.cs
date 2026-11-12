@@ -6,7 +6,7 @@ using System.Windows.Forms;
 // physical px, in window.json, owned by the host. The decision is pure (Decide, Refit):
 // saved position (kept by ScreenFit.Clamp) -> else where the window is now (fully inside its monitor) -> else
 // the bottom-right of the primary work area. A window that grows stays inside its work area (FitAfterGrow) and goes
-// back when it shrinks (AfterShrink).
+// back when it shrinks (ResizeInside).
 public class WindowPlacer
 {
     public const int DefaultMargin = 24;   // physical px in from the work-area corner for a first-ever position
@@ -140,6 +140,31 @@ public class WindowPlacer
     public static Point AfterShrink(Point now, Point? growFrom, Point? growTo)
     {
         return growFrom.HasValue && growTo.HasValue && now == growTo.Value ? growFrom.Value : now;
+    }
+
+    // A same-layout size change (a prompt bubble beside U7 / M3 shows, changes or goes): the window at before now has
+    // the size now; returns its new top-left. growFrom / growTo carry an outstanding push between calls: the window's
+    // rect before a grow pushed it in, and the spot the push put it at (both null: none).
+    // While the window is still at growTo its spot is worked out again from growFrom (FitAfterGrow), so a partial
+    // shrink or a second grow keeps it fully inside, and once it fits at growFrom unpushed it goes back there and the
+    // push is forgotten. A window the user moved meanwhile is no longer at growTo: it starts afresh from where it is,
+    // so an overhang the user chose is kept (Ruling S9).
+    public static Point ResizeInside(Rectangle before, Size now, Rectangle[] areas, ref Rectangle? growFrom, ref Point? growTo)
+    {
+        Point unpushed = AfterShrink(before.Location, growFrom.HasValue ? growFrom.Value.Location : (Point?)null, growTo);
+        Rectangle basis = unpushed != before.Location ? growFrom.Value : before;
+        Point at = FitAfterGrow(basis, now, areas).Location;
+        if (at == basis.Location)
+        {
+            growFrom = null;
+            growTo = null;
+        }
+        else
+        {
+            growFrom = basis;
+            growTo = at;
+        }
+        return at;
     }
 
     public static Rectangle[] WorkAreas()

@@ -121,6 +121,63 @@ public static class WindowPlacerTests
         Assert.Eq(new Point(1200, 500), WindowPlacer.AfterShrink(new Point(1200, 500), null, null), "never pushed: stays");
     }
 
+    // Same-layout size changes while a prompt shows (U7 / M3 grow right): a partial shrink of a pushed window stays
+    // inside (worked out from where it was pushed from), a second grow pushes further, and the full shrink goes back.
+    public static void Test_ResizeInside_GrowPartialShrinkFullShrink()
+    {
+        Rectangle? from = null;
+        Point? to = null;
+        Point at = WindowPlacer.ResizeInside(new Rectangle(1440, 900, 480, 120), new Size(545, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1375, 900), at, "grow: pushed in");
+        Assert.Eq((Rectangle?)new Rectangle(1440, 900, 480, 120), from, "pushed from the window as it was");
+        Assert.Eq((Point?)new Point(1375, 900), to, "pushed to");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(545, 120)), new Size(520, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1400, 900), at, "partial shrink, still wider than before the grow: only as far in as needed, not back to 1440");
+        Assert.True(Primary.Contains(new Rectangle(at, new Size(520, 120))), "still fully inside");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(520, 120)), new Size(600, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1320, 900), at, "grows again: pushed further");
+        Assert.Eq((Rectangle?)new Rectangle(1440, 900, 480, 120), from, "still the first spot");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(600, 120)), new Size(480, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1440, 900), at, "full shrink: back where it was");
+        Assert.True(!from.HasValue && !to.HasValue, "nothing outstanding");
+    }
+
+    public static void Test_ResizeInside_PartialShrinkThatFitsUnpushed()
+    {
+        Rectangle? from = null;
+        Point? to = null;
+        Point at = WindowPlacer.ResizeInside(new Rectangle(1400, 900, 480, 120), new Size(545, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1375, 900), at, "grow: pushed in by 25");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(545, 120)), new Size(500, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1400, 900), at, "fits at the old spot again: back there");
+        Assert.True(!from.HasValue && !to.HasValue, "nothing outstanding");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(500, 120)), new Size(480, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1400, 900), at, "full shrink: stays");
+        at = WindowPlacer.ResizeInside(new Rectangle(100, 900, 300, 120), new Size(300, 200), Areas, ref from, ref to);
+        Assert.Eq(new Point(100, 832), at, "taller at the bottom: pushed up");
+        at = WindowPlacer.ResizeInside(new Rectangle(at, new Size(300, 200)), new Size(300, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(100, 900), at, "and back down");
+    }
+
+    // Ruling S9: the user's own spot wins. Moved while grown: the shrink leaves it there, overhang and all; a grow from
+    // an overhang the user chose keeps it.
+    public static void Test_ResizeInside_KeepsWhatTheUserChose()
+    {
+        Rectangle? from = null;
+        Point? to = null;
+        Point at = WindowPlacer.ResizeInside(new Rectangle(1440, 900, 480, 120), new Size(545, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1375, 900), at, "pushed in");
+        at = WindowPlacer.ResizeInside(new Rectangle(1600, 500, 545, 120), new Size(480, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(1600, 500), at, "dragged over the edge while grown: stays after the shrink");
+        Assert.True(!from.HasValue && !to.HasValue, "the old push is forgotten");
+        at = WindowPlacer.ResizeInside(new Rectangle(1700, 100, 400, 300), new Size(465, 300), Areas, ref from, ref to);
+        Assert.Eq(new Point(1700, 100), at, "a grow from an overhang the user chose: kept");
+        Assert.True(!from.HasValue && !to.HasValue, "not a push");
+        at = WindowPlacer.ResizeInside(new Rectangle(100, 100, 480, 120), new Size(545, 120), Areas, ref from, ref to);
+        Assert.Eq(new Point(100, 100), at, "room to grow: stays");
+        Assert.True(!from.HasValue && !to.HasValue, "not a push");
+    }
+
     public static void Test_RescueSizeIsSavedElseDefault()
     {
         Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");
