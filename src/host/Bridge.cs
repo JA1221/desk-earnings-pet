@@ -150,6 +150,16 @@ public class Bridge
         return list.ToArray();
     }
 
+    // [x, y] -> point; null unless the value is exactly two finite numbers.
+    public static PointF? XY(Dictionary<string, object> d, string key)
+    {
+        object v;
+        IList p = d != null && d.TryGetValue(key, out v) ? v as IList : null;
+        double x, y;
+        if (p == null || p.Count != 2 || !TryNumber(p[0], out x) || !TryNumber(p[1], out y)) return null;
+        return new PointF((float)x, (float)y);
+    }
+
     // A finite JSON number as JavaScriptSerializer returns it (int, long, decimal or double).
     public static bool TryNumber(object v, out double n)
     {

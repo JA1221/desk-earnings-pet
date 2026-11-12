@@ -190,7 +190,9 @@ public class PetWindow : Form
     }
 
     // Native window move; call while the primary button is held (e.g. on a page mousedown message).
-    public void BeginDrag()
+    // grab: page CSS px that should hang under the cursor (U7's scruff tip); the window first jumps so it does, and
+    // the move loop then keeps that offset for the whole drag. Null: the window moves from wherever it was pressed.
+    public void BeginDrag(PointF? grab)
     {
         // Deferred so a WebView2 event handler that calls this returns before the modal move loop starts.
         BeginInvoke((MethodInvoker)delegate
@@ -199,6 +201,13 @@ public class PetWindow : Form
             if ((Native.GetAsyncKeyState(button) & 0x8000) == 0) return;   // already released: no sticky drag
             Native.POINT p;
             Native.GetCursorPos(out p);
+            if (grab.HasValue)
+            {
+                Point? at = PetGeometry.GrabOrigin(p.X, p.Y, grab.Value, cssWidth, cssHeight, Scale());
+                if (at.HasValue)
+                    Native.SetWindowPos(Handle, IntPtr.Zero, at.Value.X, at.Value.Y, 0, 0,
+                        Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+            }
             Native.ReleaseCapture();
             Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION,
                 (IntPtr)((p.Y << 16) | (p.X & 0xFFFF)));

@@ -296,7 +296,7 @@ public class AppHost
             case "backupCorrupt": files.BackupCorrupt(Bridge.Str(d, "file")); break;
             case "setLayout": SetLayout(d); break;
             case "hitRects": window.SetHitRects(Bridge.Rects(d, "rects", MaxHitRects), Dpr(d)); break;
-            case "dragStart": window.BeginDrag(); break;
+            case "dragStart": window.BeginDrag(Bridge.XY(d, "grab")); break;
             case "contextMenu": ShowContextMenu(); break;
             case "setTopmost":
                 {

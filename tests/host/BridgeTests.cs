@@ -102,6 +102,18 @@ public static class BridgeTests
         Assert.True(Bridge.Str(null, "s") == null && Bridge.Bool(null, "b") == null && Bridge.Num(null, "n", 2) == 2, "null message");
     }
 
+    public static void Test_XYReadsOnlyTwoFiniteNumbers()
+    {
+        System.Drawing.PointF? p = Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\",\"grab\":[160.5,58]}"), "grab");
+        Assert.True(p.HasValue, "a pair parses");
+        Assert.Eq(new System.Drawing.PointF(160.5f, 58f), p.Value, "values");
+        Assert.True(!Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\"}"), "grab").HasValue, "missing");
+        Assert.True(!Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\",\"grab\":[1]}"), "grab").HasValue, "one number");
+        Assert.True(!Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\",\"grab\":[1,2,3]}"), "grab").HasValue, "three numbers");
+        Assert.True(!Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\",\"grab\":[1,\"x\"]}"), "grab").HasValue, "not a number");
+        Assert.True(!Bridge.XY(Bridge.Parse("{\"type\":\"dragStart\",\"grab\":5}"), "grab").HasValue, "not a list");
+    }
+
     public static void Test_RectsSkipMalformedEntries()
     {
         Dictionary<string, object> d = Bridge.Parse(

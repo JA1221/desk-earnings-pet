@@ -13,6 +13,18 @@ public static class PetGeometryTests
         Assert.Eq(new Size(975, 638), PetGeometry.WindowSize(520, 340, 1.875), "637.5 rounds away from zero");
     }
 
+    public static void Test_GrabOriginPutsTheGrabPointUnderTheCursor()
+    {
+        // U7 is 320 x 260 CSS px; the scruff tip at (160, 58)
+        Assert.Eq((Point?)new Point(840, 442), PetGeometry.GrabOrigin(1000, 500, new PointF(160, 58), 320, 260, 1.0), "100%");
+        Assert.Eq((Point?)new Point(760, 413), PetGeometry.GrabOrigin(1000, 500, new PointF(160, 58), 320, 260, 1.5), "150%");
+        Assert.Eq((Point?)new Point(-1281, -202), PetGeometry.GrabOrigin(-1000, -100, new PointF(160.5f, 58.5f), 320, 260, 1.75),
+            "negative monitor; 280.875 and 102.375 round to 281 and 102");
+        Assert.True(!PetGeometry.GrabOrigin(1000, 500, new PointF(-1, 58), 320, 260, 1.0).HasValue, "left of the page");
+        Assert.True(!PetGeometry.GrabOrigin(1000, 500, new PointF(160, 261), 320, 260, 1.0).HasValue, "below the page");
+        Assert.True(PetGeometry.GrabOrigin(1000, 500, new PointF(320, 260), 320, 260, 1.0).HasValue, "the far corner is inside");
+    }
+
     public static void Test_DpiScale()
     {
         Assert.Eq(1.0, PetGeometry.DpiScale(96), "96");
