@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>寵物新動作審稿</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pets.css">
+<style>
+  /* Review page for the 1.1 poses (Task 17, spec §5.8). Not shipped in the app. Every compose call passes
+     {preview:true} (Ruling R3), so a pose shows before its skin declares it.
+     URL params: ?rows=hamster:p0,cat:p0 (skin ids or a kind; default: the skins drawn so far, DRAWN below);
+     ?sheet=1 a still contact sheet of key frames (for headless screenshots), with ?poses=wave,sip, ?frames=100,900
+     (ms) and ?w=<px> (page width) to look closer. */
+  :root{--gap:10px}
+  html{background:#FFF8EC;-webkit-text-size-adjust:100%}
+  body{min-height:100vh;background:#FFF8EC;color:var(--text);font-family:"Microsoft JhengHei UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;padding:0 16px 56px;overflow-x:hidden}
+  .num{font-family:Fredoka,"Microsoft JhengHei UI",sans-serif}
+  .wrap{max-width:860px;margin:0 auto}
+
+  .top{display:flex;align-items:center;gap:14px;padding:22px 0 10px}
+  .logo{width:52px;height:52px;border-radius:50%;background:#FFC857;border:3px solid var(--line);box-shadow:3px 3px 0 var(--line);overflow:hidden;flex:none}
+  .logo svg{display:block;width:100%;height:100%}
+  h1{font-size:24px;font-weight:800;line-height:1.2}
+  h1 small{display:block;font-size:13px;font-weight:700;color:var(--sub);margin-top:3px}
+  .lede{font-size:14.5px;line-height:1.75;color:#6B5446;margin:6px 0 12px}
+  .lede b{color:var(--text)}
+  .ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+  .chip{font:inherit;font-weight:800;font-size:14px;border:3px solid var(--line);background:#fff;border-radius:99px;padding:6px 16px;box-shadow:3px 3px 0 var(--line);cursor:pointer;color:var(--text)}
+  .chip.on{background:#8EE3B0}
+  .chip:active{transform:translate(1px,1px)}
+
+  .pose{margin-top:26px;background:#fff;border:3px solid var(--line);border-radius:22px;box-shadow:5px 5px 0 var(--line);padding:14px 14px 16px}
+  .pose h2{font-size:20px;font-weight:800;line-height:1.3}
+  .pose h2 .en{font-family:Fredoka,sans-serif;font-size:13px;font-weight:600;color:var(--sub);margin-left:6px}
+  .use{display:inline-block;margin-top:6px;font-size:13px;font-weight:800;background:#FFE08A;border:2px solid var(--line);border-radius:99px;padding:1px 10px}
+  .desc{font-size:14px;line-height:1.7;color:#5C463A;margin:8px 0 2px}
+  .cap{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--sub);margin:14px 0 6px}
+  .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
+
+  /* U7: the pet straight on the desktop wallpaper */
+  .wall{position:relative;overflow:hidden;border:3px solid var(--line);border-radius:16px;box-shadow:3px 3px 0 var(--line);
+    background:radial-gradient(circle at 80% 18%,#FFE9B0 0 9%,transparent 9.5%),linear-gradient(180deg,#9ED8FF 0%,#CDEBFF 58%,#BFE6C4 58.5%,#9FD6A6 100%)}
+  .wall::before{content:"";position:absolute;left:-30%;bottom:6%;width:90%;height:38%;border-radius:50%;background:#8FCB97}
+  .wall::after{content:"";position:absolute;left:0;right:0;bottom:0;height:7%;background:rgba(255,255,255,.72)}
+  .po{position:relative;z-index:1;aspect-ratio:176/170}
+  .po svg,.room svg,.av svg{display:block;width:100%;height:100%}
+  .who{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:13px;font-weight:800;min-width:0}
+  .who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .av{width:40px;height:40px;border-radius:50%;background:#FFE6C7;border:2.5px solid var(--line);overflow:hidden;flex:none;box-shadow:2px 2px 0 var(--line)}
+  /* U1: the room in the big window */
+  .room{border:3px solid var(--line);border-radius:14px;overflow:hidden;aspect-ratio:3/2;background:#FFE6C7}
+  /* what shows today: the 1.0 stand-in */
+  .was{margin-top:14px;padding:10px;border:2.5px dashed #C9B6A6;border-radius:16px;background:#FFF8EC}
+  .was .cap{margin:0 0 8px}
+  .was .pair{grid-template-columns:repeat(2,minmax(0,124px));justify-content:start}
+  .was .wall{border-width:2.5px;border-radius:12px;box-shadow:none;opacity:.92}
+
+  /* still contact sheet (?sheet=1) */
+  .sheet{display:grid;gap:8px;margin-top:16px}
+  .sheet .row{display:grid;grid-template-columns:96px repeat(var(--n),minmax(0,1fr));gap:8px;align-items:center}
+  .sheet .lab{font-size:12.5px;font-weight:800;line-height:1.35}
+  .sheet .lab small{display:block;font-family:Fredoka,sans-serif;font-weight:600;color:var(--sub)}
+  .sheet .t{font-family:Fredoka,sans-serif;font-size:11px;color:var(--sub);text-align:center;margin-top:2px}
+  .sheet .room{border-width:2px;border-radius:8px}
+  .sheet .av.big{width:100%;height:auto;aspect-ratio:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><div class="logo" id="logo"></div><h1>寵物新動作審稿<small>1.1 的 4 個新動作</small></h1></header>
+  <p class="lede" id="lede">先畫預設的兩隻：<b>Q版大眼鼠</b>和<b>Q版大眼貓</b>。樣子 OK 之後，再照同樣的畫法畫其他 8 個造型。每一格都會動：上面是桌面寵物，下面是大視窗裡的房間，虛線框裡是現在暫用的舊動作，給你對照。</p>
+  <div class="ctrl"><button class="chip" id="pauseBtn" type="button">暫停動畫</button><button class="chip" id="replayBtn" type="button">從頭播放</button></div>
+  <main id="main"></main>
+</div>
+
+<script src="js/pets/common.js"></script>
+<script src="js/pets/room.js"></script>
+<script src="js/pets/expressions.js"></script>
+<script src="js/pets/props.js"></script>
+<script src="js/pets/rig.js"></script>
+<script src="js/pets/states.js"></script>
+<script src="js/pets/registry.js"></script>
+<script src="js/pets/skins/hamster-p0.js"></script>
+<script src="js/pets/skins/hamster-p4.js"></script>
+<script src="js/pets/skins/hamster-h2.js"></script>
+<script src="js/pets/skins/hamster-s4.js"></script>
+<script src="js/pets/skins/hamster-s5.js"></script>
+<script src="js/pets/skins/cat-p0.js"></script>
+<script src="js/pets/skins/cat-p4.js"></script>
+<script src="js/pets/skins/cat-h2.js"></script>
+<script src="js/pets/skins/cat-s4.js"></script>
+<script src="js/pets/skins/cat-s5.js"></script>
+<script src="js/pets/compose.js"></script>
+<script>
+(function () {
+  var P = QJZ.pets, $ = function (id) { return document.getElementById(id); };
+  var q = new URLSearchParams(location.search);
+  // the skins drawn so far (Step 0: the two defaults first, the draft gate)
+  var DRAWN = ['hamster:p0', 'cat:p0'];
+  var POSES = [
+    { id: 'wave', use: '只開「起來動」的提醒', desc: '小跳步、一隻手用力揮，手旁邊有敲窗的線，頭旁邊冒出驚嘆號。提醒出現時跳 4 秒。' },
+    { id: 'holdCup', use: '有問喝水的提醒', desc: '先一手拿水杯、一手揮手約 4 秒，再用雙手捧著水杯等你。每 2 分鐘敲窗時會再揮一次。', replay: 9000 },
+    { id: 'sip', use: '按「喝了」之後', desc: '吸管湊到嘴邊、閉眼喝三口，水變少，然後瞇眼笑。大約 3 秒，只播一次。', replay: 4500 },
+    { id: 'focus', use: '番茄鐘專心中', desc: '戴上番茄紅的耳機，眉頭微微用力、舌尖吐一點點，眼睛盯著螢幕穩穩打字。' }
+  ];
+  // key frames for the contact sheet (ms into the pose)
+  var FRAMES = { wave: [80, 380, 640], holdCup: [150, 2000, 6200], sip: [600, 1300, 2900], focus: [60, 200, 330] };
+
+  var skins = DRAWN;
+  if (q.get('rows')) {
+    var want = q.get('rows').split(',');
+    skins = P.list('hamster').concat(P.list('cat')).filter(function (d) { return want.indexOf(d.id) >= 0 || want.indexOf(d.kind) >= 0; })
+      .map(function (d) { return d.id; });
+  }
+  function svg(id, view, state) { return P.compose(id, view, { state: state, preview: true }); }
+  function label(st) { return P.states.get(st).label; }
+  function was(pose) { return P.FALLBACK[pose]; }
+
+  function poseHtml(p) {
+    var h = '<section class="pose" data-pose="' + p.id + '"><h2>' + label(p.id) + '<span class="en">' + p.id + '</span></h2>' +
+      '<span class="use">用在：' + p.use + '</span><p class="desc">' + p.desc + '</p>';
+    h += '<p class="cap">桌面寵物</p><div class="pair">';
+    skins.forEach(function (id) {
+      h += '<div><div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + p.id + '"></div></div>' +
+        '<div class="who"><div class="av" data-k="' + id + '" data-v="avatar" data-s="' + p.id + '"></div><span>' + P.get(id).name + '</span></div></div>';
+    });
+    h += '</div><p class="cap">大視窗的房間</p><div class="pair">';
+    skins.forEach(function (id) { h += '<div class="room" data-k="' + id + '" data-v="scene" data-s="' + p.id + '"></div>'; });
+    h += '</div><div class="was"><p class="cap">現在暫用：' + label(was(p.id)) + '</p><div class="pair">';
+    skins.forEach(function (id) { h += '<div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + was(p.id) + '"></div></div>'; });
+    return h + '</div></div></section>';
+  }
+
+  function fill(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('[data-k]'), function (el) {
+      el.innerHTML = svg(el.getAttribute('data-k'), el.getAttribute('data-v'), el.getAttribute('data-s'));
+    });
+  }
+
+  // still contact sheet: each frame paused at its own time
+  function sheet() {
+    var h = '<div class="sheet">', only = q.get('poses') ? q.get('poses').split(',') : null;
+    if (q.get('w')) document.querySelector('.wrap').style.maxWidth = parseInt(q.get('w'), 10) + 'px';
+    POSES.filter(function (p) { return !only || only.indexOf(p.id) >= 0; }).forEach(function (p) {
+      skins.forEach(function (id) {
+        var fr = q.get('frames') ? q.get('frames').split(',').map(Number) : FRAMES[p.id];
+        h += '<div class="row" style="--n:' + (fr.length + 3) + '"><div class="lab">' + label(p.id) + '<small>' + id + '</small></div>';
+        fr.forEach(function (t) { h += '<div><div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + p.id + '" data-t="' + t + '"></div></div><div class="t">' + t + ' ms</div></div>'; });
+        h += '<div><div class="room" data-k="' + id + '" data-v="scene" data-s="' + p.id + '" data-t="' + fr[1] + '"></div><div class="t">房間</div></div>';
+        h += '<div><div class="av big" data-k="' + id + '" data-v="avatar" data-s="' + p.id + '" data-t="' + fr[1] + '"></div><div class="t">大頭照</div></div>';
+        h += '<div><div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + was(p.id) + '" data-t="300"></div></div><div class="t">暫用 ' + label(was(p.id)) + '</div></div></div>';
+      });
+    });
+    $('main').innerHTML = h + '</div>';
+    fill($('main'));
+    Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (el) {
+      var t = parseFloat(el.getAttribute('data-t'));
+      el.firstElementChild.getAnimations({ subtree: true }).forEach(function (a) { a.pause(); a.currentTime = t; });
+    });
+  }
+
+  // one-shot poses (holdCup's wave, sip) play again every so often, as the app redraws them
+  var timers = [];
+  function replayAll() {
+    POSES.forEach(function (p) { fill(document.querySelector('.pose[data-pose="' + p.id + '"]')); });
+  }
+  function start() {
+    timers.forEach(clearInterval);
+    timers = POSES.filter(function (p) { return p.replay; }).map(function (p) {
+      return setInterval(function () {
+        Array.prototype.forEach.call(document.querySelectorAll('.pose[data-pose="' + p.id + '"] [data-s="' + p.id + '"]'), function (el) {
+          el.innerHTML = svg(el.getAttribute('data-k'), el.getAttribute('data-v'), p.id);
+        });
+      }, p.replay);
+    });
+  }
+
+  $('logo').innerHTML = P.compose('hamster:p0', 'avatar', { state: 'wave', preview: true });
+  if (q.get('sheet') === '1') {
+    document.querySelector('.ctrl').style.display = 'none';
+    $('lede').textContent = '靜態對照表：每個動作取幾個時間點（毫秒），最右邊是現在暫用的舊動作。';
+    sheet();
+    return;
+  }
+  $('main').innerHTML = POSES.map(poseHtml).join('');
+  replayAll();
+  start();
+  $('pauseBtn').onclick = function () {
+    var on = document.documentElement.classList.toggle('paused');
+    this.classList.toggle('on', on);
+    this.textContent = on ? '繼續播放' : '暫停動畫';
+    if (on) { timers.forEach(clearInterval); timers = []; } else start();
+  };
+  $('replayBtn').onclick = function () { replayAll(); if (!document.documentElement.classList.contains('paused')) start(); };
+})();
+</script>
+</body>
+</html>

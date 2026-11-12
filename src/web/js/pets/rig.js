@@ -30,6 +30,16 @@ QJZ.pets = QJZ.pets || {};
 //            {lift, desk: {bag:[x,y,s], wave?:[x,y,rot], rest:[x,y,rot], restArm?:[root,tip], w?}}
 //            one paw waves (hamsters: `wave`, beside the head; cats: the left raised arm of `up`), the other
 //            pats the bag (`rest`, cats reach it with `restArm`)
+//   hello:   the 1.1 waving paw (wave, holdCup), raised beside the head, one of
+//            {paw:[x,y,rot], pivot:[x,y]}                                       (hamsters) the paw alone, rocking
+//                                                                             about pivot (inside the body)
+//            {ink, fill, w:[root,tip], arm:[root,tip,rot]}                      (cats) a raised arm, swinging from
+//                                                                             its root
+//            optional knock: [x,y] where the knock marks centre (default: the paw / the arm tip)
+//   glass:   [x,y,scale]  (optional, default hold) the water glass held in front of the body (holdCup)
+//   sipGlass: [x,y,scale] (optional) the glass while sipping, its straw in the mouth (default: under the tiny o mouth)
+//   glassArm: {paws, arms?, w} (optional, default holdArm) the paws (and cat limbs) that hold the glass
+//   bang:    [x,y]  (optional, default qm) the ! of the knock marks;  phones: the headphones (props.js headphones)
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 //   inkClip: 'url(#id)'      (optional) a clip that keeps only what lies outside the body: then a skin can put the
 //                            outlines of its grown arms (up, wave, scratch) in the same moving group as the body and the
@@ -39,9 +49,12 @@ QJZ.pets = QJZ.pets || {};
 // Cat arms grow out of the body without a seam: `ink` names the slot drawn before the body (the outline), `fill`
 // the slot drawn after it (the fur, which covers the body's outline where the arm joins). Arms in front of the body
 // (holding, hugging) are outlined limbs whose root is patched with fur (front()).
-// arms(rig, mode) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
-// (after the desk, behind a cat's head) and the OVER slot (inside the head group, in front of the face).
-// Modes: type | rest | up | hold | scratch, and wave (the desk backpack: wave with one paw, pat the bag with the other).
+// arms(rig, mode) -> {back, front, over, grip}: markup for the pet's back layer (behind the body), front layer
+// (after the desk, behind a cat's head), the OVER slot (inside the head group, in front of the face) and grip, the
+// paws that hold the held prop (compose puts them in the OVER slot with it, in the moving .held group).
+// Modes: type | rest | up | hold | scratch, and wave (the desk backpack: wave with one paw, pat the bag with the other);
+// 1.1: hello (wave with the left paw, the right one rests on the keys), glass (both paws hold the water glass:
+// glassArm) and cup (wave with the left paw, the right one holds the glass). GRIP: the modes that hold the held prop.
 QJZ.pets.rig = (function () {
   function n(v) { return Math.round(v * 100) / 100; }
 
@@ -84,10 +97,37 @@ QJZ.pets.rig = (function () {
   function limbs(rig, list, w) {
     return list ? list.map(function (a) { return front(rig, a[0], a[1], w || 10); }).join('') : '';
   }
+  // the 1.1 waving left paw (.armL) into o: a hamster's paw rocking about its pivot, a cat's arm swinging from its root
+  // (a skin without rig.hello waves its waitBag paw)
+  function hello(rig, o) {
+    var h = rig.hello;
+    if (!h) {
+      var d = rig.pack.desk, q = d.wave || (rig.up.paws ? rig.up.paws[0] : null);
+      h = q ? { paw: q, pivot: [q[0], n(q[1] + 7)] } : { ink: rig.up.ink, fill: rig.up.fill, w: rig.up.w, arm: rig.up.arms[0] };
+    }
+    if (h.paw) {
+      add(o, 'over', `<g class="armL" style="transform-origin:${h.pivot[0]}px ${h.pivot[1]}px">${rig.paw(h.paw[0], h.paw[1], h.paw[2])}</g>`);
+      return o;
+    }
+    var a = h.arm, g = grow(rig, [a[0], a[1]], h.w), g0 = `<g class="armL" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
+    add(o, h.ink, g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
+    add(o, h.fill, g0 + g.fill + rig.paw(a[1][0], a[1][1], a[2]) + '</g>');
+    return o;
+  }
+  // the paw i that holds the glass (rig.glassArm, else holdArm), and a cat's limb to it
+  function grip(rig, i) {
+    var h = rig.glassArm || rig.holdArm, p = h.paws[i];
+    return (h.arms ? front(rig, h.arms[i][0], h.arms[i][1], h.w) : '') + rig.paw(p[0], p[1], p[2]);
+  }
+
+  var GRIP = { hold: 1, cup: 1, glass: 1 };
 
   function arms(rig, mode) {
     switch (mode) {
       case 'type': case 'rest': return { front: rig.pawL + rig.pawR };
+      case 'hello': return hello(rig, { front: rig.pawR });
+      case 'cup': return hello(rig, { grip: grip(rig, 1) });
+      case 'glass': return { grip: grip(rig, 0) + grip(rig, 1) };
       case 'up': {
         var u = rig.up, o = {};
         if (u.paws) {   // paws only: they wiggle in place (origin = the paw), so they never leave the head outline
@@ -106,7 +146,7 @@ QJZ.pets.rig = (function () {
       case 'hold': {
         var h = rig.holdArm, m = '';
         if (h.arms) m = front(rig, h.arms[0][0], h.arms[0][1], h.w) + front(rig, h.arms[1][0], h.arms[1][1], h.w);
-        return { over: m + rig.paw(h.paws[0][0], h.paws[0][1], h.paws[0][2]) + rig.paw(h.paws[1][0], h.paws[1][1], h.paws[1][2]) };
+        return { grip: m + rig.paw(h.paws[0][0], h.paws[0][1], h.paws[0][2]) + rig.paw(h.paws[1][0], h.paws[1][1], h.paws[1][2]) };
       }
       case 'scratch': {
         var s = rig.scratch, r = { front: rig.pawR }, oy = s.arm ? s.paw[1] + 6 : s.paw[1];
@@ -137,5 +177,5 @@ QJZ.pets.rig = (function () {
     }
   }
 
-  return { grow: grow, front: front, taper: taper, arms: arms };
+  return { grow: grow, front: front, taper: taper, arms: arms, GRIP: GRIP };
 })();

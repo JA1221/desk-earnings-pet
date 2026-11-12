@@ -81,7 +81,9 @@
           holdArm: { paws: [[105, 130, 25], [131, 130, -25]], w: 11, arms: [[[93, 138], [104, 131]], [[143, 138], [132, 131]]] },
           scratch: { ink: 'front', fill: 'front', w: 11, arm: [[98, 122], [52, 104], [66, 66]], paw: [76, 56, -35] },
           pack: { lift: 4,
-            desk: { bag: [178, 141, 0.86], rest: [163, 128, -20], restArm: [[148, 136], [160, 130]], w: 11 } }
+            desk: { bag: [178, 141, 0.86], rest: [163, 128, -20], restArm: [[148, 136], [160, 130]], w: 11 } },
+          hello: { ink: 'front', fill: 'front', w: [14, 9.5], arm: [[98, 120], [57, 70], -35] }, glass: [118, 131, 1], bang: [180, 44],
+          phones: { l: [63, 88, -6], r: [173, 88, 6], apex: 42, size: [14, 22] }
         },
         poses: {
           // head resting sideways on crossed arms; the back and tail peek out on the right

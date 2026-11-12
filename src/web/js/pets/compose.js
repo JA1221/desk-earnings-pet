@@ -135,16 +135,18 @@ QJZ.pets.compose = (function () {
       if (P.props.HELD.indexOf(nm) >= 0) held = true;
     });
 
-    // arms (desk pose only: the lying and dangling drawings bring their own)
-    var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : bag ? 'wave' : st.arms;
+    // arms (desk pose only: the lying and dangling drawings bring their own). A held prop brings holding paws, unless
+    // the state's own arms hold it (rig.GRIP: hold, and the 1.1 glass and one-paw cup)
+    var GRIP = P.rig.GRIP, arms = { back: '', front: '', over: '', grip: '' };
+    var mode = held ? (GRIP[st.arms] ? st.arms : 'hold') : bag ? 'wave' : st.arms;
     if (pose === 'desk') {
       var a = P.rig.arms(rig, mode), z = alt.arms ? P.rig.arms(rig, alt.arms) : null;
-      ['back', 'front', 'over'].forEach(function (k) {
+      ['back', 'front', 'over', 'grip'].forEach(function (k) {
         if (!z) arms[k] = a[k] || '';
         else arms[k] = (a[k] ? '<g class="pose-a">' + a[k] + '</g>' : '') + (z[k] ? '<g class="pose-b">' + z[k] + '</g>' : '');
       });
     }
-    var over = prop(pr.over) + (mode === 'hold' && pose === 'desk' ? '<g class="held" style="transform-origin:' + rig.hold[0] + 'px ' + rig.hold[1] + 'px">' + prop(pr.held) + arms.over + '</g>' : arms.over);
+    var over = prop(pr.over) + (GRIP[mode] && pose === 'desk' ? '<g class="held" style="transform-origin:' + rig.hold[0] + 'px ' + rig.hold[1] + 'px">' + prop(pr.held) + arms.grip + '</g>' : '') + arms.over;
     var slots = { EYES: eyes, MOUTH: mouth + pr.face, OVER: over };
     function layer(s) { return wrap(def.wrap, uid, fill(s, slots)); }
     function extra(m) { return wrap(def.wrap, uid, m); }

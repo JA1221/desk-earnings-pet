@@ -68,7 +68,9 @@
           holdArm: { paws: [[106, 132, 30], [130, 132, -30]] },
           scratch: { paw: [66, 92, -60] },
           pack: { lift: 6,
-            desk: { bag: [176, 141, 0.86], wave: [68, 88, -40], rest: [167, 123, -25] } }
+            desk: { bag: [176, 141, 0.86], wave: [68, 88, -40], rest: [167, 123, -25] } },
+          hello: { paw: [62, 98, -62], pivot: [70, 105] }, glass: [118, 136, 1], glassArm: { paws: [[106.5, 140, 38], [129.5, 140, -38]] },
+          phones: { l: [66, 96, -8], r: [170, 96, 8], apex: 58, size: [14, 22] }
         },
         poses: {
           // melted into a pancake on the keyboard, paws tucked in front

@@ -219,6 +219,55 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 @keyframes legs{from{transform:rotate(calc(7deg * var(--m)))}to{transform:rotate(calc(-7deg * var(--m)))}}
 .pet-svg .limp{animation:legs 1.7s ease-in-out infinite alternate;animation-delay:-.2s}
 
+/* ---------- 1.1 poses (QJZ.pets.NEW_POSES; a skin shows them once it declares them) ---------- */
+.pet-svg :is(.knk,.bang,.lvl,.knock){transform-box:view-box}
+/* wave 跳起來揮手（敲窗）: little jumps, the left paw waving hard, knock marks bursting in time, a ! popping */
+.pet-svg.st-wave .bod{animation:jumpy .9s ease-in-out infinite}
+@keyframes jumpy{0%,100%{transform:translateY(0) scale(calc(1 + .03 * var(--m)),calc(1 - .06 * var(--m)))}16%{transform:translateY(calc(-3px * var(--m))) scale(calc(1 - .04 * var(--m)),calc(1 + .05 * var(--m)))}42%{transform:translateY(calc(-11px * var(--m))) scale(1,1)}62%{transform:translateY(calc(-8px * var(--m))) scale(1,1)}86%{transform:translateY(0) scale(calc(1 + .035 * var(--m)),calc(1 - .07 * var(--m)))}}
+.pet-svg.st-wave .head,.pet-svg.st-wave .squish{animation:giddy .6s ease-in-out infinite}
+.pet-svg:is(.st-wave,.st-holdCup) .armL{animation:hi .3s ease-in-out infinite alternate}
+@keyframes hi{from{transform:rotate(calc(-6deg * var(--m)))}to{transform:rotate(calc(8deg * var(--m)))}}
+/* a hamster has no arm: its paw rocks further about the wrist */
+.pet-svg.kind-hamster:is(.st-wave,.st-holdCup) .armL{animation-name:hiPaw}
+@keyframes hiPaw{from{transform:rotate(calc(-24deg * var(--m)))}to{transform:rotate(calc(22deg * var(--m)))}}
+.pet-svg:is(.st-wave,.st-holdCup) .knk{animation:knk .3s ease-in-out infinite alternate}
+@keyframes knk{from{opacity:.25;transform:scale(.8)}to{opacity:1;transform:scale(1.12)}}
+.pet-svg:is(.st-wave,.st-holdCup) .bang{animation:bang 1.2s ease-out infinite}
+@keyframes bang{0%{transform:scale(.4) rotate(0)}18%{transform:scale(1.18) rotate(calc(-10deg * var(--m)))}30%{transform:scale(.94) rotate(calc(6deg * var(--m)))}42%,100%{transform:scale(1) rotate(0)}}
+/* holdCup 捧著水杯揮手: once, as the pose appears (and again when it is redrawn for a knock): waves with the left paw
+   while the right one holds the glass, about WAVE_MS; then holds it in both paws and offers it, gently, for good */
+.pet-svg.st-holdCup :is(.armL,.knk){animation-iteration-count:13}
+.pet-svg.st-holdCup .bang{animation-iteration-count:3}
+.pet-svg.st-holdCup :is(.knock,.pose-a){animation:cupA 4s linear forwards}
+.pet-svg.st-holdCup .pose-b{animation:cupB 4s linear forwards}
+@keyframes cupA{0%,96%{opacity:1}97%,100%{opacity:0}}
+@keyframes cupB{0%,96%{opacity:0}97%,100%{opacity:1}}
+.pet-svg.st-holdCup .bod{animation:rock .6s ease-in-out 6,offer 3.2s ease-in-out 3.6s infinite}
+@keyframes offer{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-1.5px * var(--m))) rotate(calc(1.2deg * var(--m)))}}
+.pet-svg.st-holdCup .head,.pet-svg.st-holdCup .squish{animation:giddy 1.2s ease-in-out 3}
+.pet-svg.st-holdCup .held{animation:cupBob 3.2s ease-in-out 4s infinite}
+@keyframes cupBob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-1.2px * var(--m))) rotate(calc(-3deg * var(--m)))}}
+/* sip 喝一口 (SIP_MS, once): the straw to the mouth, eyes shut, three gulps and the water going down; then ^^ */
+.pet-svg.st-sip .held{animation:sipUp 3s ease-in-out forwards}
+@keyframes sipUp{0%{transform:translateY(calc(5px * var(--m)))}12%,70%{transform:translateY(0)}82%,100%{transform:translateY(calc(4px * var(--m)))}}
+.pet-svg.st-sip .lvl{animation:drain 3s ease-in-out forwards}
+@keyframes drain{0%,16%{transform:scaleY(1)}26%{transform:scaleY(.82)}30%{transform:scaleY(.82)}42%{transform:scaleY(.62)}46%{transform:scaleY(.62)}58%,100%{transform:scaleY(.4)}}
+.pet-svg.st-sip .head,.pet-svg.st-sip .squish{animation:gulp 3s ease-in-out forwards}
+@keyframes gulp{0%,16%,30%,46%,62%,100%{transform:translateY(0)}23%,39%,55%{transform:translateY(calc(1.2px * var(--m))) scale(calc(1 + .012 * var(--m)),calc(1 - .02 * var(--m)))}}
+.pet-svg.st-sip :is(.eyes-open,.mouth-a){animation:sipShut 3s linear forwards}
+.pet-svg.st-sip :is(.eyes-alt,.mouth-b){animation:sipDone 3s linear forwards}
+@keyframes sipShut{0%,73.9%{opacity:1}74%,100%{opacity:0}}
+@keyframes sipDone{0%,73.9%{opacity:0}74%,100%{opacity:1}}
+.pet-svg.st-sip .spk{animation:sipSpk 3s ease-out forwards}
+@keyframes sipSpk{0%,74%{opacity:0;transform:scale(.3)}84%{opacity:1;transform:scale(1.2)}92%,100%{opacity:1;transform:scale(1)}}
+/* focus 戴耳機專心打字: steady typing, eyes fixed on the screen, brows set, tongue out */
+.pet-svg.st-focus .pawL,.pet-svg.st-focus .pawR{animation:tap .26s ease-in-out infinite}
+.pet-svg.st-focus .pawR{animation-delay:-.13s}
+.pet-svg.st-focus .head{animation:bob .52s ease-in-out infinite}
+.pet-svg.st-focus .squish{animation:squish .52s ease-in-out infinite}
+.pet-svg.st-focus .look{animation:none;transform:translate(1.4px,1.4px)}
+.pet-svg.st-focus .blink{animation-duration:7s}
+
 /* ---------- .happy (quick reaction on top of any state) ---------- */
 .pet-svg.happy .eyes-open,.pet-svg.happy .eyes-alt{display:none}
 .pet-svg.happy .eyes-happy{display:inline}
