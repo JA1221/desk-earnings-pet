@@ -228,6 +228,10 @@
   });
 
   // ---------- the cats of hamster H2 and S4: 貪吃貓 and 扁平幾何貓 ----------
+  function under(el, cls) {
+    for (var p = el.parentNode; p && p.nodeType === 1; p = p.parentNode) if (hasClass(p, cls)) return true;
+    return false;
+  }
   var NEW_CATS = [['cat:h2', 'hamster:h2', '貪吃貓'], ['cat:s4', 'hamster:s4', '扁平幾何貓']];
 
   test('pets: cat H2 貪吃貓 and cat S4 扁平幾何貓 share their hamster\'s look and keep seamless cat arms', function () {
@@ -241,10 +245,42 @@
       ok(b.rig.up.arms && !b.rig.up.paws && b.rig.scratch.arm && b.rig.limb && b.rig.limb.fill, e[0] + ' arms that grow out of the body');
       eq(Object.keys(b.rig.pack.desk).indexOf('wave'), -1, e[0] + ' waves with the raised arm, not a loose paw');
     });
-    // H2: two puffing cheeks like the hamster, a little dried fish on the head instead of the seed
-    var h2 = QJZ.pets.compose('cat:h2', 'petonly', { state: 'idle' });
-    eq(h2.split('class="puff"').length - 1, 2, 'cat H2 has two puffy cheeks');
-    ok(h2.indexOf('#C9D4DE') > 0 && h2.indexOf('#33302E') < 0, 'cat H2 carries a fish, not a sunflower seed');
+    // H2 (the user's pick, 小魚乾虎斑貓): the chubby cheeks are part of the face outline, not discs stuck on the sides,
+    // and a little dried fish sits on top of the head, riding with the squishing mochi, instead of the seed
+    var host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-2000px;top:0;width:176px;height:170px';
+    document.body.appendChild(host);
+    try {
+      var h2 = QJZ.pets.compose('cat:h2', 'petonly', { state: 'idle' }), face = QJZ.pets.get('cat:h2').build('w0').face;
+      eq(h2.indexOf('class="puff"'), -1, 'cat H2: no separate cheek discs');
+      host.innerHTML = h2;
+      var svg = host.firstElementChild, body = svg.querySelector('.squish .fur'), pt = svg.createSVGPoint();
+      function inside(x, y) { pt.x = x; pt.y = y; return body.isPointInFill(pt); }
+      function width(y) { var w = 0; for (var x = 30; x <= 206; x += 0.5) if (inside(x, y)) w += 0.5; return w; }
+      var eyeY = face.eyes[0][1];
+      ok(width(eyeY + 13) > width(eyeY) + 6, 'cat H2: the outline swells at the cheeks: ' + width(eyeY + 13) + ' vs ' + width(eyeY) + ' at the eyes');
+      [face.eyes[0], face.eyes[1], face.mouth].forEach(function (p) { ok(inside(p[0], p[1]), 'cat H2: face feature inside the outline ' + p); });
+      ok(h2.indexOf('#33302E') < 0, 'cat H2: no sunflower seed');
+      var fish = svg.querySelector('[fill="#C9D4DE"]'), m = fish.parentNode.transform.baseVal.consolidate().matrix, bb = fish.getBBox();
+      pt.x = bb.x + bb.width / 2; pt.y = bb.y + bb.height / 2;
+      var c = pt.matrixTransform(m), top = 0;
+      for (var y = 40; y < eyeY && !top; y += 0.5) if (inside(c.x, y)) top = y;
+      ok(under(fish, 'squish'), 'cat H2: the fish rides with the mochi');
+      ok(Math.abs(c.x - 118) < 6 && c.y < eyeY - 20 && c.y > top - 12 && c.y < top + 4, 'cat H2: the fish sits on top of the head: ' + Math.round(c.x) + ',' + Math.round(c.y) + ' (head top ' + top + ')');
+      // both cats: every arm root lies inside the body (.fur), so the fur drawn over the body's edge hides the seam; and
+      // the arm outlines ride in the same moving group as the body, so a tilting body never pulls them off the arm
+      NEW_CATS.forEach(function (e) {
+        var rig = QJZ.pets.get(e[0]).build('r0').rig, group = e[0] === 'cat:h2' ? 'squish' : 'head';
+        [['celebrate', rig.up.arms[0][0]], ['celebrate', rig.up.arms[1][0]], ['scratch', rig.scratch.arm[0]], ['waitBag', rig.up.arms[0][0]]].forEach(function (r) {
+          host.innerHTML = QJZ.pets.compose(e[0], 'petonly', { state: r[0] });
+          var s2 = host.firstElementChild, p2 = s2.createSVGPoint(), limbs = s2.querySelectorAll('.limb');
+          p2.x = r[1][0]; p2.y = r[1][1];
+          ok(s2.querySelector('.fur').isPointInFill(p2), e[0] + ' ' + r[0] + ': arm root ' + r[1] + ' inside the body');
+          ok(limbs.length > 0, e[0] + ' ' + r[0] + ': has arms');
+          Array.prototype.forEach.call(limbs, function (l) { ok(under(l, group), e[0] + ' ' + r[0] + ': arm drawn in the moving body group'); });
+        });
+      });
+    } finally { host.remove(); }
     // S4: flat, no A1 ink outlines anywhere in the art (hamster S4 likewise)
     ['hamster:s4', 'cat:s4'].forEach(function (id) {
       var b = QJZ.pets.get(id).build('f0'), art = [b.layers.back, b.layers.pre, b.layers.front, b.layers.post, b.poses.lie.front, b.poses.dangle.front].join('');

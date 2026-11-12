@@ -57,6 +57,48 @@ QJZ.pets.common = (function () {
 
   var REGION = 'filterUnits="userSpaceOnUse" x="-100" y="-100" width="500" height="430"';
 
+  // ---- shape helpers (cat H2 / S4) ----
+  function r2(v) { return Math.round(v * 100) / 100; }
+  // a closed smooth outline through the points (Catmull-Rom drawn as cubic Béziers)
+  function smooth(pts) {
+    var m = pts.length, d = 'M' + r2(pts[0][0]) + ',' + r2(pts[0][1]);
+    for (var i = 0; i < m; i++) {
+      var p0 = pts[(i - 1 + m) % m], p1 = pts[i], p2 = pts[(i + 1) % m], p3 = pts[(i + 2) % m];
+      d += ' C' + r2(p1[0] + (p2[0] - p0[0]) / 6) + ',' + r2(p1[1] + (p2[1] - p0[1]) / 6) + ' ' +
+        r2(p2[0] - (p3[0] - p1[0]) / 6) + ',' + r2(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + r2(p2[0]) + ',' + r2(p2[1]);
+    }
+    return d + ' Z';
+  }
+  // a symmetric smooth blob: the left half (from the top on the axis x = cx down the left side to the bottom on the axis)
+  // mirrored into a closed outline
+  function blob(left, cx) {
+    cx = cx === undefined ? 118 : cx;
+    var right = left.slice(1, -1).reverse().map(function (p) { return [2 * cx - p[0], p[1]]; });
+    return smooth(left.concat(right));
+  }
+  // a soft triangle (an ear): base corners b1, b2, apex a rounded off by `round` (share of each side), sides bulging
+  // out by `bulge`
+  function softTri(b1, a, b2, round, bulge) {
+    var k = round === undefined ? 0.3 : round, g = bulge === undefined ? 2.5 : bulge;
+    var cx = (b1[0] + a[0] + b2[0]) / 3, cy = (b1[1] + a[1] + b2[1]) / 3;
+    function lerp(p, q, t) { return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; }
+    function ctl(p, q) {
+      var m = lerp(p, q, 0.5), dx = q[0] - p[0], dy = q[1] - p[1], len = Math.sqrt(dx * dx + dy * dy) || 1, nx = -dy / len, ny = dx / len;
+      if ((m[0] - cx) * nx + (m[1] - cy) * ny < 0) { nx = -nx; ny = -ny; }
+      return [m[0] + nx * g, m[1] + ny * g];
+    }
+    var p1 = lerp(a, b1, k), p2 = lerp(a, b2, k), c1 = ctl(b1, p1), c2 = ctl(p2, b2);
+    return `M${r2(b1[0])},${r2(b1[1])} Q${r2(c1[0])},${r2(c1[1])} ${r2(p1[0])},${r2(p1[1])} Q${r2(a[0])},${r2(a[1])} ${r2(p2[0])},${r2(p2[1])} Q${r2(c2[0])},${r2(c2[1])} ${r2(b2[0])},${r2(b2[1])} Z`;
+  }
+  // the same triangle pulled towards its centroid by f and moved down by `lift` (the pink inside of an ear)
+  function innerTri(b1, a, b2, f, lift) {
+    var cx = (b1[0] + a[0] + b2[0]) / 3, cy = (b1[1] + a[1] + b2[1]) / 3 + (lift || 0);
+    function s(p) { return [cx + (p[0] - cx) * f, cy + (p[1] - cy) * f]; }
+    return softTri(s(b1), s(a), s(b2), 0.34, 1.2);
+  }
+  // p mirrored about x = cx (default 118)
+  function mirrorX(p, cx) { return [2 * (cx === undefined ? 118 : cx) - p[0], p[1]]; }
+
   // CPU: an SVG filter around something that animates is computed again on every frame (the crayon skins cost about
   // twice the CPU of the others that way). Around a still subtree it is drawn once and reused while its parent moves.
   // ANIMATED: every class pets.css animates (tests check that no filter is ever above a moving element).
@@ -105,5 +147,5 @@ QJZ.pets.common = (function () {
   }
 
   return { L0: L0, ST: ST, star4: star4, blushLines: blushLines, scribble: scribble, badge: badge, seed: seed, keys: keys, defs: defs,
-    ANIMATED: ANIMATED, filterStatic: filterStatic };
+    ANIMATED: ANIMATED, filterStatic: filterStatic, smooth: smooth, blob: blob, softTri: softTri, innerTri: innerTri, mirrorX: mirrorX };
 })();

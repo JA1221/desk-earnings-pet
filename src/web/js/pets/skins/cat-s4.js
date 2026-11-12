@@ -1,20 +1,31 @@
-// Cat S4 扁平幾何貓 — the cat of hamster S4: no outlines, built from circles and triangles, two-tone left/right (the
-// right half under a darker veil, the right ear darker). Port of docs/prototypes/shared.js s4Cat.
-// Arms are flat fur with no seam: their colour follows the split (OD on the right), so they melt into the body.
-// Poses stay flat and geometric: lie = the round head resting on its paws, a half-disc back and the tail behind;
-// dangle = held by the scruff, a capsule body with round feet and tail hanging.
+// Cat S4 扁平幾何貓 — the cat of hamster S4 (the user's pick, candidate 圓圓橘貓): hamster S4's own build, one big
+// circle with no outlines, two-tone left/right (the right half under a darker veil, the right ear darker), as an orange
+// tabby with soft rounded-triangle ears, three little forehead stripes, a cream muzzle and chest, short whiskers and a
+// tail curled low. Arms are flat fur grown out of the circle; their colour follows the split (OD on the right), so they
+// melt into the body, and the whiskers are drawn after them. Paws get a darker circle peeking out underneath so they
+// keep an edge on the cream chest and on the keyboard.
+// Poses: lie = the circle squashed into an oval over the keyboard; dangle = lifted by the scruff: the circle pinched
+// up into a soft tip on top, arms and legs hanging limp, tail behind.
 (function (P) {
+  var C = P.common;
   var O = '#F2A65A', D = '#E08A3E', CR = '#FFF3E3', INK = '#2B2B3A', PINK = '#FF9FB0';
   var OD = '#EC9C50';   // O under the .35 D veil: the right half
-  var TORSO = 'M78,178 A40,44 0 0 1 158,178 Z';
-  var PAW_L = `<g class="pawL"><circle cx="102" cy="151" r="8" fill="${CR}"/></g>`;
-  var PAW_R = `<g class="pawR"><circle cx="134" cy="151" r="8" fill="${CR}"/></g>`;
+  var EL = [[72, 99], [70, 62.5], [97, 74.5]];
+  var TIP = [118, 57], DANGLE_DY = -15;
+  var PAW_L = `<g class="pawL">${paw(104, 151)}</g>`, PAW_R = `<g class="pawR">${paw(132, 151)}</g>`;
 
-  function paw(x, y) { return `<circle cx="${x}" cy="${y}" r="8" fill="${CR}"/>`; }
-  function tail(d, origin) {
-    return `<g class="tail"${origin ? ' style="transform-origin:' + origin + '"' : ''}><path d="${d}" fill="none" stroke="${D}" stroke-width="12" stroke-linecap="round"/></g>`;
+  function paw(x, y) {
+    return `<circle cx="${x}" cy="${Math.round((y + 1.6) * 100) / 100}" r="7.5" fill="${D}"/><circle cx="${x}" cy="${y}" r="7.5" fill="${CR}"/>`;
   }
-  // limbs that grow out of the torso without a seam (QJZ.pets.rig.grow; flat: fur only)
+  function tail(d, origin) {
+    return `<g class="tail" style="transform-origin:${origin}"><path d="${d}" fill="none" stroke="${D}" stroke-width="12" stroke-linecap="round"/></g>`;
+  }
+  function ears() {
+    var l = EL, r = l.map(function (p) { return C.mirrorX(p); });
+    return `<path d="${C.softTri(l[0], l[1], l[2], 0.36, 3)}" fill="${O}"/><path d="${C.softTri(r[0], r[1], r[2], 0.36, 3)}" fill="${D}"/>` +
+      `<path d="${C.innerTri(l[0], l[1], l[2], 0.5, 2.5)}" fill="${PINK}"/><path d="${C.innerTri(r[0], r[1], r[2], 0.5, 2.5)}" fill="${PINK}"/>`;
+  }
+  // limbs that grow out of the body without a seam (QJZ.pets.rig.grow; flat: fur only)
   function grown(R, pairs, w) {
     return pairs.map(function (p) { return P.rig.grow(R, p, w).fill; }).join('');
   }
@@ -22,64 +33,58 @@
   P.register({
     id: 'cat:s4', kind: 'cat', skin: 's4', name: '扁平幾何貓', room: 'flat', wrap: null,
     build: function (uid) {
-      var head = `<path d="M78,70 L80,32 L106,52 Z" fill="${O}"/><path d="M158,70 L156,32 L130,52 Z" fill="${D}"/><path d="M83,62 L84,42 L99,54 Z" fill="${PINK}"/><path d="M153,62 L152,42 L137,54 Z" fill="${PINK}"/>
-    <circle cx="118" cy="92" r="44" fill="${O}"/><g clip-path="url(#${uid}-h)"><rect x="118" y="40" width="50" height="100" fill="${D}" opacity=".35"/><path d="M108,48 h6 l-3,11 z M116,47 h5 l-2.5,12 z M122,48 h6 l-3,11 z" fill="${D}"/></g>
-    <circle cx="110" cy="107" r="9" fill="${CR}"/><circle cx="126" cy="107" r="9" fill="${CR}"/>
-    <circle cx="88" cy="104" r="6.5" fill="${PINK}" opacity=".9"/><circle cx="148" cy="104" r="6.5" fill="${PINK}" opacity=".9"/>
-    <!--EYES-->
-    <path d="M114.5,100 h7 l-3.5,4 z" fill="#E8607A"/><!--MOUTH-->
-    <path d="M79,101 l-13,-2.6 M79,107 l-13,2.6 M157,101 l13,-2.6 M157,107 l13,2.6" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/><!--OVER-->`;
+      var art = ears() + `<circle class="fur" cx="118" cy="122" r="52" fill="${O}"/><g clip-path="url(#${uid}-b)"><circle cx="118" cy="170" r="31" fill="${CR}"/>` +
+        `<rect x="118" y="68" width="52" height="108" fill="${D}" opacity=".35"/>` +
+        `<path d="M108.5,71 h6 l-3,10 z M115,69.5 h6 l-3,12 z M121.5,71 h6 l-3,10 z" fill="${D}"/></g>` +
+        `<circle cx="110.5" cy="125" r="8.4" fill="${CR}"/><circle cx="125.5" cy="125" r="8.4" fill="${CR}"/>` +
+        `<circle cx="86" cy="124" r="7" fill="${PINK}" opacity=".9"/><circle cx="150" cy="124" r="7" fill="${PINK}" opacity=".9"/>` +
+        `<!--EYES--><path d="M114.6,117.6 h6.8 l-3.4,4 z" fill="#E8607A"/><!--MOUTH--><!--OVER-->` +
+        `<path d="M70.5,117 l-8.5,-2 M70.5,123 l-8.5,2 M165.5,117 l8.5,-2 M165.5,123 l8.5,2" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>`;
+      var lowTail = tail('M86,160 C64,163 51,153 51,137', '60px 156px');
       var R = { line: [INK, 0], limb: { fill: `url(#${uid}-lf)` }, mode: 'flat' };
-      var legs = grown(R, [[[108, 170], [106, 184]], [[128, 170], [130, 184]]], [11, 9.5]);
-      var limp = grown(R, [[[96, 136], [90, 154]], [[140, 136], [146, 154]]], [11.5, 9.5]);
-      var LEGS = '<g class="legs" style="transform-origin:118px 166px">', LIMP = '<g class="limp" style="transform-origin:118px 134px">';
+      // the scruff pulled up into a soft tip, two-tone like the rest
+      var tuft = `<path d="${C.softTri([104, 78], TIP, [132, 78], 0.4, 1.5)}" fill="url(#${uid}-lf)"/>`;
       return {
-        crop: '56 24 124 120',
+        crop: '58 52 120 120',
         seed: false,
-        defs: `<clipPath id="${uid}-h"><circle cx="118" cy="92" r="44"/></clipPath><clipPath id="${uid}-t"><path d="${TORSO}"/></clipPath>` +
-          `<clipPath id="${uid}-d"><rect x="88" y="124" width="60" height="56" rx="28"/></clipPath>` +
+        defs: `<clipPath id="${uid}-b"><circle cx="118" cy="122" r="52"/></clipPath>` +
           `<linearGradient id="${uid}-lf" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="236" y2="0"><stop offset=".5" stop-color="${O}"/><stop offset=".5" stop-color="${OD}"/></linearGradient>`,
         layers: {
-          back: tail('M88,156 C60,160 48,134 60,112') +
-            `<path d="${TORSO}" fill="${O}"/><g clip-path="url(#${uid}-t)"><rect x="118" y="120" width="44" height="60" fill="${D}" opacity=".35"/><circle cx="118" cy="160" r="20" fill="${CR}"/><path d="M118,140 A20,20 0 0 1 118,180 Z" fill="#F3E2CC" opacity=".6"/></g>`,
-          pre: '',
+          back: '',
+          pre: `<g class="head">${lowTail}${art}</g>`,
           front: PAW_L + PAW_R,
-          post: `<g class="head">${head}</g>`
+          post: ''
         },
         face: {
-          eyes: [[101, 92], [135, 92]], eyeR: 5.4, eyeStyle: 'flat', hl: 1.7, ink: INK, arc: [5.5, 2.6],
-          mouth: [118, 107], mouthStyle: 'w', mouthSize: [5, 2.6], mouthSW: 1.6
+          eyes: [[99.5, 110], [136.5, 110]], eyeR: 5.8, eyeStyle: 'flat', hl: 1.9, ink: INK, arc: [5.6, 2.6],
+          mouth: [118, 122.4], mouthStyle: 'w', mouthSize: [4.4, 2.6], mouthSW: 1.6
         },
         rig: {
-          mode: 'flat', line: [INK, 0], pivot: [118, 134], grab: [118, 30],
-          top: [118, 48], qm: [126, 36], zzz: [158, 52], side: [[70, 88], [166, 88]], nose: [119.5, 103], anger: [146, 68],
-          cheeks: [[88, 104, 9], [148, 104, 9]], hold: [118, 124, 1], smoke: 38,
-          fire: [[72, 152, 1.15], [164, 152, 1.15]], bento: [154, 149, 1],
+          mode: 'flat', line: [INK, 0], pivot: [118, 174], grab: [118, TIP[1] + DANGLE_DY],
+          top: [118, 64], qm: [146, 58], zzz: [158, 74], side: [[66, 110], [170, 110]], nose: [119.5, 119], anger: [146, 88],
+          cheeks: [[86, 124, 9], [150, 124, 9]], hold: [118, 132, 0.95], smoke: 34,
+          fire: [[62, 154, 1.1], [174, 154, 1.1]], bento: [152, 149, 1],
           paw: paw, limb: { fill: `url(#${uid}-lf)` }, pawL: PAW_L, pawR: PAW_R,
-          up: { ink: 'back', fill: 'front', w: [13, 9], arms: [[[98, 140], [62, 90], -25], [[138, 140], [174, 90], 25]] },
-          holdArm: { paws: [[106, 128, 0], [130, 128, 0]] },
-          scratch: { ink: 'back', fill: 'front', w: 10, arm: [[98, 140], [60, 108], [74, 70]], paw: [82, 58, 0] },
-          pack: { lift: 4,
-            desk: { bag: [178, 141, 0.86], rest: [162, 130, 0], restArm: [[140, 142], [158, 132]], w: 10 } }
+          up: { ink: 'back', fill: 'over', w: [13, 10], arms: [[[84, 140], [53, 102], -35], [[152, 140], [183, 102], 35]] },
+          holdArm: { paws: [[107, 136, 0], [129, 136, 0]] },
+          scratch: { ink: 'back', fill: 'over', w: 11, arm: [[82, 134], [60, 114], [64, 90]], paw: [68, 82, 0] },
+          pack: { lift: 5, desk: { bag: [178, 141, 0.86], rest: [164, 128, 0] } }
         },
         poses: {
-          // the round head resting on its paws; a half-disc back (two-tone) and the tail behind it
+          // the circle flattens into a wide oval over the keyboard, tail curled beside it
           lie: {
-            front: `<ellipse cx="118" cy="162" rx="58" ry="5" fill="${INK}" opacity=".1"/>` +
-              tail('M170,156 C192,158 196,136 184,124', '170px 156px') +
-              `<path d="M108,160 A34,32 0 0 1 142,128 V160 Z" fill="${O}"/><path d="M142,128 A34,32 0 0 1 176,160 H142 Z" fill="${OD}"/>` +
-              `<g transform="translate(-10 28) rotate(-11 118 134)"><g class="breath" style="transform-origin:118px 134px">${head}</g></g>` +
-              paw(98, 160) + paw(126, 160),
-            anchors: { zzz: [150, 74], top: [92, 76] }
+            front: `<ellipse cx="118" cy="161" rx="62" ry="5" fill="${INK}" opacity=".1"/>` +
+              `<g transform="translate(118 160) rotate(-4) scale(1.08 .8) translate(-118 -174)"><g class="breath" style="transform-origin:118px 174px">${lowTail}${art}</g></g>` +
+              paw(100, 158) + paw(136, 158),
+            anchors: { zzz: [152, 82], top: [118, 80] }
           },
-          // held by the scruff: a two-tone capsule body, legs and arms hanging, tail behind
+          // held by the scruff: the soft tip on top, arms and legs hanging limp, tail behind
           dangle: {
-            front: `<g class="swing"><g transform="translate(118 30) scale(.95) translate(-118 -48)">` + tail('M104,170 C90,182 78,170 78,152', '104px 170px') +
-              `<rect x="88" y="124" width="60" height="56" rx="28" fill="${O}"/><g clip-path="url(#${uid}-d)"><rect x="118" y="120" width="34" height="64" fill="${D}" opacity=".35"/><circle cx="118" cy="158" r="17" fill="${CR}"/><path d="M118,141 A17,17 0 0 1 118,175 Z" fill="#F3E2CC" opacity=".6"/></g>` +
-              LEGS + legs + paw(106, 186) + paw(130, 186) + '</g>' +
-              LIMP + limp + paw(90, 157) + paw(146, 157) + '</g>' +
-              head + `</g></g>`,
-            anchors: { top: [118, 30], side: [[70, 72], [166, 72]] }
+            front: `<g class="swing"><g transform="translate(0 ${DANGLE_DY})">` + tail('M104,166 C94,182 80,180 78,166', '104px 166px') +
+              `<g class="legs" style="transform-origin:118px 168px">${grown(R, [[[106, 160], [105, 174]], [[130, 160], [131, 174]]], [12, 10])}${paw(105, 176)}${paw(131, 176)}</g>` +
+              tuft + art +
+              `<g class="limp" style="transform-origin:118px 130px">${grown(R, [[[78, 132], [72, 146]], [[158, 132], [164, 146]]], [12, 10])}${paw(71, 148)}${paw(165, 148)}</g></g></g>`,
+            anchors: { top: [118, TIP[1] + DANGLE_DY - 6], side: [[66, 96], [170, 96]] }
           }
         }
       };
