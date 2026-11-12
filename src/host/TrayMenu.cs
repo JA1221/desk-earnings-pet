@@ -9,6 +9,11 @@ using System.Windows.Forms;
 // The app's one menu, in A1 colours: the tray icon shows it on right click, and the host shows it for the
 // page's contextMenu message. Every item raises ItemClicked with its action id (layout:U1|U3|U5B|U7, mini,
 // feed, start, adjust, end, topmost, settings, history, toggleVisible, quit); the host decides what each does.
+// Ordered by how often each is used (simplification #2):
+//   餵食 ×N  |  開始上班 / 下班 / 繼續上班, 調整起算時間  |  版型 ▶, 紀錄, 設定  |  隱藏 / 顯示, 結束
+//   版型 ▶: U1 U3 U5-B U7  |  縮成迷你  |  永遠在最上層 (for the current layout)
+// The work item follows the status the page reports (SetWork): 開始上班 (start) before work, 下班 (end) while the
+// day runs, 繼續上班 (start: the page continues an ended day) after 下班. 餵食 shows the snack count (SetSnacks).
 // The tray icon (tooltip 錢進中) is a coin drawn at runtime; double-clicking it raises IconDoubleClick.
 public class TrayMenu : IDisposable
 {
@@ -17,11 +22,15 @@ public class TrayMenu : IDisposable
     static readonly Color Gold = Color.FromArgb(0xFF, 0xC8, 0x57);    // #FFC857
     static readonly Color Orange = Color.FromArgb(0xFF, 0x8A, 0x3D);  // #FF8A3D
     static readonly Color Amber = Color.FromArgb(0xFF, 0xB6, 0x27);   // #FFB627
+    static readonly Color Sub = Color.FromArgb(0x9A, 0x6E, 0x52);     // #9A6E52, the snack count
     const string FontName = "Microsoft JhengHei UI";
     const float FontPoints = 10f;
 
     readonly ContextMenuStrip menu = new ContextMenuStrip();
     readonly ToolStripMenuItem layouts;
+    readonly ToolStripMenuItem work;
+    readonly ToolStripMenuItem feed;
+    string workAction = "start";   // what the work item sends now
     NotifyIcon notifyIcon;
     Icon trayIcon;
     Font font;
@@ -36,26 +45,32 @@ public class TrayMenu : IDisposable
         ToolStripProfessionalRenderer renderer = new A1Renderer();
         menu.Renderer = renderer;
         menu.ShowImageMargin = true;   // room for the check marks
-        layouts = new ToolStripMenuItem("切換版型");
+        feed = Add(menu.Items, "餵食", "feed");
+        menu.Items.Add(new ToolStripSeparator());
+        work = new ToolStripMenuItem("開始上班");
+        work.Name = "work";
+        work.Click += delegate
+        {
+            Action<string> h = ItemClicked;
+            if (h != null) h(workAction);
+        };
+        menu.Items.Add(work);
+        Add(menu.Items, "調整起算時間", "adjust");
+        menu.Items.Add(new ToolStripSeparator());
+        layouts = new ToolStripMenuItem("版型");
         layouts.Name = "layouts";
         layouts.DropDown.Renderer = renderer;
         Add(layouts.DropDownItems, "U1 經典直式", "layout:U1");
         Add(layouts.DropDownItems, "U3 遊戲畫面", "layout:U3");
         Add(layouts.DropDownItems, "U5-B 橫向極簡", "layout:U5B");
         Add(layouts.DropDownItems, "U7 桌面寵物", "layout:U7");
+        layouts.DropDownItems.Add(new ToolStripSeparator());
+        Add(layouts.DropDownItems, "縮成迷你", "mini");
+        layouts.DropDownItems.Add(new ToolStripSeparator());
+        Add(layouts.DropDownItems, "永遠在最上層", "topmost");
         menu.Items.Add(layouts);
-        Add(menu.Items, "縮成迷你", "mini");
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu.Items, "餵食", "feed");
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu.Items, "開始上班", "start");
-        Add(menu.Items, "調整起算時間", "adjust");
-        Add(menu.Items, "下班", "end");
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu.Items, "永遠在最上層", "topmost");
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu.Items, "設定", "settings");
         Add(menu.Items, "紀錄", "history");
+        Add(menu.Items, "設定", "settings");
         menu.Items.Add(new ToolStripSeparator());
         Add(menu.Items, "隱藏", "toggleVisible");
         Add(menu.Items, "結束", "quit");
@@ -107,17 +122,37 @@ public class TrayMenu : IDisposable
         finally { showingAt = false; }
     }
 
-    // Check marks and the show/hide label: layout = current layout (only main layouts get a check),
+    // Check marks and the show/hide label: layout = current layout (a main layout's item, or 縮成迷你 for M3),
     // topmost = window is topmost, visible = window is shown (item reads 隱藏) or hidden (顯示).
     public void SetState(string layout, bool topmost, bool visible)
     {
         foreach (ToolStripItem i in layouts.DropDownItems)
         {
             ToolStripMenuItem m = i as ToolStripMenuItem;
-            if (m != null) m.Checked = layout != null && m.Name == "layout:" + layout;
+            if (m != null && m.Name.StartsWith("layout:")) m.Checked = layout != null && m.Name == "layout:" + layout;
         }
+        Item("mini").Checked = layout == "M3";
         Item("topmost").Checked = topmost;
         Item("toggleVisible").Text = visible ? "隱藏" : "顯示";
+    }
+
+    // The page's work status (menuState work): "working" -> 下班 (end), "ended" -> 繼續上班 (start), anything else
+    // (before work, a day off, not reported yet) -> 開始上班 (start).
+    public void SetWork(string status)
+    {
+        string text = "開始上班";
+        workAction = "start";
+        if (status == "working") { text = "下班"; workAction = "end"; }
+        else if (status == "ended") text = "繼續上班";
+        if (work.Text != text) work.Text = text;
+    }
+
+    // The snacks there are to feed (menuState snacks), shown right of 餵食 as ×N; below 0: unknown, no count. 餵食 stays
+    // clickable at 0: the pet then says how much more until the next snack.
+    public void SetSnacks(int count)
+    {
+        string text = count >= 0 ? "×" + count : null;
+        if (feed.ShortcutKeyDisplayString != text) feed.ShortcutKeyDisplayString = text;
     }
 
     public void Dispose()
@@ -185,7 +220,7 @@ public class TrayMenu : IDisposable
         }
     }
 
-    void Add(ToolStripItemCollection items, string text, string action)
+    ToolStripMenuItem Add(ToolStripItemCollection items, string text, string action)
     {
         ToolStripMenuItem item = new ToolStripMenuItem(text);
         item.Name = action;
@@ -195,6 +230,7 @@ public class TrayMenu : IDisposable
             if (h != null) h(action);
         };
         items.Add(item);
+        return item;
     }
 
     ToolStripMenuItem Item(string action)
@@ -249,7 +285,9 @@ public class TrayMenu : IDisposable
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
-            e.TextColor = e.Item.Enabled ? Line : Color.FromArgb(0x9A, 0x8A, 0x80);
+            ToolStripMenuItem m = e.Item as ToolStripMenuItem;
+            bool count = m != null && !string.IsNullOrEmpty(m.ShortcutKeyDisplayString) && e.Text == m.ShortcutKeyDisplayString && e.Text != m.Text;
+            e.TextColor = !e.Item.Enabled ? Color.FromArgb(0x9A, 0x8A, 0x80) : count ? Sub : Line;
             base.OnRenderItemText(e);
         }
 

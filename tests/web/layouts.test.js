@@ -645,6 +645,40 @@
     done();
   });
 
+  // #2: the menu's one work item (開始上班 / 下班 / 繼續上班) and 餵食's snack count follow the page: menuState
+  // {work: 'before' | 'working' | 'ended', snacks}, sent when either changes.
+  test('layouts DOM: menuState tells the host the work status and the snacks, when they change', function () {
+    var e = mk(at(12, 10, 0), { start: null, settings: { startMode: 'manual' } });
+    function states() { return of(e.sent, 'menuState').map(function (m) { return m.p.work + ' ' + m.p.snacks; }); }
+    eq(states(), ['before 0'], 'with the first layout');
+    e.tick(at(12, 10, 0, 1));
+    e.tick(at(12, 10, 0, 2));
+    eq(states().length, 1, 'nothing new: nothing sent');
+    e.menu('start');
+    eq(states(), ['before 0', 'working 0']);
+    e.tick(at(12, 10, 21, 8));   // NT$100 at 10:21:07.2
+    eq(states().slice(-1), ['working 1'], 'a new snack');
+    e.menu('feed');
+    eq(states().slice(-1), ['working 0'], 'eaten');
+    e.tick(at(12, 12, 30));
+    var n = QJZ.app.state.snacks;
+    ok(n > 1, 'more snacks by now: ' + n);
+    eq(states().slice(-1), ['working ' + n], 'lunch is still the day (下班 ends it)');
+    e.menu('end');
+    eq(states().slice(-1), ['ended ' + n], '下班 -> the item reads 繼續上班');
+    e.menu('start');
+    eq(states().slice(-1), ['working ' + n], '繼續上班 continues');
+    var k = states().length;
+    e.menu('layout:U7');
+    eq(states().length, k, 'a layout switch sends nothing new');
+    QJZ.app.setOffDay(true);
+    eq(states().slice(-1), ['before 0'], 'a day off: 開始上班');
+    done();
+    var f = mk(at(12, 19, 0));
+    eq(of(f.sent, 'menuState').slice(-1)[0].p.work, 'working', '可以下班: 下班 still ends the day');
+    done();
+  });
+
   test('layouts DOM: 開始上班 after 下班 continues the day (繼續上班)', function () {
     var e = mk(at(12, 10, 0));
     e.menu('end');

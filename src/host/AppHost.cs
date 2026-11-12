@@ -298,6 +298,13 @@ public class AppHost
             case "hitRects": window.SetHitRects(Bridge.Rects(d, "rects", MaxHitRects), Dpr(d)); break;
             case "dragStart": window.BeginDrag(Bridge.XY(d, "grab")); break;
             case "contextMenu": ShowContextMenu(); break;
+            case "menuState":   // the menu's work item and snack count follow the page
+                {
+                    double snacks = Bridge.Num(d, "snacks", -1);
+                    tray.SetWork(Bridge.Str(d, "work"));
+                    tray.SetSnacks(snacks >= 0 && snacks <= 99999 ? (int)Math.Floor(snacks) : -1);
+                    break;
+                }
             case "setTopmost":
                 {
                     bool? on = Bridge.Bool(d, "on");

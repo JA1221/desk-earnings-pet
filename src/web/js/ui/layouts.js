@@ -25,6 +25,8 @@ window.QJZ = window.QJZ || {};
 //                 lifted pet's scruff tip is (QJZ.pets.grabAt): the host should move the window so that point sits
 //                 under the cursor before its move loop starts, and the pet then hangs from the cursor by it.
 //   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
+//   menuState {work, snacks}  for the menu (simplification #2), whenever either changes: work 'before' (the item
+//                 reads 開始上班), 'working' (下班; also at lunch and 可以下班) or 'ended' (繼續上班); snacks to feed.
 // Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
 //
 // settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. settings.layout.mini
@@ -74,6 +76,7 @@ QJZ.layouts = (function () {
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
+  var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
   var REACTIONS = { petted: 1, angry: 1, eat: 1, hop: 1, dangle: 1 };
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
@@ -291,7 +294,7 @@ QJZ.layouts = (function () {
   var root = null, bridge = null, first = null, session = null, resumeAt = null;
   var cur = null, panelKind = 'settings', panelFrom = null, shown = false;
   var view = null;
-  var sent = { size: '', hits: '' };
+  var sent = { size: '', hits: '', menu: '' };
   var drag = null;       // {x, y} while the primary button is down on a draggable spot
   var dragging = false;  // dragStart sent, and neither dragEnd nor the button going up seen yet
   var dragged = false;   // this press turned into a drag (its click, if any, is not a poke)
@@ -408,6 +411,11 @@ QJZ.layouts = (function () {
       });
     }
     renderMoney(st.snap);
+    var work = WORK[m.key] || 'before';
+    if (sent.menu !== work + ' ' + m.snacks) {
+      sent.menu = work + ' ' + m.snacks;
+      send('menuState', { work: work, snacks: m.snacks });
+    }
     petTick(app().nowMs());
     return m;
   }
@@ -1223,7 +1231,7 @@ QJZ.layouts = (function () {
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
-    panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '' };
+    panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '' };
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null };
     cancelBands();
