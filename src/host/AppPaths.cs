@@ -5,14 +5,29 @@ using System.IO;
 // QJZ_PROFILE=<name> (1 to 16 ASCII letters or digits) is a test profile: both folders become 錢進中-<name>, the
 // single-instance mutex and event get their own names (SingleInstance), and AppHost never touches the autostart Run
 // value. Ruling R2: unlike the other dev switches it also counts in a release build, because the release e2e and the
-// CPU measurement must run beside the user's own app. Any other value is ignored (the user's own folders).
+// CPU measurement must run beside the user's own app. A set but invalid value (a typo, or the trailing space of cmd's
+// "set QJZ_PROFILE=t11 && ...") must not fall back to the user's own identity: Program.Main refuses to start then
+// (ProfileRejected). Unset or empty means no profile.
 public static class AppPaths
 {
     const string AppFolder = "錢進中";
     const int MaxProfileLength = 16;
+    const string ProfileVariable = "QJZ_PROFILE";
 
     // The test profile from QJZ_PROFILE, or null.
-    public static readonly string Profile = ValidProfile(Environment.GetEnvironmentVariable("QJZ_PROFILE"));
+    public static readonly string Profile = ValidProfile(Environment.GetEnvironmentVariable(ProfileVariable));
+
+    // QJZ_PROFILE as this process got it (unchecked).
+    public static string RawProfile
+    {
+        get { return Environment.GetEnvironmentVariable(ProfileVariable); }
+    }
+
+    // True when raw is set (non-empty) but not a valid profile, taken as it is (no trimming).
+    public static bool ProfileRejected(string raw)
+    {
+        return !string.IsNullOrEmpty(raw) && ValidProfile(raw) == null;
+    }
 
     // %AppData%\<FolderName> (settings.json, history.json); created on first access.
     public static string DataDir

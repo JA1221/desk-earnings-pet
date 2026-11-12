@@ -13,6 +13,18 @@ public static class AppPathsTests
             Assert.Eq("錢進中", AppPaths.FolderName(bad), "'" + bad + "' is not a profile");
     }
 
+    // A QJZ_PROFILE that is set but invalid must not fall back to the user's own folders, mutex and Run value: the
+    // app refuses to start (Program.Main). Unset or empty means no profile. No trimming: cmd's "set X=t11 && ..."
+    // leaves a trailing space.
+    public static void Test_ProfileRejected()
+    {
+        Assert.True(!AppPaths.ProfileRejected(null), "unset: the user's own app");
+        Assert.True(!AppPaths.ProfileRejected(""), "empty: the user's own app");
+        Assert.True(!AppPaths.ProfileRejected("t11"), "a valid profile");
+        foreach (string bad in new[] { "t-15", "t11 ", "e2e_1", "../x", "a234567890123456b" })
+            Assert.True(AppPaths.ProfileRejected(bad), "'" + bad + "' is refused");
+    }
+
     public static void Test_ProfileMutex()
     {
         Assert.Eq(@"Local\QianJinZhong", SingleInstance.MutexNameFor(null), "mutex without a profile");

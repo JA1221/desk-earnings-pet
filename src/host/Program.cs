@@ -11,9 +11,15 @@ public static class Program
     const string UnpackFailed = "錢進中無法準備執行所需的檔案（可能是磁碟空間不足，或被防毒軟體擋住），需要關閉。\n\n詳細資訊已記錄在：\n";
     public const string ForeignWebView2 = "錢進中.exe 旁邊有其他版本的 WebView2 元件，請把 錢進中.exe 放到單獨的資料夾再開啟。";
 
+    // A QJZ_PROFILE that is set but invalid (AppPaths.ProfileRejected): the run must not become the user's own app.
+    public const int ProfileRejectedExit = 3;
+
     [STAThread]
     public static int Main(string[] args)
     {
+        // First of all: nothing written (ErrorLog would write to the user's own folder), no window, no signal to the
+        // user's running app through the single-instance event.
+        if (AppPaths.ProfileRejected(AppPaths.RawProfile)) return ProfileRejectedExit;
         RestrictDllSearch();
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
