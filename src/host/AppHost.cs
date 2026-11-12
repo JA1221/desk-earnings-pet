@@ -15,8 +15,13 @@ using Microsoft.Web.WebView2.Core;
 //   default on) and the configured hotkey (privacy.hotkey, default Ctrl+Alt+H) registered, and first shown after
 //   the page's first setLayout, so it never flashes at a wrong size. Until then only the tray icon is visible.
 // - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
-//   page also gets the current state: visibility, a hotkey failure, unreadable files (storageError).
-// - U7 and M3 never take focus when clicked; the other layouts activate normally (keyboard input).
+//   page also gets the current state: visibility, fullscreen, a hotkey failure, unreadable files (storageError).
+// - U7, M3 and U10 never take focus when clicked; the other layouts activate normally (keyboard input).
+// - fullscreen {on}: Windows reports a fullscreen app or presentation mode (Presentation), after every init and on
+//   each change; the page holds its reminders meanwhile.
+// - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
+//   activation if the user sees it, and back to the layout's own 永遠在最上層 afterwards (ApplyTopmost). It never
+//   shows a hidden window and never takes the keyboard.
 // - Every show raises the window to the top of its band without activating it. Shows and panels the user asked
 //   for from the tray or the menu also take the keyboard in the activating layouts (U1/U3/U5B/PANEL). The hotkey
 //   hides only a window the user sees on top (ShowRescue.HotkeyHides); a covered one is raised instead.
@@ -42,7 +47,7 @@ public class AppHost
     const int MenuActivateMs = 3000;    // a setLayout this soon after a tray/menu action is that action's (a panel)
 
     readonly string startUrl;
-    readonly bool devPage;
+    readonly bool ownsRunValue;   // false for a dev page or a test profile: the autostart Run value is left alone
     readonly PetWindow window;
     readonly TrayMenu tray = new TrayMenu();
     readonly UserFiles files;
@@ -50,6 +55,7 @@ public class AppHost
     readonly Bridge bridge;
     readonly AutoStart autoStart = new AutoStart();
     readonly PauseGate gate = new PauseGate();
+    readonly Presentation presentation = new Presentation(Presentation.Query);
     readonly ApplicationContext context = new ApplicationContext();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
     readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
@@ -78,13 +84,14 @@ public class AppHost
     long? lastExitMs;            // the previous run's end, read at start (init lastExitMs)
     bool exitRecorded;           // this run's end is in session.json
     DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
+    bool promptRaised;           // the page's raise {on}: a prompt bubble shows, so the window is topmost (ApplyTopmost)
 
-    // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike),
-    // which never touches the autostart Run value.
+    // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
+    // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
     public AppHost(string page, bool devPage)
     {
         startUrl = Origin + page;
-        this.devPage = devPage;
+        ownsRunValue = !devPage && AppPaths.Profile == null;
         files = new UserFiles(AppPaths.DataDir, ErrorLog.Write);
         placer = new WindowPlacer(files);
         bridge = new Bridge(PostToPage, ErrorLog.Write);
@@ -133,7 +140,7 @@ public class AppHost
         configuredHotkey = settings.Hotkey;
         captureGuard = settings.CaptureGuard;   // applied when the window handle exists, before the page loads
         // re-points a stale Run value; never from settings that could not be read or parsed (their defaults)
-        if (!devPage && HostSettings.SyncAutostart(files.Settings.Text, files.Settings.ReadFailed, files.SettingsBackup))
+        if (ownsRunValue && HostSettings.SyncAutostart(files.Settings.Text, files.Settings.ReadFailed, files.SettingsBackup))
             SetAutoStart(settings.Autostart);
 
         tray.ItemClicked += OnMenu;
@@ -152,6 +159,8 @@ public class AppHost
         session = new SessionWatcher();
         session.Activity += OnSession;
         SingleInstance.Listen(OnSecondInstance);
+        presentation.Changed += delegate(bool on) { Send("fullscreen", new { on = on }); };
+        presentation.Start();
 
         startLayout = settings.StartLayout;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
@@ -205,6 +214,7 @@ public class AppHost
             if (!e.Uri.StartsWith(Origin, StringComparison.OrdinalIgnoreCase)) { e.Cancel = true; return; }   // stay on the app's pages
             bridge.Hold();   // the new page cannot listen yet
             navigation++;
+            SetPromptRaised(false);   // the old page's bubble is gone with it; the new page sends its own raise
         };
         web.NewWindowRequested += delegate(object s, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; };
         web.NavigationCompleted += delegate(object s, CoreWebView2NavigationCompletedEventArgs e)
@@ -265,6 +275,7 @@ public class AppHost
         ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
+        Send("fullscreen", new { on = presentation.Busy });
         if (hotkeyFailure != null) Send("hotkeyFailed", hotkeyFailure);
         foreach (string file in files.Unreadable) Send("storageError", new { file = file, reason = "unreadable" });
     }
@@ -312,14 +323,22 @@ public class AppHost
                     bool? on = Bridge.Bool(d, "on");
                     if (on == null) break;
                     if (layout != null) topmost[layout] = on.Value;
-                    window.TopMostEnabled = on.Value;
+                    ApplyTopmost();
                     UpdateTray();
+                    break;
+                }
+            case "raise":
+                {
+                    bool? on = Bridge.Bool(d, "on");
+                    if (on == null) break;
+                    SetPromptRaised(on.Value);
+                    if (on.Value && ShownToUser()) window.RaiseWithoutActivation();   // never shows or activates
                     break;
                 }
             case "setAutostart":
                 {
                     bool? on = Bridge.Bool(d, "on");
-                    if (on != null && !devPage) SetAutoStart(on.Value);
+                    if (on != null && ownsRunValue) SetAutoStart(on.Value);
                     break;
                 }
             case "setCaptureGuard":
@@ -368,8 +387,7 @@ public class AppHost
         {
             placer.RememberSize(name, new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize))));
             placer.Place(window, name);
-            bool on;
-            window.TopMostEnabled = topmost.TryGetValue(name, out on) && on;
+            ApplyTopmost();
         }
         UpdateTray();
         ApplyVisibility();   // the first setLayout shows the window
@@ -435,7 +453,7 @@ public class AppHost
     }
 
     // To the top of its band (topmost or not) without activating; activate: also the foreground window, unless the
-    // layout never takes focus (U7, M3). Windows allows that right after the user's own input to this app (tray,
+    // layout never takes focus (U7, M3, U10). Windows allows that right after the user's own input to this app (tray,
     // menu) or a second start's AllowSetForegroundWindow; when it refuses, the raise still holds.
     void Raise(bool activate)
     {
@@ -502,9 +520,8 @@ public class AppHost
             Size css = WindowPlacer.RescueSize(placer.SavedSize(startLayout));
             window.SetContentSize(css.Width, css.Height, 0);
             placer.Place(window, startLayout);
-            window.NoActivate = ShowRescue.NoActivateLayout(startLayout);   // a rescued M3/U7 must not take focus
-            bool on;
-            window.TopMostEnabled = topmost.TryGetValue(startLayout, out on) && on;
+            window.NoActivate = ShowRescue.NoActivateLayout(startLayout);   // a rescued M3/U7/U10 must not take focus
+            ApplyTopmost();   // the start layout's (no layout yet)
             rescued = true;
         }
         ApplyVisibility();
@@ -543,7 +560,31 @@ public class AppHost
 
     void UpdateTray()
     {
-        tray.SetState(layout, window.TopMostEnabled, ShownToUser());   // the menu offers 顯示 while nothing is visible
+        // the check mark is the layout's own 永遠在最上層, never a prompt's raise; the menu offers 顯示 while nothing is visible
+        tray.SetState(layout, LayoutTopmost(), ShownToUser());
+    }
+
+    // ---- topmost ----
+
+    // The user's 永遠在最上層 for the current layout (the start layout before the page's first setLayout: what the
+    // safety net shows).
+    bool LayoutTopmost()
+    {
+        bool on;
+        return topmost.TryGetValue(layout ?? startLayout, out on) && on;
+    }
+
+    // Every topmost change goes through here: the layout's own setting, or raised while a prompt shows.
+    void ApplyTopmost()
+    {
+        window.TopMostEnabled = ShowRescue.EffectiveTopmost(LayoutTopmost(), promptRaised);
+    }
+
+    void SetPromptRaised(bool on)
+    {
+        if (on == promptRaised) return;
+        promptRaised = on;
+        ApplyTopmost();
     }
 
     // ---- menu ----
@@ -699,6 +740,7 @@ public class AppHost
         RecordExit();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);
         if (session != null) session.Dispose();
+        presentation.Dispose();
         SingleInstance.Stop();
     }
 

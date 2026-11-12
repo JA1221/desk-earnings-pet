@@ -185,4 +185,8 @@ internal static class Native
     // Windows 8.1+.
     [DllImport("shcore.dll")]
     public static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    // Vista+. state: a QUERY_USER_NOTIFICATION_STATE (QUNS_*); returns an HRESULT.
+    [DllImport("shell32.dll")]
+    public static extern int SHQueryUserNotificationState(out int state);
 }

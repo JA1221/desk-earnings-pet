@@ -10,10 +10,11 @@
   Pet art: petOnlySVG('p0','hamster') and petOnlySVG('s4','hamster') from
   docs/prototypes/shared.js, rendered once and pasted as static SVG (unused defs removed).
   Host protocol (JSON via chrome.webview, see Bridge.cs): setLayout {layout, width, height, dpr},
-  hitRects {rects: [[x,y,w,h],...], dpr}, dragStart {}, setTopmost {on}; dpr = window.devicePixelRatio.
+  hitRects {rects: [[x,y,w,h],...], dpr}, dragStart {}, setTopmost {on}, raise {on}; dpr = window.devicePixelRatio.
   Query (build\錢進中.exe --page "spike.html?layout=U7&guard=on"): layout = name reported in setLayout
-  (default 'spike'; U7 / M3 switch the host to no-activate clicks); the page turns the host's capture guard
+  (default 'spike'; U7 / M3 / U10 switch the host to no-activate clicks); the page turns the host's capture guard
   off (setCaptureGuard {on:false}) because the visual checks capture the screen, unless guard=on.
+  raise=<ms>: sends raise {on:true} (as a prompt bubble does) <ms> after load, and raise {on:false} 4 s later.
 -->
 <style>
   @font-face { font-family: 'Fredoka'; src: url('fonts/Fredoka-Variable.ttf') format('truetype'); font-weight: 300 700; }
@@ -122,6 +123,13 @@
   watchDpr();
   if (query.get('guard') !== 'on') send({ type: 'setCaptureGuard', on: false });   // before the first setLayout shows the window
   report();
+  var raiseMs = parseInt(query.get('raise'), 10);
+  if (raiseMs >= 0) {
+    setTimeout(function () {
+      send({ type: 'raise', on: true });
+      setTimeout(function () { send({ type: 'raise', on: false }); }, 4000);
+    }, raiseMs);
+  }
 })();
 </script>
 </body>

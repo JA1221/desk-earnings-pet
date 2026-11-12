@@ -34,6 +34,11 @@ machine's monitors, so pick a backdrop and pet position inside one monitor of yo
   (`setCaptureGuard {on:false}`), unless it is started as `--page "spike.html?guard=on"`.
   `--page "spike.html?layout=U7"` reports the layout as U7, so the window is topmost and does not take focus when clicked.
   `QJZ_TRACE=1` makes the host log its page messages to `%LocalAppData%\錢進中\trace.log`.
+- `QJZ_PROFILE=<name>` (1–16 ASCII letters or digits) runs the app as a test profile beside the user's own one:
+  its own `%AppData%\錢進中-<name>` and `%LocalAppData%\錢進中-<name>` (trace.log included), its own single-instance
+  mutex, and never the Run value. `tools\test-profile.ps1 -Name <name>` makes one (every layout on DISPLAY1);
+  `-Remove -Name <name>` deletes it. `spiketool fg` shows the foreground window; `spiketool post <hwnd> 0x0010 0 0`
+  closes the app with WM_CLOSE.
 - The session must be **unlocked**. While locked, captures show the lock screen. Do not send input then either: it would go to the lock screen.
 - The scripts move the real cursor for about 30 s per pass (they put it back afterwards). Do not use the mouse while they run.
 - Never change Windows display settings (scaling, Text size, …) for a check. Use a monitor that already has

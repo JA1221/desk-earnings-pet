@@ -2,14 +2,27 @@ using System;
 using System.Threading;
 
 // One running app per Windows session (named mutex Local\QianJinZhong). A second start signals the running
-// one through a named event, so it shows its window and comes to the front, and then exits.
+// one through a named event, so it shows its window and comes to the front, and then exits. A test profile
+// (AppPaths.Profile, QJZ_PROFILE) has its own mutex and event, so it runs beside the user's own app.
 public static class SingleInstance
 {
-    const string MutexName = @"Local\QianJinZhong";
-    const string EventName = @"Local\QianJinZhong.Show";
+    const string BaseName = @"Local\QianJinZhong";
     static Mutex mutex;
     static EventWaitHandle showEvent;
     static RegisteredWaitHandle waiter;
+
+    // Local\QianJinZhong, or Local\QianJinZhong-<profile> for a test profile (an invalid one counts as none, like
+    // AppPaths.FolderName).
+    public static string MutexNameFor(string profile)
+    {
+        return AppPaths.ValidProfile(profile) != null ? BaseName + "-" + profile : BaseName;
+    }
+
+    // The mutex name plus .Show.
+    public static string EventNameFor(string profile)
+    {
+        return MutexNameFor(profile) + ".Show";
+    }
 
     // True: this process is the only instance and keeps running. False: another instance is running and has
     // been asked to show itself; this process should exit.
@@ -17,8 +30,8 @@ public static class SingleInstance
     {
         // The event exists before the mutex is checked, so a signal sent while the first instance is still
         // starting is kept (auto-reset event) until it listens.
-        showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName);
-        mutex = new Mutex(false, MutexName);
+        showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventNameFor(AppPaths.Profile));
+        mutex = new Mutex(false, MutexNameFor(AppPaths.Profile));
         bool owned;
         try { owned = mutex.WaitOne(0); }
         catch (AbandonedMutexException) { owned = true; }   // the previous instance ended without releasing it

@@ -20,6 +20,7 @@ public static class Tool
     [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT p);
     [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint f);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
@@ -49,6 +50,8 @@ public static class Tool
   hover x y hwnd ms                       move cursor, wait, describe hwnd and the window under the cursor
   hovercap x y hwnd ms cx cy cw ch out    hover, then capture while the cursor is still there
   find title | info hwnd | children hwnd  describe windows
+  fg                                      the foreground window (hwnd, then its description)
+  post hwnd msg wParam lParam             PostMessage (numbers decimal or 0x hex; e.g. post <hwnd> 0x0010 0 0 = WM_CLOSE)
   move hwnd x y | settop hwnd | untop hwnd | above hwndA hwndB | printwindow hwnd out.png [flags]";
 
     [STAThread]
@@ -78,6 +81,10 @@ public static class Tool
             case "find": Find(a[1]); return 0;
             case "info": Console.WriteLine(Describe(H(a[1]))); return 0;
             case "children": Children(H(a[1])); return 0;
+            case "fg": { IntPtr fg = GetForegroundWindow(); Console.WriteLine(fg + " " + Describe(fg)); return 0; }
+            case "post":
+                Console.WriteLine("posted=" + PostMessage(H(a[1]), (uint)N(a[2]), new IntPtr(N(a[3])), new IntPtr(N(a[4]))));
+                return 0;
             case "move": SetWindowPos(H(a[1]), IntPtr.Zero, I(a[2]), I(a[3]), 0, 0, 0x0001 | 0x0004 | 0x0010); return 0;
             case "settop": SetWindowPos(H(a[1]), new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return 0;
             case "untop": SetWindowPos(H(a[1]), new IntPtr(-2), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); return 0;
@@ -89,6 +96,7 @@ public static class Tool
     }
     static int I(string s) { return int.Parse(s); }
     static IntPtr H(string s) { return new IntPtr(long.Parse(s)); }
+    static long N(string s) { return s.StartsWith("0x") ? Convert.ToInt64(s.Substring(2), 16) : long.Parse(s); }
 
     static void Backdrop(int x, int y, int w, int h, string log, string mode)
     {

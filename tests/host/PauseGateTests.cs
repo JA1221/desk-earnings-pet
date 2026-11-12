@@ -15,6 +15,15 @@ public static class PauseGateTests
         Assert.True(g.SetShown(false), "hide -> paused");
     }
 
+    // While a prompt bubble shows, the window is raised above everything (spec 5.1); afterwards the layout's own
+    // 永遠在最上層 applies again.
+    public static void Test_EffectiveTopmost()
+    {
+        Assert.True(!ShowRescue.EffectiveTopmost(false, false), "layout not topmost, no prompt: not topmost");
+        Assert.True(ShowRescue.EffectiveTopmost(false, true), "a prompt raises a non-topmost layout");
+        Assert.True(ShowRescue.EffectiveTopmost(true, false), "a topmost layout stays topmost");
+    }
+
     public static void Test_HiddenAndLockedCombine()
     {
         var g = new PauseGate();
@@ -82,9 +91,11 @@ public static class ShowRescueTests
     // 結束 quits, and 永遠在最上層 only changes the z-order band.
     public static void Test_MenuActionsThatShowTheWindow()
     {
-        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "feed", "start", "adjust", "end", "settings", "history" })
+        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "feed", "start", "adjust", "end", "settings", "history",
+            "layout:U10", "capsule:top", "capsule:bottomRight" })
             Assert.True(ShowRescue.MenuShows(a), a + " shows and raises");
-        foreach (string a in new[] { "toggleVisible", "quit", "topmost", null })
+        // quick actions (記一杯水, 開始番茄鐘) never un-hide the window
+        foreach (string a in new[] { "toggleVisible", "quit", "topmost", "drink", "pomodoro", null })
             Assert.True(!ShowRescue.MenuShows(a), (a ?? "null") + " does not");
     }
 
@@ -94,7 +105,8 @@ public static class ShowRescueTests
     {
         foreach (string a in new[] { "feed", "start", "adjust", "end", "settings", "history" })
             Assert.True(ShowRescue.MenuActivatesNow(a), a + " activates now");
-        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "toggleVisible", "quit", "topmost", null })
+        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "toggleVisible", "quit", "topmost", null,
+            "capsule:top", "capsule:bottomRight", "drink", "pomodoro" })
             Assert.True(!ShowRescue.MenuActivatesNow(a), (a ?? "null") + " does not");
     }
 
@@ -102,7 +114,10 @@ public static class ShowRescueTests
     {
         Assert.True(ShowRescue.NoActivateLayout("U7"), "U7");
         Assert.True(ShowRescue.NoActivateLayout("M3"), "M3");
+        Assert.True(ShowRescue.NoActivateLayout("U10"), "U10");
         Assert.True(!ShowRescue.NoActivateLayout("U1"), "U1");
+        Assert.True(!ShowRescue.NoActivateLayout("U12"), "U12");
+        Assert.True(!ShowRescue.NoActivateLayout("U13"), "U13");
         Assert.True(!ShowRescue.NoActivateLayout(null), "null");
     }
 }

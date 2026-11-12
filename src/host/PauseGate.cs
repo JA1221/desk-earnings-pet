@@ -67,23 +67,33 @@ public static class ShowRescue
     }
 
     // Tray and menu actions the user wants to see the result of: they show and raise the window (and give it the
-    // keyboard in an activating layout). 隱藏/顯示 toggles on its own; 結束 quits; 永遠在最上層 changes only the band.
+    // keyboard in an activating layout). 隱藏/顯示 toggles on its own; 結束 quits; 永遠在最上層 changes only the band;
+    // the quick actions 記一杯水 (drink) and 開始／停止番茄鐘 (pomodoro) never un-hide the window.
     public static bool MenuShows(string action)
     {
-        return action != null && action != "toggleVisible" && action != "quit" && action != "topmost";
+        return action != null && action != "toggleVisible" && action != "quit" && action != "topmost"
+            && action != "drink" && action != "pomodoro";
     }
 
     // Of those, the ones whose result shows in the current layout, which then takes the keyboard at once (if it is
-    // an activating one). A layout switch (layout:*, mini) leaves that to the new layout's setLayout.
+    // an activating one). A layout switch (layout:*, mini) leaves that to the new layout's setLayout; moving U10's
+    // capsule (capsule:*) never takes the keyboard.
     public static bool MenuActivatesNow(string action)
     {
-        return MenuShows(action) && !action.StartsWith("layout:") && action != "mini";
+        return MenuShows(action) && !action.StartsWith("layout:") && action != "mini" && !action.StartsWith("capsule:");
     }
 
-    // U7 and M3 never take focus when clicked.
+    // U7, M3 and U10 never take focus when clicked.
     public static bool NoActivateLayout(string layout)
     {
-        return layout == "U7" || layout == "M3";
+        return layout == "U7" || layout == "M3" || layout == "U10";
+    }
+
+    // Whether the window is topmost: the layout's own 永遠在最上層, or raised while a prompt bubble shows (raise {on},
+    // spec 5.1). The tray's check mark shows layoutTopmost only.
+    public static bool EffectiveTopmost(bool layoutTopmost, bool raised)
+    {
+        return layoutTopmost || raised;
     }
 }
 
