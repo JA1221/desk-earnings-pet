@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="css/pets.css">
 <style>
   /* Review page for Task 12: 8 skins x 18 states. Not shipped in the app.
-     URL params: ?t=<ms> freeze every animation at that time; ?view=scene|avatar; ?rows=hamster:p0,cat:p0 (or hamster / cat);
+     URL params: ?t=<ms> freeze every animation at that time; ?view=scene|avatar; ?arms=none|stub (hamster arms); ?rows=hamster:p0,cat:p0 (or hamster / cat);
      ?cols=typing,idle; ?size=<px> cell width; ?open=<skin id>/<state> open the enlarged view; ?rm=1 reduced motion. */
   :root{--cell:124px}
   html{background:#FFF8EC}
@@ -32,6 +32,8 @@
   .seg button.on{background:#FFC857}
   .chip{font:inherit;font-weight:800;font-size:13.5px;border:3px solid var(--line);background:#fff;border-radius:99px;padding:6px 14px;box-shadow:3px 3px 0 var(--line);cursor:pointer;color:var(--text)}
   .chip.on{background:#8EE3B0}
+  .seg .lbl{display:inline-flex;align-items:center;font-weight:800;font-size:13.5px;padding:7px 12px;background:#FFF1DC;border-right:3px solid var(--line)}
+  .seg .lbl+button{border-left:0}
   .chip:active,.seg button:active{transform:translate(1px,1px)}
 
   /* board */
@@ -99,6 +101,7 @@
   <div class="title"><div class="logo" id="logo"></div><h1>寵物狀態審稿<small><span class="num">8</span> 個造型 × <span class="num">18</span> 個狀態 ・ 桌面寵物 U7 的樣子</small></h1></div>
   <p class="lede">每一格都是會動的寵物，背景是桌面桌布（U7 直接站在桌面上）。<b>點任何一格放大</b>，可以同時看桌面寵物、房間場景和大頭照；放大後用方向鍵切換狀態和造型。有想改的地方，記下「造型＋狀態」告訴我就好。</p>
   <div class="ctrl">
+    <div class="seg" id="armSeg" title="黃金鼠的手：先比較兩種，選定後另一種會刪掉"><span class="lbl">黃金鼠手</span><button data-a="none" class="on">沒手臂</button><button data-a="stub">有手臂</button></div>
     <div class="seg" id="viewSeg"><button data-v="petonly" class="on">桌面寵物</button><button data-v="scene">房間場景</button><button data-v="avatar">大頭照</button></div>
     <button class="chip" id="pauseBtn">暫停動畫</button>
     <button class="chip" id="rmBtn" title="模擬 Windows「減少動畫」設定">減少動態</button>
@@ -144,7 +147,7 @@
     idle: '慢慢左右晃，眼睛四處亂看、偶爾眨眼。',
     doze: '半睜眼，頭一點一點往下垂，突然驚醒睜大眼，又繼續垂下去。冒小 z。',
     typing: '兩手輪流敲鍵盤，頭跟著節奏點（原本的打字動作）。',
-    stretch: '先縮一下，再把手舉高（鼠是短短的小手、貓的手從身體自然長出來）、眼睛瞇起來、嘴巴「喔～」，身體拉長抖一抖，放鬆後休息一下再來一次。',
+    stretch: '先縮一下，再把手舉高、眼睛瞇起來、嘴巴「喔～」，身體拉長抖一抖，放鬆後休息一下再來一次。黃金鼠「沒手臂」版：小手掌貼在臉頰兩邊、身體拉得更長、臉往上仰；「有手臂」版：短短的小手從身體側邊伸出來。',
     yawn: '頭往後仰、閉眼張大嘴，嘴巴越張越大，打完眼角掛一滴淚。',
     coffee: '雙手捧著愛心馬克杯，舉起來閉眼啜一口再放下，杯子一直冒熱氣。',
     stare: '身體往螢幕那邊湊過去，眼睛盯住、很少眨，頭上一顆一顆冒出「…」。',
@@ -152,12 +155,12 @@
     sprint: '下班前衝刺：打字變超快、身體微震，眼神專注，噴汗、背後冒火。',
     lunchSleep: '整隻趴在鍵盤上睡著，身體隨呼吸起伏，鼻涕泡泡一大一小，Zzz 往上飄。',
     lunchEat: '桌上放著便當，雙手捧著飯糰一口一口咬，嘴巴嚼嚼嚼。',
-    celebrate: '可以下班了！雙手舉高連續彈跳，落地會壓扁一下，彩帶從上面灑下來。',
+    celebrate: '可以下班了！雙手舉高連續彈跳（黃金鼠沒手臂版：小手掌貼在臉頰兩邊），落地會壓扁一下，彩帶從上面灑下來。',
     waitBag: '背上藍色背包、抓著背帶，眼睛閃閃發亮、嘴巴笑開，原地蹦蹦跳，背包跟著甩，頭旁邊冒音符：等不及要跟你回家了！',
     petted: '被摸摸：瞇眼笑、頭左右蹭你的手，愛心一顆顆往上飄。',
     angry: '連點太多下：臉頰鼓起來（整顆頭變寬）、氣到發抖，雙手搥桌，頭上冒煙和生氣符號。',
     eat: '餵零食：捧著零食小口小口啃（貓是小魚乾、鼠是瓜子），一邊掉渣。',
-    hop: '里程碑：蹲一下、舉手跳起來，頭上彈出金幣閃閃，落地休息一下再跳。',
+    hop: '里程碑：蹲一下、舉手跳起來（黃金鼠沒手臂版：小手掌貼在臉頰兩邊），頭上彈出金幣閃閃，落地休息一下再跳。',
     dangle: 'U7 拖曳時：被捏住後頸拎起來，整隻左右晃，腳跟著甩；豆豆眼、小 o 嘴、臉紅紅，有點呆住但不會不開心。'
   };
 
@@ -173,6 +176,7 @@
   if (q.get('rm') === '1') document.documentElement.classList.add('rm');
   var view = q.get('view') === 'scene' || q.get('view') === 'avatar' ? q.get('view') : 'petonly';
   var frozenAt = q.has('t') ? parseFloat(q.get('t')) || 0 : null;
+  P.setHamsterArms(q.get('arms') === 'stub' ? 'stub' : 'none');
 
   function label(d) { return d.skin.toUpperCase(); }
   function blink(i) { return '-' + ((i * 1.37) % 4.6).toFixed(2) + 's'; }
@@ -278,6 +282,16 @@
     render();
   }
   for (var i = 0; i < seg.length; i++) seg[i].onclick = function () { setView(this.getAttribute('data-v')); };
+  // hamster arm style: 沒手臂 (paws only) / 有手臂 (short arms); re-renders the grid and the open sheet
+  var armBtns = $('armSeg').querySelectorAll('button');
+  function setArms(a) {
+    P.setHamsterArms(a);
+    for (var j = 0; j < armBtns.length; j++) armBtns[j].classList.toggle('on', armBtns[j].getAttribute('data-a') === P.hamsterArms());
+    render();
+    if (cur) open(cur.k, cur.s);
+  }
+  for (var j = 0; j < armBtns.length; j++) armBtns[j].onclick = function () { setArms(this.getAttribute('data-a')); };
+  for (var k = 0; k < armBtns.length; k++) armBtns[k].classList.toggle('on', armBtns[k].getAttribute('data-a') === P.hamsterArms());
   $('pauseBtn').onclick = function () {
     if (frozenAt !== null) return;
     var on = document.documentElement.classList.toggle('paused');

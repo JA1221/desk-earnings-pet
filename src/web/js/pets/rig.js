@@ -19,13 +19,16 @@ QJZ.pets = QJZ.pets || {};
 //   holdArm: {paws:[[x,y,rot],[x,y,rot]], arms?:[[root,tip],[root,tip]], w}    paws holding the item
 //   scratch: {ink, fill, w, arm:[root,(elbow,)tip], paw:[x,y,rot], fur?}      left paw scratching the head
 //   strap:   [[x,y,rot],[x,y,rot]]                                             paws gripping backpack straps
+//   armless: {up:[[x,y,rot],[x,y,rot]], scratch:[x,y,rot]}   (hamsters) the "none" arm style: paws only,
+//            pressed against the sides of the head / cheeks so they always touch the body outline
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 // }
 // Raised arms grow out of the body without a seam: `ink` names the slot drawn before the body (the outline), `fill`
 // the slot drawn after it (the fur, which covers the body's outline where the arm joins). Hamster arms are short and
 // stubby: they start at a shoulder on the side of the body below the cheeks and reach out and up beside the head.
-// arms(rig, mode) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
+// arms(rig, mode, style) -> {back, front, over}: markup for the pet's back layer (behind the body), front layer
 // (after the desk, behind a cat's head) and the OVER slot (inside the head group, in front of the face).
+// style 'none' (skins with rig.armless) draws no limbs at all; any other style draws the limbs above.
 QJZ.pets.rig = (function () {
   function n(v) { return Math.round(v * 100) / 100; }
 
@@ -42,12 +45,12 @@ QJZ.pets.rig = (function () {
     var lw = rig.line[1], ink, fill, col = fur || rig.limb.fill;
     if (pts.length === 2) {
       var d = taper(pts[0], pts[1], w[0], w[1]);
-      ink = `<path d="${d}" fill="${rig.line[0]}" stroke="${rig.line[0]}" stroke-width="${n(lw * 2)}" stroke-linejoin="round"/>`;
-      fill = `<path d="${d}" fill="${col}"/>`;
+      ink = `<path class="limb" d="${d}" fill="${rig.line[0]}" stroke="${rig.line[0]}" stroke-width="${n(lw * 2)}" stroke-linejoin="round"/>`;
+      fill = `<path class="limb" d="${d}" fill="${col}"/>`;
     } else {
       var p = 'M' + pts.map(function (q) { return n(q[0]) + ',' + n(q[1]); }).join(' L');
-      ink = `<path d="${p}" fill="none" stroke="${rig.line[0]}" stroke-width="${n(w + lw * 2)}" stroke-linecap="round" stroke-linejoin="round"/>`;
-      fill = `<path d="${p}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      ink = `<path class="limb" d="${p}" fill="none" stroke="${rig.line[0]}" stroke-width="${n(w + lw * 2)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      fill = `<path class="limb" d="${p}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
     return { ink: rig.mode === 'flat' ? '' : ink, fill: fill };
   }
@@ -60,7 +63,20 @@ QJZ.pets.rig = (function () {
 
   function add(o, k, m) { if (m) o[k] = (o[k] || '') + m; }
 
-  function arms(rig, mode) {
+  // armless style: raised paws wiggle in place (origin = the paw), so they never leave the head outline
+  function armless(rig, mode) {
+    var a = rig.armless;
+    if (mode === 'up') {
+      return { over: a.up.map(function (p, i) {
+        return `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${p[0]}px ${p[1]}px">${rig.paw(p[0], p[1], p[2])}</g>`;
+      }).join('') };
+    }
+    var s = a.scratch;   // mode === 'scratch'
+    return { front: rig.pawR, over: `<g class="scr" style="transform-origin:${s[0]}px ${s[1]}px">${rig.paw(s[0], s[1], s[2])}</g>` };
+  }
+
+  function arms(rig, mode, style) {
+    if (style === 'none' && rig.armless && (mode === 'up' || mode === 'scratch')) return armless(rig, mode);
     switch (mode) {
       case 'type': case 'rest': return { front: rig.pawL + rig.pawR };
       case 'up': {

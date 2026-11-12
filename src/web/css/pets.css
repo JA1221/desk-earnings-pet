@@ -114,6 +114,11 @@
 @keyframes stretchA{0%,33.9%,72%,100%{opacity:1}34%,71.9%{opacity:0}}
 @keyframes stretchB{0%,33.9%,72%,100%{opacity:0}34%,71.9%{opacity:1}}
 .pet-svg.st-stretch .spk{animation:stretchSpk 4.4s infinite}
+/* armless hamsters (.arms-none) sell the stretch with the body: a taller squash-and-stretch and the face tipped up */
+.pet-svg.arms-none.st-stretch .bod{animation:reachTall 4.4s ease-in-out infinite}
+@keyframes reachTall{0%,24%,84%,100%{transform:scale(1,1)}30%{transform:scale(calc(1 + .06 * var(--m)),calc(1 - .07 * var(--m)))}40%{transform:translateY(calc(-4px * var(--m))) scale(calc(1 - .07 * var(--m)),calc(1 + .12 * var(--m)))}52%{transform:translateY(calc(-5px * var(--m))) rotate(calc(-1.5deg * var(--m))) scale(calc(1 - .06 * var(--m)),calc(1 + .13 * var(--m)))}64%{transform:translateY(calc(-5px * var(--m))) rotate(calc(1.5deg * var(--m))) scale(calc(1 - .06 * var(--m)),calc(1 + .13 * var(--m)))}74%{transform:scale(calc(1 + .05 * var(--m)),calc(1 - .05 * var(--m)))}}
+.pet-svg.arms-none.st-stretch .look{animation:faceUp 4.4s ease-in-out infinite}
+@keyframes faceUp{0%,30%,76%,100%{transform:translate(0,0)}40%,68%{transform:translate(0,calc(-2px * var(--m)))}}
 @keyframes stretchSpk{0%,38%,72%,100%{opacity:0;transform:scale(.3)}46%{opacity:1;transform:scale(1.15)}54%{transform:scale(.85)}62%{opacity:1;transform:scale(1.1)}}
 
 /* ---------- yawn 打哈欠: head tips back, eyes squeeze, mouth opens wide, a tear ---------- */

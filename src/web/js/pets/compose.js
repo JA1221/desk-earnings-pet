@@ -6,14 +6,20 @@ QJZ.pets = QJZ.pets || {};
 //             so jumps, coins, hearts and the dangling pose stay inside, the same for every skin and state)
 //   avatar  — portrait cropped to the skin's crop: back + pre + post layers, no desk and no front paws;
 //             shows the state's face, head motion and head props but no whole-body pose
-// opts: {state:'typing', expression, mouth, props, viewBox}
+// opts: {state:'typing', expression, mouth, props, arms, viewBox}
 //   state      — a name from QJZ.pets.states (unknown names fall back to 'typing'); picks pose, face, arms, props
 //   expression — eyes, overrides the state's (and drops its second-frame eyes); mouth likewise
 //   props      — array of prop names, replaces the state's props ([] for none); a held prop brings holding paws
+//   arms       — hamster arm style 'none' (paws only) or 'stub' (short arms); defaults to QJZ.pets.hamsterArms().
+//                Only skins with rig.armless (the hamsters) have the 'none' style; it adds .arms-none to the root.
 // The root <svg> carries .pet-svg and .st-<state>, plus per-skin pivots --hx/--hy (head) and --gx/--gy (dangle).
 // Every call gets a fresh uid, so ids never collide between SVGs.
 QJZ.pets.compose = (function () {
-  var P = QJZ.pets, C = P.common, seq = 0;
+  var P = QJZ.pets, C = P.common, seq = 0, hamsterArms = 'none';
+
+  // Hamster arm style for the whole page/app: 'none' (paws only, the default while the user compares) or 'stub'.
+  P.setHamsterArms = function (style) { hamsterArms = style === 'stub' ? 'stub' : 'none'; };
+  P.hamsterArms = function () { return hamsterArms; };
   var PETONLY = '30 4 176 170';
   var SLOT = /<!--(EYES|MOUTH|OVER)-->/g;
 
@@ -44,6 +50,7 @@ QJZ.pets.compose = (function () {
     var name = P.states.get(opts.state) ? opts.state : 'typing', st = P.states.get(name), alt = st.alt || {};
     var uid = 'pet' + (seq++);
     var b = def.build(uid), face = b.face, rig = b.rig;
+    var armStyle = rig.armless ? (opts.arms === 'stub' || opts.arms === 'none' ? opts.arms : hamsterArms) : 'stub';
     var line = P.room.line(def.room);
     var pose = view === 'avatar' ? 'desk' : (st.pose || 'desk');
     var pl = pose === 'desk' ? null : b.poses[pose];
@@ -71,7 +78,7 @@ QJZ.pets.compose = (function () {
     // arms (desk pose only: the lying and dangling drawings bring their own)
     var arms = { back: '', front: '', over: '' }, mode = held ? 'hold' : st.arms;
     if (pose === 'desk') {
-      var a = P.rig.arms(rig, mode), z = alt.arms ? P.rig.arms(rig, alt.arms) : null;
+      var a = P.rig.arms(rig, mode, armStyle), z = alt.arms ? P.rig.arms(rig, alt.arms, armStyle) : null;
       ['back', 'front', 'over'].forEach(function (k) {
         if (!z) arms[k] = a[k] || '';
         else arms[k] = (a[k] ? '<g class="pose-a">' + a[k] + '</g>' : '') + (z[k] ? '<g class="pose-b">' + z[k] + '</g>' : '');
@@ -83,7 +90,7 @@ QJZ.pets.compose = (function () {
     function extra(m) { return wrap(def.wrap, uid, m); }
 
     var style = '--hx:' + rig.pivot[0] + 'px;--hy:' + rig.pivot[1] + 'px;--gx:' + rig.grab[0] + 'px;--gy:' + rig.grab[1] + 'px';
-    var open = '<svg xmlns="http://www.w3.org/2000/svg" class="pet-svg st-' + name + '" ';
+    var open = '<svg xmlns="http://www.w3.org/2000/svg" class="pet-svg st-' + name + (armStyle === 'none' ? ' arms-none' : '') + '" ';
     var defs = C.defs(uid) + (b.defs || '');
     var L = b.layers;
 
