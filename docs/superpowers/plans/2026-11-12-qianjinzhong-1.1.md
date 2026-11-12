@@ -24,19 +24,23 @@
 
 **Execution notes:**
 - Work on branch `feat/qianjinzhong-v1.1`, cut from `feat/qianjinzhong-v1` at execution time, in a worktree (superpowers:using-git-worktrees).
-- **Before Task 1,** confirm the starting point and record the baseline counts from `test.ps1`. If anything here is missing, stop and report.
-  - The cat skins are present: `cat-h2.js` and `cat-s4.js`, and `SKINS.cat` has 5 entries. The H2 skins are named 貪吃鼠 / 貪吃貓.
-  - The 1.0 simplification (spec §4.10) has landed:
-    - `panels.js` has 4 tabs (薪水和時間, 寵物, 畫面, 其他);
-    - the menu has one status-following 開始上班／下班／繼續上班 item, a 「版型 ▶」 submenu holding 縮成迷你 and 永遠在最上層, and 餵食 (with its snack count) in the top group;
-    - the app starts in the last-used layout;
-    - U1 has no date row, no 已上班 card, and no 月薪 text;
-    - U3 has one alternating card.
-- Note the message the simplified 1.0 uses for its live menu labels. 1.1 sends its own (`healthMenu`, Task 9) and does not touch that one.
-- Tasks run in order, except Task 17 (art).
-  - Task 17 may start in its own worktree after Task 7 is merged.
-  - It edits only `src/web/js/pets/**`, `src/web/css/pets.css`, `src/web/poses-review.html`, `tools/inline-page.ps1` and `tests/web/pets.test.js`.
-  - It runs its tests with `-EdgeProfile` (Task 1) and is merged back before Task 18.
+- **The starting point** is the simplified 1.0 (spec §4.10): branch `feat/qjz-simplify` at 8d26174, merged into `feat/qianjinzhong-v1` before 1.1 is cut. Before Task 1, confirm the facts below and record the baseline counts from `test.ps1`. If anything is missing, stop and report.
+  - **Cat skins:** `cat-h2.js` and `cat-s4.js` exist, `SKINS.cat` has 5 entries, and the H2 skins are named 貪吃鼠 / 貪吃貓.
+  - **Settings tabs:** `panels.js` `TABS` = `time` 薪水和時間 / `pet` 寵物 / `display` 畫面 / `other` 其他. Each entry lists its sections; `display` holds the sections `layout` and `boost`.
+  - **Menu** (`TrayMenu.cs`), top to bottom:
+    - 餵食 (×N);
+    - the work item `work` (開始上班／下班／繼續上班);
+    - 調整起算時間;
+    - 「版型 ▶」 = U1, U3, U5-B, U7, then 縮成迷你, then 永遠在最上層;
+    - 紀錄, 設定, 隱藏, 結束.
+    - The page drives the live labels with `menuState {work, snacks}`. 1.1 adds its own `healthMenu` and leaves that one alone.
+  - **Start layout.** The app starts in the last-used layout:
+    - page: `layouts.js` `lastLayout()` = M3 when `settings.layout.mini`, else `layout.current` when it is in `MAIN`;
+    - host: `HostSettings.StartLayout`, from the two lists `Layouts` (U1 U3 U5B U7 M3) and `MainLayouts` (U1 U3 U5B U7).
+    - `layout.start` is kept but no longer read.
+  - **U1 and U3:** U1 has no date row, no 已上班 card and no 月薪 text; U3 has one alternating card (`cardAt`).
+  - **Pet hit area:** `layouts.js` keys the pet's hit area by state: `PET_REACH` → `PET_HIT_TALL`, the band cache through `bandKey(id, state)`, and the bubble anchor through `QJZ.pets.speechAt(id, state)`.
+- Tasks run in order, except Task 17 (art). It may run in its own worktree in parallel once Task 7 is merged, and must be merged back before Task 18. Its brief (Ruling M12) gives the file limits and the rebase.
 - **GATE (Task 17):** the controller publishes the self-contained pose review page and waits for the user's OK. Only then do the skins declare the new poses. Task 18's release build needs those declarations.
 - **Ruling** marks this plan's decision where the spec left a choice or where spec, mockup and code disagreed.
 
@@ -44,7 +48,7 @@
 
 - **Carried over from 1.0** (spec §3):
   - Windows 10 1903+ / 11, with only in-box .NET 4.8 and the Evergreen WebView2 Runtime; one exe; no admin rights.
-  - Writes only to `%AppData%\錢進中`, `%LocalAppData%\錢進中` and the HKCU Run value `錢進中`.
+  - Writes only to `%AppData%\錢進中`, `%LocalAppData%\錢進中` and the HKCU Run value `錢進中`, plus `%AppData%\錢進中-<profile>` and `%LocalAppData%\錢進中-<profile>` when `QJZ_PROFILE` is set. **Ruling R2:** `QJZ_PROFILE` also works in release builds, because the release e2e and the CPU measurement must run while the user's own app runs. It is validated as `^[A-Za-z0-9]{1,16}$` and never touches the Run value.
   - Traditional Chinese; `NT$` with 2 decimals; the A1 palette and Fredoka; antivirus-friendly; no Windows toast; no downloads.
 - **Host code.** C# 5, compiled by `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`. None of: `$""`, `?.` / `?[]`, `nameof`, expression-bodied members, auto-property initialisers, `using static`, exception filters.
 - **Web code.** Classic scripts on `QJZ`, ES2017, no framework, no build step. Each new module is one IIFE (`window.QJZ = window.QJZ || {}; QJZ.x = (function () { … })();`). User text goes in only through `textContent` / `value`.
@@ -60,7 +64,8 @@
   - one reminder timer, every 50 min (20–120, step 5); 一天 8 杯 (1–20);
   - 專心 25 (10–90, step 5); 短休息 5 (1–30); 長休息 15 (5–60, step 5); 每 4 顆長休息 (2–8).
   - 起來動目標 = floor(hoursPerDay·60 / every), at least 1 (8 h, 50 min → 9). 番茄每日目標 = 每幾顆長休息.
-  - A lock of 5 min or more = one 起來動 and the timer restarts. 「等一下」 = 10 min. Re-wave every 2 min.
+  - A lock of 5:00 or more = one 起來動 and the timer restarts. **Ruling C2:** the spec leaves exactly 5:00 undefined; inclusive is simpler.
+  - 「等一下」 = 10 min. Re-wave every 2 min.
   - A queued bubble appears 3 s after the blocking condition ends. Reminders run only while the work status is `working`, which includes the sprint.
 - **Showing counts (§4.9 #8).**
   - Cups show only when the 喝水 reminder is on or a cup was logged today.
@@ -72,6 +77,8 @@
 - **Pet art (§5.8).**
   - Until a skin declares the new poses, they fall back: wave→celebrate, holdCup/sip→coffee, focus→typing.
   - `build.ps1 -Release` fails while any of the 10 skins lacks one. `-DraftPoses` overrides this for measurement builds only; such a build is never handed out.
+  - **Ruling R5:** there are two checks, the build regex and `QJZ.pets.missingPoses()`, because the build cannot run JS. Each one's comment names the other.
+- **Web tests.** `tests/web/harness.js` has one shared `at(h, m, s, ms)` for 2026-11-12, a Thursday (Task 1). Every new test file is wrapped in an IIFE, the house style.
 - **Version** 1.1.0 (`AppHost.Version`). Quoted Chinese strings in this plan are exact copy; keep them verbatim.
 - **Running tests.** The PowerShell tool is broken here, so run everything from Bash in the worktree root.
   - Tests: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./test.ps1`. A pass prints `WEB: <n> passed, 0 failed`, `HOST: <n> passed, 0 failed` and exits 0.
@@ -101,7 +108,7 @@
 1. **Sleep, or a long hidden spell across lunch or the end of the day.** Only working time counts. On return there is at most one bubble, 3 s after the window is back, and none after 下班. Tests: Task 1 `reminders: a long gap across lunch …`; Task 6 `care: a window hidden from 10:30 to 14:00 …`, `care: waking after 18:00 …`.
 2. **The 04:00 day change, or a clock change, while a pomodoro or a bubble is open.** A tomato counts for its start day; the timer restarts; yesterday's bubble closes quietly; a clock set back never gives negative time. Tests: Task 1 `clock went back`; Task 2 `pomodoro: a tomato counts for the day it started`; Task 6 `care: the 04:00 rollover …`.
 3. **Hand-edited or corrupt data** (out-of-range or wrong-type health settings, negative or float cups, a garbage pomodoro, an `endMs` days away). Everything is sanitised, with no NaN on screen and no crash. Tests: Task 4 ranges; Task 5 `health: … sanitized`; Task 2 `pomodoro: sanitize`.
-4. **U10 and grow-inside on odd monitor layouts** (a portrait monitor at negative coordinates, a side or auto-hide taskbar, a monitor that is gone). The capsule, and a grown U5-B / U7 / M3, stays fully on an existing work area. Tests: Task 9 `CapsuleDockTests` (with `Test_AreaForAGoneMonitor`), `WindowPlacerTests.Test_FitAfterGrow_*`.
+4. **U10 and grow-inside on odd monitor layouts** (a portrait monitor at negative coordinates, a side or auto-hide taskbar, a monitor that is gone). The capsule stays fully on an existing work area. A grown U5-B / U7 / M3 that was fully inside stays fully inside, and an overhang the user chose is kept. Tests: Task 9 `CapsuleDockTests` (with `Test_AreaForAGoneMonitor`), `WindowPlacerTests.Test_FitAfterGrow_*`.
 5. **Double presses, answers to a bubble already gone, and 記一杯水 from the tray while the bubble is open.** Exactly one cup per real press; stale answers do nothing; the bubble updates or closes quietly. Tests: Task 3 `prompt: stale and repeated answers do nothing`; Task 6 `care: a cup from the tray while the bubble is open …`.
 
 ---
@@ -131,7 +138,8 @@ src/web/js/pets/lines.js       MOD  drank / waterGoal / standOk / focusPoke
 src/web/js/pets/{states,props,rig}.js, skins/*.js, css/pets.css   MOD (Task 17 art only)
 src/web/css/health.css         NEW  ported from docs/prototypes/v1.1/index.html
 src/web/poses-review.html      NEW  dev page: 10 skins × the 4 new poses
-src/web/index.html, dev.html, tests/web/run.html, tests/web/fixtures-v10.js   MOD / NEW
+src/web/index.html, dev.html, tests/web/run.html, tests/web/harness.js (shared at())   MOD
+tests/fixtures/v10/*.json, tests/web/fixtures-v10.js   NEW (Task 4: a 1.0 profile; the .js wraps the JSON for the sync tests)
 src/host/Presentation.cs       NEW  SHQueryUserNotificationState -> fullscreen / presentation, polled, change event
 src/host/CapsuleDock.cs        NEW  U10 dock rectangles, snapping, area choice (pure)
 src/host/AppHost.cs            MOD  wiring: fullscreen, raise, dock, grow-inside, healthMenu, exit stamp clear
@@ -140,10 +148,10 @@ src/host/WindowPlacer.cs       MOD  FitAfterGrow / AfterShrink
 src/host/PetWindow.cs          MOD  ToPhysical
 src/host/TrayMenu.cs           MOD  記一杯水 / 開始番茄鐘 on top, U10/U12/U13 and 膠囊位置 in 版型 ▶
 src/host/PauseGate.cs          MOD  ShowRescue: EffectiveTopmost, NoActivate U10, MenuShows
-src/host/HostSettings.cs       MOD  layout list
+src/host/HostSettings.cs       MOD  Layouts and MainLayouts gain U10 / U12 / U13
 src/host/Payload.cs, Program.cs, ExitStamp.cs   MOD  §5.10 fixes
 src/host/Native.cs             MOD  SHQueryUserNotificationState
-tools/test-profile.ps1, tools/shot.ps1, tools/cpu-measure.ps1, tools/inline-page.ps1   NEW
+tools/shot.ps1 (Task 7), tools/test-profile.ps1 (Task 8), tools/cpu-measure.ps1 (Task 15), tools/inline-page.ps1 (Task 17)   NEW
 tools/visual-check/spiketool.cs  MOD  fg, post
 build.ps1 (-Release pose check, -DraftPoses), test.ps1 (-EdgeProfile, -WebOnly, -HostOnly)   MOD
 docs/使用說明.md, src/web/guide.txt   MOD
@@ -174,12 +182,18 @@ docs/使用說明.md, src/web/guide.txt   MOD
 
 **Files:**
 - Create: `src/web/js/core/reminders.js`, `tests/web/reminders.test.js`
-- Modify: `tests/web/run.html`, `src/web/index.html`, `src/web/dev.html`, `test.ps1`
+- Modify: `tests/web/harness.js`, `tests/web/run.html`, `src/web/index.html`, `src/web/dev.html`, `test.ps1`
 
 **Interfaces:**
-- Consumes: `QJZ.earn.snapshot`, `QJZ.earn.lunchRange`, `QJZ.time.dayKey`; settings `health` (Task 4 shape; the tests pass parsed settings).
+- Consumes: `QJZ.earn.snapshot`, `QJZ.earn.lunchRange`, `QJZ.time.dayKey`.
+- Consumes `settings.health = {asked, every, sit:{on}, water:{on, goal}, pomodoro:{focus, short, long, longEvery}}`.
+  - Task 4 adds it to the sanitiser later. Until then `QJZ.settings.parse` drops it.
+  - **Ruling M1:** these tests therefore attach a literal health object to parsed 1.0 settings. The module is pure and never parses.
 - Produces `QJZ.reminders` (pure; it returns new objects):
-  - `workMs(rec, settings, fromMs, toMs) -> number`: `(snapshot(to).workedSec − snapshot(from).workedSec) × 1000` with the same record. Lunch, before the start, past the 8 h, a 下班 and 今天休假 count 0. Returns 0 when `to <= from`.
+  - `workMs(rec, settings, fromMs, toMs) -> number`: `(workedSec at to − workedSec at from) × 1000`, both from `QJZ.earn.snapshot`.
+    - Each snapshot takes the record **as at its time t**: `endMs` is passed only when `endMs <= t`, otherwise null.
+    - So a 下班 at 15:00 still counts 14:00–15:00.
+    - Lunch, before the start, past the 8 h, after a 下班, and 今天休假 count 0. Returns 0 when `to <= from`.
   - `initial(day, nowMs) -> R`, with `R = {day, lastMs, ms, away, awayMs, awayWorking, msBeforeBreak, snoozeUntil}`.
   - `advance(r, nowMs, rec, settings) -> R`:
     - adds `workMs(lastMs, now)` to `ms` unless `away`;
@@ -187,26 +201,34 @@ docs/使用說明.md, src/web/guide.txt   MOD
   - `goAway(r, ms, rec, settings) -> R` (lock or suspend): advances to `ms`, then sets `away`, `awayMs`, and `awayWorking = (snapshot(ms).status === 'working')`. A no-op when already away.
   - `comeBack(r, ms, rec, settings) -> {r, standup}`:
     - advances to `ms` while still away, then clears `away`;
-    - when `ms − awayMs >= AWAY_STANDUP_MS && awayWorking`: `ms = 0`, `snoozeUntil = null`, `standup = true`;
+    - when `ms − awayMs >= AWAY_STANDUP_MS && awayWorking`: `ms = 0`, `snoozeUntil = null`, `standup = true`. **Ruling C2:** exactly 5:00 counts.
     - when not away, `r` is unchanged and `standup` is false;
     - a stand-up counts whatever the switches say (§5.3).
   - `reset(r)`: `ms = 0`, snooze cleared.
   - `breakStarted(r)`: `msBeforeBreak = ms`, `ms = 0`.
   - `breakSkipped(r)`: `ms += msBeforeBreak`.
   - `snooze(r, nowMs)`: `snoozeUntil = nowMs + SNOOZE_MS`.
-  - `ask(health, cups) -> {sit, water}`: what the bubble asks. `sit = health.sit.on`; `water = health.water.on && cups < health.water.goal`.
+  - `ask(health, cups) -> {sit, water}`: what the bubble asks.
+    - `sit = health.asked && health.sit.on`;
+    - `water = health.asked && health.water.on && cups < health.water.goal`.
+    - Until the health question is answered nothing is asked (§5.5).
   - `due(r, nowMs, health, cups) -> {due, sit, water}`: the `ask` result plus `due = (sit || water) && ms >= health.every·60000 && !(snoozeUntil > nowMs)`.
   - `minutesToNext(r, health, cups) -> number|null`: null when nothing is asked; otherwise `max(0, ceil((every·60000 − ms) / 60000))`.
   - Constants: `AWAY_STANDUP_MS = 300000`, `SNOOZE_MS = 600000`.
 - Produces `test.ps1 [-EdgeProfile <dir>] [-WebOnly] [-HostOnly]`. The default profile is `tests\web\.edge-profile`; the msedge cleanup matches only the profile in use.
+- Produces the global `at(h, m, s, ms)` in `tests/web/harness.js`: local epoch ms on 2026-11-12, a Thursday. Tasks 2–6 use it. Every new test file is wrapped in an IIFE, the house style, so its `var`s never collide.
 
-- [ ] **Step 1: Add the three `test.ps1` parameters.** Run `test.ps1`. Expected: the baseline counts.
-- [ ] **Step 2: Write the failing tests.** 2026-11-12 is a Thursday; the start is 09:00, so lunch is 12–13 and the day ends 18:00.
+- [ ] **Step 1: Add the three `test.ps1` parameters and the shared `at()`.** Run `test.ps1`. Expected: the baseline counts.
+- [ ] **Step 2: Write the failing tests** in `reminders.test.js`, inside `(function () { … })();`. The start is 09:00, so lunch is 12–13 and the day ends 18:00.
 
 ```js
 var R = QJZ.reminders, D = '2026-11-12';
-function at(h, m, s, ms) { return new Date(2026, 10, 12, h, m, s || 0, ms || 0).getTime(); }
-function S(health) { return QJZ.settings.parse(JSON.stringify({ salary: { amount: 50000 }, health: health || { asked: true, sit: { on: true }, water: { on: true } } })).settings; }
+function S(o) {   // parsed 1.0 settings + a literal health object (Ruling M1)
+  var s = QJZ.settings.parse('{"salary":{"amount":50000}}').settings;
+  s.health = { asked: true, every: 50, sit: { on: true }, water: { on: true, goal: 8 }, pomodoro: { focus: 25, short: 5, long: 15, longEvery: 4 } };
+  for (var k in (o || {})) s.health[k] = o[k];
+  return s;
+}
 var ALL = S(), H = ALL.health;
 function started(h, m) { return QJZ.day.manualStart(QJZ.day.empty(D), at(h, m)); }
 function run(rec, from, to) { return R.advance(R.initial(D, from), to, rec, ALL); }
@@ -223,10 +245,11 @@ test('reminders: due after 50 working minutes, not a millisecond earlier', funct
   eq(due(run(rec, at(9, 0), at(9, 49, 59, 999)), at(9, 49, 59, 999)), false); eq(due(run(rec, at(9, 0), at(9, 50)), at(9, 50)), true);
 });
 test('reminders: what the bubble asks', function () {
-  function ask(sit, water, cups) { return R.ask(S({ asked: true, sit: { on: sit }, water: { on: water } }).health, cups); }
+  function ask(sit, water, cups) { return R.ask(S({ sit: { on: sit }, water: { on: water, goal: 8 } }).health, cups); }
   eq(ask(true, true, 3), { sit: true, water: true }); eq(ask(true, false, 3), { sit: true, water: false }); eq(ask(false, true, 3), { sit: false, water: true });
   eq(ask(true, true, 8), { sit: true, water: false }, 'goal reached'); eq(ask(false, true, 8), { sit: false, water: false }); eq(ask(false, false, 0), { sit: false, water: false });
-  eq(due(run(started(9, 0), at(9, 0), at(15, 0)), at(15, 0), S({ asked: true, water: { on: true } }).health, 8), false, 'water only, goal reached: done for today');
+  eq(R.ask(S({ asked: false }).health, 0), { sit: false, water: false }, 'not asked yet (§5.5)');
+  eq(due(run(started(9, 0), at(9, 0), at(15, 0)), at(15, 0), S({ sit: { on: false }, water: { on: true, goal: 8 } }).health, 8), false, 'water only, goal reached: done for today');
 });
 test('reminders: the end of lunch restarts the timer (start 11:20 -> due 13:50, not 13:10)', function () {
   var r = started(11, 20);
@@ -251,7 +274,7 @@ test('reminders: reset; a break restarts the timer; skipping the break restores 
   r = R.breakSkipped(R.advance(r, at(9, 46), rec, ALL)); eq(r.ms, 46 * 60000); eq(due(R.advance(r, at(9, 50), rec, ALL), at(9, 50)), true);
 });
 test('reminders: nothing asked, or a day that never started, is never due; minutes to the next one', function () {
-  var off = S({ asked: true }).health, rec = started(9, 0);
+  var off = S({ sit: { on: false }, water: { on: false, goal: 8 } }).health, rec = started(9, 0);
   eq(due(run(rec, at(9, 0), at(15, 0)), at(15, 0), off), false); eq(due(run(QJZ.day.empty(D), at(9, 0), at(15, 0)), at(15, 0)), false);
   eq(R.minutesToNext(run(rec, at(9, 0), at(9, 42)), H, 0), 8); eq(R.minutesToNext(R.initial(D, at(9, 0)), off, 0), null);
 });
@@ -262,7 +285,7 @@ test('reminders: a long gap across lunch counts only the working time after the 
 - [ ] **Step 3: Run `test.ps1`.** Expected: FAIL (`failed to load reminders.js`).
 - [ ] **Step 4: Implement `reminders.js`.**
 - [ ] **Step 5: Run `test.ps1`.** Expected: PASS.
-- [ ] **Step 6: Commit** the six files as `feat(core): the reminder timer`.
+- [ ] **Step 6: Commit** the seven files as `feat(core): the reminder timer`.
 
 ---
 
@@ -291,9 +314,11 @@ test('reminders: a long gap across lunch counts only the working time after the 
   - `sanitize(raw) -> P|null`.
     - `idle` needs no times.
     - `null` for: a non-object; an unknown phase; non-finite times; `endMs <= startMs`; `endMs − startMs > 24 h`; a malformed day.
-  - `remainingMs`, `minutesLeft` (ceil), `mmss` (`'mm:ss'`, seconds rounded up), `fraction` (elapsed share 0..1), all `(p, nowMs)`. Each is null when the phase is idle or breakOver.
+  - `remainingMs`, `minutesLeft` (ceil), `mmss` (`'mm:ss'`, seconds rounded up), `fraction` (elapsed share), all `(p, nowMs)`.
+    - Each is null when the phase is idle or breakOver.
+    - The remaining time is clamped to `[0, endMs − startMs]` and `fraction` to `[0, 1]`, so a clock set back never shows more than the phase length.
 
-- [ ] **Step 1: Write the failing tests** (`CFG = {focus:25, short:5, long:15, longEvery:4}`; `at()` as in Task 1):
+- [ ] **Step 1: Write the failing tests** in `pomodoro.test.js`, inside an IIFE, using the shared `at(h, m, s, ms)` from `harness.js` (Task 1). `CFG = {focus:25, short:5, long:15, longEvery:4}`:
 
 ```js
 var P = QJZ.pomodoro, CFG = { focus: 25, short: 5, long: 15, longEvery: 4 };
@@ -339,6 +364,10 @@ test('pomodoro: ring text, minutes left and fraction', function () {
   var p = P.start(P.idle(), at(9, 0), CFG);
   eq(P.mmss(p, at(9, 25) - 1121200), '18:42'); eq(P.minutesLeft(p, at(9, 25) - 660001), 12); eq(P.fraction(p, at(9, 12, 30)), 0.5); eq(P.mmss(P.idle(), at(9, 0)), null);
 });
+test('pomodoro: clock set back', function () {
+  var p = P.start(P.idle(), at(9, 0), CFG);
+  eq([P.minutesLeft(p, at(8, 0)), P.fraction(p, at(8, 0)), P.mmss(p, at(8, 0))], [25, 0, '25:00']);
+});
 ```
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
 - [ ] **Step 3: Implement `pomodoro.js`.**
@@ -358,7 +387,7 @@ test('pomodoro: ring text, minutes left and fraction', function () {
   - `initial() -> Q`.
   - `step(q, c) -> {q, events}`, where:
     - `c = {nowMs, blocked, focus, working, due:{due, sit, water} (Task 1), notice:null|'break'|'breakEnd', noticeWater}`;
-    - `blocked` = hidden, fullscreen, or PANEL open;
+    - `blocked` = hidden, fullscreen, or PANEL open. **Ruling C1:** an open settings panel also holds prompts, because the bubble has no place inside PANEL; §5.1 lists only the first two.
     - `Prompt = {kind:'both'|'sit'|'water'|'break'|'breakEnd', water:boolean, shownMs}`;
     - events: `{type:'show'|'update', prompt}`, `{type:'hide', quiet}`, `{type:'wave', prompt}`.
   - Rules:
@@ -373,6 +402,7 @@ test('pomodoro: ring text, minutes left and fraction', function () {
     3. **While a prompt shows:**
        - other reminder parts → `update` (same `shownMs`, no gate);
        - a notice wanted while a reminder shows → `hide {quiet:true}`, then `show` the notice;
+       - a different notice wanted while a notice shows (break → breakEnd when the break bubble was ignored) → `hide {quiet:true}`, then `show` it with a new `shownMs`;
        - nothing wanted → `hide {quiet:true}`, and the gates restart.
     4. **Re-wave:** `wave` at `shownMs + k·WAVE_MS`. Never a second bubble.
   - `answer(q, buttonId, nowMs) -> {q, effects}`.
@@ -396,7 +426,7 @@ test('pomodoro: ring text, minutes left and fraction', function () {
   - Icons: both / sit `stand`, water `drop`, break `rest`, breakEnd `tom`.
 - **Ruling:** the combined title rotates through 5 lines, the first being the user's 「起來動一動，順便喝口水～」 (§7: at least 5 lines per reminder).
 
-- [ ] **Step 1: Write the failing tests.**
+- [ ] **Step 1: Write the failing tests** in `prompt.test.js`, inside an IIFE, using the shared `at()` from `harness.js`.
 
 ```js
 var P = QJZ.prompt;
@@ -443,6 +473,10 @@ test('prompt: a pomodoro notice replaces the reminder; the reminder returns 3 s 
   eq(ty(x), ['hide:quiet', 'show:breakEnd']); var a = P.answer(x.q, 'stop', at(10, 11)); eq(a.effects, ['ackNotice', 'stopPomodoro']);
   eq(ty(st(a.q, at(10, 11, 2, 999), { ask: 'water' })), []); eq(ty(st(a.q, at(10, 11, 3), { ask: 'water' })), ['show:water']);
 });
+test('prompt: an ignored break bubble becomes the break-end bubble', function () {
+  var x = st(st(P.initial(), at(10, 5), { notice: 'break' }).q, at(10, 10), { notice: 'breakEnd' });
+  eq(ty(x), ['hide:quiet', 'show:breakEnd']); eq(x.events[1].prompt.shownMs, at(10, 10));
+});
 test('prompt: pomodoro notices also show outside working hours', function () { eq(ty(st(P.initial(), at(19, 0), { notice: 'breakEnd', working: false })), ['show:breakEnd']); });
 test('prompt: answers', function () {
   function ans(o, btn) { return P.answer(st(P.initial(), at(10, 0), o).q, btn, at(10, 1)).effects; }
@@ -484,11 +518,16 @@ test('prompt: view copy', function () {
 
 ### Task 4: Settings schema and the upgrade from 1.0 (§4.9, §5.4, §5.5)
 
-**Starting point:** the 1.0 simplification has already made the app start in the last-used layout and removed the start-layout and topmost controls from settings (§4.10). Do not rebuild either. This task only adds the 1.1 keys and lets U10 / U12 / U13 into the lists the simplified code keeps.
+**Starting point:** the simplified 1.0 (§4.10) has already done the start-layout work. Do not rebuild it. This task only adds the 1.1 keys and lets U10 / U12 / U13 into both host lists and the page's `LAYOUTS`.
+- It starts in the last-used layout:
+  - page: `layout.current`, or M3 when `layout.mini`;
+  - host: `HostSettings.StartLayout`, from `MainLayouts` (U1 U3 U5B U7), or M3 when `mini`.
+- `layout.start` is kept but no longer read.
+- The settings panel has no start-layout or topmost controls.
 
 **Files:**
-- Create: `tests/web/fixtures-v10.js`
-- Modify: `src/web/js/core/settings.js`, `tests/web/settings.test.js`, `tests/web/run.html`, `src/host/HostSettings.cs`, `tests/host/HostSettingsTests.cs`
+- Create: `tests/fixtures/v10/settings.json`, `history.json`, `window.json`, `tests/web/fixtures-v10.js`
+- Modify: `src/web/js/core/settings.js`, `tests/web/settings.test.js`, `tests/web/panels.test.js`, `tests/web/run.html`, `src/host/HostSettings.cs`, `tests/host/HostSettingsTests.cs`
 
 **Interfaces:**
 - Produces in `QJZ.settings`:
@@ -496,18 +535,19 @@ test('prompt: view copy', function () {
   - `DEFAULTS.layout.capsule = 'top'`: the stored dock, which settings never show;
   - topmost defaults `U10:true, U12:false, U13:false`;
   - `DEFAULTS.display.powerSaver = false`.
-  - `LAYOUTS` gains `'U10','U12','U13'` (exported). `DOCKS = ['top','bottomLeft','bottomCenter','bottomRight']`.
+  - `LAYOUTS` (used for `layout.current` and the topmost map) gains `'U10','U12','U13'` and is exported. `DOCKS = ['top','bottomLeft','bottomCenter','bottomRight']`.
   - `HEALTH_RANGES = {'every':[20,120,5], 'water.goal':[1,20,1], 'pomodoro.focus':[10,90,5], 'pomodoro.short':[1,30,1], 'pomodoro.long':[5,60,5], 'pomodoro.longEvery':[2,8,1]}`.
     - A non-number gives the default. Otherwise the value is clamped, then set to `min + round((v − min) / step)·step`.
     - A non-boolean gives the default.
   - `standGoal(settings) -> max(1, floor(hoursPerDay·60 / health.every))` and `tomatoGoal(settings) -> health.pomodoro.longEvery`.
-- Produces in `HostSettings`: the layout list includes U10, U12 and U13; U10 is topmost by default. If the simplified 1.0 renamed its start-layout field, keep its name.
-- Produces in `tests/web/fixtures-v10.js`:
-  - `window.V10 = {settingsText, settingsParsed}`.
-  - `settingsText` is a settings.json with every value set away from the defaults, written by released 1.0.0.
-  - `settingsParsed` is `JSON.stringify(QJZ.settings.parse(settingsText).settings)`, recorded once with the branch's `settings.js` before this task changes it.
+- Produces in `HostSettings`: both `Layouts` and `MainLayouts` gain U10, U12 and U13, and U10 is topmost by default. Without this, `current:"U12"` would start, pre-place and rescue as U1 (Ruling M5).
+- Produces the 1.0 profile fixture `tests/fixtures/v10/` (Tasks 4 and 18 use it; Ruling M6):
+  - **Origin.** Hand-authored as 1.0's own serialisation. Take a settings object with every value away from the defaults (salary hourly 210 ÷ 30, 7.5 h, lunch 12:30–13:30, manual start, Mon–Thu, cat s5 named 咪咪, `current` U3, a custom topmost map, milestone 250, one item, sound on 0.3, autostart off, capture off, hotkey Ctrl+Alt+J, opaque on, onboarded). Pass it through `JSON.stringify(QJZ.settings.parse(x).settings)` using the released 1.0.0 `settings.js` (`git show 8cd9ffb:src/web/js/core/settings.js`). Do not run a 1.0.0 exe: it has no profile support.
+  - **`history.json`:** two closed days and an open today-style record.
+  - **`window.json`:** every 1.0 layout on DISPLAY1, with U5B well away from any edge (Ruling C5).
+  - **`tests/web/fixtures-v10.js`** = `window.V10 = {settings: '<settings.json text>', history: '<history.json text>'}`. It is generated from the JSON files with a one-line PowerShell command, written into the commit message, and regenerated whenever they change: the web tests are synchronous and cannot fetch.
 
-- [ ] **Step 1: Create `fixtures-v10.js`** (the record step above). Then write the failing tests:
+- [ ] **Step 1: Create the fixture and `fixtures-v10.js`.** Then write the failing tests:
 
 ```js
 test('settings: health defaults and the derived goals (§4.9, §5.4)', function () {
@@ -535,19 +575,30 @@ test('settings: new layouts, the stored capsule dock, 省電模式', function ()
   ok(['U10', 'U12', 'U13'].every(function (l) { return QJZ.settings.LAYOUTS.indexOf(l) >= 0; }));
 });
 test('settings: a 1.0 settings.json keeps every value; reminders stay off until asked', function () {
-  var s = QJZ.settings.parse(V10.settingsText).settings, back = JSON.parse(JSON.stringify(s));
-  delete back.health; delete back.layout.capsule; delete back.display.powerSaver; ['U10', 'U12', 'U13'].forEach(function (k) { delete back.layout.topmost[k]; });
-  eq(back, JSON.parse(V10.settingsParsed)); eq([s.health.asked, s.health.sit.on, s.health.water.on], [false, false, false]);
+  function onlyKeysOf(v, shape) {   // v restricted to the keys the 1.0 file has
+    if (!shape || typeof shape !== 'object' || Array.isArray(shape)) return v;
+    var o = {}; for (var k in shape) o[k] = onlyKeysOf(v[k], shape[k]); return o;
+  }
+  var old = JSON.parse(V10.settings), s = QJZ.settings.parse(V10.settings).settings;
+  eq(onlyKeysOf(s, old), old); eq([s.health.asked, s.health.sit.on, s.health.water.on], [false, false, false]);
 });
 ```
 
   In `HostSettingsTests.Test_NewLayoutsAndTheirTopmost`:
   - `TopmostByLayout()` has U10 true, and U12 / U13 false;
-  - a settings text naming U12 as the last or start layout is accepted;
-  - `"U99"` falls back to U1.
+  - `{"layout":{"current":"U12"}}` → `StartLayout == "U12"`;
+  - `{"layout":{"current":"U13","mini":true}}` → `"M3"`;
+  - `{"layout":{"current":"U99"}}` → `"U1"`.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
-- [ ] **Step 3: Implement** the sanitiser additions (a `ranged(v, range, def)` helper), the two goal functions and the host list.
-- [ ] **Step 4: Run `test.ps1`.** Expected: PASS. Update the old assertions that pin the layout list or the topmost map; the diff shows only those lines.
+- [ ] **Step 3: Implement:**
+  - the sanitiser additions (a `ranged(v, range, def)` helper);
+  - the two goal functions;
+  - both host lists.
+- [ ] **Step 4: Run `test.ps1`.** Expected: PASS. The new keys also break these existing assertions; update each to include them:
+  - `settings.test.js` 「display.opaque (相容模式) defaults…」: `display` now deep-equals `{opaque:…, powerSaver:false}`.
+  - `settings.test.js` 「an old 1.0 settings.json reads back…」: its `want` also gains the 1.1 defaults (`health`, `layout.capsule`, `display.powerSaver`, `topmost.U10/U12/U13`).
+  - `panels.test.js` `savedSettings(e).display` deep-equals `{opaque:true}` → add `powerSaver:false`.
+  - Any assertion that pins `LAYOUTS` or the topmost map.
 - [ ] **Step 5: Commit** as `feat(settings): health section with derived goals, new layouts, capsule dock, power saver`.
 
 ---
@@ -559,6 +610,7 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 - Modify: `src/web/js/core/history.js`, `src/web/js/ui/app.js`, `tests/web/history.test.js`, `tests/web/app.test.js`, `tests/web/run.html`, `src/web/index.html`, `src/web/dev.html`
 
 **Interfaces:**
+- Consumes: `QJZ.pomodoro.sanitize` (Task 2); `settings.health.water.goal` (Task 4); `QJZ.history.closeDay(rec, settings)` and app.js's `retire()` / `setToday` / `markHistory` / `flush` (1.0).
 - Produces `QJZ.health` (pure):
   - `of(rec) -> {cups, cupGoal, tomatoes, standups}`: zeros and `cupGoal: null` when the record has no health.
   - `sanitize(raw) -> health|null`. Counts are integers, floored, 0..999. `cupGoal` is an integer 1..20, else null. A non-object gives null.
@@ -572,12 +624,13 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 - Produces in `QJZ.app`:
   - `setHealth(day, h)`: the sanitised `h` goes on `history.days[day]`.
     - Today's record goes through `setToday`; another existing record is updated in place.
-    - A missing earlier day is created as `QJZ.history.closeDay(QJZ.day.empty(day))`, i.e. earned 0.
+    - A missing earlier day is created as `QJZ.history.closeDay(QJZ.day.empty(day), state.settings)`, i.e. earned 0.
+    - A day before today is sealed with the current `water.goal` as it is written, so no past day keeps cups without a goal.
     - Then `markHistory()`, `flush()` at once, and `change`.
   - `setPomodoro(p)`: `history.pomodoro = p` (the key is deleted for null), then `markHistory()`, `flush()`, `change`.
   - `retire()` keeps an unstarted record that has health (closed with earned 0) and still drops one without (1.0 behaviour). Every closed record with health is sealed with `settings.health.water.goal`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [ ] **Step 1: Write the failing tests.** The new `health.test.js` is wrapped in an IIFE; the app tests extend the existing `app.test.js` helpers (`mk`, `init`, `rec`).
   - `health: counts of a record, sanitized`:
     - `of({})` → zeros with `cupGoal` null;
     - `sanitize({cups:-2, cupGoal:'x', tomatoes:2.7, standups:'4'})` → `{cups:0, cupGoal:null, tomatoes:2, standups:0}`;
@@ -588,7 +641,7 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
     - a valid focus `pomodoro` is kept;
     - `'pomodoro' in` the parsed history is false both for no key and for `{phase:'zzz'}`.
   - `app: setHealth on today is saved at once`: the last `saveHistory` is sent synchronously and has `"cups":1`.
-  - `app: setHealth on an earlier day without a record creates it closed`: earned 0, cups 1.
+  - `app: setHealth on an earlier day without a record creates it closed and sealed`: earned 0, cups 1, `cupGoal` 8.
   - `app: an unstarted day with health is kept and closed at the rollover; one without is dropped as in 1.0`:
     - Saturday 11-14, not started, has cups 2; 11-13 is unstarted with no health;
     - after the clock moves to 11-15 05:00 and `tickNow()` runs, 11-14 is `{earned:0, health.cups:2, health.cupGoal:8}` and 11-13 is gone.
@@ -606,52 +659,64 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 
 **Files:**
 - Create: `src/web/js/ui/care.js`, `tests/web/care.test.js`
-- Modify: `src/web/index.html`, `src/web/dev.html` (add the script, and `QJZ.care.start()` before `QJZ.app.start()`), `tests/web/run.html`
+- Modify:
+  - `src/web/js/ui/app.js`: a `started` event, emitted by `startWork()`;
+  - `src/web/index.html`, `src/web/dev.html`: add the script, and call `QJZ.care.start()` before `QJZ.app.start()`;
+  - `tests/web/run.html`.
 
 **Interfaces:**
 - Consumes:
-  - Tasks 1–5;
-  - `QJZ.app.state` / `on('change'|'second')` / `nowMs` / `setHealth` / `setPomodoro`;
-  - bridge `session`, `visibility`, `fullscreen` and `menu`.
+  - Task 1: `QJZ.reminders` (`initial`, `advance`, `goAway`, `comeBack`, `reset`, `breakStarted`, `breakSkipped`, `snooze`, `ask`, `due`, `minutesToNext`).
+  - Task 2: `QJZ.pomodoro` (`start`, `stop`, `skipBreak`, `ack`, `advance`).
+  - Task 3: `QJZ.prompt` (`step`, `answer`, `view`).
+  - Task 4: `QJZ.settings.standGoal` / `tomatoGoal`.
+  - Task 5: `QJZ.health.of`, `QJZ.app.setHealth` / `setPomodoro`.
+  - `QJZ.app.state` / `on('change'|'second'|'started')` / `nowMs`.
+  - Bridge: `session`, `visibility`, `fullscreen`, `menu`.
 - Produces `QJZ.care`:
   - `start(opts)`, with `opts = {bridge, now (default QJZ.app.nowMs), heartbeat (default true)}`.
     - It steps on the app's `second` event and on a 10 s `setInterval` heartbeat.
     - The heartbeat keeps the pomodoro counting and saved while the page is hidden or locked.
   - `stepNow()` (tests).
-  - `state = {ready, visible, fullscreen, panel, away, r, p, q, prompt, breakWater, health:{cups, cupGoal, tomatoes, standups}, goals:{cups, tomatoes, standups}, turn}`.
+  - `state = {ready, visible, fullscreen, panel, away, r, p, q, prompt, breakWater, health:{cups, cupGoal, tomatoes, standups}, goals:{cups, tomatoes, standups}, show:{cups, tomatoes}, cupsText, turn}`.
     - `visible` is false until the host's `visibility` message arrives.
     - `goals` come from `water.goal`, `tomatoGoal()` and `standGoal()`.
+    - `show` and `cupsText` hold the §4.9 #8 rule, computed once; layouts (Task 10) and `healthMenu` both read them.
+      - `show.cups = health.water.on || cups > 0`;
+      - `show.tomatoes = tomatoes > 0 || p.phase === 'focus'`;
+      - `cupsText = cups + '/' + goals.cups`.
   - `on(name, fn)`, events:
     - `change`;
     - `prompt` `{type, prompt, view}`;
     - `cue` (`'focus'|'wave'|'holdCup'|'stretch'|null`);
     - `drank` `{cups, goalReached}`, where `goalReached` is true only on the cup that reaches the goal;
-    - `standup` `{count}`.
+    - `standup` `{count, source:'up'|'drink'|'break'|'lock'}`.
   - `drink()`: +1 cup today at any time, through `setHealth` with `cupGoal`. When only 喝水 is on (`!health.sit.on`), it also calls `reminders.reset` (§5.1).
   - `setCups(n)`: n ≥ 0.
   - `toggleFocus()`: idle or breakOver → start; focus or break → stop.
-  - `answer(buttonId)` applies `QJZ.prompt.answer`, then each effect:
-    - `standup`: standups +1 today, `reminders.reset`, event `standup`;
+  - `answer(buttonId)` applies `QJZ.prompt.answer`. When it returns effects, care emits `prompt {type:'hide', quiet:false}` and sends `raise {on:false}`: an answer closes the bubble. Then it applies each effect:
+    - `standup`: standups +1 today, `reminders.reset`, event `standup` with `source` `'up'` (起來了) or `'drink'` (喝了);
     - `drink`: `drink()`;
     - `snooze`: `reminders.snooze`;
-    - `skipBreak`: `pomodoro.skipBreak`, `reminders.breakSkipped`, and −1 standup on the break's day;
+    - `skipBreak`: `pomodoro.skipBreak`, `reminders.breakSkipped`, and −1 standup on the break's day. **Ruling C3:** skipping means you didn't get up; §5.1 says only 計時不歸零;
     - `nextFocus`: `pomodoro.start`;
     - `stopPomodoro`: `pomodoro.stop`;
     - `ackNotice`: `pomodoro.ack`.
-  - `setPanel(open)`: while open, prompts wait.
+  - `setPanel(open)`: while open, prompts wait (Ruling C1, Task 3).
   - `minutesToStand()`.
   - `view()`: the view of the showing prompt, or null. `turn` increments on each reminder show.
-  - `_dev(o)`: dev.html seeds `{cups, tomatoes, standups, pomo, prompt}`.
-  - `_reset()`.
+  - `_reset()`, and `_dev(o)`. **Ruling R3:** `_dev` is dev-only, like `_reset`: dev.html seeds `{cups, tomatoes, standups, pomo, prompt}` through it, and nothing in index.html calls it.
+- **The app's `started` event** (a fresh 開始上班 through `QJZ.app.startWork()`) → `r = reminders.initial(today, now)`. 繼續上班 and 調整起算時間 leave `r` alone (§5.1 「開始上班時從 0 開始算」).
 - **Each step,** in order:
   1. Day change → `r = initial(today)`.
   2. `pomodoro.advance(p, now, cfg, tomatoes on p.day)`.
      - `focusDone` → tomatoes +1 on `ev.day`.
-     - `breakStart`:
-       - first set `breakWater = reminders.due(r, ev.atMs, …).due && .water`, the water line of a queued reminder (§5.2);
-       - then standups +1 on `ev.day`, and `reminders.breakStarted` when `r.day === ev.day`.
-     - Then `setPomodoro`.
-  3. `reminders.advance`.
+     - `breakStart`, in this order (Ruling M3):
+       1. `r = reminders.advance(r, ev.atMs, rec, settings)`;
+       2. `breakWater = due.due && due.water`, with `due = reminders.due(r, ev.atMs, …)`. This is the water line of a reminder queued during the focus (§5.2);
+       3. standups +1 on `ev.day` (event `standup` with `source:'break'`), and `reminders.breakStarted` when `r.day === ev.day`.
+     - `setPomodoro` only when `advance` returned events or the user changed the pomodoro. **Ruling R7:** never on every step.
+  3. `reminders.advance` to `now`.
   4. `prompt.step` with:
      - `blocked = !visible || fullscreen || panel`;
      - `focus = p.phase === 'focus'`;
@@ -666,14 +731,14 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
      - otherwise null.
 - **Session, menu and host messages:**
   - `lock` / `suspend` → `goAway`.
-  - `unlock` / `logon`, and `resume` while the session is not locked → `comeBack`. A stand-up counts one standup today.
+  - `unlock` / `logon`, and `resume` while the session is not locked → `comeBack`. A stand-up counts one standup today (`source:'lock'`).
   - `menu drink` → `drink()`; `menu pomodoro` → `toggleFocus()`.
-  - `healthMenu {cups, pomodoro}` is sent after init and on every change.
-    - `cups` is `'3/8'` when cups show (§4.9 #8: 喝水 on, or cups > 0), else null.
+  - `healthMenu {cups, pomodoro:{phase, endsMs}}` is sent after init, and afterwards only when its payload differs from the last one sent (Ruling R7).
+    - `cups` = `state.show.cups ? state.cupsText : null`.
     - `endsMs` is null in idle and breakOver.
 
-- [ ] **Step 1: Write the failing tests** in `care.test.js`.
-  - **Fake bridge:** an array of handlers per type.
+- [ ] **Step 1: Write the failing tests** in `care.test.js`, inside an IIFE, with the shared `at()` from `harness.js` for 11-12 and `new Date(…)` for other days.
+  - **Fake bridge:** an array of handlers per type (app.test.js's fake keeps one per type, which is not enough here).
   - **`mk(now, settings, history)`:**
     - `_reset` both app and care;
     - `care.start({bridge, now, heartbeat:false})`, then `app.start({bridge, now, tick:false})`;
@@ -682,8 +747,11 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
   - **Defaults:** settings `{salary 50000, onboarded, health:{asked:true, sit:{on:true}, water:{on:true}}}`; work starts 09:00 on Thursday 11-12.
   - The tests:
   - `care: the reminder shows at 09:50:00, asks both and raises the window`: nothing at 09:49:59; `show:both` at 09:50; `raise {on:true}`; cue `'holdCup'`.
-  - `care: 起來了 counts a stand-up; the next reminder is at 10:40`: `answer('up')` at 09:50 → standups 1, `raise {on:false}`; nothing at 10:39:59; show at 10:40.
-  - `care: 喝了 counts a cup and a stand-up, saved at once`: cups 1 and standups 1; a `saveHistory` with `"cups":1` is sent before any later step; the next reminder is at 10:40.
+  - `care: 起來了 counts a stand-up and closes the bubble; the next reminder is at 10:40`: `answer('up')` at 09:50 → standups 1, `prompt {type:'hide', quiet:false}`, `raise {on:false}` and `standup {source:'up'}` straight away; nothing at 10:39:59; show at 10:40.
+  - `care: 喝了 counts a cup and a stand-up, saved at once`: cups 1 and standups 1, `standup {source:'drink'}`; a `saveHistory` with `"cups":1` is sent before any later step; the next reminder is at 10:40.
+  - `care: a fresh 開始上班 restarts the timer; 繼續上班 does not`:
+    - start 09:00; `setOffDay(true)` at 09:40; `startWork()` at 10:00 → the reminder is at 10:50, not 10:10;
+    - separately, `endWork()` 09:40 and `resumeWork()` 09:45 → the reminder stays at 09:50.
   - `care: 等一下 brings it back at 10:00:00`.
   - `care: only one switch on asks only that`:
     - `sit` only → `show:sit` with cue `'wave'`;
@@ -716,7 +784,10 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
     - both on, 7/8 cups, bubble at 09:50; `menu drink` → cups 8; next step `update:sit`;
     - water only, 7/8 → `menu drink` → `hide:quiet`;
     - each press counts once.
-  - `care: menu pomodoro starts and stops; healthMenu follows`: `{cups:'0/8', pomodoro:{phase:'focus', endsMs:10:25}}` after a start at 10:00, then `phase 'idle'`, `endsMs null`; with water off and no cups, `cups` is null.
+  - `care: menu pomodoro starts and stops; healthMenu follows only on change`:
+    - after a start at 10:00, `{cups:'0/8', pomodoro:{phase:'focus', endsMs:10:25}}`, then `phase 'idle'`, `endsMs null`;
+    - 30 steps a second apart with nothing changing send no `healthMenu` and no `saveHistory`;
+    - with water off and no cups, `cups` is null.
   - `care: reaching the cup goal`: 7 of 8, `drink()` → `drank {cups:8, goalReached:true}`; again → false.
   - `care: a 1.0 user is never reminded before answering`: settings without `health` → nothing at 09:50.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
@@ -729,18 +800,28 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 ### Task 7: Pet behaviour: cues, pose fallbacks, new lines, the release pose check
 
 **Files:**
-- Modify: `src/web/js/pets/behavior.js`, `registry.js`, `compose.js`, `lines.js`; `tests/web/behavior.test.js`, `tests/web/pets.test.js`; `build.ps1`
+- Create: `tools/shot.ps1`. It is here rather than in Task 10 so Task 17, which may start after this task, has it (Ruling M13).
+- Modify: `src/web/js/pets/behavior.js`, `registry.js`, `compose.js`, `lines.js`; `src/web/js/ui/layouts.js` (the pose routing below); `tests/web/behavior.test.js`, `tests/web/pets.test.js`, `tests/web/layouts.test.js`; `build.ps1`
 
 **Interfaces:**
 - Produces in `QJZ.pets`:
   - `NEW_POSES = ['wave','holdCup','sip','focus']`;
   - `FALLBACK = {wave:'celebrate', holdCup:'coffee', sip:'coffee', focus:'typing'}`;
-  - `poseFor(id, state)`: a new pose is returned as itself only when its state exists in `QJZ.pets.states` AND (the skin def's `poses11` includes it OR `QJZ.pets.previewPoses === true`); otherwise its fallback. Other states are unchanged.
-  - `missingPoses()`: `['hamster:p0 wave', …]`.
-  - `compose()` resolves `opts.state` through `poseFor`.
+  - `poseFor(id, state, preview)`: a new pose is returned as itself only when its state exists in `QJZ.pets.states` AND (the skin def's `poses11` includes it OR `preview === true`); otherwise its fallback. Other states are unchanged. **Ruling R3:** there is no global switch; a review page passes `preview`.
+  - `missingPoses()`: every hamster and cat skin × pose not declared, e.g. `['hamster:p0 wave', …]`. Only the two real kinds are listed.
+  - `compose(id, view, opts)` resolves `opts.state` through `poseFor(id, opts.state, opts.preview)`.
+  - **Ruling R5:** the comment on `missingPoses` names the `build.ps1` check, and vice versa.
+- Produces in `layouts.js` (Ruling M11): everything keyed by the pet's state uses the shown pose, `QJZ.pets.poseFor(id, state)`, not the Brain's raw state.
+  - That covers `petHit` (`PET_REACH` → `PET_HIT_TALL`), the band cache `bandKey` and `QJZ.pets.speechAt`.
+  - So a `'wave'` that renders as celebrate gets celebrate's tall hit box and bubble anchor.
+- Produces `tools/shot.ps1 -Page <dev.html?…> -Out <png> [-Size W,H]`: headless Edge with `--user-data-dir=build\shots\.edge-profile`. It stops only that profile's msedge, and there is never a visible window.
 - Produces in `QJZ.behavior.Brain`:
   - `cue(name|null, nowMs)`, `knock(nowMs)`; constants `WAVE_MS = 4000`, `STRETCH_MS = 4000`, `SIP_MS = 3000`.
-  - `focus`: replaces typing / sprint / idle / lunch / celebrate / waitBag. When it clears with the status `done` or `ended`, the status clock restarts: `celebrate` for 8 s, then `waitBag`, and `change.quiet` is false. That way the jingle and the backpack wait for the focus (§5.2).
+  - `focus`: replaces typing / sprint / idle / lunch / celebrate / waitBag.
+    - **Ruling M8:** "the focus cue clears" means any change away from `'focus'`. Care's real sequence is `'focus'` → `'stretch'` → null.
+    - If the status is `done` or `ended` at that change, the status clock restarts when the stretch ends: at once for a change to null, after `STRETCH_MS` for `'stretch'`.
+    - `celebrate` then plays for 8 s, then `waitBag`, and `change.quiet` is false.
+    - So the jingle and the backpack wait for the focus (§5.2), and the stretch does not hide the jingle.
   - `wave` / `holdCup`: the pose for `WAVE_MS` after the cue and after each `knock`, then `idle` (wave) or `holdCup` (holdCup holds; `knock` replays its wave).
   - `stretch`: for `STRETCH_MS`, then the base state.
   - While a cue is on there are no idle actions; overlays still win.
@@ -754,23 +835,29 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 
 - [ ] **Step 1: Write the failing tests:**
   - `behavior: the focus cue replaces typing and sprint`: `update(t, {status:'working', minutesToEnd:20})` → `'focus'`.
-  - `behavior: 可以下班 during a focus waits; celebrate for 8 s after the focus, then waitBag`:
+  - `behavior: 可以下班 during a focus waits; celebrate for 8 s after the focus and its stretch, then waitBag`:
     - status `done` from T while focused; `focus` until T+600000;
-    - `cue(null, T+600000)`;
-    - T+601000 → `celebrate`, with `change.quiet === false`;
-    - T+609000 → `waitBag`.
+    - `cue('stretch', T+600000)`;
+    - T+603999 → `stretch`; T+604000 → `celebrate`, with `change.quiet === false`;
+    - T+612000 → `waitBag`;
+    - the same with `cue(null, T+600000)` gives `celebrate` at once.
   - `behavior: wave for 4 s after the cue and each knock, idle between; holdCup holds; stretch for 4 s`:
     - wave: t → `wave`; t+4000 → `idle`; `knock(t+120000)` → `wave`;
     - holdCup: t+60000 → `holdCup`;
     - stretch: t+3999 → `stretch`; t+4000 → base.
   - `behavior: no idle actions while a cue is on`: seeded rng, one update a second for 120 s.
-  - `pets: undeclared new poses fall back`: wave → celebrate; holdCup and sip → coffee; focus → typing; `compose('cat:p4','petonly',{state:'wave'})` has `st-celebrate`.
-  - `pets: missingPoses lists every skin without poses11`: `length === 40` (Task 17 changes this to 0).
+  - `pets: undeclared new poses fall back`. These run on a stub skin so the art can't break them (Ruling M10): the test registers `test:stub`, a copy of `cat:p4`'s def with `kind:'test'`, `id:'test:stub'` and no `poses11`.
+    - On the stub: wave → celebrate; holdCup and sip → coffee; focus → typing.
+    - `compose('test:stub','petonly',{state:'wave'})` has `st-celebrate`.
+    - With `{preview:true}` and a state that `QJZ.pets.states` lacks, it still falls back.
+  - `pets: missingPoses lists every hamster and cat skin without poses11`: `length === 40`, and the stub is not listed. Task 17 changes 40 to 0.
+  - `layouts: hit box and bubble anchor follow the shown pose`: with `'wave'` on a skin without `poses11`, `petHit` returns `PET_HIT_TALL` (celebrate is in `PET_REACH`), and `speechAt` equals celebrate's.
   - `lines: drank / waterGoal / standOk have 5+ lines with no unfilled placeholder; focusPoke is 專心中～; waterGoal with goal 8 mentions 8 杯`.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
-- [ ] **Step 3: Implement**, including the `build.ps1` check (a regex over the 10 skin files, before compiling).
+- [ ] **Step 3: Implement**, including the `build.ps1` check (a regex over the 10 skin files, before compiling) and `tools/shot.ps1`.
 - [ ] **Step 4: Verify.**
   - `test.ps1` passes.
+  - `tools/shot.ps1 -Page "dev.html?layout=U7" -Out build\shots\t7-u7.png` writes a PNG and leaves no msedge with that profile.
   - `build.ps1 -Release` fails with `1.1 pet poses missing:`.
   - `build.ps1 -Release -DraftPoses` builds and prints the DRAFT line.
   - Run `build.ps1` again afterwards, so `build\` holds a dev exe.
@@ -786,13 +873,13 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 
 **Interfaces:**
 - **`Presentation : IDisposable`:**
-  - `Presentation(Func<int> query)`, `event Action<bool> Changed`, `bool Busy`;
+  - `Presentation(Func<int> query)`, `event Action<bool> Changed`, `bool Busy` (false until a poll says otherwise);
   - `Start()`: a 2000 ms WinForms timer; `Poll()`;
   - `static bool IsBusy(int state)`: true for QUNS 2, 3 and 4;
   - `static int Query()`: `SHQueryUserNotificationState`, or −1.
   - **Ruling:** 7 (QUNS_APP) is not busy, so a windowed Store app does not hold reminders.
 - **`ShowRescue`:**
-  - `EffectiveTopmost(bool layoutTopmost, bool raised) => layoutTopmost || raised`;
+  - `public static bool EffectiveTopmost(bool layoutTopmost, bool raised) { return layoutTopmost || raised; }` (a block body: C# 5);
   - `NoActivateLayout` includes `U10`;
   - `MenuShows` is false for `drink` and `pomodoro` (quick actions never un-hide the window) and true for `capsule:*`;
   - `MenuActivatesNow` is false for `capsule:*`.
@@ -800,13 +887,15 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
   - `AppPaths.Profile`; `AppPaths.FolderName(profile)`: `QJZ_PROFILE` matching `^[A-Za-z0-9]{1,16}$` → `錢進中-<profile>` under both data roots; anything else → `錢進中`.
   - `SingleInstance.MutexNameFor` / `EventNameFor(profile)`: `Local\QianJinZhong[-p]`, plus `.Show` for the event.
   - It applies in dev and release builds. With a profile set, AppHost never touches the Run value (same path as `devPage`).
+  - **Ruling R2:** this breaks the house rule that dev switches count only when `!Payload.IsRelease`. The reason is that the release e2e (Task 18) and the CPU measurement (Task 15) must run while the user's own app runs. The Global Constraints list the extra folders.
 - **AppHost:**
   - sends `fullscreen {on}` after every init and on `Presentation.Changed`;
   - on `raise {on}`, sets `promptRaised`. Every topmost assignment (SetLayout, setTopmost, the rescue) goes through `ApplyTopmost()` = `EffectiveTopmost(the layout's topmost, promptRaised)`;
   - `raise {on:true}` while `ShownToUser()` also calls `RaiseWithoutActivation()`. It never shows a hidden window and never activates one;
   - the tray check mark shows the layout's own topmost.
-- **`tools/test-profile.ps1 -Name <p> [-Settings <json>] [-Window <json>] [-History <file>] | -Remove -Name <p>`:**
+- **`tools/test-profile.ps1 -Name <p> [-Settings <json>] [-Window <json>] [-History <file>] | -Name <p> -FromDir <dir> | -Remove -Name <p>`:**
   - The base settings: salary 50000 monthly, onboarded, `health.asked:true`, `autostart:false`, `privacy:{hideFromCapture:false, hotkey:'Ctrl+Alt+F11'}`. `-Settings` is merged on top.
+  - `-FromDir` copies `settings.json`, `history.json` and `window.json` from `<dir>` byte for byte, with no merge. Task 18 uses it for the 1.0 fixture.
   - The default `window.json` puts every layout on DISPLAY1: U1 (−599,463), U3 (−1000,700), U5B (−1000,1100), U7 (−470,960), M3 (−372,1082), PANEL (−1000,300), U10 (−900,−400), U12 (−1000,300), U13 (−1000,300).
   - `-Remove` deletes both of the profile's data folders.
 - **spiketool** gains `fg` (the foreground hwnd) and `post <hwnd> <msg> <wParam> <lParam>`.
@@ -814,13 +903,15 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 
 - [ ] **Step 1: Write the failing tests:**
   - `PresentationTests.Test_BusyStates`: false for 1, 5, 6, 7, 0 and −1; true for 2, 3 and 4.
-  - `PresentationTests.Test_ChangedOnlyOnChange`: query values 5, 2, 2, 5 → `Changed` gives `"True,False"`.
+  - `PresentationTests.Test_ChangedOnlyOnChange`: `Busy` starts false; query values 5, 2, 2, 5 → `Changed` gives `"True,False"`.
   - `PauseGateTests.Test_EffectiveTopmost`: the three cases.
   - Extend `Test_MenuActionsThatShowTheWindow`: `drink` / `pomodoro` no; `capsule:top` yes.
   - Extend `Test_MenuActionsThatActivateTheCurrentLayout`: `capsule:bottomRight` no.
   - Extend `Test_StartLayoutNoActivate`: U10 true; U12 and U13 false.
   - `AppPathsTests.Test_ProfileFolder`: null → `錢進中`; `t11` → `錢進中-t11`; `../x`, `""` and 17 characters → `錢進中`.
-  - `AppPathsTests.Test_ProfileMutex`.
+  - `AppPathsTests.Test_ProfileMutex`:
+    - `MutexNameFor(null)` → `@"Local\QianJinZhong"`, and `EventNameFor(null)` → `@"Local\QianJinZhong.Show"`;
+    - `MutexNameFor("t11")` → `@"Local\QianJinZhong-t11"`, and `EventNameFor("t11")` → `@"Local\QianJinZhong-t11.Show"`.
 - [ ] **Step 2: Run `test.ps1`.** Expected: HOST does not compile.
 - [ ] **Step 3: Implement.** Add the P/Invoke `[DllImport("shell32.dll")] static extern int SHQueryUserNotificationState(out int state)`. Start `Presentation` in `Run`; stop it in `Shutdown`.
 - [ ] **Step 4: Run `test.ps1`.** Expected: PASS.
@@ -842,11 +933,11 @@ test('settings: a 1.0 settings.json keeps every value; reminders stay off until 
 ### Task 9: Host: U10 dock and snap, grow-inside, menu items
 
 **Starting point:** the 1.0 simplification has already rebuilt the menu (§4.10):
-- one status-following 開始上班／下班／繼續上班 item;
-- 「版型 ▶」 holding the layouts, 縮成迷你 and 永遠在最上層;
-- 餵食 with its count in the top group.
+- top level, in this order: 餵食 (×N, `feed`), the work item (`work`, 開始上班／下班／繼續上班), 調整起算時間, 「版型 ▶」, 紀錄, 設定, 隱藏, 結束;
+- 「版型 ▶」 = U1, U3, U5-B, U7, a separator, 縮成迷你, a separator, 永遠在最上層;
+- the page drives the live labels through `menuState {work, snacks}`, which `TrayMenu.SetWork` and `SetSnacks` apply.
 
-This task adds only the 1.1 items to it.
+This task adds only the 1.1 items. `menuState` stays as it is.
 
 **Files:**
 - Create: `src/host/CapsuleDock.cs`, `tests/host/CapsuleDockTests.cs`
@@ -868,7 +959,9 @@ This task adds only the 1.1 items to it.
   - `AfterShrink(Point now, Point? growFrom, Point? growTo)`: `growFrom` when `now == growTo`, else `now`.
 - **`PetWindow.ToPhysical(Size css) -> Size`.**
 - **AppHost:**
-  - **Layout switch.** SetLayout reads `placer.SavedSize(name)` before `RememberSize`. A switch whose saved CSS size differs applies `FitAfterGrow` to the old physical size and remembers the moved spot (§5.7, U5-B).
+  - **Layout switch.** SetLayout reads `placer.SavedSize(name)` before `RememberSize`. A switch whose saved CSS size differs applies `FitAfterGrow` to the old physical size (§5.7, U5-B grows right).
+    - **Ruling C5:** the moved spot is NOT remembered, so a 1.0 saved point survives (§5.5 「版型位置全部保留」).
+    - A spot the user drags to is remembered as before.
   - **Same-layout size change.** It applies `FitAfterGrow` and keeps `growFrom` / `growTo`; a later shrink calls `AfterShrink` (U7 / M3 while a prompt shows).
   - **U10 setLayout.** The window goes to `Rect(Parse(dock), AreaFor(window.Bounds, WorkAreas()), size, margin)` and the spot is remembered. `PrePlace` has put the window on the saved monitor.
   - **U10 `OnMoveEnded`:**
@@ -879,10 +972,10 @@ This task adds only the 1.1 items to it.
     - send `capsuleDock {dock}`, then `dragEnd {}`.
   - **`healthMenu`** → `tray.SetHealth(cups, phase, endsMs)`.
 - **`TrayMenu` changes** (on top of the simplified 1.0 menu):
-  - **The top group** starts with 「記一杯水」 (`drink`; its `ShortcutKeyDisplayString` is the cups text, empty when null) and 「開始番茄鐘」 (`pomodoro`), followed by 1.0's 餵食.
+  - **The top group** gets 「記一杯水」 (`drink`; its `ShortcutKeyDisplayString` is the cups text, empty when null) and 「開始番茄鐘」 (`pomodoro`), before 1.0's 餵食. The top level then reads: 記一杯水, 開始番茄鐘, 餵食, the work item, 調整起算時間, 版型, 紀錄, 設定, 隱藏, 結束.
   - **`PomodoroLabel(phase, endsMs, nowMs)`:** focus or break → 「停止番茄鐘（還剩 N 分）」, with N = max(1, ceil((endsMs − now) / 60000)); otherwise 「開始番茄鐘」. The label is computed when the menu opens.
-  - **「版型 ▶」** gains 「U10 頂端小膠囊」 `layout:U10`, 「U12 健康儀表板」 `layout:U12` and 「U13 番茄鐘優先」 `layout:U13`, after 1.0's layouts.
-  - **「膠囊位置 ▶」** (name `capsule`) goes inside 「版型 ▶」. It holds 「上方正中間」 `capsule:top`, 「左下」 `capsule:bottomLeft`, 「中下」 `capsule:bottomCenter` and 「右下」 `capsule:bottomRight`. It is visible only in U10, and the current dock is checked.
+  - **「版型 ▶」** gains 「U10 頂端小膠囊」 `layout:U10`, 「U12 健康儀表板」 `layout:U12` and 「U13 番茄鐘優先」 `layout:U13`, right after U7, before the separator.
+  - **「膠囊位置 ▶」** (name `capsule`) becomes the last item in 「版型 ▶」. It holds 「上方正中間」 `capsule:top`, 「左下」 `capsule:bottomLeft`, 「中下」 `capsule:bottomCenter` and 「右下」 `capsule:bottomRight`. It is visible only in U10, and the current dock is checked.
   - **`SetState`** gains an optional `string dock = null`, so the existing calls keep working. `CloseInnermost` and the font scaling cover the new submenus.
 
 - [ ] **Step 1: Write the failing tests:**
@@ -897,11 +990,17 @@ This task adds only the 1.1 items to it.
     - `_FitsAsIs`: x 100 stays;
     - `_KeepsAnOverhangTheUserChose`: (1700,100,400,300) → 465 wide → (1700,100);
     - `_Bottom`: (100,900,300,120) → height 200 → y 832;
-    - `Test_AfterShrink`: three cases.
+    - `Test_AfterShrink`:
+      - growFrom (1440,900), growTo (1375,900), now (1375,900) → (1440,900);
+      - now (1200,500), i.e. the user moved it → (1200,500);
+      - growFrom and growTo null → now.
   - `TrayMenuTests`:
-    - **`Test_HealthItemsLeadTheMenu`:** the first two top-level labels are 「記一杯水」 and 「開始番茄鐘」, and the rest equals the 1.0 order recorded before this task.
-    - **`Test_LayoutSubmenu`:** 「版型 ▶」 ends with the three new layouts. 膠囊位置 is visible after `SetState("U10", true, true, "bottomRight")`, where `capsule:bottomRight` is checked, and hidden for `"U1"`.
-    - **`Test_EachItemSendsItsActionId`:** add the ten new ids.
+    - **`Test_HealthItemsLeadTheMenu`** replaces 1.0's `Test_TopLevelItemsInOrder`. The top-level labels, without separators, are 記一杯水, 開始番茄鐘, 餵食, 開始上班, 調整起算時間, 版型, 紀錄, 設定, 隱藏, 結束.
+    - **`Test_LayoutSubmenu`:**
+      - the first items of 「版型 ▶」 are the layouts U1, U3, U5-B, U7, U10, U12, U13 in that order;
+      - 縮成迷你 and 永遠在最上層 follow;
+      - 膠囊位置 is the last item. It is visible after `SetState("U10", true, true, "bottomRight")`, with `capsule:bottomRight` checked, and hidden for `"U1"`.
+    - **`Test_EachItemSendsItsActionId`:** add the nine new ids.
     - **`Test_PomodoroLabel`:**
       - `("idle",0,now)` → 「開始番茄鐘」;
       - `("focus", now+12·60000, now)` → 「停止番茄鐘（還剩 12 分）」;
@@ -916,6 +1015,7 @@ This task adds only the 1.1 items to it.
 - [ ] **Step 5: Verify live on DISPLAY1** (profile `t11`, no input).
   - `spike.html?layout=U10&dock=top`: the rect = `Rect("top", DISPLAY1 work area, size, 9)`.
   - The same with `dock=bottomRight`.
+  - With the profile's window.json putting U5B flush against DISPLAY1's right work-area edge at its 1.0 `w` / `h`, `spike.html?layout=U5B` reporting a width 65 px larger is pushed inside, and window.json still holds the 1.0 point afterwards (Ruling C5).
   - Close and remove the profile. The real-drag snap is a user-only check (Task 18).
 - [ ] **Step 6: Commit** as `feat(host): U10 dock and snap, grow-inside, 1.1 menu items`.
 
@@ -928,23 +1028,28 @@ This task adds only the 1.1 items to it.
 - U3 has one alternating card.
 
 **Files:**
-- Create: `src/web/js/ui/icons.js`, `templates.js`, `ring.js`, `src/web/css/health.css`, `tools/shot.ps1`
+- Create: `src/web/js/ui/icons.js`, `templates.js`, `ring.js`, `src/web/css/health.css`
 - Modify: `src/web/js/ui/layouts.js`, `src/web/css/layouts.css`, `src/web/index.html`, `src/web/dev.html`, `tests/web/run.html`, `tests/web/layouts.test.js`
 
 **Interfaces:**
+- Consumes:
+  - `QJZ.care` (Task 6): `state.health`, `goals`, `p`, `show:{cups, tomatoes}`, `cupsText`, `minutesToStand()`, `drink()`, `toggleFocus()`;
+  - `QJZ.pomodoro.mmss` / `minutesLeft` / `fraction` (Task 2);
+  - `tools/shot.ps1` (Task 7);
+  - host grow-inside (Task 9).
 - **`QJZ.icons.svg(name)`** for drop, tom, stand, rest, hp and cup: inline SVG with class `ic`, paths from the mockup sprite.
-- **`QJZ.templates`:** the `TEMPLATES` object moved verbatim from `layouts.js`, with `parts` (BAR, MONEY, PILL).
+- **`QJZ.templates`:** the `TEMPLATES` object moved verbatim from `layouts.js`, together with the markup helpers it calls, `parts = {BAR, MONEY, PILL, feedBtn}`.
 - **`QJZ.ring`:** `markup(cls)` (track, `[data-ring-arc]`, `[data-ring-label]`) and `update(el, {phase:'focus'|'break'|null, fraction, label})`.
   - Hidden when there is no phase; class `rest` (green) for a break.
   - It writes only what changed. The arc has no transition.
-- **`layouts.util.model(st, ms, cs)`** with `cs = QJZ.care.state`, adds:
-  - `cups` `'3/8'`, `cupsLong` `'3/8 杯'`, `tomatoes` `'×3'`;
-  - `showCups = health.water.on || cups > 0` and `showTomatoes = tomatoes > 0 || p.phase === 'focus'` (§4.9 #8);
+- **`layouts.util.model(st, ms, cs)`** with `cs = QJZ.care.state`, adds the fields below.
+  - **Ruling S11:** a missing or not-ready care (`!cs || !cs.ready`) counts as zero counts, an idle pomodoro and nothing shown, so the existing layouts and panels DOM tests need no change.
+  - `cups` = `cs.cupsText` (`'3/8'`), `cupsLong` `'3/8 杯'`, `tomatoes` `'×3'`;
+  - `showCups` / `showTomatoes` = `cs.show.cups` / `cs.show.tomatoes`. The §4.9 #8 rule lives in care only (Ruling R4);
   - `pomoBtn`: 「▶ 番茄鐘」 when idle or breakOver, otherwise 「■ 停止」;
   - the status pill reads 「專心中」 / 「休息中」 during a pomodoro (`C2_U1_f` / `C2_U1_b`);
   - `ring {phase, fraction, label:'還剩 N 分'}`, `mmss`, `nth` 「第 N 顆」, `standIn` 「N 分後」 (empty when nothing is asked).
 - **`data-act`:** `drink` → `QJZ.care.drink()`, `pomo` → `QJZ.care.toggleFocus()`.
-- **`tools/shot.ps1 -Page <dev.html?…> -Out <png> [-Size W,H]`:** headless Edge with `build\shots\.edge-profile`; it stops only that profile's msedge; there is never a visible window.
 - **dev.html** gains `?cups=&tom=&stand=&pomo=focus|break|breakOver&water=on`.
 - **Markup** (an element hidden by the visibility rule keeps no space):
   - U1 (`A_U1_3`): under the 「每秒 +NT$」 line, three pills:
@@ -958,8 +1063,9 @@ This task adds only the 1.1 items to it.
   - The ring (`C2_U1_f/b`, `C2_U7_f/b`): around the pet in U1, U3, U5-B and U7, with the 「還剩 N 分」 pill. Use `[data-pring]`.
   - M3 (`C_M3_f/b`): during a pomodoro, `.ring` gets `p-foc` / `p-brk` and its `--p` from the pomodoro. The sub line reads 「專心中 · 還剩 N 分」 / 「休息中 · 還剩 N 分」.
 
-- [ ] **Step 1: Move `TEMPLATES` into `templates.js` unchanged.** Run `test.ps1`. Expected: PASS with the same counts.
-- [ ] **Step 2: Write the failing tests** in `layouts.test.js`. DOM tests also start `QJZ.care` on the same fake bridge (`heartbeat:false`).
+- [ ] **Step 1: Move `TEMPLATES` and `BAR`, `MONEY`, `PILL`, `feedBtn` into `templates.js` unchanged.** Run `test.ps1`. Expected: PASS with the same counts.
+- [ ] **Step 2: Write the failing tests** in `layouts.test.js`. The new DOM tests also start `QJZ.care` on the same fake bridge (`heartbeat:false`).
+  - `layouts: model without care`: `model(st, ms, undefined)` and a not-ready care give `showCups` false, `showTomatoes` false, `pomoBtn '▶ 番茄鐘'` and `ring.phase` null.
   - `layouts: model health fields`:
     - water on, cups 3/8, tomatoes 3, focus 09:40, now 09:52:30 → `cups '3/8'`, `tomatoes '×3'`, `pomoBtn '■ 停止'`, `ring.label '還剩 13 分'`, `status '專心中'`, `nth '第 4 顆'`;
     - idle → `pomoBtn '▶ 番茄鐘'` and `ring.phase` null.
@@ -979,8 +1085,8 @@ This task adds only the 1.1 items to it.
 - [ ] **Step 6: Verify.**
   - **Shots** (`tools/shot.ps1`): U1, U3, U5B, U7 and M3 with `cups=3&tom=3&water=on`, with `pomo=focus` / `break`, and in the unused state. Compare with `A_U1_3`, `A_U3_2` (no bottle), `A_U5_2`, `A_U7`, `A_M3`, `C2_*` and `C_M3_*`. The unused state matches the simplified 1.0 look.
   - **Live U5-B growth** (profile `t11`, DISPLAY1):
-    1. U5B is saved flush against the work area's right edge, with its 1.0 `w` / `h`.
-    2. Start the app: the window keeps its top and is pushed left until its right edge meets the work-area edge.
+    1. U5B is the last layout (`layout.current`), saved flush against the work area's right edge, with its 1.0 `w` / `h`.
+    2. Start the app. The window keeps its top and is pushed left until its right edge meets the work-area edge. window.json still holds the 1.0 point (Ruling C5).
     3. Close and remove the profile.
 - [ ] **Step 7: Commit** as `feat(web): cups, tomatoes and the countdown ring in U1 U3 U5-B U7 M3`.
 
@@ -1000,12 +1106,16 @@ This task adds only the 1.1 items to it.
   - Slots: `[data-prompt]`, and `[data-prompt-line]` in U5-B's `.mtop`.
 - **layouts.js:**
   - `care.setPanel(cur === 'PANEL')` on every `show`.
+  - Care's `prompt` events (Task 6):
+    - `show` / `update` → `promptView.render`;
+    - `hide` → `clear`. That includes the `hide {quiet:false}` care emits when an answer closes the bubble.
   - `cue` → `brain.cue`; `wave` → `brain.knock` + `promptView.wave`.
   - While a prompt shows: no chatter; the speech bubble is hidden; a user-rank `say()` becomes `fx.banner`.
+  - **Quiet during a focus** (`care.state.p.phase === 'focus'`; §4.3 「不講話、不打擾」, §5.2):
+    - no chatter and no event lines (milestone, `missed`, status changes); a milestone hop plays silently, with no line and no coin sound;
+    - a poke answers 「專心中～」 once per focus, with no petted reaction, sound or hearts. **Ruling:** 「只回一次」 means once per focus.
   - `drank` → `brain.show('sip', now, SIP_MS)`, 「+1」 `fx.plus` on the cups element, and a `drank` line. With `goalReached`: `petted` + hearts + a `waterGoal` line instead.
-  - `standup` from 「起來了」 → `petted` 2 s + a `standOk` line.
-  - A poke during a focus answers 「專心中～」 once per focus: no petted reaction, sound or hearts.
-  - **Ruling:** 「只回一次」 means once per focus.
+  - `standup` with `source === 'up'` (起來了) → `petted` 2 s + a `standOk` line. The other sources (`'drink'`, `'break'`, `'lock'`) play nothing here: 喝了 already plays sip.
 - **Looks** (§5.1 table):
   - U1 (`B_U1_s` / `B_U1_w`): a big bubble at the top right that covers the status row.
   - U3 (`C_U3_b`): a big bubble over the scene.
@@ -1016,13 +1126,16 @@ This task adds only the 1.1 items to it.
 
 - [ ] **Step 1: Write the failing tests** (app + care + layouts on one fake bridge and clock):
   - `promptView: U1 shows the combined bubble and answers care`: at 09:50, `[data-prompt]` has 「起來動一動，順便喝口水～」, 「已經坐 50 分鐘囉・今天 0/8 杯」 and the buttons 「喝了」「起來了」「等一下」; 起來了 → standups 1, and the slot is empty.
-  - `promptView: the pet holds the cup while the bubble shows (fallback coffee); sit-only waves (fallback celebrate)`.
+  - `promptView: the pet holds the cup while the bubble shows; sit-only waves`. These assert the requested state and the shown pose, so they survive Task 17's art (Ruling M10):
+    - the Brain's state is `'holdCup'` (both) or `'wave'` (sit only);
+    - the pet SVG has `.st-` + `QJZ.pets.poseFor(id, thatState)`.
   - `promptView: U5-B uses the status line and keeps its size`.
   - `promptView: U7 and M3 grow right while prompting and return after`: the buttons are inside the sent hit rects.
   - `promptView: no chatter and no second bubble while it shows; a user-rank say becomes a banner`.
   - `promptView: the bubble never takes the keyboard`: `document.activeElement` is unchanged.
   - `promptView: a poke during focus says 專心中～ once`.
-  - `promptView: after 喝了 the cups pill shows +1 and the pet sips`.
+  - `promptView: quiet during a focus`: 10 minutes of ticks during a focus, with a milestone crossed and a lunch status change, give no `.bubble.show` and no coin sound.
+  - `promptView: after 喝了 the cups pill shows +1 and the pet sips; no petted or standOk line`.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
 - [ ] **Step 3: Implement.** dev.html gains `?prompt=both|sit|water|break|breakEnd`.
 - [ ] **Step 4: Run `test.ps1`.** Expected: PASS.
@@ -1037,8 +1150,13 @@ This task adds only the 1.1 items to it.
 - Modify: `src/web/js/ui/templates.js`, `layouts.js`, `promptview.js`, `src/web/css/health.css`, `src/web/dev.html`, `tests/web/layouts.test.js`, `tests/web/promptview.test.js`
 
 **Interfaces:**
+- Consumes:
+  - Tasks 9–11;
+  - `QJZ.care.state` (`show`, `cupsText`, `goals`, `p`, `prompt`) and `minutesToStand()`;
+  - `settings.layout.capsule`;
+  - host `MainLayouts`, which already contains U10 / U12 / U13 (Task 4).
 - **Wiring:**
-  - U10, U12 and U13 join the main-layout list that the simplified 1.0 keeps; the last-used start covers them with no extra code.
+  - `layouts.js` `MAIN` gains `'U10','U12','U13'` (ALL too). The simplified 1.0's `lastLayout()` (`mini` ? M3 : `layout.current` when in `MAIN`) and `backTarget()` then cover them with no other code.
   - U10's setLayout sends `dock: settings.layout.capsule`.
   - `capsuleDock {dock}` and `menu capsule:<dock>` → `saveSettings({layout:{capsule}})` and a re-render.
   - The U7 hover logic is generalised from `.dpet` to `[data-hover]`.
@@ -1046,8 +1164,8 @@ This task adds only the 1.1 items to it.
 - **U10** (`G_U10_pos/work/hover/rem/foc`):
   - **The window.** One fixed size (the footprint of the widest state). The capsule sits at the top edge for `top` and at the bottom edge for the bottom docks, aligned left, centre or right to match. It expands away from that edge.
   - **States:**
-    - collapsed 230×36: avatar, status dot, 「NT$ 1,287」, then 💧 3 and 🍅 3 chips (§4.9 #8);
-    - hover (about 440×100): the full information, with chips 💧 「3/8 杯」 (`drink`, rule), 🍅 「×3」 (rule) with an always-present 「▶」 (`pomo`), and 🧍 「N 分後」;
+    - collapsed 230×36: avatar, status dot, 「NT$ 1,287」, then 💧 3 and 🍅 3 chips, shown per `care.state.show` (§4.9 #8);
+    - hover (about 440×100): the full information, with chips 💧 「3/8 杯」 (`drink`, per `show.cups`), 🍅 「×3」 (per `show.tomatoes`) with an always-present 「▶」 (`pomo`), and 🧍 「N 分後」;
     - remind: the incoming-call width, with title, sub and buttons;
     - focus: donut, mm:ss, 「第 N 顆」, amount.
   - Only the capsule is a hit rect. NoActivate; topmost by default.
@@ -1070,11 +1188,11 @@ This task adds only the 1.1 items to it.
     - break: green;
     - remind: the reminder sits inside the ring.
   - Tomato slots, always shown, one per `goals.tomatoes`: 「今天 ×N・每 {longEvery} 顆長休息」.
-  - A line: 「💧 3/8 杯」 (rule) ・ 「🧍 N 分後起來動」 (while something is asked); during a focus 「提醒等休息再說」.
-  - **Ruling:** the reminder goes inside the ring (`G_U13_rem`): the user-confirmed §4.5 wins over the §5.1 table's 「大泡泡」. 「⏭ 跳過這顆」 and the task label are left out (non-goal).
+  - A line: 「💧 3/8 杯」 (per `show.cups`) ・ 「🧍 N 分後起來動」 (while something is asked); during a focus 「提醒等休息再說」.
+  - **Ruling C4:** the reminder sits inside the ring (`G_U13_rem`): the user-confirmed §4.5 wins over the §5.1 table's 「大泡泡」. 「⏭ 跳過這顆」 and the task label are left out (non-goal).
 
 - [ ] **Step 1: Write the failing tests:**
-  - `layouts: the main layouts include U10 U12 U13`.
+  - `layouts: the main layouts include U10 U12 U13`: this updates the simplified 1.0's MAIN assertion. `U.lastLayout({layout:{current:'U12', mini:false}})` → `'U12'`, and with `mini:true` → `'M3'`.
   - `U10: one window size for collapsed / hover / remind / focus`.
   - `U10: dock classes and setLayout dock`:
     - `capsule:'bottomRight'` → the class and `dock`;
@@ -1096,8 +1214,8 @@ This task adds only the 1.1 items to it.
 - [ ] **Step 5: Verify.**
   - Shots of each G state, compared with the mockups.
   - Live on DISPLAY1 (profile `t11`):
-    - last layout U10 with `capsule:'top'` → top centre of DISPLAY1;
-    - U12 and U13 each show visible, without TOPMOST or NOACTIVATE.
+    - `layout.current` U10 with `capsule:'top'` → top centre of DISPLAY1, with no U1-sized flash first (the host's `MainLayouts` has U10, Task 4);
+    - `layout.current` U12, and then U13: each shows visible at its own size, without TOPMOST or NOACTIVATE.
   - Close and remove the profile.
 - [ ] **Step 6: Commit** as `feat(web): layouts U10 U12 U13`.
 
@@ -1106,22 +1224,23 @@ This task adds only the 1.1 items to it.
 ### Task 13: Panels: 設定 → 健康, onboarding step 3, the upgrade question, 省電模式
 
 **Starting point:** the 1.0 simplification has already done this (§4.10). Do not plan or redo any of it.
-- Settings has 4 tabs (薪水和時間, 寵物, 畫面, 其他), with 今天休假 and 調整起算時間 at the top of the first.
+- `panels.js` `TABS` = `[['time','薪水和時間',['today','salary','hours','start']], ['pet','寵物',['pet','sound']], ['display','畫面',['layout','boost']], ['other','其他',['autostart','privacy','about']]]`. Each entry lists the `SECTIONS` it shows. 今天休假 and 調整起算時間 are at the top of the first tab.
 - 使用說明 and the licences open on click.
-- The start-layout and topmost controls are removed from settings.
+- The `layout` section holds only 相容模式: there are no start-layout or topmost controls.
 
 **Files:**
 - Create: `src/web/js/ui/panels-health.js`
 - Modify: `src/web/js/ui/panels.js`, `src/web/css/panels.css`, `src/web/index.html`, `src/web/dev.html`, `tests/web/run.html`, `tests/web/panels.test.js`
 
 **Interfaces:**
+- Consumes: `QJZ.settings.HEALTH_RANGES` / `standGoal` (Task 4); `QJZ.care.setCups` / `state` (Task 6).
 - **`QJZ.panels.kit`:** the existing private helpers (`line`, `row`, `tgl`, `seg`, `hint`, `esc`, `out`, `q`, `qa`, `tglOn`, `segOn`, `save`, `avatar`, `petId`, and the stepper markup), now exposed.
 - **`QJZ.panelsHealth`:**
   - `section()` / `update(c)` for the 健康 tab;
   - `onboardingStep()` / `readStep(c) -> {sit, water}`;
   - `askBuild(c)` / `askUpdate(c)` for the `healthAsk` panel kind;
   - `calendarCard()` / `calendarUpdate(c)` (Task 14).
-- **Tabs:** `TABS` gets `['health','健康']` after 寵物, giving 薪水和時間, 寵物, 健康, 畫面, 其他.
+- **Tabs:** `TABS` gets `['health','健康',['health']]` after `pet`, with `SECTIONS.health = QJZ.panelsHealth.section`. That gives 薪水和時間, 寵物, 健康, 畫面, 其他.
 - **`initialPanel`:**
   - the order is onboarding → question → `healthAsk`;
   - `healthAsk` is asked when `onboarded && !health.asked`, once per session, also after the question panel closes;
@@ -1130,8 +1249,8 @@ This task adds only the 1.1 items to it.
 - **`onboardingPatch(f)`** takes `f.sit` / `f.water` and adds `health:{asked:true, sit:{on}, water:{on}}`.
 - **The 健康 tab** (`D_settings` with §4.9 #7, §5.4). Steppers use `.stepper` and stop at the `HEALTH_RANGES` ends.
   - **Card 「休息提醒」:**
-    - 「起來動」 toggle, with 「坐好久了，寵物會捧著水杯跳起來揮手。」;
-    - 「喝水」 toggle;
+    - 「起來動」 toggle, with 「坐好久了，寵物會跳起來揮手叫你。」. **Ruling C8:** the sit-only pose has no cup (§5.8); the cup goes with 喝水;
+    - 「喝水」 toggle, with 「寵物會捧著水杯提醒你喝水。」;
     - 「每隔」 N 分鐘, with 「按「等一下」會晚一點再提醒；番茄鐘的休息也算一次起身。」;
     - 「一天幾杯」 N 杯, with 「喝滿目標寵物會很開心。」;
     - a hint 「起來動目標：每天 {standGoal} 次（工時 ÷ 間隔，自動算）」.
@@ -1144,12 +1263,14 @@ This task adds only the 1.1 items to it.
 - **Onboarding step 3 and `healthAsk`** (`D_onboard`; the copy is updated for §4.9 #6):
   - 「要不要提醒你起來動、喝水？」 / 「上班一坐就是一整天，我可以幫你記著。」.
   - Two ticked checkboxes:
-    - 「每 {every} 分鐘提醒我起來動一動」 + 「我會捧著水杯跳起來揮手，按「起來了」或「等一下」。」;
-    - 「順便提醒我喝水」 + 「一天目標 {goal} 杯，喝了就按「喝了」記一杯。」.
+    - 「每 {every} 分鐘提醒我起來動一動」 + 「我會跳起來揮手，按「起來了」或「等一下」。」 (Ruling C8);
+    - 「順便提醒我喝水」 + 「我會捧著水杯來，一天目標 {goal} 杯，喝了就按「喝了」記一杯。」.
   - The note 「🍅 想專心的時候，可以從右鍵選單開始番茄鐘（{focus} 分鐘專心、{short} 分鐘休息）。這些都能在 設定 → 健康 裡改。」.
   - The preview 「時間到會像這樣：」.
   - Step 2's 「開始！」 becomes 「下一步 →」; step 3 has 「← 上一步」, three dots and 「開始！」 (onboarding stays 3 steps, §4.6).
-- **The 畫面 tab** gains only the 「省電模式」 toggle (`display.powerSaver`), with 「金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。」, beside 1.0's 相容模式. There is no capsule position here (§4.9 #12).
+- **The 畫面 tab:** its `layout` section card gains only the 「省電模式」 toggle (`display.powerSaver`), with 「金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。」, beside 1.0's 相容模式.
+  - The `boost` section (動力加成) is unchanged.
+  - There is no capsule position here (§4.9 #12).
 
 - [ ] **Step 1: Write the failing tests:**
   - `panels: the first panel: onboarding, else the question, else the health question once`: `READY` (salary + onboarded) → `'healthAsk'`; with `health.asked` → null. Existing tests that expect no panel add `health:{asked:true}`.
@@ -1161,7 +1282,7 @@ This task adds only the 1.1 items to it.
     - opening 進階 shows the other four;
     - 今天已喝 − at 0 stays 0, ＋ → cups 1;
     - the 起來動目標 hint reads 9 at 8 h / 50 min.
-  - `panels: five tabs in order; 畫面 has 相容模式 and 省電模式 only`.
+  - `panels: five tabs in order; the 版型 card in 畫面 has exactly 相容模式 and 省電模式; 動力加成 is unchanged`.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
 - [ ] **Step 3: Implement.** dev.html gains `?panel=healthAsk` and `?obstep=3`.
 - [ ] **Step 4: Run `test.ps1`.** Expected: PASS.
@@ -1178,7 +1299,8 @@ This task adds only the 1.1 items to it.
 **Interfaces:**
 - **`QJZ.health.calendar(history, month, today, settings) -> {title, weeks, totals:{cups, tomatoes}, goal}`:**
   - `weeks`: arrays of 7 cells, Sunday first (`E_3`). A cell is `null` outside the month, or `{day, d, blank, level, full, tomatoes, today}`.
-  - **Level:** `cups >= goal` → `full`, level 4. Else 0 when cups is 0, otherwise `1 + floor(3·cups / goal)` capped at 3. The goal is the day's `cupGoal`, or for today the current `water.goal`.
+  - **Level:** `cups >= goal` → `full`, level 4. Else 0 when cups is 0, otherwise `1 + floor(3·cups / goal)` capped at 3.
+  - **Goal:** the day's `cupGoal || settings.health.water.goal`. Today always uses the current `water.goal`. A past day without a sealed goal therefore never gives NaN.
   - **Blank:** no record, or no health, and not today. Today always shows its live counts.
   - **Ruling:** the calendar shows the chart's month. 1.0's 紀錄 has no month switcher, so that is the current month; the `month` parameter is there for a future switcher.
 - **The card** goes under the income chart, which is unchanged:
@@ -1190,8 +1312,13 @@ This task adds only the 1.1 items to it.
   - `health: November 2026 starts on Sunday with five weeks`: `weeks[0][0].d === 1`, `weeks[4][1].d === 30`, `weeks[4][2] === null`.
   - `health: calendar levels use the day's own goal`:
     - goal 8: 0 → level 0 (not blank); 1 → 1; 3 → 2; 6 → 3; 7 → 3; 8 → full; 9 → full;
-    - `cupGoal 6` with 6 cups is full while the setting is 10.
-  - `health: blank days, today live, totals`.
+    - `cupGoal 6` with 6 cups is full while the setting is 10;
+    - a past day with 3 cups and `cupGoal` null uses the setting 8 → level 2, not NaN.
+  - `health: blank days, today live, totals`. Today is 11-12; the history holds 11-03 `{cups:8, tomatoes:2}`, a 1.0 record for 11-04 with no health, and no 11-05.
+    - 11-04 and 11-05 are blank.
+    - 11-03 is full with tomatoes 2.
+    - Today (no record) is not blank: it shows the live `today` cups 3, and its level uses the setting.
+    - `totals` = `{cups: 11, tomatoes: 2}`.
   - `panels: the history panel shows the calendar under the chart`: the legend contains 「✓ = 喝滿 8 杯」.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -1206,8 +1333,10 @@ This task adds only the 1.1 items to it.
 **Files:**
 - Create: `tools/cpu-measure.ps1`
 - Modify: `src/web/js/ui/app.js`, `src/web/js/pets/behavior.js`, `compose.js`, `common.js`, `src/web/js/ui/layouts.js`, `src/web/css/base.css`, `layouts.css`, `pets.css`, `tests/web/app.test.js`, `behavior.test.js`, `pets.test.js`, `layouts.test.js`
+- Task 17 (art) may be running in its own worktree and also edits `compose.js`, `pets.css` and `pets.test.js`. Keep your changes to those three files in separate, self-contained blocks: Task 17 rebases onto them.
 
 **Interfaces:**
+- Consumes: `tools/test-profile.ps1` and spiketool `post` (Task 8); `build.ps1 -DraftPoses` (Task 7).
 - `QJZ.app.tickMs() -> 100 | 250`: 250 with `display.powerSaver`. A settings change restarts the interval.
 - `html.saver` while `powerSaver` is on.
 - `Brain.setSaver(on)`: idle actions every 60–180 s instead of 20–60 s.
@@ -1236,9 +1365,9 @@ This task adds only the 1.1 items to it.
   4. If either misses, under `html.saver` try in order, measuring after each: (a) the pet's perpetual loops at half speed; (b) pause them between idle actions. Stop as soon as the target is met.
   5. Missing the target does not block the release (§5.9): report the numbers.
 - [ ] **Step 6: Compare with 1.0** on the same host:
-  1. `git archive <1.0 base> src/web | tar -x -C <scratch>/web10`, then copy `src/web/fonts` and `src/web/licenses` in.
+  1. `git archive <the commit 1.1 branched from, i.e. the simplified 1.0> src/web | tar -x -C <scratch>/web10`, then copy `src/web/fonts` and `src/web/licenses` in.
   2. Run the dev build with `-WebRoot` set to the 1.0 copy, then to the 1.1 `src/web`; both pets, 省電模式 off.
-  3. 1.1 must not be clearly above 1.0 (beyond ±2 points). If it is, find and remove the new continuous animation.
+  3. 1.1 must not be above 1.0 by more than 2 points of one core. **Ruling C7:** §5.9 says 「不能比 1.0 更耗」, but the 1.0 R-F5 measurements show ±2 points of run-to-run noise. If 1.1 is over that, find and remove the new continuous animation.
   4. Put the results table in the commit body.
 - [ ] **Step 7: Run `build.ps1`** (dev). Commit as `feat(web): 省電模式; CPU measured (see body)`.
 
@@ -1263,9 +1392,9 @@ This task adds only the 1.1 items to it.
 - [ ] **Step 2: Run `test.ps1`.** Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run `test.ps1`.** Expected: PASS.
-- [ ] **Step 5: Verify live** with the dev build, `QJZ_PROFILE=t16`, and a seeded `session.json`:
-  - 0.5 s after the window shows, the stamp is still there;
-  - within 3 s it is `{"lastExitMs":null}`, after `history.json` was written.
+- [ ] **Step 5: Verify live** with the dev build, `QJZ_PROFILE=t16`, `QJZ_TRACE=1`, and a seeded `session.json`. Check the order, not timings:
+  - the stamp is intact right after `-> init` in the profile's `trace.log`;
+  - the trace's first `<- saveHistory` comes before session.json becomes `{"lastExitMs":null}`. Record the trace line and the file's write time.
 - [ ] **Step 6: Commit** as `fix(host): unreadable WebView2 DLL beside the exe refuses to start; keep session.json until history is saved`.
 
 ---
@@ -1274,9 +1403,18 @@ This task adds only the 1.1 items to it.
 
 **Files:**
 - Create: `src/web/poses-review.html`, `tools/inline-page.ps1`
-- Modify: `src/web/js/pets/states.js`, `props.js`, `rig.js`, `compose.js` (`speechAt`), `skins/*.js` (10 files), `src/web/css/pets.css`, `src/web/js/ui/layouts.js` (`PET_HIT_BY_STATE` only), `tests/web/pets.test.js`
+- Modify: `src/web/js/pets/states.js`, `props.js`, `rig.js`, `compose.js` (`speechAt`), `skins/*.js` (10 files), `src/web/css/pets.css`, `tests/web/pets.test.js`
+- **Ruling M12:**
+  - This task may run in its own worktree, cut after Task 7, in parallel with Tasks 8–16.
+  - It never edits `src/web/js/ui/layouts.js`. It reports the hit-box numbers, and Task 18 applies them.
+  - Before merging it rebases on the branch head. Expect conflicts in `compose.js`, `pets.css` and `pets.test.js` (Task 15).
+  - It uses `tools/shot.ps1` (Task 7) and runs tests with `test.ps1 -EdgeProfile build\.edge-art -WebOnly` (Task 1).
 
 **Interfaces:**
+- Consumes (Task 7):
+  - `QJZ.pets.NEW_POSES`, `FALLBACK`, `poseFor(id, state, preview)`, `missingPoses()`;
+  - `compose(…, {preview:true})`;
+  - the `build.ps1` pose check, which reads `poses11` lines.
 - **States:**
   - `wave` (跳起來揮手（敲窗）): the sit-only reminder; a jump, a waving arm and knock marks.
   - `holdCup` (捧著水杯揮手): reminders that ask water; holds the glass with knock marks, and `knock` replays its wave.
@@ -1284,7 +1422,8 @@ This task adds only the 1.1 items to it.
   - `focus` (戴耳機專心打字): typing with headphones.
   - Start from the mockup's `EXTRA.water` / `headphones` / `knock`. Hamsters stay armless. Everything is A1 sticker style, matching each skin's 1.0 poses.
 - **`poses11: ['wave','holdCup','sip','focus']`** on each skin def, added only after the user's OK.
-- **`poses-review.html`:** 10 skins × 4 poses; animated `petonly` on the U7 desktop background, with the `avatar` view under it; a pause button; `QJZ.pets.previewPoses = true`.
+- **`poses-review.html`:** 10 skins × 4 poses; animated `petonly` on the U7 desktop background, with the `avatar` view under it; a pause button. It passes `{preview:true}` to every `compose` call (Ruling R3: there is no global switch).
+- **The hit-box report** goes in the final report and the commit body. For each new pose: whether its motion stays inside `PET_HIT`, or needs `PET_REACH` (→ `PET_HIT_TALL`) or its own `PET_HIT_BY_STATE` box, measured over all 10 skins the way 1.0 measured hop / dangle.
 - **`tools/inline-page.ps1 -Page <page> -Out <file>`:** one self-contained HTML file; local scripts and stylesheets inlined; CSS `url()` fonts as base64 `data:` URIs.
 
 - [ ] **Step 0: Draft gate on two skins first.**
@@ -1293,10 +1432,10 @@ This task adds only the 1.1 items to it.
   - The controller publishes the page and gets the user's OK on the look before any other skin is drawn.
   - Ruling (cost): in 1.0, art drawn for every skin at once was the most expensive rework (25% of subagent output). Agreeing the look on 2 skins first keeps a rejected direction cheap.
 - [ ] **Step 1: Roll out to the remaining 8 skins.** Add the states, props, CSS motion and `speechAt` for all 10 skins, following the approved look. `sip` is short and is not a loop.
-- [ ] **Step 2: Add the tests.**
-  - `pets: every skin composes the new poses`: with `previewPoses`, every skin × pose × view parses as SVG, has `.st-<pose>`, and has no slot comment left.
-  - Add `PET_HIT_BY_STATE.wave` if the jump leaves `PET_HIT`.
-- [ ] **Step 3: Run the tests:** `test.ps1` (main tree), or `test.ps1 -EdgeProfile build\.edge-art -WebOnly` (parallel worktree). Expected: PASS.
+- [ ] **Step 2: Add the test and measure the hit boxes.**
+  - `pets: every skin composes the new poses`: with `{preview:true}`, every skin × pose × view parses as SVG, has `.st-<pose>`, and has no slot comment left.
+  - Measure the hit boxes for the report above.
+- [ ] **Step 3: Run the tests:** `test.ps1 -EdgeProfile build\.edge-art -WebOnly` in a parallel worktree, or plain `test.ps1` in the main tree. Expected: PASS.
 - [ ] **Step 4: Self-check.** Build `build\review\poses-review.html` with the inliner; shoot it row by row; fix clipped parts, floating paws, and wrong colours or eyes.
 - [ ] **Step 5: Commit** as `feat(pets): 1.1 poses (wave, holdCup, sip, focus) for review`.
 - [ ] **Step 6: GATE.**
@@ -1304,20 +1443,25 @@ This task adds only the 1.1 items to it.
   - The controller publishes `build\review\poses-review.html` and asks the user to review it.
   - Apply the requested changes and republish until the user says OK. Nothing below runs before that OK.
 - [ ] **Step 7: Declare the poses.**
-  1. Add `poses11` to all 10 skins, and change the `missingPoses` test to expect `[]`.
-  2. `test.ps1` passes.
-  3. `build.ps1 -Release` (no `-DraftPoses`) builds.
-  4. Run `build.ps1` (dev) again.
-  5. Commit as `feat(pets): 1.1 poses approved`.
+  1. Add `poses11` to all 10 skins, and change the `missingPoses` test to expect `[]`. Nothing else needs to change: Task 7's fallback tests use a stub skin, and Task 11's assert `poseFor` (Ruling M10).
+  2. Rebase on the branch head (Ruling M12), then run `test.ps1`: it passes.
+  3. `build.ps1 -Release` (no `-DraftPoses`) builds. Run `build.ps1` (dev) again.
+  4. Commit as `feat(pets): 1.1 poses approved`, with the hit-box report in the body.
 
 ---
 
 ### Task 18: Version 1.1.0, the guide, the final release build, end-to-end checks
 
 **Files:**
-- Create: `tests/fixtures/v10/settings.json`, `history.json`, `window.json`. These are a profile written by released 1.0.0; fixture data, not the user's.
-- Modify: `src/host/AppHost.cs` (`Version = "1.1.0"`), `docs/使用說明.md`, `src/web/guide.txt`
+- Modify: `src/host/AppHost.cs` (`Version = "1.1.0"`), `src/web/js/ui/layouts.js` (Task 17's hit boxes), `tests/web/layouts.test.js`, `docs/使用說明.md`, `src/web/guide.txt`
+- Uses:
+  - `tests/fixtures/v10/` (Task 4: the 1.0 serialisation, never written by a running 1.0.0);
+  - `tools/test-profile.ps1 -FromDir` (Task 8);
+  - Task 17's hit-box report.
 
+- [ ] **Step 0: Apply Task 17's hit boxes** (Rulings M11 and M12).
+  - Put each new pose into `PET_REACH` or `PET_HIT_BY_STATE` in `layouts.js`, as the report says.
+  - Add `layouts: the 1.1 poses' hit boxes cover their motion`, asserting `petHit(pose)` for each of wave, holdCup, sip and focus equals the reported box.
 - [ ] **Step 1: Set `AppHost.Version = "1.1.0"`.** 設定 → 其他 → 關於 then shows 「版本 1.1.0」. The version is checked on the exe in Step 4.
 - [ ] **Step 2: Update `docs/使用說明.md` and `src/web/guide.txt` the same way.**
   - New sections:
@@ -1332,13 +1476,13 @@ This task adds only the 1.1 items to it.
 - [ ] **Step 4: Run `build.ps1 -Release`.** Expected: no DRAFT line; `powershell.exe -NoProfile -Command "(Get-Item build\錢進中.exe).VersionInfo.FileVersion"` prints `1.1.0`. Record the size and sha256.
 - [ ] **Step 5: End-to-end checks with the release exe.** Use `QJZ_PROFILE` profiles on DISPLAY1, no input; record each result in the commit body.
   1. **Fresh profile** (`onboarded:false`, salary 0, `hideFromCapture:false`): the onboarding panel shows (`spiketool printwindow`). Step 3 is covered by Task 13's DOM tests.
-  2. **The `tests/fixtures/v10` profile:** the 健康 question shows. After `post WM_CLOSE`:
+  2. **The `tests/fixtures/v10` profile,** loaded verbatim with `tools/test-profile.ps1 -Name v10 -FromDir tests\fixtures\v10` (no merge, so `health` is absent): the 健康 question shows. After `post WM_CLOSE`:
      - `settings.json` is byte-identical;
      - the closed days in `history.json` deep-equal the fixture;
      - `window.json` is unchanged.
   3. **A pomodoro that ended 2 minutes ago:** within 5 s of start, `history.json` has `tomatoes:1` and `pomodoro.phase:"break"`.
-  4. **U10 as the last layout,** with `capsule` `top`, then `bottomRight`: the DISPLAY1 rect checks pass.
-  5. **Each layout** (U1, U3, U5B, U7, M3, U10, U12, U13) starts visible on DISPLAY1, and `error.log` gains no line.
+  4. **U10 as the last layout** (`layout.current` U10), with `capsule` `top`, then `bottomRight`: the DISPLAY1 rect checks pass.
+  5. **Each layout** starts visible on DISPLAY1 at its own size, and `error.log` gains no line. The start layout is `layout.current` for U1, U3, U5B, U7, U10, U12 and U13, and `layout.mini:true` for M3.
   6. **CPU again** with the final art (Task 15 tool): U7 for P0 and S5, 省電模式 off and on. Report the numbers.
   7. **Clean-up:** the Run value is unchanged, no PID-tree process is left, the profiles are removed, and the user's own 錢進中 is untouched.
 - [ ] **Step 6: Hand over the user-only checks.** The controller gives the user this list:
