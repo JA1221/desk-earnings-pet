@@ -17,7 +17,7 @@ QJZ.pets = QJZ.pets || {};
 //   hl: number             'flat'/'crayon' only: highlight radius (also its offset)
 // }
 // Expressions: open (the skin's own eyes), happy ^^, closed ‿‿, sleepy (half lids), angry (cut lids + brows),
-// surprised (white eyes, small pupils), dazed (round blank dot eyes, a little stunned), sparkle (shining excited eyes).
+// surprised (white eyes, small pupils), dazed (round blank dot eyes, a little stunned), sparkle (big shiny excited eyes).
 // Mouths: neutral (the skin's own), smile (open happy mouth), open (small o), chew (munching, animated by .chew),
 // yawn (big oval), pout (little frown), tiny (a very small o). Unknown names fall back to open / neutral.
 // Flat (S4) eyes and mouths are filled shapes without outlines; crayon (S5) lines get a second pencil pass.
@@ -161,16 +161,24 @@ QJZ.pets.expr = (function () {
     return `<g class="blink"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillc}"/>${hl}</g>`;
   }
 
-  // shining excited eyes: the open eye with a big star catch-light; tiny dot eyes become little ink stars
+  // big shiny excited eyes: the eye enlarged, dark and glossy, one big and one small catch-light plus a tiny glint.
+  // Every style gets round glossy eyes here, even the tiny-dot P4 skins (in their own dark, outline-free way).
   function sparkleEye(face, p, uid) {
     var s = size(face), cx = p[0], cy = p[1], st = face.eyeStyle;
-    if (st === 'dot') {
-      var R = n(s[0] * 1.7);
-      return `<g class="blink"><path d="${C.star4(cx, cy, R)}" fill="${face.ink}" stroke="${face.ink}" stroke-width="1" stroke-linejoin="round"/><circle cx="${n(cx + 0.5)}" cy="${n(cy - 0.6)}" r="${n(s[0] * 0.28)}" fill="#fff"/></g>`;
+    var k = { q: 1.18, ham: 1.2, gloss: 1.4, dot: 1.75, flat: 1.32, crayon: 1.5 }[st] || 1.3;
+    var rx = n(s[0] * k), ry = n(s[1] * k), body;
+    if (st === 'q') {
+      body = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#2E2220"/><ellipse cx="${cx}" cy="${n(cy + ry * 0.38)}" rx="${n(rx * 0.72)}" ry="${n(ry * 0.44)}" fill="${face.iris}" opacity=".92"/>`;
+    } else {
+      var f = st === 'flat' || st === 'crayon' ? face.ink : 'url(#' + uid + '-geye)';
+      body = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${f}"/>`;
     }
-    var big = st === 'q' || st === 'ham' ? 0.42 : 0.5, k = Math.min(s[0], s[1]);
-    var star = `<path d="${C.star4(n(cx - k * 0.3), n(cy - k * 0.3), n(k * big))}" fill="#fff"/><path d="${C.star4(n(cx + k * 0.42), n(cy + k * 0.4), n(k * 0.22))}" fill="#fff"/>`;
-    return openEye(face, p, uid).replace(/<\/g>$/, star + '</g>');
+    // crayon highlights are drawn a little larger so they survive the grain filter
+    var big = st === 'crayon' ? 0.5 : 0.44, small = st === 'crayon' ? 0.22 : 0.19;
+    var hl = `<ellipse cx="${n(cx + rx * 0.3)}" cy="${n(cy - ry * 0.34)}" rx="${n(rx * big)}" ry="${n(ry * big * 0.86)}" fill="#fff"/>` +
+      `<circle cx="${n(cx - rx * 0.38)}" cy="${n(cy + ry * 0.4)}" r="${n(Math.max(0.9, rx * small))}" fill="#fff"/>` +
+      `<circle cx="${n(cx + rx * 0.46)}" cy="${n(cy + ry * 0.3)}" r="${n(Math.max(0.6, rx * 0.1))}" fill="#fff" opacity=".9"/>`;
+    return `<g class="blink">${body}${hl}</g>`;
   }
 
   function one(face, ex, i, uid) {

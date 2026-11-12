@@ -19,9 +19,12 @@
   function body(path, clip, st) {
     return `<path d="${path}" fill="${G}"/><g clip-path="url(#${clip})"><ellipse cx="118" cy="166" rx="46" ry="30" fill="${W}"/><ellipse cx="168" cy="140" rx="14" ry="34" fill="#EFA552" opacity=".6"/></g><path d="${path}" fill="none" ${st}/>`;
   }
-  // the sunflower seed balanced on top of the head (inside the head group, so it rides along)
-  function topSeed(x, y, rot) {
-    return `<g transform="rotate(${rot} ${x} ${y})"><ellipse cx="${x}" cy="${y}" rx="5.8" ry="3.1" fill="#3A3A3A" ${ST(1.4)}/><path d="M${x - 4.5},${y - 0.5} h9 M${x - 4},${y + 1.2} h8" stroke="#fff" stroke-width=".9" opacity=".85"/></g>`;
+  // the sunflower seed balanced on top of the head (inside the head group, so it rides along): a classic teardrop
+  // seed, dark with pale stripes running along it, round end left and pointed end right
+  function topSeed(x, y, rot, sc) {
+    return `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${sc || 1})"><path d="M-9.5,0 C-9.5,-5 -4.5,-6 1,-4.6 C5.4,-3.5 9,-1.5 10.2,0 C9,1.5 5.4,3.5 1,4.6 C-4.5,6 -9.5,5 -9.5,0 Z" fill="#33302E" ${ST(1.6)}/>` +
+      `<path d="M-7,-2.4 C-2.5,-3.9 3,-3 7.8,-0.7 M-7.8,0.2 C-2.5,-0.3 3,0 9,0.1 M-7,2.7 C-2.5,3.9 3,3 7.8,0.8" fill="none" stroke="#E2DCCF" stroke-width="1.05" stroke-linecap="round"/>` +
+      `<path d="M-6.8,-3.6 q2.6,-1.6 5.6,-1.6" fill="none" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".55"/></g>`;
   }
   function paw(x, y, rot) {
     return `<ellipse cx="${x}" cy="${y}" rx="5.5" ry="4.2" fill="${PINK}" ${ST(2.8)}${rot ? ' transform="rotate(' + rot + ' ' + x + ' ' + y + ')"' : ''}/>`;
@@ -38,7 +41,7 @@
     <ellipse cx="118" cy="126" rx="2.4" ry="1.7" fill="#FF8090"/><!--MOUTH--><!--OVER-->`;
       var art = `
     ${ear(96, 105, st)}${ear(140, 105, st)}
-    ${body(B, uid + '-b', st)}${topSeed(118, 97.5, -8)}
+    ${body(B, uid + '-b', st)}${topSeed(118, 94.6, -9)}
     ${face}
    `;
       return {
@@ -62,9 +65,9 @@
           fire: [[60, 154, 1], [176, 154, 1]], bento: [152, 149, 0.92],
           bag: { x: 166, y: 118, s: 0.9, rot: 14, sw: 0.8, straps: [[70, 124, 76, 146], [166, 124, 160, 146]] },
           paw: paw, limb: { fill: G }, pawL: PAW_L, pawR: PAW_R,
-          up: { ink: 'back', fill: 'over', w: [9, 7], arms: [[[87, 113], [76, 101], -30], [[149, 113], [160, 101], 30]] },
+          up: { ink: 'back', fill: 'back', w: [9, 7.5], arms: [[[72, 148], [48, 127], -40], [[164, 148], [188, 127], 40]] },
           holdArm: { paws: [[110, 142, 25], [126, 142, -25]] },
-          scratch: { ink: 'back', fill: 'over', w: [9, 7], arm: [[87, 113], [83, 102]], paw: [87, 98, -50] },
+          scratch: { ink: 'back', fill: 'back', w: [9, 7.5], arm: [[70, 148], [66, 116]], paw: [71, 112, -55] },
           strap: [[77, 141, 10], [159, 141, -10]]
         },
         poses: {
@@ -77,7 +80,7 @@
           dangle: {
             front: `<g class="swing"><g transform="translate(0 -20)"><g class="legs" style="transform-origin:118px 176px">` +
               `<ellipse cx="106" cy="180" rx="5.5" ry="6.5" fill="${PINK}" ${st}/><ellipse cx="130" cy="180" rx="5.5" ry="6.5" fill="${PINK}" ${st}/></g>` +
-              ear(104, 100, st, -18) + ear(132, 100, st, 18) + body(BD, uid + '-bd', st) + topSeed(137, 103, 28) + face +
+              ear(104, 100, st, -18) + ear(132, 100, st, 18) + body(BD, uid + '-bd', st) + topSeed(118, 95, -9, 0.92) + face +
               `<g class="limp" style="transform-origin:118px 140px">${paw(64, 158, 60)}${paw(172, 158, -60)}</g></g></g>`,
             anchors: { top: [118, 64], side: [[64, 98], [172, 98]] }
           }
