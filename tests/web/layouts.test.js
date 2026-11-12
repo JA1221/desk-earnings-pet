@@ -179,8 +179,11 @@
     }
     return el;
   }
+  // o: {first, seed, session, settings (top-level keys), start (null: not started), rec (today's record keys),
+  //     care: also start QJZ.care on the same bridge and clock (no heartbeat), pomo: history.pomodoro}
   function mk(nowMs, o) {
     o = o || {};
+    QJZ.care._reset();
     QJZ.layouts._reset();
     QJZ.app._reset();
     var sent = [], handlers = {}, clock = { ms: nowMs };
@@ -194,6 +197,7 @@
     };
     var root = fixture();
     QJZ.layouts.start(root, { bridge: bridge, first: o.first, seed: o.seed, session: o.session });
+    if (o.care) QJZ.care.start({ bridge: bridge, now: function () { return clock.ms; }, heartbeat: false });
     QJZ.app.start({ bridge: bridge, now: function () { return clock.ms; }, tick: false });
     var settings = JSON.parse(JSON.stringify(SETTINGS));
     for (var k in (o.settings || {})) settings[k] = o.settings[k];
@@ -203,12 +207,13 @@
       for (var x in (o.rec || {})) rec[x] = o.rec[x];
       h.days[day] = rec;
     }
+    if (o.pomo) h.pomodoro = o.pomo;
     bridge.emit({ type: 'init', settings: JSON.stringify(settings), history: JSON.stringify(h), probeMs: null, nowMs: nowMs, version: 't' });
     return { bridge: bridge, sent: sent, clock: clock, root: root,
       menu: function (a) { bridge.emit({ type: 'menu', action: a }); },
       tick: function (ms) { clock.ms = ms; QJZ.app.tickNow(); } };
   }
-  function done() { QJZ.layouts._reset(); QJZ.app._reset(); }
+  function done() { QJZ.care._reset(); QJZ.layouts._reset(); QJZ.app._reset(); }
   function of(sent, type) { return sent.filter(function (s) { return s.type === type; }); }
   function last(sent, type) { var l = of(sent, type); return l.length ? l[l.length - 1].p : null; }
   function types(sent) { return sent.map(function (s) { return s.type; }); }
@@ -316,7 +321,9 @@
     var sl = last(e.sent, 'setLayout'), body = $(e, '.u1 .body').getBoundingClientRect();
     eq(sl.height, Math.ceil(u1.getBoundingClientRect().bottom) + 7);
     ok(Math.abs(body.bottom - v.getBoundingClientRect().bottom - 16) <= 1, 'the body ends at the vitals row');
-    ok(sl.height <= 582, '16 px shorter than with the date row (596): ' + sl.height);
+    // 1.1: the 番茄鐘 pill under the 每秒 line always shows (§4.4, §4.9 #8); its row adds its height and its 8 px margin
+    var pills = $(e, '.u1 .mpills').getBoundingClientRect().height;
+    ok(pills > 0 && sl.height <= 582 + Math.ceil(pills) + 8, '16 px shorter than with the date row (596), plus the pill row: ' + sl.height);
     done();
   });
 
@@ -1485,5 +1492,228 @@
       near(full, 180, 0.01);
       near(calm, 54, 0.01);
     } finally { QJZ.fx._motion(null); host.remove(); }
+  });
+
+  // ---------- 1.1 (Task 10): cups, tomatoes and the countdown ring in U1 U3 U5-B U7 M3 ----------
+  // The DOM tests start QJZ.care on the same fake bridge (mk's o.care). 1.0 settings: no reminder, nothing logged.
+  var C = QJZ.care;
+  var WATER_ON = { asked: true, sit: { on: false }, water: { on: true, goal: 8 } };
+  function counts(cups, tomatoes) { return { health: { cups: cups, cupGoal: 8, tomatoes: tomatoes, standups: 0 } }; }
+  // the element is drawn (not hidden by the §4.9 #8 rule, and it keeps no space when it is)
+  function drawn(n) { var r = n ? n.getBoundingClientRect() : null; return !!r && r.width > 0 && r.height > 0; }
+  // the text of each drawn element in list, without what its hidden parts hold
+  function seen(n) {
+    var out = '';
+    (function walk(x) {
+      if (x.nodeType === 3) out += x.nodeValue;
+      else if (x.nodeType === 1 && drawn(x)) for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
+    })(n);
+    return out.replace(/\s+/g, ' ').trim();
+  }
+  function shownText(list) { return Array.prototype.filter.call(list, drawn).map(seen); }
+  function rgbOf(hex) { return 'rgb(' + [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); }).join(', ') + ')'; }
+  var TOM = rgbOf('#FF6B57'), REST = rgbOf('#8EE3B0');
+
+  // Ruling S11: no care, or one that has not started, is zero counts, an idle pomodoro and nothing shown.
+  test('layouts: model without care', function () {
+    var st = fakeState(at(12, 10, 0), at(12, 9, 0));
+    [undefined, null, { ready: false, show: { cups: true, tomatoes: true }, cupsText: '3/8', p: null, health: { cups: 3, tomatoes: 3 } }].forEach(function (cs, i) {
+      var m = U.model(st, at(12, 10, 0), cs);
+      eq([m.showCups, m.showTomatoes, m.pomoBtn, m.ring.phase, m.tomatoes, m.nth, m.mmss, m.standIn],
+        [false, false, '▶ 番茄鐘', null, '×0', '', '', ''], 'care ' + i);
+      eq([m.status, m.m3sub], ['上班中', '上班中 · 還有 07:00:00'], 'the 1.0 texts ' + i);
+    });
+  });
+
+  test('layouts: model health fields', function () {
+    var focus = { phase: 'focus', startMs: at(12, 9, 40), endMs: at(12, 10, 5), day: '2026-11-12', long: false, done: 0, notice: null };
+    var e = mk(at(12, 9, 52, 30), { care: true, settings: { health: WATER_ON }, rec: counts(3, 3), pomo: focus });
+    var m = U.model(QJZ.app.state, at(12, 9, 52, 30), C.state);
+    eq([m.cups, m.cupsLong, m.tomatoes, m.showCups, m.showTomatoes], ['3/8', '3/8 杯', '×3', true, true]);
+    eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['■ 停止', 'focus', '還剩 13 分', '專心中', '第 4 顆', '12:30']);
+    near(m.ring.fraction, 0.5, 1e-9, 'the elapsed share (QJZ.pomodoro.fraction)');
+    eq(m.m3sub, '專心中 · 還剩 13 分');
+    eq(m.standIn, '50 分後', 'the reminder is asked (water on): minutes to it');
+    C.toggleFocus();   // stop
+    m = U.model(QJZ.app.state, at(12, 9, 52, 30), C.state);
+    eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['▶ 番茄鐘', null, '', '上班中', '', '']);
+    eq([m.showCups, m.showTomatoes], [true, true], 'care decides what shows (Ruling R4): 3 tomatoes today');
+    done();
+    mk(at(12, 10, 0), { care: true });
+    eq(U.model(QJZ.app.state, at(12, 10, 0), C.state).standIn, '', 'nothing asked: empty');
+    done();
+  });
+
+  test('layouts: unused counts are hidden (§4.9 #8)', function () {
+    var e = mk(at(12, 10, 0), { care: true });   // water off, no cup, no tomato, idle
+    eq(shownText(e.root.querySelectorAll('.u1 .mpills > *')), ['▶ 番茄鐘'], 'U1: only the 番茄鐘 pill');
+    e.menu('layout:U7');
+    eq(drawn($(e, '.u7 .hline')), false, 'U7: no tag line');
+    var tag = $(e, '.u7 .mtag').getBoundingClientRect().height;
+    e.menu('mini');
+    eq(shownText(e.root.querySelectorAll('.m3 .mb')), [], 'M3: no sticker');
+    C.drink();   // from the menu or the tray: the layout follows at once, no tick needed
+    eq(shownText(e.root.querySelectorAll('.m3 .mb')), ['1/8'], 'M3: the cups sticker');
+    ok($(e, '.m3 .mb.l').contains($(e, '.m3 .mb svg.ic')), 'with its icon, top left');
+    e.menu('layout:U7');
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['1/8'], 'U7: cups only, no ・');
+    ok($(e, '.u7 .mtag').getBoundingClientRect().height > tag + 10, 'the line takes room only when it shows');
+    C.toggleFocus();
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['1/8・×0'], 'U7: a running focus shows the tomatoes');
+    e.menu('layout:U1');
+    eq(shownText(e.root.querySelectorAll('.u1 .mpills > *')), ['1/8 杯', '×0', '■ 停止']);
+    done();
+  });
+
+  test('layouts: U1 pills drink and start', function () {
+    var e = mk(at(12, 10, 0), { care: true, settings: { health: WATER_ON } });
+    var pills = $(e, '.u1 .money-box .mpills'), rate = $(e, '.u1 [data-b=rate]');
+    ok(pills && pills.getBoundingClientRect().top >= rate.getBoundingClientRect().bottom, 'under the 每秒 line');
+    eq(shownText(pills.children), ['0/8 杯', '▶ 番茄鐘'], 'water on: the cups show from the start');
+    ok(pills.querySelector('[data-act=drink] svg.ic-drop') && pills.querySelector('[data-act=pomo]'), 'drink and pomo buttons');
+    clickOn($(e, '.u1 [data-act=drink]'));
+    eq(C.state.health.cups, 1);
+    eq(text(e, '.u1 [data-act=drink]'), '1/8 杯');
+    clickOn($(e, '.u1 [data-act=pomo]'));
+    eq(C.state.p.phase, 'focus');
+    eq(text(e, '.u1 [data-act=pomo]'), '■ 停止');
+    eq(shownText(pills.children), ['1/8 杯', '×0', '■ 停止']);
+    eq(text(e, '[data-b=status]'), '專心中', 'the status pill');
+    ok(drawn($(e, '.u1 .status .pi-foc')) && !drawn($(e, '.u1 .status .pi-brk')), 'with the headphones');
+    eq(of(e.sent, 'dragStart').length, 0, 'buttons never drag');
+    clickOn($(e, '.u1 [data-act=pomo]'));
+    eq([C.state.p.phase, text(e, '.u1 [data-act=pomo]'), text(e, '[data-b=status]')], ['idle', '▶ 番茄鐘', '上班中']);
+    done();
+  });
+
+  test('layouts: U3 tomato and water buttons share one row, no bottle', function () {
+    var e = mk(at(12, 10, 0), { first: 'U3', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) });
+    var tom = $(e, '.u3 [data-act=pomo]'), wat = $(e, '.u3 [data-act=drink]'), money = $(e, '.u3 .hud-bottom .money');
+    var tr = tom.getBoundingClientRect(), wr = wat.getBoundingClientRect(), mr = money.getBoundingClientRect();
+    ok(drawn(tom) && drawn(wat), 'both buttons');
+    ok(Math.abs((tr.top + tr.bottom) / 2 - (wr.top + wr.bottom) / 2) <= 1, 'one row: ' + tr.top + ' / ' + wr.top);
+    eq([Math.round(tr.width), Math.round(tr.height)], [Math.round(wr.width), Math.round(wr.height)], 'the same style');
+    ok(wr.left >= mr.right && tr.left >= mr.right, 'right of the money');
+    ok($(e, '.u3 .hud-bottom').contains(tom) && $(e, '.u3 .hud-bottom').contains(wat), 'in the money box');
+    eq([$(e, '.u3 .bottle'), $(e, '.u3 .gauge')], [null, null], 'no bottle');
+    eq(shownText(e.root.querySelectorAll('.u3 .tomslot > .n')), ['3/8', '×3'], 'the captions');
+    Array.prototype.forEach.call(e.root.querySelectorAll('.u3 .tomslot > .n'), function (n, i) {
+      ok(n.getBoundingClientRect().top >= [wr, tr][i].bottom - 1, 'caption under its button ' + i);
+    });
+    eq(text(e, '.u3 [data-act=pomo] .play'), '▶');
+    clickOn(tom);
+    eq(C.state.p.phase, 'focus');
+    eq(text(e, '.u3 [data-act=pomo] .play'), '■');
+    clickOn(wat);
+    eq(C.state.health.cups, 4);
+    eq(shownText(e.root.querySelectorAll('.u3 .tomslot > .n')), ['4/8', '×3']);
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U3', care: true });
+    eq([drawn($(f, '.u3 [data-act=drink]')), drawn($(f, '.u3 [data-act=pomo]'))], [false, true], 'unused: the tomato button only');
+    eq(shownText(f.root.querySelectorAll('.u3 .tomslot > .n')), [], 'and no caption');
+    done();
+  });
+
+  test('layouts: U5-B is about 65 px wider', function () {
+    var e = mk(at(12, 10, 0), { first: 'U5B' }), w = last(e.sent, 'setLayout').width;
+    ok(w >= 542 && w <= 562, '1.0 sent 487; now ' + w);
+    var col = $(e, '.u5b .rcol'), mid = $(e, '.u5b .mid');
+    ok(col && col.getBoundingClientRect().left >= mid.getBoundingClientRect().right, 'a right column');
+    ok(drawn(col.querySelector('[data-act=pomo]')), 'its tomato button always shows');
+    eq(drawn(col.querySelector('[data-act=drink]')), false, 'no cups while unused');
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U5B', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) });
+    eq(shownText(f.root.querySelectorAll('.u5b .rcol [data-b]')), ['×3', '▶', '3/8']);
+    clickOn($(f, '.u5b .rcol [data-act=drink]'));
+    eq(C.state.health.cups, 4);
+    clickOn($(f, '.u5b .rcol [data-act=pomo]'));
+    eq([C.state.p.phase, text(f, '.u5b .rcol .play')], ['focus', '■']);
+    eq(last(f.sent, 'setLayout').width, w, 'the same width in use');
+    done();
+  });
+
+  test('layouts: U7 tag line and M3 stickers have no data-act', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) });
+    var line = $(e, '.u7 .mtag .hline');
+    eq(shownText([line]), ['3/8・×3']);
+    eq([line.querySelectorAll('[data-act]').length, line.closest('[data-act]')], [0, null], 'display only (§5.3)');
+    clickOn(line);
+    eq(C.state.health.cups, 3, 'a click logs nothing');
+    e.menu('mini');
+    var mb = e.root.querySelectorAll('.m3 .mb');
+    eq(shownText(mb), ['3/8', '×3']);
+    ok(mb[0].classList.contains('l') && mb[1].classList.contains('r'), 'cups top left, tomatoes top right');
+    Array.prototype.forEach.call(mb, function (n) {
+      eq([n.querySelectorAll('[data-act]').length, n.closest('[data-act]')], [0, null]);
+      clickOn(n);
+    });
+    eq([C.state.health.cups, C.state.p.phase], [3, 'idle'], 'clicks log nothing, start nothing');
+    var ring = $(e, '.m3 .ring').getBoundingClientRect(), badge = $(e, '.m3').getBoundingClientRect();
+    Array.prototype.forEach.call(mb, function (n) {
+      var r = n.getBoundingClientRect();
+      ok(r.top < ring.top + 30 && r.left >= 0 && r.right <= badge.right, 'on the ring\'s top corners, inside the badge');
+    });
+    done();
+  });
+
+  test('layouts: the ring follows the pomodoro once a second, red then green, without transitions', function () {
+    ['U1', 'U3', 'U5B', 'U7'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true });
+      var r = $(e, '[data-pring]'), arc = r.querySelector('[data-ring-arc]');
+      ok(r.hidden && !drawn(r), name + ': idle, no ring');
+      C.toggleFocus();
+      ok(!r.hidden && drawn(r), name + ': a focus shows it at once');
+      eq(text(e, '[data-pring] [data-ring-label]'), '還剩 25 分', name);
+      var rr = r.getBoundingClientRect(), hr = headOf(e), cx = (hr.left + hr.right) / 2, cy = (hr.top + hr.bottom) / 2;
+      ok(cx > rr.left && cx < rr.right && cy > rr.top && cy < rr.bottom, name + ': around the pet ' + JSON.stringify([cx, cy, rr.left, rr.top, rr.right, rr.bottom]));
+      eq(getComputedStyle(arc).transitionDuration, '0s', name + ': no transition on the arc');
+      eq(getComputedStyle(arc).stroke, TOM, name + ': tomato red');
+      ok(!r.classList.contains('rest'));
+      var writes = 0, set = arc.setAttribute;
+      arc.setAttribute = function (k, v) { if (k === 'stroke-dasharray') writes++; return set.call(this, k, v); };
+      for (var t = 100; t <= 2000; t += 100) {
+        e.tick(at(12, 10, 0) + t);
+        if (t === 500 || t === 1500) C.drink();   // a re-render within the second
+      }
+      ok(writes >= 1 && writes <= 2, name + ': at most once a second, ' + writes + ' writes in 2 s');
+      delete arc.setAttribute;
+      e.tick(at(12, 10, 12, 30));
+      eq(text(e, '[data-pring] [data-ring-label]'), '還剩 13 分', name);
+      near(parseFloat(arc.getAttribute('stroke-dasharray')), QJZ.ring.LEN / 2, 0.1, name + ': half the circle left');
+      e.tick(at(12, 10, 25));   // the tomato is done: the break
+      eq(C.state.p.phase, 'break');
+      ok(r.classList.contains('rest') && !r.hidden, name + ': green for the break');
+      eq(getComputedStyle(arc).stroke, REST, name);
+      eq(text(e, '[data-pring] [data-ring-label]'), '還剩 5 分', name);
+      ok(drawn(r.querySelector('.pi-brk')) && !drawn(r.querySelector('.pi-foc')), name + ': the break icon');
+      e.tick(at(12, 10, 30));   // 休息結束: nothing runs
+      ok(r.hidden && !drawn(r), name + ': gone after the break');
+      done();
+    });
+  });
+
+  test('layouts: M3 outer ring counts down during a pomodoro', function () {
+    var e = mk(at(12, 10, 0), { first: 'M3', care: true }), ring = $(e, '.m3 [data-ring]');
+    function p() { return ring.style.getPropertyValue('--p'); }
+    eq([p(), text(e, '[data-b=m3sub]')], ['12.50', '上班中 · 還有 07:00:00'], 'the day\'s progress');
+    ok(!ring.classList.contains('p-foc') && !ring.classList.contains('p-brk'));
+    var day = getComputedStyle(ring).backgroundImage;
+    C.toggleFocus();
+    eq([p(), text(e, '[data-b=m3sub]')], ['100.00', '專心中 · 還剩 25 分']);
+    ok(ring.classList.contains('p-foc'), 'p-foc');
+    ok(getComputedStyle(ring).backgroundImage.indexOf(TOM) >= 0 && getComputedStyle(ring).backgroundImage !== day, 'tomato red');
+    e.tick(at(12, 10, 10));
+    eq([p(), text(e, '[data-b=m3sub]')], ['60.00', '專心中 · 還剩 15 分'], 'counts down');
+    e.tick(at(12, 10, 25));
+    ok(ring.classList.contains('p-brk') && !ring.classList.contains('p-foc'), 'p-brk');
+    eq([p(), text(e, '[data-b=m3sub]')], ['100.00', '休息中 · 還剩 5 分']);
+    ok(getComputedStyle(ring).backgroundImage.indexOf(REST) >= 0, 'green');
+    e.tick(at(12, 10, 27));
+    eq(p(), '60.00');
+    e.tick(at(12, 10, 30));
+    ok(!ring.classList.contains('p-foc') && !ring.classList.contains('p-brk'), 'back to the day');
+    eq([p(), text(e, '[data-b=m3sub]')], ['18.75', '上班中 · 還有 06:30:00']);
+    eq(getComputedStyle(ring).transitionDuration, '0s');
+    done();
   });
 })();

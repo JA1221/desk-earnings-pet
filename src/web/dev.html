@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/pets.css">
 <link rel="stylesheet" href="css/layouts.css">
+<link rel="stylesheet" href="css/health.css">
 <link rel="stylesheet" href="css/panels.css">
 <style>
   html, body { background: #ECE8E1; min-height: 100%; }
@@ -53,7 +54,9 @@
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust</code>、
 <code>?tab=time|pet|display|other</code>、<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
 <code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」。<br>
-寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。</p>
+寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。<br>
+健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒，
+<code>?pomo=focus|break|breakOver</code> 番茄鐘正在專心（還剩 13 分）/ 休息 / 休息結束（番茄鐘存在 localStorage，要清掉加 <code>?fresh=1</code>）。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
@@ -82,6 +85,8 @@
 <script src="js/ui/sound.js"></script>
 <script src="js/ui/app.js"></script>
 <script src="js/ui/care.js"></script>
+<script src="js/ui/icons.js"></script>
+<script src="js/ui/ring.js"></script>
 <script src="js/pets/common.js"></script>
 <script src="js/pets/room.js"></script>
 <script src="js/pets/expressions.js"></script>
@@ -102,6 +107,7 @@
 <script src="js/pets/compose.js"></script>
 <script src="js/pets/behavior.js"></script>
 <script src="js/pets/lines.js"></script>
+<script src="js/ui/templates.js"></script>
 <script src="js/ui/layouts.js"></script>
 <script src="js/ui/panels.js"></script>
 <script>
@@ -217,6 +223,23 @@
         var amt = devQ.get('amount'), f = document.querySelector('[data-f=amount]'), nx = document.querySelector('[data-pa=next]');
         if (amt !== null && f) { f.value = amt; f.dispatchEvent(new Event('input', { bubbles: true })); }
         if (devQ.get('step') === '2' && nx) nx.click();   // blocked (and the error shows) unless the amount is valid
+      }, 0);
+    });
+  }
+  // ?cups= &tom= &stand= (today's counts), ?water=on (the 喝水 reminder, as answered at onboarding), ?pomo=focus|break|
+  // breakOver: seeded through QJZ.care._dev once care has started (the mock host sends no visibility; _dev counts the
+  // window as shown).
+  var devCare = { cups: devQ.get('cups'), tomatoes: devQ.get('tom'), standups: devQ.get('stand') }, devPomo = devQ.get('pomo');
+  var devWater = devQ.get('water') === 'on';
+  if (devWater || devPomo || Object.keys(devCare).some(function (k) { return devCare[k] !== null; })) {
+    var offCare = QJZ.app.on('change', function () {
+      offCare();
+      setTimeout(function () {
+        if (devWater) QJZ.app.saveSettings({ health: { asked: true, water: { on: true } } });
+        var o = {};
+        Object.keys(devCare).forEach(function (k) { if (/^\d{1,3}$/.test(devCare[k] || '')) o[k] = +devCare[k]; });
+        if (/^(focus|break|breakOver)$/.test(devPomo || '')) o.pomo = devPomo;
+        QJZ.care._dev(o);
       }, 0);
     });
   }

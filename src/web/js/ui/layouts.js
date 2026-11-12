@@ -38,6 +38,9 @@ window.QJZ = window.QJZ || {};
 // sessionStorage, which only lives as long as this WebView, and comes back. 1.0's settings.layout.start is not read.
 // Rendering: the odometer follows the 100 ms tick; every other text changes at most once a second (or on a
 // record / settings change), computed from the wall clock, and is only written when it changed.
+// The markup is QJZ.templates. 1.1 (spec §4.3, §4.4, §4.9 #8): the cups, the tomatoes, the 番茄鐘 buttons (data-act
+// drink / pomo) and the countdown rings (QJZ.ring) read QJZ.care.state (model's cs); a care change re-renders at once,
+// and the countdowns follow the app's second.
 // The pet: QJZ.behavior's Brain decides the state from the wall clock on every app tick (base state per status,
 // idle actions, reactions); the holder node stays and the SVG is swapped only when the state or the skin changes.
 // Reactions: a plain click on the pet is a poke (petted / angry), 餵食 plays eat when the snack lands, a milestone
@@ -164,10 +167,35 @@ QJZ.layouts = (function () {
     return { hearts: clamp5(70 / 20), bolts: clamp5((100 - 60 * pct) / 20) };
   }
 
-  // Everything a layout displays, from the app state at wall-clock time ms.
-  function model(st, ms) {
+  // ---- 1.1: what QJZ.care adds (spec §4.4, §4.9 #8, §5.2) ----
+  var POMO_STATUS = { focus: '專心中', break: '休息中' };
+  // cs = QJZ.care.state. A missing or not-ready care (Ruling S11) is zero counts, an idle pomodoro and nothing shown.
+  // What shows is care's to decide (cs.show, Ruling R4); here it is only read. The pomodoro readouts are taken at the
+  // whole second, so however often a layout renders, the ring and the countdown change at most once a second.
+  function careModel(cs, s, ms) {
+    var on = !!(cs && cs.ready && cs.p), p = on ? cs.p : null, h = on && cs.health ? cs.health : { cups: 0, tomatoes: 0 };
+    var phase = p && POMO_STATUS.hasOwnProperty(p.phase) ? p.phase : null;   // idle / breakOver: nothing counts down
+    var sec = Math.floor(ms / 1000) * 1000, P = QJZ.pomodoro;
+    var goal = s.health && s.health.water ? s.health.water.goal : 0;
+    var cups = on ? cs.cupsText : '0/' + goal;
+    var stand = on && cs.r && QJZ.reminders ? QJZ.reminders.minutesToNext(cs.r, s.health, h.cups) : null;
+    return {
+      phase: phase,
+      cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
+      showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes),
+      pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
+      ring: { phase: phase, fraction: phase ? P.fraction(p, sec) : 0, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
+      mmss: phase ? P.mmss(p, sec) : '',
+      nth: phase === 'focus' ? '第 ' + (h.tomatoes + 1) + ' 顆' : '',
+      standIn: typeof stand === 'number' ? stand + ' 分後' : ''
+    };
+  }
+
+  // Everything a layout displays, from the app state at wall-clock time ms and care's state cs (QJZ.care.state).
+  function model(st, ms, cs) {
     var s = st.settings, snap = st.snap, today = st.today;
     var key = statusKey(snap, today, s);
+    var hc = careModel(cs, s, ms);
     var perSec = st.rates ? st.rates.perSecond : 0;
     var pct = Math.max(0, Math.min(1, snap.pct || 0));
     var it = itemAt(s.items, ms);
@@ -176,13 +204,14 @@ QJZ.layouts = (function () {
     var snacks = st.snacks > 0 ? st.snacks : 0;
     var clock = clockText(ms), month = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
     var card = cardAt(s.items, ms);
-    return {
-      key: key, kind: kind, status: STATUS[key],
+    var m = {
+      key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
       money: money(snap.earned),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
-      remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec), m3sub: m3Sub(key, snap.remainingSec),
+      remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
+      m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
       itemLabel: it ? '可以買' + it.name : '',
       item: itemText(it, snap.earned),
       month: month,
@@ -192,6 +221,8 @@ QJZ.layouts = (function () {
       snacks: snacks, snack: SNACK[kind] + '×' + snacks,
       plus: key === 'working' && perSec > 0 ? '+' + perSec.toFixed(2) : null
     };
+    for (var k in hc) if (k !== 'phase') m[k] = hc[k];
+    return m;
   }
 
   // The part of a box that a viewBox region covers (the box shows the whole viewBox, same aspect ratio).
@@ -236,65 +267,6 @@ QJZ.layouts = (function () {
     return at;
   }
 
-  // ================= markup =================
-  var BAR = '<div class="bar"><span class="logo">$</span><span data-b="title">錢進中</span><div class="dots">' +
-    '<i data-act="mini" title="縮成迷你"></i><i data-act="hide" title="隱藏"></i></div></div>';
-  var MONEY = '<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
-  var PILL = '<div class="status"><i></i><span data-b="status"></span></div>';
-  function feedBtn(cls) {
-    return '<button type="button" class="' + cls + '" data-act="feed" data-feed title="餵食"><span data-b="snack"></span> 餵食</button>';
-  }
-  var TEMPLATES = {
-    U1: function () {
-      return '<div class="win u1 lay" data-hit>' + BAR + '<div class="body">' +
-        '<div class="row-top"><div class="clock" data-b="clock"></div>' + PILL + '</div>' +
-        '<div class="scene-wrap"><div class="scene" data-pet="scene"></div><div class="fx" data-fx><div class="bubble" data-bubble></div></div></div>' +
-        '<div class="money-box" data-plus><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate" data-b="rate"></div></div>' +
-        '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
-          '<div class="track"><div class="fill" data-fill></div></div></div>' +
-        '<div class="chips"><div class="chip"><small data-b="itemLabel"></small><b data-b="item"></b></div>' +
-          '<div class="chip"><small>本月累計</small><b data-b="month"></b></div></div>' +
-        '<div class="vitals"><span>心情 <span class="hearts" data-b="hearts"></span></span><span>體力 <span class="bolt" data-bolts></span></span>' +
-          feedBtn('feed') + '</div>' +
-        '</div><div class="fx" data-fxwin></div></div>';
-    },
-    U3: function () {
-      return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' +
-        '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + feedBtn('pill feed') +
-          '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
-        '<div class="side" data-bubble-clear><div class="pill alt" data-alt><span data-b="card"></span>' +
-          '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
-        '<div class="hud-bottom money-box" data-plus><div class="coin">$</div>' + MONEY +
-          '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div></div>' +
-        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
-    },
-    U5B: function () {
-      return '<div class="win u5b lay" data-hit><div class="po" data-pet="petonly"></div><div class="mid">' +
-        '<div class="mtop"><span class="dot"></span><span data-b="status"></span> ・ <span data-b="hm"></span>' + feedBtn('feed') +
-          '<button type="button" class="x" data-act="menu" title="選單">⋯</button></div>' +
-        '<div class="money-box" data-plus>' + MONEY + '</div>' +
-        '<div class="thin"><div class="fill" data-fill></div></div>' +
-        '<div class="meta2"><span data-b="pct"></span><span data-b="remainPhrase"></span></div>' +
-        '</div><div class="fx" data-fx data-fxwin></div></div>';
-    },
-    U7: function () {
-      return '<div class="u7 lay"><div class="dpet">' +
-        '<div class="mtag money-box" data-plus data-hit>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div></div>' +
-        '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
-        '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
-          '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
-        '</div><div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
-    },
-    M3: function () {
-      return '<div class="m3 lay"><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
-        '<div class="tagm" data-hit><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div>' +
-        '<div class="sub" data-hit data-b="m3sub"></div><div class="fx" data-fx data-fxwin></div></div>';
-    },
-    PANEL: function () {
-      return '<div class="win panel lay" data-hit>' + BAR + '<div class="pbody" data-panel></div>' +
-        '<div class="fx" data-fx data-fxwin></div></div>';
-    }
-  };
   function panels() { return QJZ.panels || null; }
   function panelTitle(kind) { return panels() ? panels().title(kind) : ''; }
 
@@ -319,6 +291,7 @@ QJZ.layouts = (function () {
 
   function app() { return QJZ.app; }
   function ready() { return !!(QJZ.app && QJZ.app.state.ready); }
+  function careState() { return QJZ.care ? QJZ.care.state : null; }
   function send(type, payload) { if (bridge) bridge.send(type, payload); }
   function all(el, sel) {
     var list = Array.prototype.slice.call(el.querySelectorAll(sel));
@@ -327,7 +300,7 @@ QJZ.layouts = (function () {
   }
 
   function build(name) {
-    root.innerHTML = TEMPLATES[name]();
+    root.innerHTML = QJZ.templates[name]();
     var el = root.firstElementChild;
     var v = { name: name, el: el, b: {}, cache: {}, odos: [], money: null, statusKey: null, petKey: null, pet: null };
     all(el, '[data-b]').forEach(function (n) {
@@ -341,6 +314,8 @@ QJZ.layouts = (function () {
     v.bolts = all(el, '[data-bolts]');
     v.feeds = all(el, '[data-feed]');
     v.alts = all(el, '[data-alt]');
+    v.shows = all(el, '[data-show]');
+    v.prings = all(el, '[data-pring]');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
@@ -387,7 +362,7 @@ QJZ.layouts = (function () {
 
   function render() {
     if (!view || !ready()) return;
-    var st = app().state, m = model(st, app().nowMs()), i;
+    var st = app().state, m = model(st, app().nowMs(), careState()), i;
     for (var k in view.b) if (Object.prototype.hasOwnProperty.call(view.b, k) && k in m) setText(k, m[k]);
     if (view.name === 'PANEL') {
       setText('title', '錢進中 · ' + panelTitle(panelKind));
@@ -402,8 +377,8 @@ QJZ.layouts = (function () {
     if (view.cache.fill !== w) {
       view.cache.fill = w;
       for (i = 0; i < view.fills.length; i++) view.fills[i].style.width = w + '%';
-      for (i = 0; i < view.rings.length; i++) view.rings[i].style.setProperty('--p', w);
     }
+    renderHealth(m, w);
     if (view.cache.bolts !== m.bolts) {
       view.cache.bolts = m.bolts;
       var h = '';
@@ -422,6 +397,32 @@ QJZ.layouts = (function () {
     sendMenu(m);
     petTick(app().nowMs());
     return m;
+  }
+  // [data-show] by the §4.9 #8 rule, the pomodoro phase (p-foc / p-brk on the layout and the M3 ring), the M3 ring's
+  // --p (the day's progress w, or the pomodoro's time left) and the countdown rings.
+  var SHOW = {
+    cups: function (m) { return m.showCups; }, tomatoes: function (m) { return m.showTomatoes; },
+    both: function (m) { return m.showCups && m.showTomatoes; }, any: function (m) { return m.showCups || m.showTomatoes; }
+  };
+  function renderHealth(m, w) {
+    var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '');
+    if (view.cache.shows !== shows) {
+      view.cache.shows = shows;
+      view.shows.forEach(function (n) { var f = SHOW[n.getAttribute('data-show')]; n.hidden = !(f && f(m)); });
+    }
+    if (view.cache.phase !== ph) {
+      view.cache.phase = ph;
+      [view.el].concat(view.rings).forEach(function (n) {
+        n.classList.toggle('p-foc', ph === 'focus');
+        n.classList.toggle('p-brk', ph === 'break');
+      });
+    }
+    var p = ph ? ((1 - m.ring.fraction) * 100).toFixed(2) : w;
+    if (view.cache.ringP !== p) {
+      view.cache.ringP = p;
+      for (i = 0; i < view.rings.length; i++) view.rings[i].style.setProperty('--p', p);
+    }
+    for (i = 0; i < view.prings.length; i++) QJZ.ring.update(view.prings[i], m.ring);
   }
   // menuState for the host's menu, when the work status or the snack count changed.
   function sendMenu(m) {
@@ -1036,6 +1037,8 @@ QJZ.layouts = (function () {
       case 'hide': send('hide', {}); break;
       case 'menu': send('contextMenu', {}); break;
       case 'back': if (panels()) panels().close(); else closePanel(); break;
+      case 'drink': if (QJZ.care) QJZ.care.drink(); break;
+      case 'pomo': if (QJZ.care) QJZ.care.toggleFocus(); break;
     }
   }
 
@@ -1080,7 +1083,14 @@ QJZ.layouts = (function () {
   }
   // QJZ.app caught up while hidden (or the menu is opening): only the menu needs it now, the rest renders on re-show.
   function onRefresh() {
-    if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs()));
+    if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs(), careState()));
+  }
+  // QJZ.care changed what it shows (a cup, a tomato, a phase, from a button, the menu or the tray): at once, not at the
+  // next second. Its countdowns do not fire this; they follow onSecond.
+  function onCare() {
+    if (!view || !ready()) return;
+    render();
+    sync(false);
   }
   function onSecond() {
     if (!view) return;
@@ -1207,6 +1217,7 @@ QJZ.layouts = (function () {
     var A = app();
     offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone),
       A.on('refresh', onRefresh));
+    if (QJZ.care) offs.push(QJZ.care.on('change', onCare));
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });

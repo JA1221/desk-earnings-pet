@@ -58,8 +58,9 @@
 .u3 .hud-top{display:flex;gap:8px;align-items:center}
 .u3 .hud-top .feed{margin-left:auto;font-size:13px;padding:4px 12px;gap:4px;border-width:2.5px}
 .u3 .hud-top .gear{width:34px;height:34px;justify-content:center;padding:0;font-size:16px}
+/* three columns: the coin, the money over the progress, the water and tomato buttons (1.1, health.css) */
 .u3 .hud-bottom{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:20px;box-shadow:4px 4px 0 var(--shadow);
-  padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center}
+  padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;align-items:center}
 .u3 .coin{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1A8,#FFC857 55%,#F0A020);border:3px solid var(--line);
   display:grid;place-items:center;font-weight:700;font-size:20px;box-shadow:2px 2px 0 var(--shadow);animation:lay-coin 2.4s ease-in-out infinite;flex:none;grid-row:span 2}
 @keyframes lay-coin{0%,70%,100%{transform:scaleX(1)}80%{transform:scaleX(.1)}90%{transform:scaleX(1)}}
@@ -78,7 +79,8 @@
 .u3 .bubble.side::after{bottom:auto;top:8px}
 
 /* ---------- U5-B 橫向極簡 ---------- */
-.u5b{width:480px;display:flex;align-items:center;gap:6px;padding:8px 18px 12px 6px}
+/* 546 = 1.0's 480 + the 1.1 right column (A_U5_2, spec §4.4 「整條會變寬約 65px」; health.css .rcol) */
+.u5b{width:546px;display:flex;align-items:center;gap:6px;padding:8px 18px 12px 6px}
 .u5b .po{--pw:132px}
 .u5b .mid{flex:1;min-width:0}
 .u5b .mtop .feed{margin-left:auto}

@@ -1,0 +1,97 @@
+/* 1.1 health parts in the layouts (spec §4.3, §4.4, §4.9 #8, §5.2): the cups and tomatoes, the pomodoro buttons and
+   the countdown ring. Ported from the mockup CSS (docs/prototypes/v1.1/index.html: .mpills/.mp, .tom-btn, .tomslot,
+   .rcol, .hline, .mb, .pr-ov -> .pring, .ptime). Markup: js/ui/templates.js; the ring: js/ui/ring.js.
+   Nothing here animates: the ring steps once a second (its arc has no transition), the pomodoro stops the status pulse. */
+:root{--tom:#FF6B57;--water:#7CC4FF;--rest:#8EE3B0;--dash:#EADCC6}
+
+/* an element hidden by the §4.9 #8 rule (or the idle ring) keeps no space */
+.lay [hidden]{display:none!important}
+svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;flex:none;overflow:visible}
+.lay .n{font-weight:700}
+
+/* ---------- the pomodoro on the status: 專心中 (red, headphones) / 休息中 (blue, a cup of tea), no pulse ---------- */
+.status .pi-foc,.status .pi-brk{display:none;width:15px;height:15px;margin:0 -2px 0 -3px}
+.lay.p-foc .status{--st-bg:#FFC2B3;--st-dot:#E8503A}
+.lay.p-brk .status{--st-bg:#BFE6FF;--st-dot:#3FA3D6}
+.lay.p-foc .status .pi-foc,.lay.p-brk .status .pi-brk{display:inline-block}
+.lay.p-foc :is(.status i,.mtop .dot),.lay.p-brk :is(.status i,.mtop .dot){animation:none}
+.u5b.p-foc .mtop .dot{background:#E8503A}
+.u5b.p-brk .mtop .dot{background:#3FA3D6}
+
+/* ---------- buttons ---------- */
+.mp:is(button):active,.tom-btn:active,.lbl2:active{transform:translate(1px,1px)}
+/* the round tomato / water button (U3, U5-B): ▶ or ■ on its corner, U5-B's count on its other corner */
+.tom-btn{position:relative;flex:none;width:46px;height:46px;border-radius:50%;background:#FFF1EC;border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--line);
+  display:grid;place-items:center;padding:0}
+.tom-btn.wat{background:#EAF6FF}
+.tom-btn svg.ic{width:30px;height:30px}
+.tom-btn .play{position:absolute;left:-6px;bottom:-5px;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--line);
+  font-size:8px;display:grid;place-items:center;line-height:1}
+.tom-btn .cnt{position:absolute;right:-9px;top:-9px;min-width:22px;height:20px;border-radius:99px;background:var(--bar);border:2px solid var(--line);
+  font-weight:700;font-size:11.5px;display:grid;place-items:center;padding:0 4px;line-height:1}
+
+/* ---------- U1 (A_U1_3): three small pills under the 每秒 line ---------- */
+.mpills{display:flex;justify-content:center;gap:6px;margin-top:8px}
+.mp{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;background:#fff;border:2px solid var(--line);border-radius:99px;
+  padding:1px 10px 1px 5px;box-shadow:2px 2px 0 var(--line);white-space:nowrap;line-height:1.45;color:var(--text)}
+.mp svg.ic{width:15px;height:15px}
+.mp.go{background:var(--bar);padding:1px 10px}
+.lay:is(.p-foc,.p-brk) .mp.go{background:#fff}
+
+/* ---------- U3 (A_U3_2, no bottle): the water and tomato buttons in one row, right of the money ---------- */
+.u3 .hud-bottom > .money,.u3 .hud-bottom > .xp{grid-column:2}
+.u3 .tomslots{grid-column:3;grid-row:1/span 2;display:flex;gap:10px;align-items:flex-start;pointer-events:auto}
+.u3 .tomslot{display:flex;flex-direction:column;align-items:center;gap:3px}
+.u3 .tomslot .n{font-size:13px;line-height:1.2}
+
+/* ---------- U5-B (A_U5_2): the right column ---------- */
+.u5b .rcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;margin-left:8px;padding-left:12px;border-left:2.5px dashed var(--dash);
+  align-self:stretch;justify-content:center}
+.u5b .rcol .tom-btn{width:48px;height:48px}
+.u5b .rcol .tom-btn svg.ic{width:31px;height:31px}
+.u5b .rcol .lbl2{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:2px;white-space:nowrap;background:none;border:0;padding:1px 2px;line-height:1.3}
+.u5b .rcol .lbl2 svg.ic{width:14px;height:14px}
+
+/* ---------- U7 (A_U7): one more line on the tag ---------- */
+.u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
+.u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
+.u7 .hline svg.ic{width:14px;height:14px}
+.u7 .hline .dt{color:var(--sub)}
+
+/* ---------- M3 (A_M3; C_M3_f/b): stickers on the ring; the ring counts the pomodoro down ---------- */
+/* top 5px: turned 8deg, a sticker at the badge's top edge would be cut by the window */
+.m3 .mb{position:absolute;top:5px;z-index:3;display:inline-flex;align-items:center;gap:2px;background:#fff;border:2.5px solid var(--line);border-radius:99px;
+  padding:1px 7px 1px 4px;box-shadow:2px 2px 0 var(--line);font-weight:700;font-size:12px;line-height:1.3;cursor:pointer}
+.m3 .mb svg.ic{width:14px;height:14px}
+.m3 .mb.l{left:3px;transform:rotate(-8deg)}
+.m3 .mb.r{right:3px;transform:rotate(8deg)}
+.m3 .ring.p-foc{background:conic-gradient(var(--tom) calc(var(--p,0)*1%),#fff 0)}
+.m3 .ring.p-brk{background:conic-gradient(var(--rest) calc(var(--p,0)*1%),#fff 0)}
+
+/* ---------- a small countdown donut (the mockup's DONUT, for the 1.1 layouts that show one): --p the share left ---------- */
+.donut{--p:75;--c:var(--tom);--s:22px;display:inline-block;width:var(--s);height:var(--s);border-radius:50%;border:2.5px solid var(--line);flex:none;
+  background:radial-gradient(closest-side,#fff 50%,transparent 53%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
+.donut.rest{--c:var(--rest)}
+
+/* ---------- the countdown ring around the pet (C2_U1_f/b, C2_U7_f/b), with its 還剩 N 分 pill ---------- */
+.pring{position:absolute;pointer-events:none}
+.pring svg{display:block;width:100%;height:100%;overflow:visible}
+.pring .pr-arc{stroke:var(--tom);transition:none}
+.pring.rest .pr-arc{stroke:var(--rest)}
+/* the pill sits on the ring's bottom edge, above the pet and its props, below speech bubbles (z-index 3) */
+.pring .ptime{position:absolute;left:50%;top:100%;transform:translate(-50%,-62%);z-index:2;display:inline-flex;align-items:center;gap:4px;
+  background:#FFF1EC;border:2.5px solid var(--line);border-radius:99px;box-shadow:2px 2px 0 var(--line);padding:1px 10px 1px 5px;
+  white-space:nowrap;font-weight:700;font-size:13px;line-height:1.35;color:var(--text)}
+.pring.rest .ptime{background:#EFFBF4}
+.pring .ptime svg.ic{width:16px;height:16px}
+.pring .pi-brk,.pring.rest .pi-foc{display:none}
+.pring.rest .pi-brk{display:inline-block}
+/* where the pet is in each layout (its head and body inside the circle). U3, U5-B and U7 have no room under the
+   ring (the money box, the window's edge): their pill sits just inside it. U7 goes by the bottom of the pet, which moves
+   down when the tag gets its line. */
+.u1 .pring{left:30px;top:8px;width:172px;height:172px}
+.u3 .pring{left:78px;top:45px;width:236px;height:236px}
+.u3 .pring .ptime,.u5b .pring .ptime{transform:translate(-50%,-118%)}
+.u5b .pring{left:7px;top:50%;width:128px;height:128px;margin-top:-55px}
+.u7 .pring{left:4px;bottom:-1px;width:192px;height:192px}
+.u7 .pring .ptime{transform:translate(-50%,-100%)}
