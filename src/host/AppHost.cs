@@ -371,8 +371,20 @@ public class AppHost
         }
     }
 
+    // U7's desk ends this many CSS px above the window bottom (layouts.css: .u7 bottom padding and the hard shadow).
+    const int U7DeskMarginCss = 16;
+
     void OnMoveEnded()
     {
+        // U7 hangs from its scruff tip while dragged, so a drop can leave the seated pet below the work area (over or
+        // under the taskbar): lift it until the desk is inside the work area of the monitor the cursor is on.
+        if (layout == "U7")
+        {
+            Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
+            int margin = (int)Math.Round(U7DeskMarginCss * window.CssScale, MidpointRounding.AwayFromZero);
+            Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
+            if (fit.Location != window.Location) window.Location = fit.Location;
+        }
         placer.Remember(layout, window.Location);
         Send("dragEnd", null);
     }

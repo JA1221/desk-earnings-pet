@@ -25,8 +25,6 @@ public static class PetGeometry
         return scale * newDpi / oldDpi;
     }
 
-    // True when the cursor (physical screen px) lies in any hit rect (CSS px, page coordinates) of a window
-    // whose top-left corner is at (windowLeft, windowTop) physical px.
     // The window top-left that puts the page point grab (CSS px) under the cursor, or null when grab lies outside
     // the page (cssWidth x cssHeight), so a bad value never throws the window off screen.
     public static Point? GrabOrigin(int cursorX, int cursorY, PointF grab, int cssWidth, int cssHeight, double scale)
@@ -36,6 +34,8 @@ public static class PetGeometry
                          cursorY - (int)Math.Round(grab.Y * scale, MidpointRounding.AwayFromZero));
     }
 
+    // True when the cursor (physical screen px) lies in any hit rect (CSS px, page coordinates) of a window
+    // whose top-left corner is at (windowLeft, windowTop) physical px.
     public static bool HitTest(RectangleF[] cssRects, int cursorX, int cursorY, int windowLeft, int windowTop, double scale)
     {
         if (cssRects == null || scale <= 0) return false;

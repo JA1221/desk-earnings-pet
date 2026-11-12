@@ -40,7 +40,8 @@
         `<circle cx="86" cy="124" r="7" fill="${PINK}" opacity=".9"/><circle cx="150" cy="124" r="7" fill="${PINK}" opacity=".9"/>` +
         `<!--EYES--><path d="M114.6,117.6 h6.8 l-3.4,4 z" fill="#E8607A"/><!--MOUTH--><!--OVER-->` +
         `<path d="M70.5,117 l-8.5,-2 M70.5,123 l-8.5,2 M165.5,117 l8.5,-2 M165.5,123 l8.5,2" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>`;
-      var lowTail = tail('M86,160 C64,163 51,153 51,137', '60px 156px');
+      var lowTail = tail('M86,160 C65,163 53,154 53,138', '61px 156px');
+      var sleepTail = tail('M86,160 C67,163 57,155 57,142', '64px 156px');   // asleep: curled in closer
       var R = { line: [INK, 0], limb: { fill: `url(#${uid}-lf)` }, mode: 'flat' };
       // the scruff pulled up into a soft tip, two-tone like the rest (its rounded apex lies 2.1 below TIP: rig.grab)
       var tuft = `<path d="${C.softTri([105, 78], TIP, [131, 78], 0.2, 1.2)}" fill="url(#${uid}-lf)"/>`;
@@ -65,7 +66,7 @@
           cheeks: [[86, 124, 9], [150, 124, 9]], hold: [118, 132, 0.95], smoke: 34,
           fire: [[62, 154, 1.1], [174, 154, 1.1]], bento: [152, 149, 1],
           paw: paw, limb: { fill: `url(#${uid}-lf)` }, pawL: PAW_L, pawR: PAW_R,
-          up: { ink: 'back', fill: 'over', w: [13, 10], arms: [[[84, 140], [53, 102], -35], [[152, 140], [183, 102], 35]] },
+          up: { ink: 'back', fill: 'over', w: [13, 10], arms: [[[84, 140], [60, 103], -30], [[152, 140], [176, 103], 30]] },
           holdArm: { paws: [[107, 136, 0], [129, 136, 0]] },
           scratch: { ink: 'back', fill: 'over', w: 11, arm: [[82, 134], [60, 114], [64, 90]], paw: [68, 82, 0] },
           pack: { lift: 5, desk: { bag: [178, 141, 0.86], rest: [164, 128, 0] } }
@@ -74,7 +75,7 @@
           // the circle flattens into a wide oval over the keyboard, tail curled beside it
           lie: {
             front: `<ellipse cx="118" cy="161" rx="62" ry="5" fill="${INK}" opacity=".1"/>` +
-              `<g transform="translate(118 160) rotate(-4) scale(1.08 .8) translate(-118 -174)"><g class="breath" style="transform-origin:118px 174px">${lowTail}${art}</g></g>` +
+              `<g transform="translate(118 160) rotate(-4) scale(1.08 .8) translate(-118 -174)"><g class="breath" style="transform-origin:118px 174px">${sleepTail}${art}</g></g>` +
               paw(100, 158) + paw(136, 158),
             anchors: { zzz: [152, 82], top: [118, 80] }
           },

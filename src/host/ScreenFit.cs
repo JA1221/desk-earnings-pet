@@ -24,6 +24,16 @@ public static class ScreenFit
         return MoveInside(win, NearestArea(win, workAreas));
     }
 
+    // win moved up just enough that its bottom less margin (physical px) lies inside area: what must stay visible
+    // above the taskbar, such as U7's desk, which ends margin above the window bottom. Never moved down, and never
+    // above area's top (a window taller than that keeps its top at area's top).
+    public static Rectangle KeepBottomIn(Rectangle win, int margin, Rectangle area)
+    {
+        int y = Math.Min(win.Y, area.Bottom + margin - win.Height);
+        if (y < area.Top) y = Math.Min(win.Y, area.Top);
+        return new Rectangle(win.X, y, win.Width, win.Height);
+    }
+
     // Moves win fully inside area (shrinking a side only when it is larger than the area).
     public static Rectangle MoveInside(Rectangle win, Rectangle area)
     {

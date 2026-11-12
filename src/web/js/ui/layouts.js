@@ -15,8 +15,9 @@ window.QJZ = window.QJZ || {};
 //                                           (hover tools, text growing, resize, the pet's pose). Speech bubbles
 //                                           are never interactive: no rect of their own, pointer-events none.
 //                                           Two elements give several rects that follow their shape: the U7 pet
-//                                           (data-hit="pet": bands along the painted pet and its desk, see
-//                                           petRects) and the M3 ring (data-hit-shape="disc": bands along the disc).
+//                                           (data-hit="pet": bands along the painted pet and its desk, measured
+//                                           over its animation, see petRects) and the M3 ring
+//                                           (data-hit-shape="disc": DISC_BANDS bands along the disc).
 //   setTopmost {on}                         after every layout change, from settings.layout.topmost (and when the
 //                                           settings panel changes the setting of the layout PANEL came from).
 //   dragStart {grab?}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click,
@@ -50,7 +51,9 @@ QJZ.layouts = (function () {
   var PET_HIT = [38, 24, 160, 148];      // the pet and its desk inside that viewBox, every skin and base state
   // Reactions that leave PET_HIT, measured over the first 8 skins and the whole animation (normal motion), clipped to
   // the viewBox: hop rises up to 12.7 above it (cat P0) and squashes 3.4 left / 5.6 right on landing; dangle swings to
-  // both viewBox sides (hamster P0, S5) and up to its top (cat P0). Only while they play. Cat H2 / S4 fit inside both.
+  // both viewBox sides (hamster P0, S5) and up to its top (cat P0). Only while they play. Cat H2 and S4 (measured by
+  // their painted pixels over every state's whole animation) fit inside both, and inside PET_HIT in every other state
+  // but for cat H2's tail tip: up to 4 units left of it while the mochi squashes (celebrate, angry), as cat P4's does.
   var PET_HIT_BY_STATE = { hop: [34, 11, 170, 161], dangle: [30, 4, 176, 168] };
   function petHit(state) { return PET_HIT_BY_STATE.hasOwnProperty(state) ? PET_HIT_BY_STATE[state] : PET_HIT; }
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
@@ -484,7 +487,7 @@ QJZ.layouts = (function () {
       var r = boxOf(el);
       if (!(r.width > 0 && r.height > 0)) return;
       if (el.getAttribute('data-hit') === 'pet') petRects(el, r).forEach(function (q) { out.push(outer(q)); });
-      else if (el.getAttribute('data-hit-shape') === 'disc') discRects(r, 5).forEach(function (q) { out.push(outer(q)); });
+      else if (el.getAttribute('data-hit-shape') === 'disc') discRects(r, DISC_BANDS).forEach(function (q) { out.push(outer(q)); });
       else out.push(outer(r));
     });
     return out;
@@ -492,6 +495,7 @@ QJZ.layouts = (function () {
 
   // ---- hit areas that follow a shape (the transparent space next to it clicks through to the desktop) ----
   // A disc (the M3 ring) as n horizontal bands, each as wide as the disc gets inside it, so the disc stays covered.
+  var DISC_BANDS = 8;
   function discRects(r, n) {
     var R = Math.min(r.width, r.height) / 2, cx = r.left + r.width / 2, cy = r.top + r.height / 2, h = 2 * R / n, out = [];
     for (var i = 0; i < n; i++) {
@@ -500,107 +504,251 @@ QJZ.layouts = (function () {
     }
     return out;
   }
-  // The U7 pet: bands along the painted pet and its desk (petonly viewBox units), found by sampling the pet's shapes
-  // once per skin and state, padded for the state's motion and kept inside petHit. Hop and dangle move too much for
-  // that and keep their measured boxes; anything that cannot be measured falls back to the box.
-  var SIL_BAND = 10, SIL_STEP = 2, SIL_PAD = 5, SIL_MERGE = 4, SIL_GAP = 14;
-  var SIL_UP = { celebrate: 16, waitBag: 8, stretch: 6, yawn: 3 };   // how far the state lifts the pet (pets.css)
-  // parts that swing about their own transform-origin, and how far (degrees, pets.css): swept when measuring
-  var SIL_SWEEP = { tail: 10, armL: 16, armR: 16, scr: 14, legs: 7, limp: 7 };
-  var silCache = {};
+
+  // The U7 pet: rects along the painted pet and its desk (petonly viewBox units) instead of one box. They are measured
+  // once per skin and state on a hidden copy of the pet whose animations are paused and stepped through their loop, so
+  // every lift, squash, tilt and swing is in. The work runs a frame at a time while the page is idle (BAND_SLICE_MS);
+  // until a state's bands are ready, and in hop and dangle (they move too much), the measured box (petHit) serves.
+  // Bands stay inside that box.
+  var BAND = 10, BAND_STEP = 2, BAND_PAD = 3, BAND_MERGE = 4, BAND_GAP = 14, BAND_SLICE_MS = 8, BAND_MAX = 30;
+  var bandCache = {}, bandJobs = [], bandTimer = null;
+  function bandKey(id, state) {
+    return id + '|' + state + (document.documentElement.classList.contains('calm') ? '|calm' : '');
+  }
   function petRects(el, box) {
-    var state = view.petState, lim = petHit(state);
+    var state = view.petState, lim = petHit(state), id = petId(app().state.settings);
     if (PET_HIT_BY_STATE.hasOwnProperty(state)) return [subRect(box, PETONLY_VB, lim)];
-    var svg = el.querySelector('svg'), key = petId(app().state.settings) + '|' + state, bands = silCache[key];
-    if (!bands && svg) { bands = silhouette(svg); if (bands && bands.length) silCache[key] = bands; }
-    if (!bands || !bands.length || bands.length > 30) return [subRect(box, PETONLY_VB, lim)];   // (the host takes 64 rects)
-    var up = SIL_UP[state] || 0, L = lim[0], T = lim[1], R = lim[0] + lim[2], B = lim[1] + lim[3], out = [];
-    // a band touching another one above / below (overlapping in x) needs no padding towards it
+    var bands = bandCache[bandKey(id, state)];
+    if (!bands) { queueBands(id, state); return [subRect(box, PETONLY_VB, lim)]; }
+    return bandRects(bands, state, box);
+  }
+  // Bands -> page rects inside box: padded by BAND_PAD (not towards a band they touch), kept inside petHit(state).
+  function bandRects(bands, state, box) {
+    var lim = petHit(state), L = lim[0], T = lim[1], R = lim[0] + lim[2], B = lim[1] + lim[3], out = [];
+    if (!bands || !bands.length || bands.length > BAND_MAX) return [subRect(box, PETONLY_VB, lim)];   // (the host takes 64)
     function touches(b, edge, side) {
       return bands.some(function (c) { return c !== b && c[side] === edge && c[0] < b[2] && c[2] > b[0]; });
     }
     bands.forEach(function (b) {
-      var x0 = Math.max(L, b[0] - SIL_PAD), x1 = Math.min(R, b[2] + SIL_PAD);
-      var y0 = Math.max(T, b[1] - (touches(b, b[1], 3) ? 0 : SIL_PAD) - up), y1 = Math.min(B, b[3] + (touches(b, b[3], 1) ? 0 : SIL_PAD));
+      var x0 = Math.max(L, b[0] - BAND_PAD), x1 = Math.min(R, b[2] + BAND_PAD);
+      var y0 = Math.max(T, b[1] - (touches(b, b[1], 3) ? 0 : BAND_PAD)), y1 = Math.min(B, b[3] + (touches(b, b[3], 1) ? 0 : BAND_PAD));
       if (x1 > x0 && y1 > y0) out.push(subRect(box, PETONLY_VB, [x0, y0, x1 - x0, y1 - y0]));
     });
     return out.length ? out : [subRect(box, PETONLY_VB, lim)];
   }
-  // [[x0, y0, x1, y1], ...] in viewBox units: for each band of SIL_BAND units, the runs of points some shape of the pet
-  // SVG paints (its fill, or its stroke when unfilled), sampled every SIL_STEP at rest (animations off for the moment
-  // of measuring), the swinging parts swept over their range; a gap of SIL_GAP or more splits a band, and runs of
-  // neighbouring bands that line up are merged. The flying props (.tops) do not count, nor what a clip keeps inside
-  // another shape.
-  function silhouette(svg) {
-    svg.classList.add('sil-rest');
+
+  function queueBands(id, state) {
+    var key = bandKey(id, state);
+    if (bandCache[key] || bandJobs.some(function (j) { return j.key === key; })) return;
+    bandJobs.push({ key: key, id: id, state: state });
+    scheduleBands();
+  }
+  function scheduleBands() {
+    if (bandTimer || !bandJobs.length) return;
+    bandTimer = window.requestIdleCallback ? { idle: window.requestIdleCallback(bandWork, { timeout: 1500 }) } :
+      { timeout: setTimeout(bandWork, 80) };
+  }
+  function cancelBands() {
+    if (bandTimer) {
+      if (bandTimer.idle && window.cancelIdleCallback) window.cancelIdleCallback(bandTimer.idle);
+      if (bandTimer.timeout) clearTimeout(bandTimer.timeout);
+    }
+    bandTimer = null;
+    bandJobs.forEach(function (j) { if (j.host) j.host.remove(); });
+    bandJobs = [];
+  }
+  // One idle slice: work on the queued jobs until BAND_SLICE_MS is spent (a frame stops between two shapes).
+  function bandWork() {
+    bandTimer = null;
+    var until = Date.now() + BAND_SLICE_MS;
+    while (bandJobs.length && Date.now() < until) {
+      if (bandStep(bandJobs[0], until)) bandDone(bandJobs.shift());
+    }
+    scheduleBands();
+  }
+  // Runs every queued job to the end (tests).
+  function flushBands() {
+    while (bandJobs.length) { var j = bandJobs[0]; while (!bandStep(j, Infinity)) {} bandDone(bandJobs.shift()); }
+  }
+  function bandDone(job) {
+    bandCache[job.key] = job.bands || [];
+    if (view && view.pet && view.live && view.pet.el.getAttribute('data-hit') === 'pet' &&
+      bandKey(petId(app().state.settings), view.petState) === job.key) sync(false);
+  }
+  // Measures the bands of one skin and state at once (tests), in steps of sliceMs (default: whole frames).
+  // bandStats(): {frames, steps, maxStepMs} of the last such measurement.
+  var bandStats = { frames: 0, steps: 0, maxStepMs: 0 };
+  function measureBands(id, state, sliceMs) {
+    var job = { id: id, state: state }, t;
+    bandStats = { frames: 0, steps: 0, maxStepMs: 0 };
+    do {
+      t = Date.now();
+      var done = bandStep(job, sliceMs ? t + sliceMs : Infinity);
+      bandStats.steps++;
+      bandStats.maxStepMs = Math.max(bandStats.maxStepMs, Date.now() - t);
+    } while (!done);
+    bandStats.frames = job.times ? job.times.length : 0;
+    return job.bands;
+  }
+
+  // A job: set up the hidden copy (first step), then the animation frames, each until `until` (ms) or its end
+  // (job.f the frame, job.si the next shape in it); true when done (job.bands).
+  function bandStep(job, until) {
     try {
-      var M = svg.getScreenCTM();
-      if (!M || !M.a) return null;
-      var shapes = [];
-      Array.prototype.forEach.call(svg.querySelectorAll('path,circle,ellipse,rect,polygon,polyline,line'), function (s) {
-        if (s.closest('defs,clipPath,mask,pattern,.tops')) return;
-        var sweep = null;
-        for (var p = s.parentNode; p && p !== svg; p = p.parentNode) {
-          if (!p.getAttribute) continue;
-          if (p.getAttribute('clip-path')) return;
-          var cls = (p.getAttribute('class') || '').split(/\s+/);
-          for (var c = 0; c < cls.length && !sweep; c++) {
-            if (!SIL_SWEEP.hasOwnProperty(cls[c])) continue;
-            var o = getComputedStyle(p).transformOrigin.split(' ').map(parseFloat);
-            sweep = { deg: SIL_SWEEP[cls[c]], o: o };
-          }
-        }
-        var r = s.getBoundingClientRect();
-        if (!(r.width > 0 || r.height > 0)) return;
-        var tag = s.tagName.toLowerCase(), fill = s.getAttribute('fill'), stroke = s.getAttribute('stroke');
-        var grow = sweep ? Math.max(r.width, r.height) * 1.2 : 1;   // a swept part reaches beyond its box at rest
-        shapes.push({ el: s, l: r.left - grow, t: r.top - grow, rr: r.right + grow, b: r.bottom + grow, m: s.getScreenCTM().inverse(),
-          fill: fill !== 'none' && tag !== 'line' && tag !== 'polyline', stroke: !!stroke && stroke !== 'none', sweep: sweep });
-      });
-      if (!shapes.length) return null;
-      var pt = svg.createSVGPoint();
-      var hits = function (sh, vx, vy) {
-        var x = M.a * vx + M.c * vy + M.e, y = M.b * vx + M.d * vy + M.f;
-        if (x < sh.l || x > sh.rr || y < sh.t || y > sh.b) return false;
-        pt.x = x; pt.y = y;
-        var q = pt.matrixTransform(sh.m);
+      if (!job.svg) {
+        if (startBands(job)) return false;
+      } else {
+        if (!job.si) job.anims.forEach(function (a) { a.currentTime = job.times[job.f]; });
+        if (!bandFrame(job, until)) return false;
+        job.f++;
+        job.si = 0;
+        if (job.f < job.times.length) return false;
+        job.bands = bandsOf(job);
+      }
+    } catch (e) { job.bands = null; }
+    if (job.host) job.host.remove();
+    job.host = job.svg = null;
+    return true;
+  }
+  // false when there is nothing to measure (then the job is done, with no bands: the box serves)
+  function startBands(job) {
+    var host = document.createElement('div');
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:176px;height:170px;overflow:hidden;pointer-events:none';
+    host.innerHTML = QJZ.pets.compose(job.id, 'petonly', { state: job.state });
+    document.body.appendChild(host);
+    var svg = host.firstElementChild;
+    job.host = host;
+    if (!svg || !svg.getAnimations) { job.bands = null; return false; }
+    job.svg = svg;
+    job.anims = svg.getAnimations({ subtree: true });
+    job.anims.forEach(function (a) { a.pause(); });
+    job.times = bandTimes(job.anims);
+    job.f = job.si = 0;
+    job.wob = (QJZ.pets.get(job.id) || {}).wrap === 'crayon' ? 1.5 : 0;   // the crayon grain moves edges by up to 1.2
+    var vb = PETONLY_VB;
+    job.cols = Math.floor(vb[2] / BAND_STEP) + 1;
+    job.rows = [];
+    for (var by = vb[1]; by < vb[1] + vb[3]; by += BAND) job.rows.push(new Uint8Array(job.cols));
+    // the pet's painted shapes: not the flying props (.tops), not what a clip keeps inside another shape
+    job.shapes = [];
+    Array.prototype.forEach.call(svg.querySelectorAll('path,circle,ellipse,rect,polygon,polyline,line'), function (el) {
+      if (el.closest('defs,clipPath,mask,pattern,.tops')) return;
+      for (var p = el.parentNode; p && p !== svg; p = p.parentNode) if (p.getAttribute && p.getAttribute('clip-path')) return;
+      var tag = el.tagName.toLowerCase(), fill = el.getAttribute('fill'), stroke = el.getAttribute('stroke');
+      var stroked = !!stroke && stroke !== 'none', sw = stroked ? parseFloat(el.getAttribute('stroke-width') || '1') || 1 : 0;
+      var open = tag === 'polyline' || tag === 'path' && !/z/i.test(el.getAttribute('d') || '');
+      job.shapes.push({ el: el, box: tag === 'rect' || tag === 'line', fill: fill !== 'none' && tag !== 'line' && tag !== 'polyline',
+        stroke: stroked, sw: sw, dense: open && stroked && sw <= 3 });   // thin open lines (whiskers): every row
+    });
+    return true;
+  }
+  // Times to sample (ms, the same for every animation, as on screen): one loop of the longest moving animation
+  // (alternate ones count twice), at most 4.8 s, every 150 ms (100 ms up to 2.4 s, 50 ms up to 1.3 s).
+  function bandTimes(anims) {
+    var T = 0;
+    anims.forEach(function (a) {
+      var tm = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null, kf = a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : [];
+      if (!tm || !isFinite(tm.duration) || !kf.some(function (k) { return k.transform && k.transform !== 'none'; })) return;
+      T = Math.max(T, tm.duration * (/alternate/.test(tm.direction) ? 2 : 1));
+    });
+    T = Math.min(T, 4800);
+    var step = T <= 1300 ? 50 : T <= 2400 ? 100 : 150, out = [];
+    for (var t = 0; t <= T; t += step) out.push(t);
+    return out;
+  }
+  // Marks what the frame paints into job.rows (one row of cells per band of BAND units, a cell every BAND_STEP).
+  // Small or thin shapes and rects count by their box (stroke included); big ones by their left and right edge on
+  // three lines through each band (every line for thin open strokes such as whiskers), stepping in from their box.
+  // Goes on from shape job.si; true when the frame is done, false when `until` came first.
+  function bandFrame(job, until) {
+    var svg = job.svg, M = svg.getScreenCTM(), Mi = M.inverse(), vb = PETONLY_VB, pt = svg.createSVGPoint();
+    function mark(bi, xa, xb) {
+      var row = job.rows[bi];
+      if (!row) return;
+      var c0 = Math.max(0, Math.floor((xa - vb[0]) / BAND_STEP)), c1 = Math.min(job.cols - 1, Math.ceil((xb - vb[0]) / BAND_STEP));
+      for (var c = c0; c <= c1; c++) row[c] = 1;
+    }
+    if (!job.sorted) {   // biggest first, so the parts inside them find their bands already marked
+      job.shapes.forEach(function (sh) { var r = sh.el.getBoundingClientRect(); sh.area = r.width * r.height; });
+      job.shapes.sort(function (a, b) { return b.area - a.area; });
+      job.sorted = true;
+    }
+    while (job.si < job.shapes.length) {
+      try { shape(job.shapes[job.si]); } catch (e) {}   // (a part squashed flat this frame: skipped)
+      job.si++;
+      if (job.si < job.shapes.length && Date.now() >= until) return false;
+    }
+    return true;
+    function covered(bi, xa, xb) {
+      var row = job.rows[bi];
+      if (!row) return true;
+      var c0 = Math.max(0, Math.floor((xa - vb[0]) / BAND_STEP)), c1 = Math.min(job.cols - 1, Math.ceil((xb - vb[0]) / BAND_STEP));
+      for (var c = c0; c <= c1; c++) if (!row[c]) return false;
+      return true;
+    }
+    function shape(sh) {
+      var r = sh.el.getBoundingClientRect();
+      if (!(r.width > 0 || r.height > 0)) return;
+      var ctm = null;
+      if (!sh.sc) {   // the shape's scale against the viewBox, taken once (it only matters for the stroke width)
+        ctm = sh.el.getScreenCTM();
+        var loc = Mi.multiply(ctm);
+        sh.sc = Math.sqrt(Math.abs(loc.a * loc.d - loc.b * loc.c)) || 1;
+      }
+      var hs = (sh.stroke ? sh.sw * sh.sc / 2 : 0) + job.wob;
+      var x0 = (r.left - M.e) / M.a - hs, x1 = (r.right - M.e) / M.a + hs, y0 = (r.top - M.f) / M.d - hs, y1 = (r.bottom - M.f) / M.d + hs;
+      var b0 = Math.max(0, Math.floor((y0 - vb[1]) / BAND)), b1 = Math.min(job.rows.length - 1, Math.floor((y1 - vb[1]) / BAND));
+      if (sh.box || x1 - x0 <= 16 && y1 - y0 <= 16 || Math.min(x1 - x0, y1 - y0) <= 5) {
+        for (var bb = b0; bb <= b1; bb++) mark(bb, x0, x1);
+        return;
+      }
+      var inv = (ctm || sh.el.getScreenCTM()).inverse();
+      function on(vx, vy) {
+        pt.x = M.a * vx + M.e; pt.y = M.d * vy + M.f;
+        var q = pt.matrixTransform(inv);
         return (sh.fill && sh.el.isPointInFill(q)) || (sh.stroke && sh.el.isPointInStroke(q));
-      };
-      var painted = function (vx, vy) {
-        for (var i = 0; i < shapes.length; i++) {
-          var sh = shapes[i];
-          if (!sh.sweep) { if (hits(sh, vx, vy)) return true; continue; }
-          for (var k = -2; k <= 2; k++) {   // the part turned by k/2 of its range: the point turned back by as much
-            var a = -k / 2 * sh.sweep.deg * Math.PI / 180, ox = sh.sweep.o[0], oy = sh.sweep.o[1], dx = vx - ox, dy = vy - oy;
-            if (hits(sh, ox + dx * Math.cos(a) - dy * Math.sin(a), oy + dx * Math.sin(a) + dy * Math.cos(a))) return true;
-          }
-        }
-        return false;
-      };
-      var vb = PETONLY_VB, x0 = vb[0], x1 = vb[0] + vb[2], segs = [];
-      for (var by = vb[1]; by < vb[1] + vb[3]; by += SIL_BAND) {
-        var rows = [by + 1, by + SIL_BAND / 2, by + SIL_BAND - 1], run = null;
-        for (var a = x0; a <= x1; a += SIL_STEP) {
-          var on = false;
-          for (var k = 0; k < rows.length && !on; k++) on = painted(a, rows[k]);
-          if (!on) continue;
-          if (run && a - run[2] < SIL_GAP) run[2] = a;
-          else { run = [a, by, a, by + SIL_BAND]; segs.push(run); }
+      }
+      for (var bi = b0; bi <= b1; bi++) {
+        if (covered(bi, x0, x1)) continue;   // nothing this shape could add here
+        var by = vb[1] + bi * BAND, lo = Infinity, hi = -Infinity, lines = [by + 1, by + BAND / 2, by + BAND - 1];
+        if (sh.dense) { lines = []; for (var ly = by + 0.5; ly < by + BAND; ly += 1) lines.push(ly); }
+        lines.forEach(function (vy) {
+          if (vy < y0 || vy > y1) return;
+          var a, b;
+          for (a = x0; a <= x1; a += BAND_STEP) if (on(a, vy)) break;
+          if (a > x1) return;
+          for (b = x1; b > a; b -= BAND_STEP) if (on(b, vy)) break;
+          lo = Math.min(lo, a - BAND_STEP - job.wob); hi = Math.max(hi, b + BAND_STEP + job.wob);
+        });
+        if (hi >= lo) mark(bi, lo, hi);
+      }
+    }
+  }
+  // job.rows -> bands [[x0, y0, x1, y1], ...]: runs of marked cells (a gap of BAND_GAP or more splits them), and runs
+  // of neighbouring bands whose sides line up merged into one.
+  function bandsOf(job) {
+    var vb = PETONLY_VB, segs = [], merged = [];
+    job.rows.forEach(function (row, bi) {
+      var by = vb[1] + bi * BAND, run = null;
+      for (var c = 0; c < job.cols; c++) {
+        if (!row[c]) continue;
+        var x = vb[0] + c * BAND_STEP;
+        if (run && x - run[2] < BAND_GAP) run[2] = x;
+        else { run = [x, by, x, by + BAND]; segs.push(run); }
+      }
+    });
+    segs.forEach(function (b) {
+      for (var i = merged.length - 1; i >= 0; i--) {
+        var m = merged[i];
+        if (m[3] === b[1] && Math.abs(m[0] - b[0]) <= BAND_MERGE && Math.abs(m[2] - b[2]) <= BAND_MERGE) {
+          m[0] = Math.min(m[0], b[0]); m[2] = Math.max(m[2], b[2]); m[3] = b[3];
+          return;
         }
       }
-      var merged = [];   // a run joins the rect right above it when their sides line up
-      segs.forEach(function (b) {
-        for (var i = merged.length - 1; i >= 0; i--) {
-          var m = merged[i];
-          if (m[3] === b[1] && Math.abs(m[0] - b[0]) <= SIL_MERGE && Math.abs(m[2] - b[2]) <= SIL_MERGE) {
-            m[0] = Math.min(m[0], b[0]); m[2] = Math.max(m[2], b[2]); m[3] = b[3];
-            return;
-          }
-        }
-        merged.push(b.slice());
-      });
-      return merged;
-    } catch (e) { return null; } finally { svg.classList.remove('sil-rest'); }
+      merged.push(b.slice());
+    });
+    return merged;
   }
   // Where the lifted pet's scruff tip is in U7, page CSS px (dragStart's grab).
   function grabPoint() {
@@ -1053,10 +1201,12 @@ QJZ.layouts = (function () {
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '' };
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null };
+    cancelBands();
   }
 
   return {
     show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
+    _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     refreshTopmost: refreshTopmost,
     dragging: function () { return dragging; },
     MAIN: MAIN, ALL: ALL,
@@ -1064,6 +1214,7 @@ QJZ.layouts = (function () {
       hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
+      DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX
     }
   };

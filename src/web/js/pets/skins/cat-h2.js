@@ -67,9 +67,12 @@
     <path d="M58.6,129.6 l-8,-2.2 M58,135 l-8,1 M177.4,129.6 l8,-2.2 M178,135 l8,1" ${ST(1.7)}/>
     <!--EYES-->
     <path d="M115.4,126.8 h5.2 q-.5,2.4 -2.6,3 q-2.1,-.6 -2.6,-3 z" fill="#FF8090" ${ST(1.2)}/><!--MOUTH--><!--OVER-->`;
-      var art = tail('M84,158 C62,162 46,157 43,144', '56px 156px',
-        `<path d="M47.6,153.6 l3.4,-5.4 M43.4,146.6 l6.2,-1.6" stroke="${STRIPE}" stroke-width="3" stroke-linecap="round"/>`) +
-        ears(st) + fur(B, uid + '-b', st) + topFish(118, 86.4, -9, 1.3) + face;
+      var mochi = ears(st) + fur(B, uid + '-b', st) + topFish(118, 86.4, -9, 1.3) + face;
+      var art = tail('M84,158 C64,162 51,157 47.5,145.5', '58px 156px',
+        `<path d="M51.4,154.4 l3,-5.2 M47.6,148 l6,-1.4" stroke="${STRIPE}" stroke-width="3" stroke-linecap="round"/>`) + mochi;
+      // asleep, the tail curls in close to the flattened mochi (inside the pet area)
+      var sleepy = tail('M86,160 C70,164 60,158 57,149', '64px 156px',
+        `<path d="M61.4,157.6 l2.6,-5.4" stroke="${STRIPE}" stroke-width="3" stroke-linecap="round"/>`) + mochi;
       // lifted: the tip of the head at (118, DANGLE_TIP_Y), the whole cat a little smaller
       var lift = `translate(118 ${DANGLE_TIP_Y}) scale(${DS}) translate(${-TIP[0]} ${-TIP[1]})`;
       function at(p) { return [n(118 + (p[0] - TIP[0]) * DS), n(DANGLE_TIP_Y + (p[1] - TIP[1]) * DS)]; }
@@ -102,7 +105,7 @@
         poses: {
           lie: {
             front: `<ellipse cx="118" cy="161" rx="66" ry="5" fill="${L}" opacity=".12"/>` +
-              `<g transform="translate(118 160) scale(1.1 .78) translate(-118 -172)"><g class="breath" style="transform-origin:118px 172px">${art}</g></g>` +
+              `<g transform="translate(118 160) scale(1.1 .78) translate(-118 -172)"><g class="breath" style="transform-origin:118px 172px">${sleepy}</g></g>` +
               paw(103, 159, -10) + paw(133, 159, 10),
             anchors: { zzz: [152, 104], top: [118, 98] }
           },

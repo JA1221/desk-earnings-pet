@@ -294,7 +294,7 @@
     eq(QJZ.app.state.settings.layout.current, 'U3', 'M3 is never stored');
     eq(last(e.sent, 'setLayout').layout, 'M3');
     eq(last(e.sent, 'setTopmost'), { on: true }, 'M3 floats on top by default');
-    eq(last(e.sent, 'hitRects').rects.length, 7, 'the ring as five bands along the disc, money tag, status line');
+    eq(last(e.sent, 'hitRects').rects.length, QJZ.layouts.util.DISC_BANDS + 2, 'the ring as bands along the disc, money tag, status line');
     eq(text(e, '[data-b=m3sub]'), '上班中 · 還有 07:00:00');
     mouse($(e, '.ring'), 'dblclick');
     eq(QJZ.layouts.current(), 'U3');
@@ -307,6 +307,7 @@
   test('layouts DOM: U7 hit rects are tight (tag + pet), hover tools join them, bubbles never do', function () {
     var e = mk(at(12, 10, 0));
     e.menu('layout:U7');
+    QJZ.layouts._bands.flush();   // the pet's bands are measured while the page is idle
     var sl = last(e.sent, 'setLayout'), rects = last(e.sent, 'hitRects').rects;
     eq(sl.layout, 'U7');
     eq(last(e.sent, 'setTopmost'), { on: true });
@@ -814,6 +815,7 @@
     function has(rects, r) { return rects.map(function (x) { return JSON.stringify(x); }).indexOf(r) >= 0; }
     function inBox(r, state) { var b = JSON.parse(petRect(state)); return r[0] >= b[0] && r[1] >= b[1] && r[0] + r[2] <= b[0] + b[2] && r[1] + r[3] <= b[1] + b[3]; }
     function petBands(rects) { var tag = $(e, '.mtag').getBoundingClientRect(); return rects.filter(function (r) { return r[1] >= tag.bottom - 1; }); }
+    QJZ.layouts._bands.flush();
     ok(petRect('dangle') !== petRect('typing'), 'a different box');
     var first = petBands(last(e.sent, 'hitRects').rects);
     ok(first.length >= 2 && first.every(function (r) { return inBox(r, 'typing'); }) && !has(first, petRect('typing')), 'bands along the pet, inside the tight box: ' + JSON.stringify(first));
@@ -906,6 +908,7 @@
     var U = QJZ.layouts.util;
     SKINS.forEach(function (id) {
       var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf(id).settings });
+      QJZ.layouts._bands.flush();
       var holder = $(e, '[data-pet]'), box = holder.getBoundingClientRect(), tag = $(e, '.mtag').getBoundingClientRect();
       var big = U.outer(U.subRect(box, U.PETONLY_VB, U.PET_HIT)), rects = last(e.sent, 'hitRects').rects.filter(function (r) { return r[1] >= tag.bottom - 1; });
       function inside(x, y) { return rects.some(function (r) { return x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]; }); }
@@ -929,9 +932,75 @@
     });
   });
 
+  test('layouts DOM: the U7 pet bands are measured while the page is idle: the box until then, nothing measured at once', function () {
+    var U = QJZ.layouts.util;
+    QJZ.layouts._bands.clear();
+    var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf('cat:s5').settings });
+    var box = $(e, '[data-hit=pet]').getBoundingClientRect(), tag = $(e, '.mtag').getBoundingClientRect();
+    var big = JSON.stringify(U.outer(U.subRect(box, U.PETONLY_VB, U.PET_HIT)));
+    function pet(rects) { return rects.filter(function (r) { return r[1] >= tag.bottom - 1; }); }
+    var first = pet(last(e.sent, 'hitRects').rects);
+    eq(first.map(function (r) { return JSON.stringify(r); }), [big], 'the measured box while the bands are not ready');
+    ok(QJZ.layouts._bands.pending() > 0, 'a measuring job is queued');
+    eq(document.querySelectorAll('[aria-hidden][style*="-10000px"]').length, 0, 'and not started: no hidden copy yet');
+    var n = of(e.sent, 'hitRects').length;
+    QJZ.layouts._bands.flush();
+    eq(QJZ.layouts._bands.pending(), 0);
+    eq(document.querySelectorAll('[aria-hidden][style*="-10000px"]').length, 0, 'the hidden copy is gone');
+    ok(of(e.sent, 'hitRects').length === n + 1 && pet(last(e.sent, 'hitRects').rects).length > 1, 'then the bands, sent at once');
+    done();
+  });
+
+  // The reviewer's scan (I-1): the U7 pet's painted pixels, stepped through its animations off the measuring grid, all
+  // inside the hit rects (where the measured box lets them be). The cases are the worst ones found: stretching
+  // hamsters, whiskers and ear tips of a tilting or puffing head, crayon sparkles, the waving and sleeping new cats.
+  test('layouts DOM: while the U7 pet moves, every painted pixel of it (inside the measured box) stays inside its hit rects', function () {
+    var U = QJZ.layouts.util, wrap = document.createElement('div');
+    var CASES = [['hamster:p0', 'stretch'], ['hamster:s4', 'stretch'], ['hamster:s5', 'stretch'], ['hamster:h2', 'stretch'], ['cat:p0', 'stretch'],
+      ['cat:p0', 'angry'], ['cat:p0', 'petted'], ['cat:p0', 'typing'], ['cat:s5', 'doze'], ['cat:s5', 'celebrate'], ['hamster:s5', 'waitBag'],
+      ['cat:s4', 'scratch'], ['cat:s4', 'waitBag'], ['cat:h2', 'celebrate'], ['cat:h2', 'angry'], ['cat:h2', 'lunchSleep']];
+    wrap.style.cssText = 'position:fixed;left:0;top:0;z-index:99';
+    wrap.innerHTML = '<div class="u7 lay"><div class="dpet"><div class="po" data-pet="petonly" data-hit="pet"></div></div></div>';
+    document.body.appendChild(wrap);
+    function hidden(n, svg) {
+      for (; n && n !== svg; n = n.parentNode) { var cs = getComputedStyle(n); if (cs.opacity === '0' || cs.visibility === 'hidden') return true; }
+      return false;
+    }
+    function dist(x, y, rs) {
+      var b = Infinity;
+      rs.forEach(function (r) {
+        var dx = x < r[0] ? r[0] - x : x > r[0] + r[2] ? x - r[0] - r[2] : 0, dy = y < r[1] ? r[1] - y : y > r[1] + r[3] ? y - r[1] - r[3] : 0;
+        b = Math.min(b, Math.sqrt(dx * dx + dy * dy));
+      });
+      return b;
+    }
+    try {
+      var po = wrap.querySelector('.po');
+      CASES.forEach(function (c) {
+        po.innerHTML = QJZ.pets.compose(c[0], 'petonly', { state: c[1] });
+        var svg = po.firstElementChild, box = po.getBoundingClientRect();
+        var rects = U.bandRects(U.measureBands(c[0], c[1]), c[1], box).map(U.outer), lim = U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(c[1])));
+        ok(rects.length > 1, c.join(' ') + ': bands, not the box');
+        var anims = svg.getAnimations({ subtree: true }), pts = [], worst = 0, at = null;
+        anims.forEach(function (a) { a.pause(); });
+        for (var y = lim[1] + 1.5; y < lim[1] + lim[3]; y += 3) for (var x = lim[0] + 1.5; x < lim[0] + lim[2]; x += 3) if (dist(x, y, rects) > 0) pts.push([x, y]);
+        for (var t = 35; t <= 4800; t += 265) {   // off the measuring grid (every 100 ms)
+          anims.forEach(function (a) { a.currentTime = t; });
+          pts.forEach(function (p) {
+            var n = document.elementFromPoint(p[0], p[1]);
+            if (!n || n === svg || !svg.contains(n) || n.closest('.tops') || hidden(n, svg)) return;
+            var d = dist(p[0], p[1], rects);
+            if (d > worst) { worst = d; at = [t, Math.round(p[0] - box.left), Math.round(p[1] - box.top), n.tagName]; }
+          });
+        }
+        ok(worst <= 1.5, c.join(' ') + ': a painted pixel ' + Math.round(worst * 10) / 10 + ' px outside the hit rects at ' + JSON.stringify(at));
+      });
+    } finally { wrap.remove(); }
+  });
+
   test('layouts: a disc hit area is covered by its bands and leaves its corners out', function () {
-    var U = QJZ.layouts.util, r = { left: 10, top: 20, width: 100, height: 100 }, bands = U.discRects(r, 5);
-    eq(bands.length, 5);
+    var U = QJZ.layouts.util, r = { left: 10, top: 20, width: 100, height: 100 }, bands = U.discRects(r, U.DISC_BANDS);
+    eq(bands.length, U.DISC_BANDS);
     function inside(x, y) { return bands.some(function (b) { return x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height; }); }
     for (var a = 0; a < 360; a += 10) {
       var t = a * Math.PI / 180, x = 60 + Math.cos(t) * 49.5, y = 70 + Math.sin(t) * 49.5;

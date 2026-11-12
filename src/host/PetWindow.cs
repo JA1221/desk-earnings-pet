@@ -329,6 +329,9 @@ public class PetWindow : Form
         base.Dispose(disposing);
     }
 
+    // Physical px per CSS px of the page (its devicePixelRatio once reported).
+    public double CssScale { get { return Scale(); } }
+
     private double Scale()
     {
         return scale > 0 ? scale : PetGeometry.DpiScale(windowDpi > 0 ? windowDpi : DeviceDpi);

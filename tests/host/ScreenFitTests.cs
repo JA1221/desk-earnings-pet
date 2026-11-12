@@ -8,6 +8,32 @@ public static class ScreenFitTests
     static readonly Rectangle Right = new Rectangle(1920, 0, 1920, 1032);
     static readonly Rectangle Left = new Rectangle(-1080, -668, 1080, 1848);
 
+    public static void Test_KeepBottomInLiftsTheDeskAboveTheTaskbar()
+    {
+        // U7 at 100%: 327 x 291 px, the desk ends 16 px above the window bottom; work area 1920 x 1040 (taskbar below)
+        Rectangle low = new Rectangle(1500, 820, 327, 291);   // desk bottom at 1095: 55 px below the work area
+        Assert.Eq(new Rectangle(1500, 765, 327, 291), ScreenFit.KeepBottomIn(low, 16, Primary), "lifted: desk bottom at 1040");
+        Rectangle ok = new Rectangle(1500, 700, 327, 291);
+        Assert.Eq(ok, ScreenFit.KeepBottomIn(ok, 16, Primary), "inside: unchanged");
+        Rectangle edge = new Rectangle(1500, 765, 327, 291);
+        Assert.Eq(edge, ScreenFit.KeepBottomIn(edge, 16, Primary), "desk bottom exactly at the edge: unchanged");
+        Rectangle high = new Rectangle(1500, 10, 327, 291);
+        Assert.Eq(high, ScreenFit.KeepBottomIn(high, 16, Primary), "never moved down");
+        // 150%: 491 x 437 px, margin 24 px
+        Assert.Eq(new Rectangle(200, 627, 491, 437), ScreenFit.KeepBottomIn(new Rectangle(200, 900, 491, 437), 24, Primary), "150%");
+    }
+
+    public static void Test_KeepBottomInNeverAboveTheTopAndWorksOnOtherMonitors()
+    {
+        Rectangle small = new Rectangle(0, 0, 1920, 300);
+        Assert.Eq(new Rectangle(10, 0, 327, 400), ScreenFit.KeepBottomIn(new Rectangle(10, 50, 327, 400), 16, small),
+            "taller than the area: its top stops at the area's top");
+        Assert.Eq(new Rectangle(-900, 905, 327, 291), ScreenFit.KeepBottomIn(new Rectangle(-900, 1000, 327, 291), 16, Left),
+            "portrait monitor left and above: bottom 1180 + 16 - 291");
+        Rectangle above = new Rectangle(-900, -800, 327, 291);
+        Assert.Eq(above, ScreenFit.KeepBottomIn(above, 16, Left), "above the area: left alone (never moved down)");
+    }
+
     public static void Test_OnScreenUnchanged()
     {
         Rectangle win = new Rectangle(100, 200, 380, 640);
