@@ -1,7 +1,9 @@
 /* Pet + room animation. The typing look is ported from docs/prototypes/shared.css; the other states are Task 12.
    Root element: svg.pet-svg.kind-<kind>.st-<state> (from QJZ.pets.compose). compose also sets the per-skin pivots
    --hx/--hy (head or mochi) and --gx/--gy (dangle grab point) on the root.
-   --m scales every movement: 1 normally, .3 under prefers-reduced-motion (states keep their look, just calmer).
+   --m scales every movement: 1 normally, .3 under prefers-reduced-motion (states keep their look, just calmer), and
+   the perpetual idle loops (blink, look, tail, puff, zz, dots) stop there: html.calm, set by QJZ.fx from the same
+   media query (pages without fx.js, such as the review pages, only get the scaled motion).
    Add .happy to switch to ^^ eyes and a little jump/wiggle. Blink offset per pet: set --bd on the svg.
    Pausing while hidden is handled by html.paused in base.css; everything here is a CSS animation. */
 
@@ -10,6 +12,13 @@
   .pet-svg{--m:.3}
   .pet-svg .cf{animation-duration:5s!important}
 }
+html.calm .pet-svg{--m:.3}
+html.calm .pet-svg :is(.blink,.look,.tail,.puff,.zz,.dot0,.dot1,.dot2){animation:none!important}
+/* the Zzz stay, as a still staircase */
+html.calm .pet-svg .zz{opacity:1}
+html.calm .pet-svg .zz:nth-child(1){transform:scale(.6)}
+html.calm .pet-svg .zz:nth-child(2){transform:translate(7px,-12px) scale(.8)}
+html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 
 /* pivots: view-box boxes resolve px origins in the element's own user space */
 .pet-svg .head,.pet-svg .squish{transform-box:view-box;transform-origin:var(--hx,118px) var(--hy,132px)}
@@ -40,7 +49,7 @@
 .pet-svg .smk{opacity:0;animation:smk 1.5s ease-out infinite}
 @keyframes smk{0%{transform:translate(0,4px) scale(.4);opacity:0}20%{opacity:1}100%{transform:translate(calc(var(--dx,0px) * var(--m)),calc(-16px * var(--m))) scale(1.3);opacity:0}}
 .pet-svg .cf{animation:cf 2.2s linear infinite}
-@keyframes cf{from{transform:translateY(-14px) rotate(0)}to{transform:translateY(186px) rotate(var(--r,360deg))}}
+@keyframes cf{from{transform:translateY(-14px) rotate(0)}to{transform:translateY(calc(-14px + 200px * var(--m))) rotate(calc(var(--m) * var(--r,360deg)))}}
 .pet-svg .flame{animation:flick .42s ease-in-out infinite alternate}
 @keyframes flick{from{transform:scale(1,1) skewX(0)}to{transform:scale(calc(1 - .08 * var(--m)),calc(1 + .14 * var(--m))) skewX(calc(5deg * var(--m)))}}
 .pet-svg .drip{animation:drip 1.4s ease-in infinite}

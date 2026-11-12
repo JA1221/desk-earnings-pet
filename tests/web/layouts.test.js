@@ -31,8 +31,7 @@
     eq(key('working', QJZ.day.manualStart(sat, at(14, 10, 0))), 'working', 'a weekend started by hand');
     eq(['working', 'lunch', 'done', 'ended', 'before', 'off'].map(function (k) { return U.STATUS[k]; }),
       ['上班中', '午休中', '可以下班', '已下班', '還沒上班', '休假日']);
-    eq(['working', 'lunch', 'done', 'ended', 'before', 'off'].map(function (k) { return U.PET_STATE[k]; }),
-      ['typing', 'lunchSleep', 'celebrate', 'celebrate', 'idle', 'idle']);
+    eq(U.PET_STATE, undefined, 'the stand-in table is gone: QJZ.behavior decides');
   });
 
   test('layouts: main vs temporary layouts and the way back', function () {
@@ -256,10 +255,10 @@
     var e = mk(at(12, 12, 30));
     eq(text(e, '[data-b=status]'), '午休中');
     var holder = $(e, '[data-pet]');
-    ok(holder.querySelector('svg.st-lunchSleep'));
+    ok(holder.querySelector('svg.st-lunchSleep'), 'lunch: ' + petState(e));
     e.tick(at(12, 18, 0));
     eq(text(e, '[data-b=status]'), '可以下班');
-    ok($(e, '[data-pet] svg.st-celebrate'));
+    ok($(e, '[data-pet] svg.st-celebrate'), 'done: ' + petState(e));
     done();
     var f = mk(at(12, 10, 0));
     var h = $(f, '[data-pet]'), svg1 = h.firstElementChild;
@@ -267,7 +266,7 @@
     eq(h.firstElementChild, svg1, 'same state: the SVG is not recomposed');
     f.tick(at(12, 12, 10));
     eq($(f, '[data-pet]'), h, 'the holder node stays');
-    ok(h.firstElementChild !== svg1 && h.firstElementChild.classList.contains('st-lunchSleep'), 'the SVG is swapped on a state change');
+    ok(h.firstElementChild !== svg1 && h.firstElementChild.classList.contains('st-lunchSleep'), 'the SVG is swapped on a state change: ' + petState(f));
     done();
   });
 
@@ -455,9 +454,242 @@
   test('layouts DOM: a milestone crossing throws confetti', function () {
     var e = mk(at(12, 10, 3));
     eq($(e, '.confetti'), null);
-    e.tick(at(12, 10, 4));
+    e.tick(at(12, 10, 3, 21));
+    eq($(e, '.confetti'), null, 'NT$300 falls at 10:03:21.6');
+    e.tick(at(12, 10, 3, 22));
     ok(e.root.querySelectorAll('.confetti').length > 0);
     eq(QJZ.app.state.snacks, 3);
+    ok($(e, '[data-pet] svg.st-hop'), 'milestone -> hop');
     done();
+  });
+
+  // ---------- Task 13: the behaviour engine in the layouts ----------
+  // Replaces QJZ.sound's players with counters for the duration of fn.
+  function sounds(fn) {
+    var names = ['coin', 'meow', 'squeak', 'jingle'], orig = {}, n = {};
+    names.forEach(function (k) { orig[k] = QJZ.sound[k]; n[k] = 0; QJZ.sound[k] = function () { n[k]++; return true; }; });
+    try { fn(n); } finally { names.forEach(function (k) { QJZ.sound[k] = orig[k]; }); done(); }
+  }
+  function petState(e) {
+    var svg = $(e, '[data-pet] svg');
+    var m = svg && /\bst-(\w+)/.exec(svg.getAttribute('class'));
+    return m ? m[1] : null;
+  }
+  function steps(e, fromMs, toMs, stepMs) {
+    for (var t = fromMs; t <= toMs; t += stepMs || 1000) e.tick(t);
+  }
+
+  test('layouts DOM: RULING-3 lunch — lunchEat at 12:05, lunchSleep from 12:10', function () {
+    var e = mk(at(12, 12, 5));
+    eq(petState(e), 'lunchEat');
+    e.tick(at(12, 12, 10));
+    eq(petState(e), 'lunchSleep');
+    done();
+  });
+
+  test('layouts DOM: sprint in the last 30 minutes; 可以下班 celebrates 8 s with one jingle, then waitBag', function () {
+    sounds(function (n) {
+      var e = mk(at(12, 17, 40));
+      eq(petState(e), 'sprint');
+      steps(e, at(12, 17, 59, 57), at(12, 18, 0, 0));
+      eq(petState(e), 'celebrate');
+      eq(n.jingle, 1, 'jingle on 可以下班 seen live');
+      steps(e, at(12, 18, 0, 1), at(12, 18, 0, 7));
+      eq(petState(e), 'celebrate');
+      e.tick(at(12, 18, 0, 8));
+      eq(petState(e), 'waitBag');
+      eq(n.jingle, 1);
+    });
+  });
+
+  test('layouts DOM: 可以下班 reached while hidden celebrates on re-show without the jingle', function () {
+    sounds(function (n) {
+      var e = mk(at(12, 17, 0));
+      e.bridge.emit({ type: 'visibility', visible: false });
+      e.clock.ms = at(12, 18, 30);
+      e.bridge.emit({ type: 'visibility', visible: true });
+      eq(petState(e), 'celebrate');
+      eq(n.jingle, 0);
+    });
+  });
+
+  test('layouts DOM: poking pets (sound, hearts, mood +5); five quick pokes make it angry (mood -5, no sound)', function () {
+    sounds(function (n) {
+      var e = mk(at(12, 10, 0));
+      var pet = $(e, '[data-pet]'), m0 = QJZ.app.state.mood.mood;
+      pet.click();
+      eq(petState(e), 'petted');
+      eq(n.squeak, 1, 'hamster squeaks');
+      eq(n.meow, 0);
+      ok(e.root.querySelectorAll('.heart').length > 0, 'hearts');
+      near(QJZ.app.state.mood.mood, m0 + 5, 0.01);
+      for (var i = 0; i < 4; i++) pet.click();
+      eq(petState(e), 'angry');
+      near(QJZ.app.state.mood.mood, m0 + 20 - 5, 0.01, 'four pets, then angry');
+      eq(n.squeak, 4, 'no squeak when it gets angry');
+      ok($(e, '[data-bubble]').classList.contains('show'), 'it says something');
+      e.tick(at(12, 10, 0) + 4000);
+      eq(petState(e), 'typing', 'calm after 4 s');
+    });
+  });
+
+  test('layouts DOM: a cat meows when petted', function () {
+    sounds(function (n) {
+      var e = mk(at(12, 10, 0), { settings: { pet: { kind: 'cat', skin: 'p0' } } });
+      $(e, '[data-pet]').click();
+      eq([n.meow, n.squeak], [1, 0]);
+    });
+  });
+
+  test('layouts DOM: feeding eats a snack, plays eat when it lands and lifts the mood', function () {
+    var e = mk(at(12, 10, 0));
+    var m0 = QJZ.app.state.mood.mood;
+    $(e, '[data-act=feed]').click();
+    eq(QJZ.app.state.snacks, 1);
+    near(QJZ.app.state.mood.mood, m0 + 15, 0.01);
+    e.tick(at(12, 10, 0) + 1000);
+    eq(petState(e), 'eat');
+    e.tick(at(12, 10, 0) + 4000);
+    eq(petState(e), 'typing');
+    done();
+  });
+
+  test('layouts DOM: U7 dangles from dragStart until dragEnd; other layouts never dangle', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' });
+    var pet = $(e, '[data-pet]');
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(of(e.sent, 'dragStart').length, 1);
+    ok(QJZ.layouts.dragging());
+    eq(petState(e), 'dangle');
+    e.tick(at(12, 10, 1));
+    eq(petState(e), 'dangle', 'still held');
+    e.bridge.emit({ type: 'dragEnd' });
+    eq(petState(e), 'typing');
+    ok(!QJZ.layouts.dragging());
+    // released before the host's move loop started: the page sees the mouseup, and that click is not a poke
+    mouse(pet, 'mousedown', 100, 100);
+    mouse(pet, 'mousemove', 110, 100);
+    eq(petState(e), 'dangle');
+    mouse(pet, 'mouseup', 110, 100, { buttons: 0 });
+    mouse(pet, 'click', 110, 100, { buttons: 0 });
+    eq(petState(e), 'typing');
+    ok(!QJZ.layouts.dragging());
+    done();
+    var f = mk(at(12, 10, 0));
+    mouse($(f, '.bar'), 'mousedown', 100, 100);
+    mouse($(f, '.bar'), 'mousemove', 120, 100);
+    eq(of(f.sent, 'dragStart').length, 1);
+    eq(petState(f), 'typing', 'U1 is moved by its frame, the pet stays put');
+    done();
+  });
+
+  test('layouts DOM: the pet talks every 7–15 s where there is a bubble, never as banners in U5-B', function () {
+    var e = mk(at(12, 10, 0));
+    var b = $(e, '[data-bubble]'), t0 = at(12, 10, 0);
+    steps(e, t0 + 1000, t0 + 6000);
+    ok(!b.classList.contains('show'), 'quiet for the first 7 s');
+    steps(e, t0 + 7000, t0 + 15000);
+    ok(b.classList.contains('show'), 'talked by 15 s');
+    done();
+    var f = mk(at(12, 10, 0), { first: 'U5B' });
+    steps(f, t0 + 1000, t0 + 40000);
+    eq(f.root.querySelectorAll('.banner').length, 0);
+    done();
+  });
+
+  test('layouts DOM: a milestone crossed while hidden is quiet on re-show (no coin, no confetti, one bubble)', function () {
+    sounds(function (n) {
+      var e = mk(at(12, 10, 3));
+      e.bridge.emit({ type: 'visibility', visible: false });
+      e.clock.ms = at(12, 10, 4);
+      e.bridge.emit({ type: 'visibility', visible: true });
+      eq(QJZ.app.state.snacks, 3, 'the snack is there');
+      eq(e.root.querySelectorAll('.confetti').length, 0);
+      eq(n.coin, 0);
+      ok(petState(e) !== 'hop');
+      ok($(e, '[data-bubble]').classList.contains('show'), 'one quiet bubble');
+      e.tick(at(12, 10, 4) + 100);
+      e.tick(at(12, 10, 24) + 28000);
+      e.tick(at(12, 10, 24) + 29000);
+      eq(n.coin, 1, 'the next live step is loud again');
+    });
+  });
+
+  test('layouts DOM: hover keeps the U7 tools without timer churn on every mousemove', function () {
+    var e = mk(at(12, 10, 0), { first: 'U7' });
+    var tag = $(e, '.mtag');
+    mouse(tag, 'mouseover');
+    ok($(e, '.dpet').classList.contains('hover'));
+    var st = window.setTimeout, ct = window.clearTimeout, calls = 0;
+    window.setTimeout = function () { calls++; return st.apply(window, arguments); };
+    window.clearTimeout = function () { calls++; return ct.apply(window, arguments); };
+    try {
+      for (var i = 0; i < 20; i++) mouse(tag, 'mousemove', i, 0, { buttons: 0 });
+    } finally { window.setTimeout = st; window.clearTimeout = ct; }
+    eq(calls, 0);
+    ok($(e, '.dpet').classList.contains('hover'));
+    done();
+  });
+
+  // Reduced motion: html.calm is set by QJZ.fx from (prefers-reduced-motion: reduce) (file:// sheets cannot be read
+  // through the CSSOM and the media query cannot be forced here, so the computed styles are checked under the class).
+  test('layouts: reduced motion stops the perpetual idle loops and scales the confetti', function () {
+    var html = document.documentElement, box = document.createElement('div');
+    eq(html.classList.contains('calm'), window.matchMedia('(prefers-reduced-motion: reduce)').matches, 'html.calm follows the media query');
+    box.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:200px';
+    document.body.appendChild(box);
+    function anim(state, sel, skin) {
+      box.innerHTML = QJZ.pets.compose(skin || 'cat:p0', 'petonly', { state: state });
+      var el = box.querySelector(sel);
+      ok(el, state + ' ' + sel);
+      return getComputedStyle(el);
+    }
+    try {
+      ok(anim('idle', '.blink').animationName !== 'none', 'blinks normally');
+      html.classList.add('calm');
+      eq(anim('idle', '.blink').animationName, 'none', 'blink');
+      eq(anim('idle', '.look').animationName, 'none', 'look (idle)');
+      eq(anim('typing', '.tail').animationName, 'none', 'tail');
+      eq(anim('stare', '.dot1').animationName, 'none', 'dots');
+      var zz = anim('lunchSleep', '.zz');
+      eq([zz.animationName, zz.opacity], ['none', '1'], 'Zzz stays, still');
+      ok(box.querySelector('.puff') === null || getComputedStyle(box.querySelector('.puff')).animationName === 'none');
+      eq(anim('idle', '.puff', 'hamster:h2').animationName, 'none', 'puff (H2 cheeks)');
+      eq(anim('typing', '.pawL').animationName, 'tap', 'state poses still move (scaled by --m)');
+      // confetti: near the end of its fall, --m .3 falls and spins about 0.3 as far
+      function fall(m) {
+        box.innerHTML = QJZ.pets.compose('cat:p0', 'petonly', { state: 'celebrate' });
+        var svg = box.firstElementChild, cf = box.querySelector('.cf');
+        svg.style.setProperty('--m', m);
+        var a = cf.getAnimations()[0];
+        a.pause();
+        a.currentTime = a.effect.getComputedTiming().duration * 0.999;
+        var mt = new DOMMatrix(getComputedStyle(cf).transform);
+        return { y: mt.f, deg: Math.atan2(mt.b, mt.a) * 180 / Math.PI };
+      }
+      var full = fall('1'), calm = fall('.3');
+      ok(full.y > 150 && calm.y > 30 && calm.y < 60, 'fall ' + full.y + ' / ' + calm.y);
+      near(calm.deg, 60, 2, 'spin 200deg x .3');
+    } finally { html.classList.remove('calm'); box.remove(); }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) html.classList.add('calm');
+    // the milestone burst (QJZ.fx.confetti) scales its spread, fall and spin too
+    var host = document.createElement('div'), rnd = Math.random;
+    host.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:200px';
+    document.body.appendChild(host);
+    function lastFrame(scale) {
+      QJZ.fx._motion(scale);
+      Math.random = function () { return 0.75; };
+      try { QJZ.fx.confetti(host, 100, 100); } finally { Math.random = rnd; }
+      var a = host.lastChild.getAnimations()[0], k = a.effect.getKeyframes();
+      var tf = k[k.length - 1].transform;
+      host.innerHTML = '';
+      return parseFloat(/rotate\((-?[\d.]+)deg\)/.exec(tf)[1]);
+    }
+    try {
+      var full = lastFrame(1), calm = lastFrame(0.3);
+      near(full, 180, 0.01);
+      near(calm, 54, 0.01);
+    } finally { QJZ.fx._motion(null); host.remove(); }
   });
 })();

@@ -199,6 +199,53 @@
     QJZ.app._reset();
     eq(QJZ.app.state.hotkeyFailed, null);
   });
+  // ---- Task 13: mood and quiet milestones ----
+  test('app: mood follows the day from the wall clock and rises with petting and feeding', function () {
+    var e = mk(at(12, 10, 0));
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });   // started 09:00
+    var m = QJZ.app.state.mood;
+    near(m.energy, 92.5, 0.01, 'an hour of work');
+    near(m.mood, 60, 0.01, 'an hour of drift from 70');
+    QJZ.app.pet();
+    near(QJZ.app.state.mood.mood, 65, 0.01, 'pet +5');
+    QJZ.app.annoy();
+    near(QJZ.app.state.mood.mood, 60, 0.01, 'annoy -5');
+    ok(QJZ.app.feed());
+    near(QJZ.app.state.mood.mood, 75, 0.01, 'feed +15');
+    eq(QJZ.app.state.mood.energy, 100, 'feed +10, clamped');
+    e.clock.ms = at(12, 11, 0); QJZ.app.tickNow();
+    near(QJZ.app.state.mood.energy, 92.5, 0.01, 'drains again from the wall clock');
+    e.clock.ms = at(12, 12, 30); QJZ.app.tickNow();
+    near(QJZ.app.state.mood.energy, 100, 0.01, 'one big jump (hidden) still counts work, then lunch');
+    QJZ.app._reset();
+    eq(QJZ.app.state.mood, null);
+  });
+  test('app: a new day starts a fresh mood', function () {
+    var e = mk(at(12, 17, 0));
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    ok(QJZ.app.state.mood.energy < 80);
+    e.clock.ms = at(13, 8, 0); QJZ.app.tickNow();
+    eq(QJZ.app.state.mood, { energy: 100, mood: 70 });
+    QJZ.app._reset();
+  });
+  test('app: a milestone crossed while hidden is quiet on re-show; the snack is still there', function () {
+    var e = mk(at(12, 10, 3));
+    var got = [];
+    QJZ.app.on('milestone', function (m) { got.push(m); });
+    init(e, { history: hist([rec('2026-11-12', 540, {})]) });
+    e.bridge.emit({ type: 'visibility', visible: false });
+    e.clock.ms = at(12, 10, 5);
+    e.bridge.emit({ type: 'visibility', visible: true });
+    eq(got.length, 1);
+    eq([got[0].count, got[0].quiet, got[0].gained], [3, true, 1]);
+    eq(QJZ.app.state.snacks, 3, 'awarded silently');
+    // the 4th NT$100 step falls at 10:24:28.8: crossed live it is loud again
+    e.clock.ms = at(12, 10, 24) + 28000; QJZ.app.tickNow();
+    e.clock.ms = at(12, 10, 24) + 29000; QJZ.app.tickNow();
+    eq(got.length, 2);
+    eq([got[1].count, got[1].quiet, got[1].gained], [4, false, 1]);
+    QJZ.app._reset();
+  });
   test('app: tickNow recomputes from the clock, no accumulation', function () {
     var e = mk(at(12, 10, 0));
     init(e, {});

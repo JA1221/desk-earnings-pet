@@ -9,9 +9,15 @@ window.QJZ = window.QJZ || {};
 //    such question is asked (state.pendingQuestion); older ones are closed directly. Until answered the record
 //    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save.
 //  - Money is always computed from the wall clock (Date.now() + dev offset), never accumulated from tick counts.
-// Events (on): tick (every 100 ms, snap), second (snap), change (state), milestone ({count}) when the clock
-// carries today's earnings past another settings.milestone step. Record / settings changes (adjustStart, a new
-// step, init, a new day) only move the baseline, so they never celebrate by themselves.
+// Events (on): tick (every 100 ms, snap), second (snap), change (state), milestone ({count, gained, quiet}) when
+// the clock carries today's earnings past another settings.milestone step (gained: how many steps at once). Record /
+// settings changes (adjustStart, a new step, init, a new day) only move the baseline, so they never celebrate by
+// themselves. quiet: the step was crossed while nobody was watching — the first tick after visibility comes back, or
+// after a gap of more than 5 s between ticks (asleep, throttled): the snack is there, but nothing should ring or fly.
+// Mood (state.mood = {energy, mood}, QJZ.mood): follows today's record from the wall clock (QJZ.mood.advance, at
+// most once a second), starts fresh each day and is counted again when today's start time is changed (a day that
+// simply starts now keeps it); pet() / annoy() / feed() move it. Not saved: a restart counts the day again from its
+// start (pats and snacks given before the restart are forgotten).
 // Host notices are kept for the panels and announced with the notice event (the message itself):
 //   hotkeyFailed {combo, reason, active}  state.hotkeyFailed, until the next setHotkey. When the combo that failed
 //                                         is the saved one and the host still has a working one (active), the
@@ -19,10 +25,10 @@ window.QJZ = window.QJZ || {};
 //   storageError {file, reason}           state.storageError (the last one), state.storageErrors (each file once).
 // Host settings the page changes (saved and sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
 QJZ.app = (function () {
-  var SAVE_DELAY = 1000, TICK_MS = 100;
+  var SAVE_DELAY = 1000, TICK_MS = 100, QUIET_GAP_MS = 5000;
 
   var state = {
-    settings: null, history: null, today: null, snap: null, rates: null, snacks: 0,
+    settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
     pendingQuestion: null, startHint: null, ready: false, paused: false,
     hotkeyFailed: null, storageError: null, storageErrors: []
   };
@@ -30,7 +36,8 @@ QJZ.app = (function () {
   var tickTimer = null, saveTimer = null, lastSec = null, lastMilestone = null;
   var dirtySettings = false, dirtyHistory = false;
   var clockOffset = 0;   // dev mock only: lets dev.html show a fake time of day
-  var started = false, unloadBound = false, tickEnabled = true;
+  var started = false, unloadBound = false, tickEnabled = true, resumed = false, lastTickMs = null;
+  var moodMs = 0, moodDay = null, moodStart = null;
   var bridge = null, nowFn = Date.now;
 
   function nowMs() { return nowFn() + clockOffset; }
@@ -70,6 +77,26 @@ QJZ.app = (function () {
       salary: s.salary, hoursPerDay: s.hoursPerDay, lunch: s.lunch
     });
     state.snacks = QJZ.rewards.snacksAvailable(t, state.snap.earned, s.milestone);
+    updateMood(ms);
+  }
+  // Fresh each day; a start that moves (adjustStart) is counted again from the new start, unless the day simply
+  // started now (auto start, 開始上班), which keeps the mood the pet already has.
+  function updateMood(ms) {
+    if (!QJZ.mood) return;
+    var t = state.today, start = typeof t.startMs === 'number' ? t.startMs : null;
+    var fresh = !state.mood || moodDay !== t.day ||
+      (start !== moodStart && !(moodStart === null && start !== null && start >= moodMs - 1000));
+    moodDay = t.day; moodStart = start;
+    if (fresh) {
+      state.mood = QJZ.mood.initial();
+      moodMs = start !== null && start < ms ? start : ms;
+    }
+    if (ms < moodMs) { moodMs = ms; return; }   // the clock went back
+    if (ms - moodMs < 1000 && !fresh) return;
+    var s = state.settings;
+    state.mood = QJZ.mood.advance(state.mood, moodMs, ms,
+      { day: t.day, startMs: t.startMs, endMs: t.endMs, hoursPerDay: s.hoursPerDay, lunch: s.lunch });
+    moodMs = ms;
   }
   function milestones() { return QJZ.rewards.milestones(state.snap.earned, state.settings.milestone); }
   function changed() {
@@ -168,6 +195,7 @@ QJZ.app = (function () {
     recompute(nowMs());
     lastMilestone = milestones();
     lastSec = Math.floor(nowMs() / 1000);
+    lastTickMs = nowMs();
     schedule();
     emit('change', state);
     emit('tick', state.snap);
@@ -187,12 +215,18 @@ QJZ.app = (function () {
 
   function tick() {
     if (!state.ready) return;
-    var ms = nowMs();
+    var ms = nowMs(), quiet = resumed || lastTickMs === null || ms - lastTickMs > QUIET_GAP_MS || ms < lastTickMs;
+    resumed = false;
+    lastTickMs = ms;
     checkRollover(ms);
     recompute(ms);
     emit('tick', state.snap);
     var m = milestones();
-    if (lastMilestone !== null && m > lastMilestone) { lastMilestone = m; emit('milestone', { count: m }); }
+    if (lastMilestone !== null && m > lastMilestone) {
+      var gained = m - lastMilestone;
+      lastMilestone = m;
+      emit('milestone', { count: m, gained: gained, quiet: quiet });
+    }
     else lastMilestone = m;   // also follows the count down (a new day, an earlier clock)
     var sec = Math.floor(ms / 1000);
     if (sec !== lastSec) { lastSec = sec; emit('second', state.snap); }
@@ -211,7 +245,7 @@ QJZ.app = (function () {
     var root = document.documentElement;
     if (vis) {
       root.classList.remove('paused');
-      if (state.ready) { startTick(); tick(); }   // catch up from the wall clock immediately
+      if (state.ready) { resumed = true; startTick(); tick(); }   // catch up from the wall clock now, quietly
     } else {
       root.classList.add('paused');
       stopTick();
@@ -269,9 +303,13 @@ QJZ.app = (function () {
   }
   function feed() {
     if (!state.ready || !(state.snacks > 0)) return false;
+    if (state.mood) state.mood = QJZ.mood.feed(state.mood);
     updateToday(merge(state.today, { snacksEaten: (state.today.snacksEaten || 0) + 1 }));
     return true;
   }
+  // A pat on the head (+5 mood) / one poke too many (-5). No change event: the caller re-renders.
+  function pet() { if (state.ready && state.mood) state.mood = QJZ.mood.pet(state.mood); }
+  function annoy() { if (state.ready && state.mood) state.mood = QJZ.mood.annoy(state.mood); }
   function saveSettings(patch) {
     if (!state.ready) return;
     // Round-trip through the sanitizer so a bad patch can never leave invalid settings behind.
@@ -345,6 +383,7 @@ QJZ.app = (function () {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     dirtySettings = dirtyHistory = false;
     clockOffset = 0; lastSec = null; lastMilestone = null; started = false; tickEnabled = true; bridge = null; nowFn = Date.now;
+    resumed = false; lastTickMs = null; moodMs = 0; moodDay = null; moodStart = null; state.mood = null;
     listeners.tick = []; listeners.second = []; listeners.change = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
@@ -355,7 +394,7 @@ QJZ.app = (function () {
   return {
     state: state, start: start, tickNow: tick, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, setOffDay: setOffDay,
-    feed: feed, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit,
+    feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, answerEarlyLeave: answerEarlyLeave, quit: quit,
     setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey
   };
 })();

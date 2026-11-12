@@ -52,7 +52,8 @@
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust</code>、
 <code>?tab=salary|hours|start|pet|layout|boost|sound|autostart|privacy</code>、<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
-<code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」。</p>
+<code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」。<br>
+寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
@@ -70,6 +71,7 @@
 <script src="js/core/settings.js"></script>
 <script src="js/core/history.js"></script>
 <script src="js/core/rewards.js"></script>
+<script src="js/core/mood.js"></script>
 <script src="js/ui/bridge.js"></script>
 <script src="js/ui/odometer.js"></script>
 <script src="js/ui/fx.js"></script>
@@ -91,6 +93,8 @@
 <script src="js/pets/skins/cat-p4.js"></script>
 <script src="js/pets/skins/cat-s5.js"></script>
 <script src="js/pets/compose.js"></script>
+<script src="js/pets/behavior.js"></script>
+<script src="js/pets/lines.js"></script>
 <script src="js/ui/layouts.js"></script>
 <script src="js/ui/panels.js"></script>
 <script>
@@ -115,7 +119,8 @@
   };
 
   var first = devQ.get('layout');
-  QJZ.layouts.start(document.getElementById('root'), { first: first });
+  var devRng = devQ.get('rng');
+  QJZ.layouts.start(document.getElementById('root'), { first: first, seed: devRng !== null && devRng !== '' && isFinite(+devRng) ? +devRng : undefined });
   QJZ.panels.start();
   var pet = /^(cat|hamster):(\w+)$/.exec(devQ.get('pet') || '');
   if (pet) {
@@ -127,6 +132,33 @@
   var sayText = devQ.get('say');
   if (sayText) {
     var offSay = QJZ.app.on('change', function () { offSay(); setTimeout(function () { QJZ.layouts.say(sayText, 600000); }, 0); });
+  }
+
+  // ?sim=step,step,... (pets, dev only): page events in order after the first render, so headless screenshots can
+  // show reactions without real input. poke | poke5 (five quick clicks) | feed | drag (press + 8 px move on the pet)
+  // | drop (the host's dragEnd) | hide | show (host visibility) | wait:MS. Steps run 120 ms apart.
+  var devSim = devQ.get('sim');
+  if (devSim) {
+    var offSim = QJZ.app.on('change', function () {
+      offSim();
+      var simSteps = devSim.split(','), si = 0;
+      function simEv(el, type, x, y, buttons) {
+        el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, buttons: buttons, screenX: x, screenY: y, clientX: x, clientY: y }));
+      }
+      function simNext() {
+        if (si >= simSteps.length) return;
+        var st = simSteps[si++], w = /^wait:(\d+)$/.exec(st), p = document.querySelector('#root [data-pet]');
+        var r = p ? p.getBoundingClientRect() : null, x = r ? r.left + r.width / 2 : 0, y = r ? r.top + r.height / 2 : 0;
+        if (st === 'poke' && p) simEv(p, 'click', x, y, 0);
+        else if (st === 'poke5' && p) for (var k = 0; k < 5; k++) simEv(p, 'click', x, y, 0);
+        else if (st === 'feed') QJZ.bridge._dispatch({ type: 'menu', action: 'feed' });
+        else if (st === 'drag' && p) { simEv(p, 'mousedown', x, y, 1); simEv(p, 'mousemove', x + 8, y, 1); }
+        else if (st === 'drop') QJZ.bridge._dispatch({ type: 'dragEnd' });
+        else if (st === 'hide' || st === 'show') QJZ.bridge._dispatch({ type: 'visibility', visible: st === 'show' });
+        setTimeout(simNext, w ? +w[1] : 120);
+      }
+      setTimeout(simNext, 300);
+    });
   }
 
   // ---- panels: sample data and shortcuts (dev only; localStorage is the mock host's storage) ----

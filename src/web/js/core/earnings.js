@@ -63,5 +63,5 @@ QJZ.earn = (function () {
     };
   }
 
-  return { rates: rates, workedSeconds: workedSeconds, endAtMs: endAtMs, snapshot: snapshot };
+  return { rates: rates, lunchRange: lunchRange, workedSeconds: workedSeconds, endAtMs: endAtMs, snapshot: snapshot };
 })();

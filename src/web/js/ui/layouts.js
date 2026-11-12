@@ -24,8 +24,13 @@ window.QJZ = window.QJZ || {};
 // after init is settings.layout.start (dev pages may override it with opts.first).
 // Rendering: the odometer follows the 100 ms tick; every other text changes at most once a second (or on a
 // record / settings change), computed from the wall clock, and is only written when it changed.
-// The pet is composed with a base state per status (working typing, lunch lunchSleep, done/ended celebrate,
-// before/off idle); its holder node stays and the SVG is swapped only when the state or the skin changes.
+// The pet: QJZ.behavior's Brain decides the state from the wall clock on every app tick (base state per status,
+// idle actions, reactions); the holder node stays and the SVG is swapped only when the state or the skin changes.
+// Reactions: a plain click on the pet is a poke (petted / angry), 餵食 plays eat when the snack lands, a milestone
+// hops (with confetti and the coin sound; quietly, one bubble at most, when it was crossed while hidden), U7 dangles
+// from dragStart until dragEnd, a live 可以下班 plays the jingle. Speech: QJZ.lines, in the bubble (U1, U3, U7)
+// every 7–15 s after the last one and on events; bubble timers run only while a bubble shows. Bubble ranks: chatter
+// < pet events < the user's own actions and anything other modules say (those always show).
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'M3', 'PANEL'];
@@ -35,11 +40,11 @@ QJZ.layouts = (function () {
   var PET_HIT = [38, 24, 160, 148];      // the pet and its desk inside that viewBox, every skin and base state
   var HUD_VB = '0 -4 300 236';           // U3 room crop (prototype)
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
-  var PET_STATE = { working: 'typing', lunch: 'lunchSleep', done: 'celebrate', ended: 'celebrate', before: 'idle', off: 'idle' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
-  var PET_LINES = { cat: '呼嚕呼嚕～好舒服 ♡', hamster: '吱吱～再摸一下嘛 ♡' };
-  var FEED_LINES = { cat: '好吃！是小魚乾喵！', hamster: '瓜子！最愛瓜子了吱！' };
   var WD = '日一二三四五六';
+  var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
+  var RANK = { chat: 1, event: 2, user: 3 };
+  var REACTIONS = { petted: 1, angry: 1, eat: 1, hop: 1, dangle: 1 };
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -102,8 +107,8 @@ QJZ.layouts = (function () {
     return s;
   }
   function clamp5(n) { return Math.max(0, Math.min(5, Math.round(n))); }
-  // 心情 / 體力 (0..5). The mood engine comes later; until then mood stays at its start value (70 -> 4 hearts) and
-  // energy drains with the day's progress (100 -> 40 over a full day).
+  // 心情 / 體力 (0..5) from QJZ.mood (app.state.mood); without one (pure model tests) the start values: mood 70 ->
+  // 4 hearts, energy draining with the day's progress (100 -> 40 over a full day).
   function vitals(st, pct) {
     if (st.mood && QJZ.mood && QJZ.mood.hearts) return { hearts: QJZ.mood.hearts(st.mood), bolts: QJZ.mood.bolts(st.mood) };
     return { hearts: clamp5(70 / 20), bolts: clamp5((100 - 60 * pct) / 20) };
@@ -121,7 +126,8 @@ QJZ.layouts = (function () {
     var snacks = st.snacks > 0 ? st.snacks : 0;
     var clock = clockText(ms);
     return {
-      key: key, kind: kind, status: STATUS[key], petState: PET_STATE[key],
+      key: key, kind: kind, status: STATUS[key],
+      petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       date: dateText(ms), clock: clock, hm: clock.slice(0, 5),
       money: money(snap.earned),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
@@ -217,10 +223,18 @@ QJZ.layouts = (function () {
   var view = null;
   var sent = { size: '', hits: '' };
   var drag = null;       // {x, y} while the primary button is down on a draggable spot
-  var dragging = false;  // dragStart sent, dragEnd not back yet
-  var timers = { say: 0, type: 0, happy: 0, hover: 0, idle: 0 };
+  var dragging = false;  // dragStart sent, and neither dragEnd nor the button going up seen yet
+  var dragged = false;   // this press turned into a drag (its click, if any, is not a poke)
+  var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
+  var timers = { say: 0, type: 0, hover: 0, idle: 0 };
+  var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var offs = [];
   var docBound = false;
+  var brain = null;      // QJZ.behavior.Brain: lives across layout switches
+  var bubbleRank = 0;    // RANK of the bubble showing, 0 = none
+  var chatAt = null;     // wall clock of the next chatter line (null: schedule on the next tick)
+  var lastTick = null;   // wall clock of the last app tick seen (a gap = the window was hidden)
+  var lunchCache = { key: null, s: null };
 
   function app() { return QJZ.app; }
   function ready() { return !!(QJZ.app && QJZ.app.state.ready); }
@@ -264,13 +278,13 @@ QJZ.layouts = (function () {
     var id = settings.pet.kind + ':' + settings.pet.skin;
     return QJZ.pets && QJZ.pets.get(id) ? id : 'hamster:p0';
   }
-  function updatePet(m) {
-    var h = view.pet;
-    if (!h || !QJZ.pets || !QJZ.pets.compose) return;
-    var id = petId(app().state.settings), key = id + '|' + m.petState;
+  function updatePet(state) {
+    var h = view ? view.pet : null;
+    if (!h || !state || !QJZ.pets || !QJZ.pets.compose) return;
+    var id = petId(app().state.settings), key = id + '|' + state;
     if (view.petKey === key) return;
     view.petKey = key;
-    var opts = { state: m.petState }, svgText = '';
+    var opts = { state: state }, svgText = '';
     if (h.view === 'hud') opts.viewBox = HUD_VB;
     try { svgText = QJZ.pets.compose(id, h.view === 'hud' ? 'scene' : h.view, opts); }
     catch (e) { if (window.console) console.error('[layouts] pet ' + key + ' failed', e); }
@@ -313,8 +327,76 @@ QJZ.layouts = (function () {
     }
     for (i = 0; i < view.feeds.length; i++) view.feeds[i].classList.toggle('none', m.snacks === 0);
     renderMoney(st.snap);
-    updatePet(m);
+    petTick(app().nowMs());
     return m;
+  }
+
+  // ================= the pet's behaviour =================
+  function lunchStart(st) {
+    var t = st.today, l = st.settings.lunch, key = t.day + ' ' + l.start + ' ' + l.end;
+    if (lunchCache.key !== key) {
+      var r = QJZ.earn.lunchRange(t.day, l);
+      lunchCache = { key: key, s: r ? r.s : null };
+    }
+    return lunchCache.s;
+  }
+  function petInfo(st, ms) {
+    var snap = st.snap, ls = snap.status === 'lunch' ? lunchStart(st) : null;
+    return {
+      status: snap.status, minutesToEnd: snap.remainingSec / 60, mood: st.mood,
+      lunchMin: ls === null ? null : (ms - Math.max(ls, st.today.startMs)) / 60000
+    };
+  }
+  // Runs the Brain at wall-clock ms and shows its state; cheap when nothing changed (no compose, no DOM).
+  function petTick(ms) {
+    if (!brain || !ready() || !app().state.snap) return null;
+    if (dragging && brain.held && ms - dragAt > DRAG_SAFETY_MS) endDrag();
+    var s = brain.update(ms, petInfo(app().state, ms));
+    if (brain.change) onPetChange(brain.change);
+    updatePet(s);
+    return s;
+  }
+  // A new base state: a line about it, and the jingle when 可以下班 happens while the user is looking.
+  function onPetChange(ch) {
+    if (ch.from === null) return;
+    if (ch.to === 'celebrate' && !ch.quiet && QJZ.sound) QJZ.sound.jingle();
+    petSay(line(ch.to), 0, RANK.event);
+  }
+
+  function lineCtx(ms) {
+    var st = app().state, s = st.settings, snap = st.snap, kind = kindOf(), working = snap.status === 'working';
+    var ls = working ? lunchStart(st) : null;
+    return {
+      name: s.pet.names[kind], kind: kind, earned: snap.earned, items: s.items, step: s.milestone,
+      minutesToLunch: ls !== null && ms < ls ? (ls - ms) / 60000 : undefined,
+      minutesToEnd: working ? snap.remainingSec / 60 : undefined,
+      hour: new Date(ms).getHours(), off: statusKey(snap, st.today, s) === 'off',
+      energy: st.mood ? st.mood.energy : undefined, mood: st.mood ? st.mood.mood : undefined
+    };
+  }
+  function line(state, extra) {
+    if (!QJZ.lines || !ready()) return '';
+    var c = lineCtx(app().nowMs());
+    for (var k in (extra || {})) c[k] = extra[k];
+    return QJZ.lines.pick(state, c);
+  }
+  // Pet speech by rank: the user's own actions always show (a banner where there is no bubble); events and
+  // chatter only in a bubble, never over the user's or another module's bubble; chatter only when none shows.
+  function petSay(text, ms, rank) {
+    if (!view || !text) return false;
+    if (rank < RANK.user && (!view.bubble || bubbleRank >= RANK.user || (rank === RANK.chat && bubbleRank))) return false;
+    return say(text, ms, rank);
+  }
+  // Chatter: 7–15 s after the last bubble went away, about what the pet is doing (not over a reaction).
+  function chatter(ms) {
+    var gap = lastTick !== null && (ms - lastTick > GAP_MS || ms < lastTick);
+    lastTick = ms;
+    if (!view || !view.bubble || bubbleRank || dragging) return;
+    if (chatAt === null || gap) { chatAt = ms + CHAT_GAP[0] + Math.random() * (CHAT_GAP[1] - CHAT_GAP[0]); return; }
+    if (ms < chatAt) return;
+    chatAt = null;
+    var s = brain && brain.state;
+    if (s && !REACTIONS[s]) petSay(line(s), 0, RANK.chat);
   }
 
   // ---- size and hit rects ----
@@ -413,35 +495,40 @@ QJZ.layouts = (function () {
   function stopSay() {
     clearInterval(timers.type); clearTimeout(timers.say);
     timers.type = timers.say = 0;
+    bubbleRank = 0;
   }
   // A speech bubble where the layout has one (U1, U3, U7), else a short banner. Kept in the hit rects while shown.
-  function say(text, ms) {
+  // rank (layouts-internal): RANK of the line; other modules' lines rank with the user's own actions.
+  function say(text, ms, rank) {
     if (!view || !text) return false;
     var v = view, b = v.bubble;
     if (!b) { if (QJZ.fx) QJZ.fx.banner(v.fxWin, text); return true; }
     stopSay();
+    bubbleRank = rank || RANK.user;
     b.textContent = '';
     b.classList.add('show');
     var chars = Array.from(text), i = 0;   // code points: an emoji never shows half drawn
     timers.type = setInterval(function () {
       b.textContent = chars.slice(0, ++i).join('');
-      if (i >= chars.length) { clearInterval(timers.type); if (view === v) sync(false); }
+      if (i >= chars.length) { clearInterval(timers.type); timers.type = 0; if (view === v) sync(false); }
     }, 55);
     timers.say = setTimeout(function () {
+      timers.say = 0;
       b.classList.remove('show');
-      if (view === v) sync(false);
+      if (view !== v) return;
+      bubbleRank = 0;
+      chatAt = app().nowMs() + CHAT_GAP[0] + Math.random() * (CHAT_GAP[1] - CHAT_GAP[0]);
+      sync(false);
     }, ms || 4200);
     sync(false);
     return true;
   }
 
   function petSvg() { return view && view.pet ? view.pet.el.querySelector('svg') : null; }
-  function happy(ms) {
-    var svg = petSvg();
-    if (!svg) return;
-    svg.classList.add('happy');
-    clearTimeout(timers.happy);
-    timers.happy = setTimeout(function () { svg.classList.remove('happy'); }, ms || 1600);
+  function petSound() {
+    if (!QJZ.sound) return;
+    if (kindOf() === 'cat') QJZ.sound.meow();
+    else QJZ.sound.squeak();
   }
   // Where the pet is inside each compose view (fractions of the holder): the room views have it left of centre.
   var PET_AT = { scene: [0.39, 0.55], hud: [0.39, 0.5], avatar: [0.5, 0.5], petonly: [0.5, 0.45] };
@@ -451,17 +538,29 @@ QJZ.layouts = (function () {
     if (view.pet && view.pet.view === 'petonly') pr = subRect(pr, PETONLY_VB, PET_HIT);
     return { x: pr.left + pr.width * at[0] - hr.left, y: pr.top + pr.height * at[1] - hr.top };
   }
+  // A plain click on the pet: petted (sound, hearts, mood +5, a line where there is a bubble) or, at the fifth
+  // quick poke, angry for 4 s (mood -5, no sound, no hearts).
   function poke(e) {
-    if (!petSvg()) return;
-    happy(1600);
-    if (QJZ.fx && view.fx) {
-      var r = view.fx.getBoundingClientRect();
-      QJZ.fx.hearts(view.fx, e.clientX - r.left, e.clientY - r.top, 7);
+    if (!petSvg() || !brain) return;
+    var now = app().nowMs(), r = brain.poke(now);
+    if (r === 'angry') {
+      if (!brain.angered) return;
+      app().annoy();
+      if (view.bubble) petSay(line('angry'), 3500, RANK.user);
+    } else {
+      app().pet();
+      petSound();
+      if (QJZ.fx && view.fx) {
+        var b = view.fx.getBoundingClientRect();
+        QJZ.fx.hearts(view.fx, e.clientX - b.left, e.clientY - b.top, 7);
+      }
+      if (view.bubble) petSay(line('petted'), 0, RANK.user);   // no banner over a small badge for every click
     }
-    if (view.bubble) say(PET_LINES[kindOf()]);   // no banner over a small badge for every click
+    render();   // the pose and the hearts now
   }
   function kindOf() { return app().state.settings.pet.kind === 'cat' ? 'cat' : 'hamster'; }
 
+  // 餵食: one snack; the pet eats it when it lands (eat for 3 s, from the wall clock), happy and full.
   function feed() {
     if (!ready()) return false;
     if (!app().feed()) {
@@ -470,8 +569,9 @@ QJZ.layouts = (function () {
         '還沒有零食耶～再賺 NT$ ' + money(step - earned % step) + ' 就有了！' : '還沒有零食耶～');
       return false;
     }
-    var v = view, host = v.fx;
-    if (!host || !host.animate) { happy(2000); say(FEED_LINES[kindOf()]); return true; }
+    var v = view, host = v.fx, now = app().nowMs(), fly = host && host.animate ? SNACK_FLY_MS : 0;
+    if (brain) brain.show('eat', now, QJZ.behavior.EAT_MS, fly);
+    if (!fly) { petTick(now); petSound(); say(line('eat')); return true; }
     var c = petCenter(host), f = document.createElement('span');
     f.className = 'snack';
     f.textContent = SNACK[kindOf()];
@@ -479,24 +579,36 @@ QJZ.layouts = (function () {
     f.animate([
       { left: '95%', top: '-10%', transform: 'rotate(0)' },
       { left: c.x + 'px', top: c.y + 'px', transform: 'rotate(540deg) scale(.6)' }
-    ], { duration: 800, easing: 'cubic-bezier(.3,.1,.5,1)' }).addEventListener('finish', function () {
+    ], { duration: SNACK_FLY_MS, easing: 'cubic-bezier(.3,.1,.5,1)' }).addEventListener('finish', function () {
       f.remove();
       if (view !== v) return;
-      happy(2000);
-      say(FEED_LINES[kindOf()]);
+      petTick(app().nowMs());
+      petSound();
+      say(line('eat'));
       QJZ.fx.hearts(host, c.x, c.y, 5);
     });
     return true;
   }
 
-  function onMilestone() {
+  // ev.quiet: crossed while the window was hidden. The snack is already counted; no coin, confetti or hop, and at
+  // most one bubble, only if nothing else is being said.
+  function onMilestone(ev) {
     if (!view) return;
+    if (ev && ev.quiet) {
+      if (!bubbleRank) petSay(line('missed', { gained: ev.gained || 1 }), 0, RANK.event);
+      return;
+    }
     if (QJZ.fx && view.fxWin) {
       var c = petCenter(view.fxWin);
       QJZ.fx.confetti(view.fxWin, c.x, c.y);
     }
     if (QJZ.sound) QJZ.sound.coin();
-    happy(1600);
+    if (brain) {
+      var now = app().nowMs();
+      brain.show('hop', now, QJZ.behavior.HOP_MS);
+      petTick(now);
+    }
+    petSay(line('hop'), 0, RANK.event);
   }
 
   function startWork() {
@@ -562,7 +674,15 @@ QJZ.layouts = (function () {
     render();
     sync(false);
   }
-  function onTick(snap) { if (view && snap) renderMoney(snap); }
+  // Every app tick (100 ms while visible): the odometer, the pet's state and the chatter clock. Pure arithmetic
+  // unless something changed.
+  function onTick(snap) {
+    if (!view || !snap) return;
+    renderMoney(snap);
+    var ms = app().nowMs();
+    petTick(ms);
+    chatter(ms);
+  }
   function onSecond() {
     if (!view) return;
     var m = render();
@@ -576,19 +696,42 @@ QJZ.layouts = (function () {
   function isButton(t) { return !!t.closest('[data-act],button,input,select,textarea,a,label,[data-nodrag]'); }
   function onDown(e) {
     drag = null;
-    if (e.button !== 0 || !inRoot(e.target) || isButton(e.target)) return;
+    if (e.button !== 0) return;
+    if (dragging) endDrag();   // a new press: whatever drag there was is over
+    dragged = false;
+    if (!inRoot(e.target) || isButton(e.target)) return;
     drag = { x: e.screenX, y: e.screenY };
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
   }
   function onMove(e) {
+    if (dragging && !(e.buttons & 1)) { endDrag(); return; }   // the button is up: no dragEnd is coming
     if (!drag) return;
     if (!(e.buttons & 1)) { drag = null; return; }
     if (Math.abs(e.screenX - drag.x) + Math.abs(e.screenY - drag.y) < DRAG_PX) return;
     drag = null;
-    dragging = true;
+    dragging = dragged = true;
     send('dragStart', {});
+    if (cur === 'U7' && brain) {   // picked up by the scruff
+      var now = app().nowMs();
+      dragAt = now;
+      brain.drag(true);
+      petTick(now);
+      if (view.bubble) petSay(line('dangle'), 0, RANK.user);
+    }
   }
-  function onUp() { drag = null; }
+  // dragEnd from the host (its move loop ended), or the page saw the button go up (released before the move loop
+  // started: then the host sends no dragEnd).
+  function endDrag() {
+    dragging = false;
+    if (brain && brain.held) {
+      brain.drag(false);
+      if (view && ready()) petTick(app().nowMs());
+    }
+  }
+  function onUp() {
+    drag = null;
+    if (dragging) endDrag();
+  }
   function onContext(e) {
     e.preventDefault();
     send('contextMenu', {});
@@ -597,6 +740,7 @@ QJZ.layouts = (function () {
     if (!view || !inRoot(e.target)) return;
     var a = e.target.closest('[data-act]');
     if (a) { act(a.getAttribute('data-act')); return; }
+    if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     if (e.target.closest('[data-pet],.scene-wrap')) poke(e);
   }
   function onDbl(e) {
@@ -609,18 +753,27 @@ QJZ.layouts = (function () {
     sync(false);
   }
   // mouseover and mousemove: entering shows them, moving keeps them (they also go 4 s after the last move, in
-  // case the pointer left without a mouseout when the window turned click-through).
+  // case the pointer left without a mouseout when the window turned click-through). A move while they show only
+  // pushes the deadline; the one idle timer re-arms itself for the rest when it fires early.
+  var HOVER_IDLE_MS = 4000;
   function onOver(e) {
     if (!view || !view.dpet || !view.dpet.contains(e.target)) return;
-    clearTimeout(timers.hover);
+    hoverUntil = Date.now() + HOVER_IDLE_MS;
+    if (timers.hover) { clearTimeout(timers.hover); timers.hover = 0; }   // back in before the mouseout delay ran out
+    if (timers.idle && view.dpet.classList.contains('hover')) return;
     setHover(true);
     clearTimeout(timers.idle);
-    timers.idle = setTimeout(function () { setHover(false); }, 4000);
+    timers.idle = setTimeout(hoverIdle, HOVER_IDLE_MS);
+  }
+  function hoverIdle() {
+    var left = hoverUntil - Date.now();
+    timers.idle = left > 20 ? setTimeout(hoverIdle, left) : 0;
+    if (!timers.idle) setHover(false);
   }
   function onOut(e) {
     if (!view || !view.dpet || !view.dpet.contains(e.target) || view.dpet.contains(e.relatedTarget)) return;
     clearTimeout(timers.hover);
-    timers.hover = setTimeout(function () { setHover(false); }, 300);
+    timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, 300);
   }
 
   function onTransitionEnd(e) { if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-hit')) sync(false); }
@@ -632,16 +785,18 @@ QJZ.layouts = (function () {
     mq.addEventListener('change', function () { sync(true); watchDpr(); }, { once: true });
   }
 
-  // opts: {bridge (default QJZ.bridge), first: layout to show first instead of settings.layout.start (dev)}.
+  // opts: {bridge (default QJZ.bridge), first: layout to show first instead of settings.layout.start (dev),
+  //        seed: a number to make the pet's idle actions reproducible (dev)}.
   // Call before QJZ.app.start(); nothing shows until the host's init has arrived.
   function start(rootEl, opts) {
     opts = opts || {};
     root = rootEl;
     bridge = opts.bridge || QJZ.bridge;
     first = opts.first || null;
+    brain = QJZ.behavior ? new QJZ.behavior.Brain(typeof opts.seed === 'number' ? QJZ.behavior.rng(opts.seed) : null) : null;
     var A = app();
     offs.push(A.on('change', onChange), A.on('tick', onTick), A.on('second', onSecond), A.on('milestone', onMilestone));
-    [bridge.on('menu', onMenu), bridge.on('dragEnd', function () { dragging = false; })].forEach(function (off) {
+    [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);
@@ -682,6 +837,8 @@ QJZ.layouts = (function () {
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
     root = bridge = first = view = cur = panelFrom = drag = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '' };
+    brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
+    lunchCache = { key: null, s: null };
   }
 
   return {
@@ -690,7 +847,7 @@ QJZ.layouts = (function () {
     dragging: function () { return dragging; },
     MAIN: MAIN, ALL: ALL,
     util: {
-      hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS, PET_STATE: PET_STATE,
+      hms: hms, hm: hm, dateText: dateText, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, itemAt: itemAt, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox,
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT
