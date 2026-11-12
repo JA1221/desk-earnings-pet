@@ -8,7 +8,9 @@ QJZ.settings = (function () {
     startMode: 'auto',
     workDays: [1, 2, 3, 4, 5],
     pet: { kind: 'hamster', skin: 'p0', names: { cat: '小橘', hamster: '金金' } },
-    layout: { start: 'U1', current: 'U1', topmost: { U1: false, U3: false, U5B: false, U7: true, M3: true } },
+    // current: the last main layout; mini: it was left as the mini badge (M3). The app starts in mini ? M3 : current
+    // (simplification #12). start (1.0's start-layout picker) is no longer read; it is kept so no saved value is lost.
+    layout: { start: 'U1', current: 'U1', topmost: { U1: false, U3: false, U5B: false, U7: true, M3: true }, mini: false },
     milestone: 100,
     items: [{ name: '珍奶', price: 65, icon: '🧋' }, { name: '便當', price: 100, icon: '🍱' }, { name: '拿鐵', price: 120, icon: '☕' }],
     sound: { enabled: false, volume: 0.6 },
@@ -68,6 +70,7 @@ QJZ.settings = (function () {
     out.layout.current = oneOf(lay.current, LAYOUTS, d.layout.current);
     var top = isObj(lay.topmost) ? lay.topmost : {};
     for (var j = 0; j < LAYOUTS.length; j++) out.layout.topmost[LAYOUTS[j]] = bool(top[LAYOUTS[j]], d.layout.topmost[LAYOUTS[j]]);
+    out.layout.mini = bool(lay.mini, d.layout.mini);
 
     out.milestone = isNum(s.milestone) && s.milestone > 0 ? s.milestone : d.milestone;
 

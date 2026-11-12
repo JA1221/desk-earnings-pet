@@ -19,7 +19,7 @@ window.QJZ = window.QJZ || {};
 //                                           over its animation, see petRects) and the M3 ring
 //                                           (data-hit-shape="disc": DISC_BANDS bands along the disc).
 //   setTopmost {on}                         after every layout change, from settings.layout.topmost (and when the
-//                                           settings panel changes the setting of the layout PANEL came from).
+//                                           menu's 永遠在最上層 toggles it: for PANEL, the layout it came from).
 //   dragStart {grab?}  primary button pressed on a non-button area and moved DRAG_PX (a plain click stays a click,
 //                 so pets can be poked and M3 double-clicked). U7 sends grab: [x, y], page CSS px, where the
 //                 lifted pet's scruff tip is (QJZ.pets.grabAt): the host should move the window so that point sits
@@ -27,10 +27,11 @@ window.QJZ = window.QJZ || {};
 //   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
 // Host -> page: menu {action} (TrayMenu ids), dragEnd {}.
 //
-// settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. The first layout
-// after init is settings.layout.start (dev pages may override it with opts.first), except after a reload of the
-// page (the host reloads it after a renderer crash): the layout shown last (M3 included; PANEL: the layout it came
-// from) is kept in sessionStorage, which only lives as long as this WebView, and comes back.
+// settings.layout.current is the last MAIN layout (U1/U3/U5B/U7); M3 and PANEL never go there. settings.layout.mini
+// says the app was left as the mini badge (M3). The first layout after init is the one used last (simplification
+// #12): M3 when mini, else current (a first run: U1). Dev pages may override it with opts.first. After a reload of the
+// page (the host reloads it after a renderer crash) the layout shown last (PANEL: the layout it came from) is kept in
+// sessionStorage, which only lives as long as this WebView, and comes back. 1.0's settings.layout.start is not read.
 // Rendering: the odometer follows the 100 ms tick; every other text changes at most once a second (or on a
 // record / settings change), computed from the wall clock, and is only written when it changed.
 // The pet: QJZ.behavior's Brain decides the state from the wall clock on every app tick (base state per status,
@@ -103,6 +104,11 @@ QJZ.layouts = (function () {
   function backTarget(settings) {
     var c = settings && settings.layout ? settings.layout.current : null;
     return isMain(c) ? c : 'U1';
+  }
+  // The layout the app starts in: the one used last. M3 too: whoever shrank it to the mini badge wants the small
+  // badge back after a restart (it floats on top and never takes focus; a double-click goes back to current).
+  function lastLayout(settings) {
+    return settings && settings.layout && settings.layout.mini === true ? 'M3' : backTarget(settings);
   }
   // The item shown by the 可以買 chip: rotates every 4 s, from the wall clock.
   function itemAt(items, ms) {
@@ -820,15 +826,16 @@ QJZ.layouts = (function () {
     remember(name === 'PANEL' ? panelFrom : name);
     send('setTopmost', { on: topmostFor(name) });
     var s = app().state.settings;
-    if (isMain(name) && s.layout.current !== name) app().saveSettings({ layout: { current: name } });
+    if (isMain(name) && (s.layout.current !== name || s.layout.mini)) app().saveSettings({ layout: { current: name, mini: false } });
+    else if (name === 'M3' && !s.layout.mini) app().saveSettings({ layout: { mini: true } });
     return true;
   }
   function current() { return cur; }
   // The first layout, and where a panel shown first (nothing before it) goes back to: opts.first (dev), the layout
-  // shown before a reload, else settings.layout.start.
+  // shown before a reload, else the one used last (lastLayout).
   function startLayout() {
     if (first && first !== 'PANEL' && ALL.indexOf(first) >= 0) return first;
-    return resumeAt || app().state.settings.layout.start;
+    return resumeAt || lastLayout(app().state.settings);
   }
   // sessionStorage can be missing or throw (and is only for the reload): never fatal.
   function remember(name) {
@@ -848,8 +855,6 @@ QJZ.layouts = (function () {
     var to = panelFrom && panelFrom !== 'PANEL' ? panelFrom : backTarget(app().state.settings);
     return show(to);
   }
-  // A topmost setting changed in the settings panel: PANEL follows the layout it came from.
-  function refreshTopmost() { if (cur) send('setTopmost', { on: topmostFor(cur) }); }
 
   // ================= reactions =================
   function stopSay() {
@@ -1162,7 +1167,7 @@ QJZ.layouts = (function () {
     mq.addEventListener('change', function () { sync(true); watchDpr(); }, { once: true });
   }
 
-  // opts: {bridge (default QJZ.bridge), first: layout to show first instead of settings.layout.start (dev),
+  // opts: {bridge (default QJZ.bridge), first: layout to show first instead of the one used last (dev),
   //        seed: a number to make the pet's idle actions reproducible (dev),
   //        session: a Storage for the layout to come back to after a reload (default window.sessionStorage)}.
   // Call before QJZ.app.start(); nothing shows until the host's init has arrived.
@@ -1227,12 +1232,11 @@ QJZ.layouts = (function () {
   return {
     show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
-    refreshTopmost: refreshTopmost,
     dragging: function () { return dragging; },
     MAIN: MAIN, ALL: ALL,
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
-      isMain: isMain, backTarget: backTarget, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
+      isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, petHit: petHit, vbPoint: vbPoint, anchorBubble: anchorBubble, VIEWBOX: VIEWBOX

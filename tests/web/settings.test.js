@@ -30,6 +30,21 @@ test('validateSalary boundaries and odd input', function(){ var v=QJZ.settings.v
 test('display.opaque (相容模式) defaults to false and is sanitised', function(){
   eq(P(null).settings.display,{opaque:false}); eq(P('{"display":{"opaque":true}}').settings.display,{opaque:true});
   eq(P('{"display":{"opaque":"yes"}}').settings.display.opaque,false); eq(P('{"display":5}').settings.display,{opaque:false}); });
+// #12: the app starts in the last used layout: layout.current, or M3 when layout.mini. 1.0's layout.start is kept as
+// it is (unused), and an upgrade changes no value: it only adds layout.mini (false).
+test('layout.mini (left as the mini badge) defaults to false and is sanitised; layout.start is kept', function(){
+  eq(P(null).settings.layout.mini,false); eq(P(null).settings.layout.start,'U1');
+  eq(P('{"layout":{"mini":true}}').settings.layout.mini,true); eq(P('{"layout":{"mini":"yes"}}').settings.layout.mini,false);
+  eq(P('{"layout":{"start":"U7","current":"U3"}}').settings.layout.start,'U7','kept, unused'); });
+test('an old 1.0 settings.json reads back with every value unchanged (only layout.mini added)', function(){
+  var old={version:1,salary:{mode:'hourly',amount:183.5,divisor:30},hoursPerDay:7.5,lunch:{start:'12:30',end:'13:30'},startMode:'manual',
+    workDays:[1,2,3,4,5,6],pet:{kind:'cat',skin:'s4',names:{cat:'咪咪',hamster:'倉倉'}},
+    layout:{start:'U7',current:'U3',topmost:{U1:true,U3:false,U5B:true,U7:false,M3:false}},milestone:250,
+    items:[{name:'咖啡',price:55,icon:'☕'}],sound:{enabled:true,volume:0.3},autostart:false,
+    privacy:{hideFromCapture:false,hotkey:'Ctrl+Alt+J'},display:{opaque:true},onboarded:true};
+  var s=P(JSON.stringify(old)).settings, want=JSON.parse(JSON.stringify(old));
+  want.layout.mini=false;
+  eq(s,want); });
 test('skinsFor', function(){ eq(QJZ.settings.skinsFor('hamster'),['p0','p4','h2','s4','s5']); eq(QJZ.settings.skinsFor('cat'),['p0','p4','h2','s4','s5']); });
 test('workDays: all-invalid non-empty falls back, empty stays empty, numeric sort', function(){
   eq(P('{"workDays":[9,"x"]}').settings.workDays,[1,2,3,4,5]); eq(P('{"workDays":[]}').settings.workDays,[]); eq(P('{"workDays":[6,0,3]}').settings.workDays,[0,3,6]); });

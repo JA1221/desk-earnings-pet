@@ -462,7 +462,6 @@
     window.fetch = function (url) { calls.push(url); return now({ ok: true, text: function () { return now('<b>' + url + '</b>'); } }); };
     try {
       e.menu('settings');
-      ok(text(e, '[data-sec=layout]').indexOf('橫向極簡') >= 0, 'U5-B is 橫向極簡, as in the menu');
       eq(calls.length, 0, 'nothing loads before 關於 shows');
       $(e, '[data-tab=about]').click();
       ok(visible($(e, '[data-sec=about]')));
@@ -645,14 +644,11 @@
     eq(QJZ.app.state.settings.pet.names.hamster, '<img src=x onerror=alert(1)>');
     eq($(e, 'img'), null, 'names are never markup');
 
+    // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式
     $(e, '[data-tab=layout]').click();
-    $(e, '[data-seg=layoutStart] [data-v=U7]').click();
-    eq(QJZ.app.state.settings.layout.start, 'U7');
-    $(e, '[data-tgl="top.U1"]').click();
-    eq(QJZ.app.state.settings.layout.topmost.U1, true);
-    eq(last(e.sent, 'setTopmost'), { on: true }, 'the panel came from U1: it floats now too');
-    $(e, '[data-tgl="top.U3"]').click();
-    eq(last(e.sent, 'setTopmost'), { on: true }, 'still U1\'s setting');
+    eq([$(e, '[data-seg=layoutStart]'), $(e, '[data-tgl^="top."]')], [null, null]);
+    eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque']);
+    ok(text(e, '[data-sec=layout]').indexOf('最後用的版型') >= 0 && text(e, '[data-sec=layout]').indexOf('右鍵選單') >= 0, 'says where they went');
 
     $(e, '[data-tab=boost]').click();
     commit($(e, '[data-f=milestone]'), '0');

@@ -5,7 +5,7 @@ window.QJZ = window.QJZ || {};
 //               settings.salary.amount is 0 or settings.onboarded is false.
 //   settings    the nine sections of §5.3 as tabs, plus 關於 (version, 使用說明, the third-party licence texts). Every
 //               change is saved at once through QJZ.app (host settings through app.setAutostart / setCaptureGuard /
-//               setHotkey, topmost through layouts.refreshTopmost). 'adjust' (menu 調整起算時間) opens it at 起算,
+//               setHotkey). 'adjust' (menu 調整起算時間) opens it at 起算,
 //               which also has 今天休假 (today counts 0) and, after 下班, 繼續上班 (app.resumeWork). 版型 has
 //               相容模式 (display.opaque; shown on and locked while the host forces it, init.forceOpaque).
 //   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
@@ -20,7 +20,6 @@ QJZ.panels = (function () {
   var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定' };
   var TABS = [['salary', '薪資'], ['hours', '工時'], ['start', '起算'], ['pet', '寵物'], ['layout', '版型'],
     ['boost', '動力加成'], ['sound', '音效'], ['autostart', '開機'], ['privacy', '隱私'], ['about', '關於']];
-  var LAYOUTS = [['U1', '經典直式', 'U1'], ['U3', '遊戲畫面', 'U3'], ['U5B', '橫向極簡', 'U5-B'], ['U7', '桌面寵物', 'U7'], ['M3', '迷你徽章', 'M3']];
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
   // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
@@ -345,14 +344,10 @@ QJZ.panels = (function () {
         line(row('貓咪的名字', textIn('name.cat', 'name', ' maxlength="8"'))) +
         '</div>';
     },
+    // No start-layout picker and no topmost switches (simplification #12): the app opens in the layout used last, and
+    // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout.
     layout: function () {
-      var top = '';
-      LAYOUTS.forEach(function (l) { top += line(row(l[1] + ' <small class="code">' + l[2] + '</small>', tgl('top.' + l[0], l[1] + '置頂'))); });
-      return '<div class="card">' +
-        line('<span class="lbl">開啟時的版型</span>' +
-          seg('layoutStart', LAYOUTS.map(function (l) { return [l[0], l[1] + ' <small>' + l[2] + '</small>']; }), 'opts') +
-          hint('隨時可以從右鍵選單切換版型。')) +
-        '</div><div class="card compact">' + line('<span class="lbl">永遠在最上層（置頂）</span>') + top + '</div>' +
+      return hint('下次開啟會用你最後用的版型。要不要永遠在最上層，在右鍵選單的「版型」裡切換（每個版型各自記住）。') +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
           hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) + '</div>';
     },
@@ -570,7 +565,7 @@ QJZ.panels = (function () {
       skinsOn(c, ob.pet);
     },
     settings: function (c) {
-      var s = st().settings, t = st().today, i;
+      var s = st().settings, t = st().today;
       qa(c, '[data-tab]').forEach(function (b) {
         var v = b.getAttribute('data-tab');
         b.classList.toggle('on', v === tab);
@@ -603,8 +598,6 @@ QJZ.panels = (function () {
       // 寵物
       skinsOn(c, petId(s));
       // 版型
-      segOn(c, 'layoutStart', s.layout.start);
-      for (i = 0; i < LAYOUTS.length; i++) tglOn(c, 'top.' + LAYOUTS[i][0], s.layout.topmost[LAYOUTS[i][0]]);
       var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
       tglOn(c, 'opaque', s.display.opaque || forced);
       if (op && op.disabled !== forced) op.disabled = forced;
@@ -852,7 +845,6 @@ QJZ.panels = (function () {
     }
     else if (name === 'divisor') save({ salary: { divisor: +v } });
     else if (name === 'startMode') save({ startMode: v });
-    else if (name === 'layoutStart') save({ layout: { start: v } });
   }
   function pickSkin(c, id) {
     var p = petParts(id);
@@ -870,12 +862,6 @@ QJZ.panels = (function () {
       if (!st().forceOpaque) save({ display: { opaque: !s.display.opaque } });
     } else if (name === 'autostart') app().setAutostart(!s.autostart);
     else if (name === 'capture') app().setCaptureGuard(!s.privacy.hideFromCapture);
-    else if (name.indexOf('top.') === 0) {
-      var l = name.slice(4), patch = { layout: { topmost: {} } };
-      patch.layout.topmost[l] = !s.layout.topmost[l];
-      save(patch);
-      lay().refreshTopmost();
-    }
   }
   function action(c, a, b) {
     var s = st();

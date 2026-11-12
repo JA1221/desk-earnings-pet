@@ -54,7 +54,7 @@ public class AppHost
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
     readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
     readonly System.Windows.Forms.Timer firstShowTimer = new System.Windows.Forms.Timer();
-    string startLayout = "U1";   // settings.json layout.start: what the safety net sizes and places the window for
+    string startLayout = "U1";   // the layout used last (HostSettings.StartLayout): what the safety net sizes and places the window for
     bool firstShown;             // the window has been visible to the user (IsWindowVisible) at least once
     bool rescued;                // shown by the safety net before the page reported a layout
     bool rescueLogged;           // the first-show fallback line is written at most once per launch

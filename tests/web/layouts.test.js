@@ -223,7 +223,7 @@
     return ev;
   }
 
-  test('layouts DOM: init shows settings.layout.start (U1) at once with setLayout, hitRects, setTopmost', function () {
+  test('layouts DOM: init shows the last used layout (none yet: U1) at once with setLayout, hitRects, setTopmost', function () {
     var e = mk(at(12, 10, 0));
     eq(QJZ.layouts.current(), 'U1');
     eq(types(e.sent).filter(function (t) { return /^set|^hit/.test(t); }).slice(0, 3), ['setLayout', 'hitRects', 'setTopmost'],
@@ -546,6 +546,20 @@
     done();
   });
 
+  test('layouts DOM: the menu\'s topmost while a panel shows is the setting of the layout it came from', function () {
+    var e = mk(at(12, 10, 0), { settings: { layout: { current: 'U3' } } });
+    e.menu('settings');
+    eq(last(e.sent, 'setTopmost'), { on: false });
+    e.menu('topmost');
+    eq(QJZ.app.state.settings.layout.topmost.U3, true);
+    eq(last(e.sent, 'setTopmost'), { on: true }, 'the panel floats now too');
+    $(e, '[data-act=back]').click();
+    eq(QJZ.layouts.current(), 'U3');
+    eq(last(e.sent, 'setTopmost'), { on: true });
+    eq([QJZ.app.state.settings.layout.topmost.U1, QJZ.app.state.settings.layout.topmost.U7], [false, true], 'the others keep their defaults');
+    done();
+  });
+
   test('layouts DOM: unknown or malformed messages are ignored', function () {
     var e = mk(at(12, 10, 0));
     var n = e.sent.length;
@@ -680,6 +694,45 @@
     done();
   });
 
+  // #12: a new start shows the layout used last (layout.current; M3 when it was left as the mini badge, layout.mini);
+  // 1.0's layout.start picker is gone and its key is no longer read.
+  test('layouts DOM: a start shows the last used layout: layout.current, not the old layout.start', function () {
+    var e = mk(at(12, 10, 0), { settings: { layout: { start: 'U7', current: 'U3' } } });
+    eq(QJZ.layouts.current(), 'U3');
+    eq(last(e.sent, 'setLayout').layout, 'U3');
+    eq(last(e.sent, 'setTopmost'), { on: false }, 'U3 keeps its own topmost');
+    done();
+    var f = mk(at(12, 10, 0), { settings: { layout: { current: 'U7' } } });
+    eq(QJZ.layouts.current(), 'U7');
+    eq(last(f.sent, 'setTopmost'), { on: true });
+    done();
+  });
+
+  test('layouts DOM: left as the mini badge, the next start is the mini badge; double-click goes back to the main layout', function () {
+    var e = mk(at(12, 10, 0), { settings: { layout: { current: 'U5B' } } });
+    e.menu('mini');
+    eq(QJZ.app.state.settings.layout, { start: 'U1', current: 'U5B', topmost: QJZ.settings.DEFAULTS.layout.topmost, mini: true });
+    e.menu('settings');
+    $(e, '[data-act=back]').click();
+    eq(QJZ.app.state.settings.layout.mini, true, 'a panel opened from it changes nothing');
+    QJZ.app.flush();
+    var saved = JSON.parse(last(e.sent, 'saveSettings').text).layout;
+    eq([saved.current, saved.mini], ['U5B', true], 'saved');
+    done();
+    var f = mk(at(12, 10, 0), { settings: { layout: saved } });   // the next start
+    eq(QJZ.layouts.current(), 'M3');
+    eq(last(f.sent, 'setLayout').layout, 'M3');
+    eq(last(f.sent, 'setTopmost'), { on: true }, 'M3 floats on top by default');
+    mouse($(f, '.ring'), 'dblclick');
+    eq(QJZ.layouts.current(), 'U5B', 'back to the main layout');
+    eq([QJZ.app.state.settings.layout.current, QJZ.app.state.settings.layout.mini], ['U5B', false]);
+    done();
+    var g = mk(at(12, 10, 0), { settings: { layout: { current: 'U7', mini: true } } });
+    g.menu('layout:U1');
+    eq([QJZ.app.state.settings.layout.current, QJZ.app.state.settings.layout.mini], ['U1', false], 'a main layout from the menu ends it too');
+    done();
+  });
+
   test('layouts DOM: a reload (renderer crash) comes back to the layout it showed, not layout.start', function () {
     function store() {
       var m = {};
@@ -697,8 +750,8 @@
     QJZ.layouts.show('U3');
     mk(at(12, 10, 0), { session: s });
     eq(QJZ.layouts.current(), 'U3');
-    mk(at(12, 10, 0), { session: store() });   // a new start: a fresh session
-    eq(QJZ.layouts.current(), 'U1', 'layout.start');
+    mk(at(12, 10, 0), { session: store() });   // a new start: a fresh session (and these tests' settings: none saved)
+    eq(QJZ.layouts.current(), 'U1', 'the last used layout, none saved: U1');
     done();
   });
 

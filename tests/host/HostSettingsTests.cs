@@ -24,6 +24,18 @@ public static class HostSettingsTests
         }
     }
 
+    // #12: the app starts in the layout used last: layout.current (the last main layout), or M3 when it was left as the
+    // mini badge (layout.mini). layout.start (1.0's start picker) is no longer read; old files keep it unused.
+    public static void Test_StartsInTheLastUsedLayout()
+    {
+        Assert.Eq("U3", HostSettings.Parse("{\"layout\":{\"start\":\"U7\",\"current\":\"U3\"}}").StartLayout, "an old 1.0 file: current, not start");
+        Assert.Eq("U5B", HostSettings.Parse("{\"layout\":{\"current\":\"U5B\",\"mini\":false}}").StartLayout, "a main layout");
+        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"current\":\"U7\",\"mini\":true}}").StartLayout, "left as the mini badge");
+        Assert.Eq("U1", HostSettings.Parse("{\"layout\":{\"start\":\"U7\"}}").StartLayout, "no current: U1 (the first run's layout)");
+        Assert.Eq("U1", HostSettings.Parse("{\"layout\":{\"current\":\"M3\"}}").StartLayout, "a hand-edited M3 in current would loop: U1, as the page does");
+        Assert.Eq("U7", HostSettings.Parse("{\"layout\":{\"current\":\"U7\",\"mini\":\"yes\"}}").StartLayout, "mini must be a boolean");
+    }
+
     public static void Test_ReadsConfiguredValues()
     {
         HostSettings s = HostSettings.Parse(
@@ -36,8 +48,7 @@ public static class HostSettingsTests
         Assert.True(Top(s, "M3"), "M3 keeps its default");
         Assert.True(!Top(s, "U3"), "U3 keeps its default");
         Assert.True(s.CaptureGuard, "hideFromCapture true");
-        Assert.Eq("U7", s.StartLayout, "layout.start");
-        Assert.Eq("M3", HostSettings.Parse("{\"layout\":{\"start\":\"M3\"}}").StartLayout, "M3 may be the start layout");
+        Assert.Eq("U1", s.StartLayout, "layout.start is not read any more (#12): no last used layout here");
         Assert.True(!HostSettings.Parse("{\"privacy\":{\"hideFromCapture\":false}}").CaptureGuard, "hideFromCapture false turns the guard off");
     }
 
@@ -53,7 +64,8 @@ public static class HostSettingsTests
         string[] bad = { "{not json", "[]", "42", "\"x\"", "null",
                          "{\"autostart\":\"false\",\"layout\":{\"topmost\":{\"U1\":\"yes\",\"U7\":0}},\"privacy\":null}",
                          "{\"layout\":{\"topmost\":[true,true]}}", "{\"privacy\":{\"hideFromCapture\":\"false\"}}",
-                         "{\"privacy\":{\"hideFromCapture\":0}}", "{\"layout\":{\"start\":\"PANEL\"}}", "{\"layout\":{\"start\":7}}" };
+                         "{\"privacy\":{\"hideFromCapture\":0}}", "{\"layout\":{\"start\":\"PANEL\"}}", "{\"layout\":{\"start\":7}}",
+                         "{\"layout\":{\"current\":\"PANEL\"}}", "{\"layout\":{\"current\":7,\"mini\":1}}", "{\"layout\":\"U3\"}" };
         foreach (string text in bad)
         {
             HostSettings s = HostSettings.Parse(text);
