@@ -54,7 +54,7 @@
 </div>
 <p class="note">Dev mock：右鍵選單在這裡用上面的按鈕代替（送出 host 的 <code>menu</code> 訊息）。資料存在 localStorage（qjz.settings / qjz.history）。
 網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3|U10|U12|U13</code>、
-<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
+<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡（沒有泡泡的版型是橫幅；加 <code>?hold=1</code> 讓橫幅停在半路，截圖用）、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust|healthAsk</code>
 （healthAsk：升級後問一次要不要提醒）、<code>?tab=time|pet|health|display|other</code>、<code>?disc=adv|guide|lic</code> 點開設定裡那個摺疊區並捲到最下面（adv = 健康 → 進階）、
@@ -153,9 +153,23 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
       QJZ.app.saveSettings({ pet: { kind: pet[1], skin: pet[2] } });
     });
   }
+  // ?say= after the care seeding below (so with ?prompt= it is said over the prompt, as a banner); ?hold=1 stops a
+  // banner half way (it is gone after 2.4 s), for headless screenshots.
   var sayText = devQ.get('say');
   if (sayText) {
-    var offSay = QJZ.app.on('change', function () { offSay(); setTimeout(function () { QJZ.layouts.say(sayText, 600000); }, 0); });
+    var offSay = QJZ.app.on('change', function () {
+      offSay();
+      setTimeout(function () {
+        QJZ.layouts.say(sayText, 600000);
+        if (devQ.get('hold') === '1') {
+          setTimeout(function () {
+            Array.prototype.forEach.call(document.querySelectorAll('#root .banner'), function (b) {
+              b.getAnimations().forEach(function (a) { a.pause(); a.currentTime = 1000; });   // (headless may not have drawn a frame yet)
+            });
+          }, 1000);
+        }
+      }, 50);
+    });
   }
 
   // ?sim=step,step,... (pets, dev only): page events in order after the first render, so headless screenshots can
