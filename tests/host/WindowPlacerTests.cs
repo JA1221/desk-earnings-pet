@@ -340,6 +340,24 @@ public static class WindowPlacerTests
         Assert.Eq(LayoutMove.InPlace, WindowPlacer.MoveFor("PANEL", true), "inPlace: the window as it is");
     }
 
+    // The page's setLayout for 設定 / 紀錄 shown in the window of U1, U12 or U13 (1.1.2 protocol): only the JSON true asks
+    // for in place; anything else is a panel beside its window, as in 1.1.1.
+    public static void Test_InPlaceComesOnlyFromTrue()
+    {
+        Assert.Eq(LayoutMove.InPlace, MoveOf("{\"type\":\"setLayout\",\"layout\":\"PANEL\",\"inPlace\":true,\"width\":347,\"height\":609,\"dpr\":1.5}"), "inPlace:true");
+        Assert.Eq(LayoutMove.Beside, MoveOf("{\"type\":\"setLayout\",\"layout\":\"PANEL\",\"width\":407,\"height\":640,\"dpr\":1.5}"), "no inPlace: beside");
+        Assert.Eq(LayoutMove.Beside, MoveOf("{\"type\":\"setLayout\",\"layout\":\"PANEL\",\"inPlace\":false,\"width\":407,\"height\":640}"), "false");
+        Assert.Eq(LayoutMove.Beside, MoveOf("{\"type\":\"setLayout\",\"layout\":\"PANEL\",\"inPlace\":\"true\",\"width\":407,\"height\":640}"), "a string");
+        Assert.Eq(LayoutMove.Beside, MoveOf("{\"type\":\"setLayout\",\"layout\":\"PANEL\",\"inPlace\":1,\"width\":407,\"height\":640}"), "a number");
+        Assert.Eq(LayoutMove.Anchor, MoveOf("{\"type\":\"setLayout\",\"layout\":\"U1\",\"inPlace\":true,\"width\":347,\"height\":609}"), "only a panel");
+    }
+
+    static LayoutMove MoveOf(string json)
+    {
+        System.Collections.Generic.Dictionary<string, object> d = Bridge.Parse(json);
+        return WindowPlacer.MoveFor(Bridge.Str(d, "layout"), WindowPlacer.InPlaceAsked(d));
+    }
+
     // A drag in any layout but U10 moves the anchor (a panel's too: it is the same window); U10 snaps to a dock instead.
     public static void Test_DragMovesTheAnchor()
     {

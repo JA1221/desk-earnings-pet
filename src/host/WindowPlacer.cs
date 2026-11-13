@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -181,6 +182,12 @@ public class WindowPlacer
         if (layout == CapsuleLayout) return LayoutMove.Dock;
         if (layout == PanelLayout) return inPlace ? LayoutMove.InPlace : LayoutMove.Beside;
         return LayoutMove.Anchor;
+    }
+
+    // setLayout's inPlace (1.1.2 item 3): only the JSON true asks for it.
+    public static bool InPlaceAsked(Dictionary<string, object> setLayout)
+    {
+        return Bridge.Bool(setLayout, "inPlace") == true;
     }
 
     // Whether the user's drop of layout moves the anchor: in every layout but U10, which snaps to a dock instead. A

@@ -26,8 +26,13 @@ using Microsoft.Web.WebView2.Core;
 //   leaving U10 goes back to the anchor. A window that grows within its layout stays inside its work area if it was
 //   inside (WindowPlacer.ResizeInside, spec 5.7).
 // - PANEL (設定, 紀錄, onboarding, the questions) opens beside the window it came from, inside that window's work area
-//   (WindowPlacer.PanelBounds, 1.1.1). A start that opens with a panel opens it beside the hidden window, which
-//   PrePlace put where the start layout shows, so the first thing shown is on the start layout's monitor.
+//   (WindowPlacer.PanelBounds, 1.1.1), at the size the page asks for. A start that opens with a panel opens it beside
+//   the hidden window, which PrePlace put where the start layout shows, so the first thing shown is on the start
+//   layout's monitor. setLayout {layout:'PANEL', inPlace:true, width, height, dpr} (1.1.2 item 3: 設定 / 紀錄 opened
+//   from U1, U12 or U13, which the page shows in that same window; width / height are the window's CSS size): the
+//   window keeps its spot and its size exactly, not moved, not resized (PetWindow.KeepSize). Closing the panel goes
+//   back to the layout it came from at the anchor. A panel the user opens from the tray or the menu still comes in
+//   front of a full-screen window (below), in place or not.
 // - fullscreen {on, here}: something runs full screen (Presentation: Windows reports a fullscreen app or presentation
 //   mode, or a monitor's top window covers that whole monitor, foreground or not), sent after every init and on each
 //   change; the page holds its reminders while on. here (1.1.1): the pet window's monitor is full screen (PowerPoint's
@@ -426,6 +431,7 @@ public class AppHost
         string name = Bridge.Str(d, "layout");
         double w = Bridge.Num(d, "width", 0), h = Bridge.Num(d, "height", 0);
         if (string.IsNullOrEmpty(name) || name.Length > MaxLayoutName || !(w >= 1) || !(h >= 1)) return;
+        LayoutMove move = WindowPlacer.MoveFor(name, WindowPlacer.InPlaceAsked(d));
         bool changed = name != layout;
         bool shownBefore = layout != null || rescued;   // a layout was placed before this one (PanelFrom)
         layout = name;
@@ -442,13 +448,15 @@ public class AppHost
         Size css = new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)));
         layoutCss = css;
         Rectangle before = window.Bounds;
-        window.SetContentSize(css.Width, css.Height, Dpr(d));
+        if (move == LayoutMove.InPlace) window.KeepSize(css.Width, css.Height, Dpr(d));   // the same window, untouched
+        else window.SetContentSize(css.Width, css.Height, Dpr(d));
         if (changed)
         {
             growFrom = null;
             growTo = null;
-            switch (WindowPlacer.MoveFor(name, false))
+            switch (move)
             {
+                case LayoutMove.InPlace: break;   // 設定 / 紀錄 in the window of U1, U12 or U13: not moved either
                 case LayoutMove.Beside:
                     // Beside the window it came from, on that monitor (1.1.1): at a start that opens with a panel, the
                     // hidden window PrePlace put where the start layout shows. PANEL's own saved spot is not used.

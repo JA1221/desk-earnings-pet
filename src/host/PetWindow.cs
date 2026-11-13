@@ -177,6 +177,16 @@ public class PetWindow : Form
         ApplySize();
     }
 
+    // The page lays itself out at cssWidth x cssHeight in the window as it is (an in-place panel, 1.1.2): remembered
+    // like SetContentSize (a DPI change resizes from it), but the window keeps its size exactly, even where that CSS size
+    // would round to another one.
+    public void KeepSize(int cssWidth, int cssHeight, double dpr)
+    {
+        this.cssWidth = cssWidth;
+        this.cssHeight = cssHeight;
+        if (dpr > 0) scale = dpr;
+    }
+
     // Areas (CSS px, page coordinates) that receive the mouse; everywhere else clicks fall through.
     // A newly reported dpr also re-sizes the window.
     public void SetHitRects(RectangleF[] cssRects, double dpr)
