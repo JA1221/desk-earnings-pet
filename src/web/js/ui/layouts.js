@@ -40,10 +40,11 @@ window.QJZ = window.QJZ || {};
 // the host's hit poll saw the cursor cross off (false) or onto (true) every hit rect; U10's capsule folds on false, as
 // after a mouseout, since off them the window clicks through and a mouseout may never come), capsuleDock {dock} (a
 // dropped U10 snapped to that dock: saved, and setLayout goes again with it even when it is the same, so an older
-// setLayout still on its way cannot undo the snap), topmost {on} (1.1.2, optional: the window's topmost as the host
-// set it; saved as the current layout's setting, so the title bar's pin shows it; nothing is sent back).
+// setLayout still on its way cannot undo the snap).
 // 1.1.2 item 5: U1, U12 and U13 have 釘選在最上層 on their title bar (data-act pin): the menu's 永遠在最上層 for the
-// current layout (toggleTopmost), pressed (.on, aria-pressed) while it is on.
+// current layout (toggleTopmost: settings.layout.topmost and setTopmost {on}; in PANEL, the layout it came from),
+// pressed (.on, aria-pressed) while it is on. The menu's toggle comes through the page too (menu topmost), so the
+// setting is always the window's state: the host sends no topmost message.
 // 1.1.2 item 3: from U1, U12 and U13 the panel (設定, 紀錄, 調整起算時間) takes the same window at the same size
 // (inPlace) under that window's title bar; 設定 there shows pressed while 設定 shows and, pressed again, closes it (as
 // 完成 does). From 紀錄, 設定 switches to 設定 in the same window. Switching kinds keeps the window; any other layout
@@ -1287,16 +1288,6 @@ QJZ.layouts = (function () {
     app().saveSettings(patch);
     send('setTopmost', { on: on });
   }
-  // topmost {on} from the host (1.1.2): the window's topmost as the host has it, for the current layout (PANEL: the one it
-  // came from). Saved, so the pin shows it; it came from the host, so nothing goes back.
-  function onTopmost(msg) {
-    if (!ready() || !msg || typeof msg.on !== 'boolean') return;
-    var name = cur === 'PANEL' ? (panelFrom || backTarget(app().state.settings)) : cur;
-    if (!name || topmostFor(name) === msg.on) return;
-    var patch = { layout: { topmost: {} } };
-    patch.layout.topmost[name] = msg.on;
-    app().saveSettings(patch);
-  }
 
   function act(a) {
     switch (a) {
@@ -1688,7 +1679,7 @@ QJZ.layouts = (function () {
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup), QJZ.care.on('snooze', onSnooze));
     }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
-      bridge.on('pointer', onPointer), bridge.on('topmost', onTopmost)].forEach(function (off) {
+      bridge.on('pointer', onPointer)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);

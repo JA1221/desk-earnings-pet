@@ -2914,8 +2914,8 @@
   });
 
   // 1.1.2 item 5: 釘選在最上層 on the title bar (U1, U12, U13): the current layout's topmost (settings.layout.topmost,
-  // setTopmost {on}), pressed while pinned, in step with the menu's 永遠在最上層 and the host's topmost {on}; like the
-  // other title-bar buttons it never takes the focus.
+  // setTopmost {on}), pressed while pinned, in step with the menu's 永遠在最上層 (which comes through the page); like
+  // the other title-bar buttons it never takes the focus. In the panel shown in its window it is that layout's.
   test('layouts DOM: the pin on the title bar toggles this layout\'s topmost and shows pressed while it is on', function () {
     ['U1', 'U12', 'U13'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true }), pin = $(e, '.bar [data-act=pin]'), gear = $(e, '.bar [data-act=settings]');
@@ -2935,12 +2935,15 @@
       eq(last(e.sent, 'setTopmost'), { on: false });
       e.menu('topmost');
       eq(pinned(), [true, true, 'true'], name + ': the menu\'s 永遠在最上層 shows on it');
-      var n = of(e.sent, 'setTopmost').length;
-      e.bridge.emit({ type: 'topmost', on: false });
-      eq(pinned(), [false, false, 'false'], name + ': the host\'s topmost {on} too');
-      eq(of(e.sent, 'setTopmost').length, n, 'and nothing is sent back');
-      e.bridge.emit({ type: 'topmost', on: 'yes' });
-      eq(pinned(), [false, false, 'false'], 'junk is ignored');
+      gear.click();
+      pin = $(e, '.bar [data-act=pin]');
+      eq([QJZ.layouts.current(), pin.classList.contains('on')], ['PANEL', true], name + ': in 設定 in its window, the same pin');
+      pin.click();
+      eq([QJZ.app.state.settings.layout.topmost[name], last(e.sent, 'setTopmost'), pin.classList.contains('on')], [false, { on: false }, false],
+        name + ': it unpins ' + name);
+      $(e, '.bar [data-act=settings]').click();
+      pin = $(e, '.bar [data-act=pin]');
+      eq(pinned(), [false, false, 'false'], name + ': back, unpinned');
       e.menu('layout:U3');
       eq(e.root.querySelectorAll('[data-act=pin]').length, 0, 'U3 has no title bar');
       eq(QJZ.app.state.settings.layout.topmost.U3, false, 'and its own setting');
