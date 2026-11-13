@@ -55,7 +55,7 @@ using Microsoft.Web.WebView2.Core;
 // is in the menu only while healthMenu's cups say today has a cup.
 public class AppHost
 {
-    public const string Version = "1.1.0";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
+    public const string Version = "1.1.1";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
     const string Origin = "https://app.qjz/";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;
