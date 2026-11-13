@@ -1571,7 +1571,7 @@
     eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['■ 停止', 'focus', '還剩 13 分', '專心中', '第 4 顆', '12:30']);
     near(m.ring.fraction, 0.5, 1e-9, 'the elapsed share (QJZ.pomodoro.fraction)');
     eq(m.m3sub, '專心中 · 還剩 13 分');
-    eq(m.standIn, '50 分後', 'the reminder is asked (water on): minutes to it');
+    eq([m.standIn, m.showStand], ['', false], 'water only (1.1.1): the timer runs, but no stand-up is asked');
     C.toggleFocus();   // stop
     m = U.model(QJZ.app.state, at(12, 9, 52, 30), C.state);
     eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['▶ 番茄鐘', null, '', '上班中', '', '']);
@@ -1963,6 +1963,8 @@
     eq(rings(e)[1], 'tom 60 休息03:00 番茄倒數', 'the break counts down in the tomato ring');
     eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('rest'); }), [false, true, false],
       'only the countdown turns green');
+    eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'water only (1.1.1): no stand-up line');
+    QJZ.app.saveSettings({ health: { sit: { on: true } } });
     C.toggleFocus();
     C.toggleFocus();
     eq(rings(e)[1], 'tom 100 專心25:00第 4 顆 番茄倒數', 'a focus: 專心 mm:ss 第 N 顆');
@@ -2223,5 +2225,113 @@
       eq(QJZ.layouts.say('吱！'), false);
       eq(e.root.querySelectorAll('.banner').length, 0, 'U5-B: no banner either');
     });
+  });
+
+  // Item 4: 少記一杯 (menu undrink): the counts and the bubble's 「今天 N/8 杯」 follow at once; it pops no 「+1」.
+  test('layouts DOM: 少記一杯 from the menu: the counts and the bubble\'s count at once, no 「+1」', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH }, rec: today(3, 0, 0) }));
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    ok($(e, '.u1').classList.contains('prompting'));
+    eq(text(e, '.u1 [data-prompt] .rb-s'), '已經坐 50 分鐘囉・今天 3/8 杯');
+    e.menu('undrink');
+    eq(shownText(e.root.querySelectorAll('.u1 .mpills [data-cups]')), ['2/8 杯']);
+    eq(text(e, '.u1 [data-prompt] .rb-s'), '已經坐 50 分鐘囉・今天 2/8 杯', 'the bubble\'s count');
+    eq(e.root.querySelectorAll('[data-cups] .plus').length, 0, 'no 「+1」');
+    e.menu('layout:U12');
+    eq(text(e, '.u12 [data-gauge=cups] b'), '2/8');
+    done();
+  });
+
+  // Item 6: 下次起來動 in U1, U3, U5-B and U7, compact (🧍 N 分), by U10/U12/U13's rule: while working, with 起來動 on,
+  // not while its own reminder asks; and not during a focus (its break is the next stand-up, and the ring counts down to
+  // it). M3 has none. care's standIn changes once a minute; only the text changes, nothing animates.
+  test('layouts: the next stand-up shows only with 起來動 on (U10, U12, U13 and the compact one alike)', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    var m = U.model(QJZ.app.state, at(12, 9, 18), C.state);
+    eq([m.showStand, m.standIn, m.standMin, m.showStandC], [true, '32 分後', '32 分', true]);
+    done();
+    e = shown(mk(at(12, 9, 0), { care: true, settings: { health: WATER_ON } }));
+    e.tick(at(12, 9, 18));
+    eq(C.state.standIn, 32, 'care\'s timer runs for the water reminder');
+    m = U.model(QJZ.app.state, at(12, 9, 18), C.state);
+    eq([m.showStand, m.standIn, m.standMin, m.showStandC], [false, '', '', false], 'water only: no stand-up to count down to');
+    done();
+  });
+
+  var STANDC = { U1: '.u1 .mpills [data-show=standC]', U3: '.u3 .hud-top [data-show=standC]', U5B: '.u5b .mtop [data-show=standC]',
+    U7: '.u7 .hline [data-show=standC]' };
+  test('layouts DOM: U1, U3, U5-B and U7 show 🧍 N 分 (M3 does not), once a minute, without animation', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    ['U1', 'U3', 'U5B', 'U7'].forEach(function (name) {
+      e.menu('layout:' + name);
+      var n = $(e, STANDC[name]);
+      ok(n && drawn(n), name + ' shows it');
+      eq(seen(n), '32 分', name);
+      ok(n.querySelector('svg.ic-stand'), name + ': with the stand-up icon');
+      var cs = getComputedStyle(n);
+      eq([cs.animationName, cs.transitionDuration], ['none', '0s'], name + ': nothing moves');
+      eq(n.hasAttribute('data-act'), false, name + ': it only shows');
+    });
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['0/8・32 分'], 'U7: on the tag line, after the cups');
+    e.menu('mini');
+    eq(e.root.querySelectorAll('[data-show=standC]').length, 0, 'M3: none');
+    e.menu('layout:U1');
+    var n = $(e, STANDC.U1), texts = [];
+    for (var t = at(12, 9, 18, 1); t <= at(12, 9, 19, 59); t += 1000) {
+      e.tick(t);
+      if (texts[texts.length - 1] !== seen(n)) texts.push(seen(n));
+    }
+    eq(texts, ['32 分', '31 分'], 'once a minute');
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    ok($(e, '.u1').classList.contains('prompting') && !drawn(n), 'not while it asks');
+    clickOn($(e, '[data-answer=up]'));
+    eq(seen(n), '50 分', 'answered: the next one');
+    C.toggleFocus();
+    ok(!drawn(n), 'not during a focus');
+    C.toggleFocus();
+    ok(drawn(n));
+    e.tick(at(12, 12, 30));
+    ok(!drawn(n), 'not at lunch');
+    e.tick(at(12, 18, 30));
+    ok(!drawn(n), 'not after work');
+    done();
+  });
+
+  test('layouts DOM: the compact countdown fits its line in U1, U3, U5-B and U7, three digits and every count shown', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: { asked: true, every: 120, sit: { on: true }, water: { on: true, goal: 12 } } },
+      rec: today(10, 12, 0) }));
+    C.toggleFocus();
+    C.toggleFocus();   // a stopped focus: ▶ 番茄鐘 again, the tomatoes shown
+    e.tick(at(12, 9, 1));
+    function box(n) { return n.getBoundingClientRect(); }
+    function row(list) {   // one line, side by side, none on another
+      for (var i = 1; i < list.length; i++) {
+        var a = box(list[i - 1]), b = box(list[i]);
+        ok(Math.abs(a.top + a.bottom - b.top - b.bottom) < 6 && a.right <= b.left + 0.5, QJZ.layouts.current() + ' one line, item ' + i + ': ' +
+          JSON.stringify([a.left, a.top, a.right, b.left, b.top, b.right].map(Math.round)));
+      }
+    }
+    e.menu('layout:U1');
+    var pills = Array.prototype.filter.call($(e, '.u1 .mpills').children, drawn);
+    eq(pills.map(seen), ['10/12 杯', '×12', '▶ 番茄鐘', '119 分']);
+    row(pills);
+    ok(box(pills[0]).left >= box($(e, '.u1 .body')).left + 15 && box(pills[3]).right <= box($(e, '.u1 .body')).right - 15, 'inside the card: ' +
+      JSON.stringify(pills.map(function (p) { return Math.round(box(p).width * 10) / 10; })) + ' in ' + box($(e, '.u1 .body')).width);
+    e.menu('layout:U3');
+    var top = Array.prototype.filter.call($(e, '.u3 .hud-top').children, drawn);
+    row(top);
+    ok(box(top[top.length - 1]).right <= box($(e, '.u3')).right - 12);
+    e.menu('layout:U5B');
+    var line = [$(e, '.u5b [data-b=hm]'), $(e, STANDC.U5B), $(e, '.u5b .mtop .feed'), $(e, '.u5b .mtop .x')];
+    row(line);
+    ok(box(line[3]).right <= box($(e, '.u5b .mid')).right + 0.5, 'U5-B: the ⋯ still in its column');
+    e.menu('layout:U7');
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['10/12・×12・119 分']);
+    ok(box($(e, '.u7 .hline')).width <= box($(e, '.u7 .mtag')).width, 'U7: inside the tag');
+    done();
   });
 })();

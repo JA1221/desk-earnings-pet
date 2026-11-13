@@ -205,8 +205,10 @@ QJZ.layouts = (function () {
   // idle pomodoro and nothing shown. What shows is care's to decide (cs.show, Ruling R4), and so are the time to the next
   // stand-up (cs.standIn) and the running focus's 第 N 顆 (cs.nth, its start day's count); here they are only read. The
   // stand-up time shows only while its timer runs, the work status working (the sprint included): not at lunch, where
-  // the timer stands still and starts again at its end (§5.1), so the number would never come true; and not while the
-  // reminder itself is asking. The pomodoro readouts are taken at the whole second, so however often a layout renders,
+  // the timer stands still and starts again at its end (§5.1), so the number would never come true; not while the
+  // reminder itself is asking; and only with 起來動 on (1.1.1 item 6: with 喝水 alone the timer runs, but no stand-up
+  // is asked). The compact one of U1, U3, U5-B and U7 (standMin, 🧍 N 分) also hides during a focus: its break is the
+  // next stand-up, and the ring around the pet counts down to it. The pomodoro readouts are taken at the whole second, so however often a layout renders,
   // the rings and the countdown change at most once a second.
   function careModel(cs, s, ms, key) {
     var on = !!(cs && cs.ready && cs.p), p = on ? cs.p : null;
@@ -217,7 +219,8 @@ QJZ.layouts = (function () {
       { cups: hs.water.goal, tomatoes: QJZ.settings.tomatoGoal(s), standups: QJZ.settings.standGoal(s) } : { cups: 0, tomatoes: 0, standups: 0 };
     var cups = on ? cs.cupsText : '0/' + goals.cups;
     var asks = on && cs.prompt ? cs.prompt.kind : null;   // the prompt that shows: its ring glows (U12)
-    var stand = on && typeof cs.standIn === 'number' && key === 'working' &&
+    var sitOn = !!(hs && QJZ.reminders.ask(hs, 0).sit);
+    var stand = on && sitOn && typeof cs.standIn === 'number' && key === 'working' &&
       asks !== 'both' && asks !== 'sit' && asks !== 'water' ? cs.standIn : null;   // (not while it is the one asking)
     var nth = phase === 'focus' && on && cs.nth > 0 ? '第 ' + cs.nth + ' 顆' : '';
     var frac = phase ? P.fraction(p, sec) : 0, left = 1 - frac;
@@ -226,6 +229,7 @@ QJZ.layouts = (function () {
       phase: phase,
       cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
       showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
+      showStandC: stand !== null && phase !== 'focus', standMin: stand === null ? '' : stand + ' 分',
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
@@ -498,10 +502,14 @@ QJZ.layouts = (function () {
   var SHOW = {
     cups: function (m) { return m.showCups; }, tomatoes: function (m) { return m.showTomatoes; },
     both: function (m) { return m.showCups && m.showTomatoes; }, any: function (m) { return m.showCups || m.showTomatoes; },
-    stand: function (m) { return m.showStand; }, cupsStand: function (m) { return m.showCups && m.showStand; }
+    stand: function (m) { return m.showStand; }, cupsStand: function (m) { return m.showCups && m.showStand; },
+    // the compact 下次起來動 (1.1.1 item 6), and U7's tag line with it
+    standC: function (m) { return m.showStandC; }, anyS: function (m) { return m.showCups || m.showTomatoes || m.showStandC; },
+    ctS: function (m) { return (m.showCups || m.showTomatoes) && m.showStandC; }
   };
   function renderHealth(m, w) {
-    var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '') + (m.showStand ? 's' : '');
+    var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '') + (m.showStand ? 's' : '') +
+      (m.showStandC ? 'k' : '');
     if (view.cache.shows !== shows) {
       view.cache.shows = shows;
       view.shows.forEach(function (n) { var f = SHOW[n.getAttribute('data-show')]; n.hidden = !(f && f(m)); });

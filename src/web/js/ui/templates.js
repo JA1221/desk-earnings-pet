@@ -15,7 +15,8 @@ window.QJZ = window.QJZ || {};
 // layouts.js sets (cups, tomatoes, stand-ups against the day's goals; pomo the share of the pomodoro phase left), with
 // class hot while a prompt asks for it; [data-tslots] the tomato slots; [data-hover] what the pointer expands (U7's pet
 // and tag: the tools; U10's capsule: the full view); [data-show=stand] the time to the next stand-up (while one is
-// asked), cupsStand both that and the cups.
+// asked), cupsStand both that and the cups. 1.1.1 item 6: U1, U3, U5-B and U7 show it compact, 🧍 N 分 ([data-show=standC],
+// [data-b=standMin]; U7's tag line anyS / ctS), as a readout only.
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
   function bar(title) {
@@ -30,11 +31,15 @@ QJZ.templates = (function () {
     return '<button type="button" class="' + cls + '" data-act="feed" data-feed title="餵食"><span data-b="snack"></span> 餵食</button>';
   }
   // U1 (A_U1_3): cups, tomatoes, and the 番茄鐘 pill that is always there.
+  // 1.1.1 item 6: the next stand-up, compact (🧍 N 分); it only shows.
+  function standC(cls) {
+    return '<span class="' + cls + '" data-show="standC" title="下次起來動">' + ic('stand') + '<span class="n" data-b="standMin"></span></span>';
+  }
   function mpills() {
     return '<div class="mpills">' +
       '<button type="button" class="mp" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') + '<span class="n" data-b="cupsLong"></span></button>' +
       '<span class="mp" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span>' +
-      '<button type="button" class="mp go" data-act="pomo" data-b="pomoBtn" title="番茄鐘"></button></div>';
+      '<button type="button" class="mp go" data-act="pomo" data-b="pomoBtn" title="番茄鐘"></button>' + standC('mp st') + '</div>';
   }
   // U3 (A_U3_2, with the user's change: no bottle): the water button beside the tomato button, the same style, each
   // with its count under it. The tomato button is always there; its count and the water slot follow the rule.
@@ -51,10 +56,11 @@ QJZ.templates = (function () {
         '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button>' +
       '<button type="button" class="lbl2" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') + '<span class="n" data-b="cups"></span></button></div>';
   }
-  // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3, each part by its rule; gone when neither shows.
+  // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows.
   function hline() {
-    return '<div class="hline" data-show="any"><span class="hpart" data-show="cups" data-cups>' + ic('drop') + '<span class="n" data-b="cups"></span></span>' +
-      '<span class="dt" data-show="both">・</span><span class="hpart" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span></div>';
+    return '<div class="hline" data-show="anyS"><span class="hpart" data-show="cups" data-cups>' + ic('drop') + '<span class="n" data-b="cups"></span></span>' +
+      '<span class="dt" data-show="both">・</span><span class="hpart" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span>' +
+      '<span class="dt" data-show="ctS">・</span>' + standC('hpart') + '</div>';
   }
   // M3 (A_M3): two stickers on the ring, cups top left and tomatoes top right.
   function stickers() {
@@ -92,7 +98,7 @@ QJZ.templates = (function () {
     },
     U3: function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' + pring() +
-        '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + feedBtn('pill feed') +
+        '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + standC('pill st') + feedBtn('pill feed') +
           '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
         '<div class="side" data-bubble-clear><div class="pill alt" data-alt><span data-b="card"></span>' +
           '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
@@ -104,7 +110,7 @@ QJZ.templates = (function () {
     U5B: function () {
       return '<div class="win u5b lay" data-hit><div class="po" data-pet="petonly"></div>' + pring() + '<div class="mid">' +
         '<div class="mtop"><span class="dot"></span><span class="mline"><span data-b="status"></span> ・ <span data-b="hm"></span></span>' +
-          '<span class="pline" data-prompt-line hidden></span>' + feedBtn('feed') +
+          standC('st') + '<span class="pline" data-prompt-line hidden></span>' + feedBtn('feed') +
           '<button type="button" class="x" data-act="menu" title="選單">⋯</button></div>' +
         '<div class="money-box" data-plus>' + MONEY + '</div>' +
         '<div class="thin"><div class="fill" data-fill></div></div>' +

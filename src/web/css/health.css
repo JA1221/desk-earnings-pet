@@ -52,6 +52,17 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .rcol .lbl2{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:2px;white-space:nowrap;background:none;border:0;padding:1px 2px;line-height:1.3}
 .u5b .rcol .lbl2 svg.ic{width:14px;height:14px}
 
+/* ---------- 1.1.1 item 6: the next stand-up, compact (🧍 N 分), a readout that never moves ---------- */
+.mp.st{gap:2px;padding:1px 8px 1px 4px}
+/* U1 with the countdown too: the four pills tighten a little, so even 10/12 杯・×12・▶ 番茄鐘・119 分 keeps one line */
+.mpills:has(> .st:not([hidden])){gap:4px}
+.mpills:has(> .st:not([hidden])) .mp{padding-left:4px;padding-right:8px}
+.mpills:has(> .st:not([hidden])) .mp.go{padding:1px 8px}
+.u3 .hud-top .pill.st{gap:3px;padding:4px 10px 4px 7px}
+.u3 .hud-top .pill.st svg.ic{width:16px;height:16px}
+.u5b .mtop .st{display:inline-flex;align-items:center;gap:2px}
+.u5b .mtop .st svg.ic{width:14px;height:14px}
+
 /* ---------- U7 (A_U7): one more line on the tag ---------- */
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
 .u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
