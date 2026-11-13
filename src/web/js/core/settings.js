@@ -20,7 +20,8 @@ QJZ.settings = (function () {
     items: [{ name: '珍奶', price: 65, icon: '🧋' }, { name: '便當', price: 100, icon: '🍱' }, { name: '拿鐵', price: 120, icon: '☕' }],
     sound: { enabled: false, volume: 0.6 },
     autostart: true,
-    privacy: { hideFromCapture: true, hotkey: 'Ctrl+Alt+H' },
+    // maskMoney (1.1.2): the money on the main screens shows *** (a click on the amount toggles it; page-owned)
+    privacy: { hideFromCapture: true, hotkey: 'Ctrl+Alt+H', maskMoney: false },
     // opaque: 相容模式, paint the whole window (page-owned; the host has init.forceOpaque). powerSaver: 省電模式 (§5.9).
     display: { opaque: false, powerSaver: false },
     // §4.9 #6/#7, §5.4: one reminder timer (every minutes) for 起來動 (sit) and 喝水 (water). asked: the user answered
@@ -120,6 +121,7 @@ QJZ.settings = (function () {
     var pv = isObj(s.privacy) ? s.privacy : {};
     out.privacy.hideFromCapture = bool(pv.hideFromCapture, d.privacy.hideFromCapture);
     out.privacy.hotkey = str(pv.hotkey, d.privacy.hotkey);
+    out.privacy.maskMoney = bool(pv.maskMoney, d.privacy.maskMoney);
     var disp = isObj(s.display) ? s.display : {};
     out.display.opaque = bool(disp.opaque, d.display.opaque);
     out.display.powerSaver = bool(disp.powerSaver, d.display.powerSaver);

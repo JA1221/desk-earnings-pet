@@ -40,8 +40,10 @@ QJZ.templates = (function () {
   // The title of each layout with a title bar; PANEL in its window (1.1.2 item 3) keeps the one it was opened from.
   var TITLES = { U1: '錢進中', U12: '錢進中 · 健康', U13: '錢進中 · 番茄鐘' };
   var BAR = bar(TITLES.U1);
-  // [data-plus] (1.1.2 item 6): the amount itself, where the "+0.xx" goes up from (QJZ.fx.plus)
-  var MONEY = '<div class="money" data-plus><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
+  // [data-plus] (1.1.2 item 6): the amount itself, where the "+0.xx" goes up from (QJZ.fx.plus). [data-mask] (item 10):
+  // a click there masks the money (.msk, *** in the odometer's place while the layout is .masked).
+  var MASK = ' data-mask title="點一下：遮住／顯示金額"', MSK = '<span class="msk">***</span>';
+  var MONEY = '<div class="money" data-plus' + MASK + '><span class="cur">NT$</span><span class="odo" data-odo></span>' + MSK + '</div>';
   // During a pomodoro the pill reads 專心中 / 休息中 with its icon (health.css shows the one for the layout's p-foc / p-brk).
   var PILL = '<div class="status"><i></i>' + ic('hp', 'pi-foc') + ic('rest', 'pi-brk') + '<span data-b="status"></span></div>';
   function feedBtn(cls) {
@@ -140,7 +142,7 @@ QJZ.templates = (function () {
     },
     U7: function () {
       return '<div class="u7 lay"><div class="dpet" data-hover>' + pring() +
-        '<div class="mtag money-box" data-hit>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div>' + hline() + '</div>' +
+        '<div class="mtag money-box" data-hit' + MASK + '>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div>' + hline() + '</div>' +
         '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
         '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
           '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
@@ -148,7 +150,7 @@ QJZ.templates = (function () {
     },
     M3: function () {
       return '<div class="m3 lay"><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
-        '<div class="tagm" data-hit><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span></div></div>' +
+        '<div class="tagm" data-hit' + MASK + '><div class="mmoney"><small>NT$</small> <span class="odo" data-odo></span>' + MSK + '</div></div>' +
         '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     // U10 (G_U10_*): one fixed window, the dark capsule on its edge at the dock (layouts.js: class d-<dock>). Its views:
@@ -157,13 +159,13 @@ QJZ.templates = (function () {
     // Only the capsule takes clicks. No odometer: the capsule changes at most once a second.
     U10: function () {
       return '<div class="u10 lay"><div class="isl" data-hit data-hover><div class="av" data-pet="avatar"></div>' +
-        '<span class="iv iv-c"><i class="gd"></i><span class="im" data-b="moneyWhole"></span>' +
+        '<span class="iv iv-c"><i class="gd"></i><span class="im" data-b="moneyWhole"' + MASK + '></span>' +
           '<span class="ichip" data-show="cups" data-cups>' + ic('drop') + '<span data-b="cupsNum"></span></span>' +
           '<span class="ichip" data-show="tomatoes">' + ic('tom') + '<span data-b="tomNum"></span></span></span>' +
         '<span class="iv iv-f"><span class="donut" data-gauge="pomo"></span><span class="im" data-b="mmss"></span>' +
-          '<span class="isub" data-b="phaseNote"></span><span class="im sm" data-b="moneyWhole"></span></span>' +
+          '<span class="isub" data-b="phaseNote"></span><span class="im sm" data-b="moneyWhole"' + MASK + '></span></span>' +
         '<span class="iv iv-x"><span class="icol"><span class="isub"><i class="gd"></i><span data-b="status"></span> · ' +
-            '<span data-b="remainPhrase"></span></span><span class="im">NT$ <span data-b="money"></span></span>' +
+            '<span data-b="remainPhrase"></span></span><span class="im"' + MASK + '>NT$ <span data-b="money"></span></span>' +
             '<span class="ibar"><i data-fill></i></span></span>' +
           '<span class="icol chips"><button type="button" class="ichip" data-act="pomo" title="番茄鐘">' + ic('tom') +
               '<span class="go" data-b="pomoGlyph"></span><span data-show="tomatoes" data-b="tomatoes"></span></button>' +
@@ -190,7 +192,8 @@ QJZ.templates = (function () {
     // goal), and the cups and the next stand-up.
     U13: function () {
       return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +
-        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="short"><span class="cur">NT$</span> <span class="odo" data-odo></span></span></div>' +
+        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="short"' + MASK + '><span class="cur">NT$</span> <span class="odo" data-odo></span>' +
+          MSK + '</span></div>' +
         '<div class="ptop2"><span data-b="remainPhrase"></span><div class="thin"><div class="fill" data-fill></div></div></div>' +
         '<div class="ringwrap"><div class="bigring" data-gauge="pomo">' +
           '<button type="button" class="br-go" data-act="pomo" title="番茄鐘"><span class="br-idle"><small data-b="nextFocus"></small><b data-b="focusFull"></b></span>' +

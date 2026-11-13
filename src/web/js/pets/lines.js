@@ -2,7 +2,8 @@ window.QJZ = window.QJZ || {};
 // What the pet says (spec §4.6 對話泡泡): cheering, a little teasing, by state, time of day, money and mood.
 // pick(state, ctx) -> a filled line, or '' for a state without lines.
 //   ctx = {name, kind:'cat'|'hamster', minutesToLunch, minutesToEnd, earned, rng, items, step (milestone NT$),
-//          gained (snacks earned while hidden), hour (0..23), energy, mood, off (a day off), goal (cups a day)};
+//          gained (snacks earned while hidden), hour (0..23), energy, mood, off (a day off), goal (cups a day),
+//          masked (1.1.2: the money mask is on: no line with an amount, {money} {gain} {step} {item})};
 //          every field is optional.
 // Besides the pet's states, 1.1 events (spec §5.1-5.3): drank (a cup logged; the pet sips), waterGoal (the cup that
 // reaches the goal), standOk (起來了), focusPoke (a poke during a focus, exactly 「專心中～」).
@@ -216,8 +217,10 @@ QJZ.lines = (function () {
   }
 
   // The text for a placeholder, or null when the context cannot fill it. probe: only whether it can (no rng use).
+  var MONEY_KEYS = { money: 1, gain: 1, step: 1, item: 1 };
   function value(key, c, probe) {
     var kind = kindOf(c);
+    if (c.masked && MONEY_KEYS[key]) return null;
     switch (key) {
       case 'name': return typeof c.name === 'string' && c.name ? c.name : NAME[kind];
       case 's': return SOUND[kind];

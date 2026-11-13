@@ -106,6 +106,11 @@ window.QJZ = window.QJZ || {};
 // 1.1.2 item 6: the "+0.xx" that goes up from the amount (its [data-plus]) once a second says how much the amount on
 // screen rose since the last one, in the cents it shows (floatPlus): never a rate rounded on its own. A second with no
 // visible rise has none; after a gap (hidden, a clock jump), at lunch or after work there is none for the jump.
+// 1.1.2 item 10: the money mask (settings.privacy.maskMoney). A click on the amount ([data-mask]: the amount in U1, U3,
+// U5-B, U12, U13, U7's whole money tag, U10's amounts, M3's tag) turns it on or off (a drag or a poke never does; M3's
+// double click expands and leaves it as it was). While it is on, every main layout is .masked: the odometers show ***,
+// and so do 每秒 +NT$, 本月累計, 可以買 and U10's amounts (the model); no "+0.xx" floats, and the pet says no amount
+// (QJZ.lines' masked). PANEL (設定, 紀錄) is never masked.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
@@ -197,12 +202,14 @@ QJZ.layouts = (function () {
     if (n % 2) return { month: true, item: null };
     return { month: false, item: items && items.length ? items[Math.floor(n / 2) % items.length] : null };
   }
-  function itemText(it, earned) { return it ? (it.icon ? it.icon + ' ' : '') + '×' + QJZ.rewards.itemCount(earned, it) : ''; }
+  function itemText(it, earned, masked) {
+    return it ? (it.icon ? it.icon + ' ' : '') + (masked ? '***' : '×' + QJZ.rewards.itemCount(earned, it)) : '';
+  }
   function money(n) { return QJZ.odometer.format(n); }
   // Only the rate (simplification #4): the salary itself is never on screen, where anyone walking by can read it.
-  function rateText(salary, perSec) {
+  function rateText(salary, perSec, masked) {
     if (!salary || !(salary.amount > 0)) return '還沒設定薪資（右鍵 → 設定）';
-    return '每秒 +NT$ ' + perSec.toFixed(3);
+    return '每秒 +NT$ ' + (masked ? '***' : perSec.toFixed(3));
   }
   function remainPhrase(key, sec) {
     if (key === 'done') return '可以下班囉！';
@@ -299,21 +306,23 @@ QJZ.layouts = (function () {
     var kind = s.pet && s.pet.kind === 'cat' ? 'cat' : 'hamster';
     var v = vitals(st, pct);
     var snacks = st.snacks > 0 ? st.snacks : 0;
-    var clock = clockText(ms), month = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
+    var masked = !!(s.privacy && s.privacy.maskMoney);
+    var clock = clockText(ms), month = masked ? '***' : money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
     var card = cardAt(s.items, ms);
     var m = {
+      masked: masked,
       key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
-      money: money(snap.earned), moneyWhole: 'NT$ ' + money(snap.earned).slice(0, -3),
+      money: masked ? '***' : money(snap.earned), moneyWhole: 'NT$ ' + (masked ? '***' : money(snap.earned).slice(0, -3)),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
       remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
       m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
       itemLabel: it ? '可以買' + it.name : '',
-      item: itemText(it, snap.earned),
+      item: itemText(it, snap.earned, masked),
       month: month,
-      card: card.month ? '📅 ' + month : itemText(card.item, snap.earned), cardMonth: card.month,
-      rate: rateText(s.salary, perSec),
+      card: card.month ? '📅 ' + month : itemText(card.item, snap.earned, masked), cardMonth: card.month,
+      rate: rateText(s.salary, perSec, masked),
       hearts: heartsText(v.hearts), bolts: v.bolts,
       snacks: snacks, snack: SNACK[kind] + '×' + snacks,
       plus: key === 'working' && perSec > 0   // the amount rises: the "+0.xx" floats (floatPlus)
@@ -511,6 +520,8 @@ QJZ.layouts = (function () {
         view.pins[i].setAttribute('aria-pressed', String(pinOn));
       }
     }
+    var masked = m.masked && view.name !== 'PANEL';   // 設定 and 紀錄 are opened on purpose: never masked
+    if (view.cache.masked !== masked) { view.cache.masked = masked; view.el.classList.toggle('masked', masked); }
     if (view.statusKey !== m.key) {
       if (view.statusKey) view.el.classList.remove('s-' + view.statusKey);
       view.el.classList.add('s-' + m.key);
@@ -669,7 +680,8 @@ QJZ.layouts = (function () {
       minutesToEnd: working ? snap.remainingSec / 60 : undefined,
       hour: new Date(ms).getHours(), off: statusKey(snap, st.today, s) === 'off',
       energy: st.mood ? st.mood.energy : undefined, mood: st.mood ? st.mood.mood : undefined,
-      goal: s.health && s.health.water ? s.health.water.goal : undefined
+      goal: s.health && s.health.water ? s.health.water.goal : undefined,
+      masked: !!(s.privacy && s.privacy.maskMoney)   // no line with an amount (1.1.2 item 10)
     };
   }
   // The pet's own rng (seeded by ?rng=), so chatter timing and lines are reproducible.
@@ -1217,8 +1229,8 @@ QJZ.layouts = (function () {
     if (!ready()) return false;
     if (!app().feed()) {
       var st = app().state, step = st.settings.milestone, earned = st.snap.earned;
-      say(st.snap.status === 'working' && st.rates.perSecond > 0 ?
-        '還沒有零食耶～再賺 NT$ ' + money(step - earned % step) + ' 就有了！' : '還沒有零食耶～');
+      say(st.snap.status === 'working' && st.rates.perSecond > 0 ? (st.settings.privacy.maskMoney ? '還沒有零食耶～再加油一下就有了！' :
+        '還沒有零食耶～再賺 NT$ ' + money(step - earned % step) + ' 就有了！') : '還沒有零食耶～');
       return false;
     }
     var v = view, host = v.fx, now = app().nowMs(), fly = host && host.animate ? SNACK_FLY_MS : 0;
@@ -1395,7 +1407,7 @@ QJZ.layouts = (function () {
   function floatPlus(m) {
     var now = app().nowMs(), cents = shownCents(), gap = plusAt === null || now - plusAt > 2500 || now < plusAt;
     plusAt = now;
-    if (gap || !m.plus || plusCents === null || cents < plusCents) { plusCents = cents; return; }
+    if (gap || !m.plus || m.masked || plusCents === null || cents < plusCents) { plusCents = cents; return; }
     if (cents === plusCents) return;
     var d = cents - plusCents;
     plusCents = cents;
@@ -1489,7 +1501,7 @@ QJZ.layouts = (function () {
     if (dragging) endDrag();   // a new press: whatever drag there was is over
     dragged = false;
     // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
-    if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
+    if (e.detail <= 1) { answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]')); maskRun = false; }
     else if (answerRun) return;
     // a title-bar button takes no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide the window again
     if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
@@ -1550,7 +1562,17 @@ QJZ.layouts = (function () {
     }
     if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
+    var mk = e.target.closest('[data-mask]');
+    if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses (M3's double click: onDbl)
+      if (e.detail <= 1) { toggleMask(); maskRun = true; }
+      return;
+    }
     if (isPetPart(e.target)) poke(e);
+  }
+  var maskRun = false;   // this run of presses (a click, its double) toggled the mask
+  function toggleMask() {
+    if (!ready()) return;
+    app().saveSettings({ privacy: { maskMoney: !app().state.settings.privacy.maskMoney } });
   }
   // An answer button (final review m-3). The bubble goes at once, so the second press of a double click lands on
   // whatever was under the button: that press, its click and its dblclick do nothing (answerRun: onDown, onClick,
@@ -1585,7 +1607,10 @@ QJZ.layouts = (function () {
   // A double click on the badge expands M3, unless its run of presses began on an answer button (answer).
   function onDbl(e) {
     if (answerRun) return;
-    if (cur === 'M3' && inRoot(e.target)) show(backTarget(app().state.settings));
+    if (cur !== 'M3' || !inRoot(e.target)) return;
+    if (maskRun && e.target.closest('[data-mask]')) toggleMask();   // its first click toggled the mask: as it was
+    maskRun = false;
+    show(backTarget(app().state.settings));
   }
   // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
   // view; either way the hit rects follow.
@@ -1747,7 +1772,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null;
+    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null; maskRun = false;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();

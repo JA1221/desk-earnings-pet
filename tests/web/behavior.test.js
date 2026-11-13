@@ -634,4 +634,25 @@
     }
     ok(withGoal > 0, 'the goal line comes up');
   });
+
+  // 1.1.2 item 10: while the money mask is on (ctx.masked) the pet names no amount: a line with {money}, {gain}, {step}
+  // or {item} never comes up; the others do.
+  test('lines: masked, no line names an amount', function () {
+    var rng = B.rng(9), seen = { plain: 0, money: 0 };
+    var ctx = { kind: 'cat', earned: 1500, step: 100, gained: 2, minutesToEnd: 200, items: [{ name: '珍奶', price: 65 }], hour: 10 };
+    ['idle', 'typing', 'celebrate', 'missed', 'hop', 'sprint'].forEach(function (st) {
+      for (var i = 0; i < 300; i++) {
+        var c = {}, k;
+        for (k in ctx) c[k] = ctx[k];
+        c.rng = rng;
+        var open = L.pick(st, c);
+        if (/NT\$|珍奶/.test(open)) seen.money++;
+        c.masked = true;
+        var line = L.pick(st, c);
+        ok(!/NT\$|\d{3}|珍奶/.test(line), st + ' masked: ' + line);
+        if (line) seen.plain++;
+      }
+    });
+    ok(seen.money > 0 && seen.plain > 0, 'unmasked they come up; masked the others still do: ' + JSON.stringify(seen));
+  });
 })();

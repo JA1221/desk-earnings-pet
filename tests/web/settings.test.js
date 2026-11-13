@@ -50,7 +50,14 @@ test('an old 1.0 settings.json reads back with every value unchanged (only layou
   want.layout.topmost.U10=true; want.layout.topmost.U12=false; want.layout.topmost.U13=false; want.layout.capsule='top';
   want.display.powerSaver=false;
   want.health={asked:false,every:50,sit:{on:false},water:{on:false,goal:8},pomodoro:{focus:25,short:5,long:15,longEvery:4}};
+  want.privacy.maskMoney=false;
   eq(s,want); });
+// 1.1.2 item 10: the money mask, off by default and on an upgrade, a saved one kept.
+test('privacy.maskMoney: off by default and for an older file; a saved true stays; anything else is off', function(){
+  eq(QJZ.settings.DEFAULTS.privacy.maskMoney,false);
+  eq(P('{"privacy":{"hideFromCapture":false,"hotkey":"Ctrl+Alt+J"}}').settings.privacy,{hideFromCapture:false,hotkey:'Ctrl+Alt+J',maskMoney:false},'1.1.1: added, nothing else changes');
+  eq(P('{"privacy":{"maskMoney":true}}').settings.privacy.maskMoney,true);
+  eq(P('{"privacy":{"maskMoney":"yes"}}').settings.privacy.maskMoney,false); });
 // Review M-2: a 1.0 user who picked 開啟時的版型 = 迷你徽章 (layout.start 'M3') keeps opening in the mini badge: a file
 // without layout.mini gets mini = (start === 'M3'). A mini that is there wins; no other value changes.
 test('layout.mini comes from a 1.0 start layout of M3 when the file has no mini', function(){

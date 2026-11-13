@@ -2351,6 +2351,90 @@
     done();
   });
 
+  // ---------- 1.1.2 item 10: the money mask ----------
+  // A click on the amount (U7: on the money tag; U10: on the capsule's amount; M3: its tag) masks every money figure on the
+  // main screens with ***: today's amount, 每秒 +NT$, 本月累計, 可以買, U10's amounts; the "+0.xx" stays away and the pet
+  // says no amount. Settings and 紀錄 are not masked. Saved (privacy.maskMoney). A drag or a poke is never a mask click.
+  var MONEY_RE = /\d\.\d\d|NT\$ ?\d|×\d/;   // an amount (2 decimals), NT$ and a figure, an item count
+  function shownMoney(e) {
+    var all = shownText(e.root.querySelectorAll('.lay')).join(' ');
+    var t = all.replace(/\d+(\.\d)?%/g, '').replace(/\d\d:\d\d(:\d\d)?/g, '').replace(/[🌻🐟]×\d+/g, '').replace(/×\d+(?![\d.])/g, '');
+    var m = MONEY_RE.exec(t);
+    return m ? t.slice(Math.max(0, m.index - 12), m.index + 12) : null;
+  }
+  test('layouts DOM: a click on the amount masks every money figure on the main screens; again shows them; saved', function () {
+    floats(function (out) {
+      var e = shown(mk(at(12, 10, 0, 0), { first: 'U1', care: true }));
+      e.tick(at(12, 10, 0, 1));
+      ok(shownMoney(e) !== null, 'U1 shows money: ' + shownMoney(e));
+      eq(QJZ.app.state.settings.privacy.maskMoney, false, 'off by default');
+      clickOn($(e, '.u1 .money'));
+      eq(QJZ.app.state.settings.privacy.maskMoney, true, 'a click masks');
+      QJZ.app.flush();
+      ok(JSON.parse(last(e.sent, 'saveSettings').text).privacy.maskMoney === true, 'saved');
+      ok($(e, '.u1').classList.contains('masked'));
+      eq([seen($(e, '.u1 .money')), text(e, '[data-b=rate]'), text(e, '[data-b=month]')], ['NT$***', '每秒 +NT$ ***', '***']);
+      ok(/^\S* ?\*\*\*$/.test(text(e, '[data-b=item]')), '可以買: ' + text(e, '[data-b=item]'));
+      ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3'].forEach(function (name, i) {
+        e.menu(name === 'M3' ? 'mini' : 'layout:' + name);
+        out.length = 0;
+        e.tick(at(12, 10, 0, 2 + i));
+        if (name === 'U10') { hoverOn($(e, '.isl')); eq(text(e, '.iv-x .im'), 'NT$ ***', 'U10 expanded'); }
+        eq(shownMoney(e), null, name + ': no money on screen');
+        eq(out.length, 0, name + ': no "+0.xx"');
+        if (name === 'U3') { for (var k = 0; k < 2; k++) { e.tick(at(12, 10, 10 + k * 10)); eq(shownMoney(e), null, 'U3: either card'); } }
+        e.menu(name === 'M3' ? 'mini' : 'layout:U1');
+      });
+      QJZ.layouts.openPanel('history');
+      ok(!$(e, '.lay').classList.contains('masked') && /\d\.\d\d/.test(text(e, '[data-o=total]')), '紀錄 is not masked');
+      QJZ.layouts.closePanel();
+      clickOn($(e, '.u1 .money'));
+      eq(QJZ.app.state.settings.privacy.maskMoney, false, 'a click on the *** shows them again');
+      ok(!$(e, '.u1').classList.contains('masked') && shownMoney(e) !== null);
+      e.tick(at(12, 10, 1, 0));
+      e.tick(at(12, 10, 1, 1));
+      eq(out.length, 1, 'the "+0.xx" again');
+      done();
+    });
+  });
+
+  test('layouts DOM: the mask click: the amount in every layout, U7\'s tag, never a drag or a poke; M3\'s double click expands', function () {
+    var e = shown(mk(at(12, 10, 0, 0), { first: 'U1', care: true }));
+    function masked() { return QJZ.app.state.settings.privacy.maskMoney; }
+    var TARGET = { U1: '.u1 .money', U3: '.u3 .money', U5B: '.u5b .money', U7: '.u7 .mtag .thin', U10: '.u10 .iv-c .im', U12: '.u12 .money', U13: '.u13 .pm' };
+    Object.keys(TARGET).forEach(function (name) {
+      e.menu('layout:' + name);
+      var t = $(e, TARGET[name]), was = masked();
+      clickOn(t);
+      eq(masked(), !was, name + ': a click toggles it');
+      var r = t.getBoundingClientRect(), n = of(e.sent, 'dragStart').length;
+      mouse(t, 'mousedown', r.left + 5, r.top + 5, { detail: 1 });
+      mouse(t, 'mousemove', r.left + 25, r.top + 5);
+      mouse(t, 'mouseup', r.left + 25, r.top + 5, { buttons: 0 });
+      mouse(t, 'click', r.left + 25, r.top + 5, { buttons: 0, detail: 1 });
+      eq([of(e.sent, 'dragStart').length, masked()], [n + 1, !was], name + ': a drag moves the window and toggles nothing');
+      e.bridge.emit({ type: 'dragEnd' });
+    });
+    e.menu('layout:U1');
+    var m0 = masked();
+    clickOn(petPart(e));
+    eq(masked(), m0, 'a poke is a poke');
+    e.menu('mini');
+    var tag = $(e, '.m3 .tagm');
+    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
+    eq(masked(), !m0, 'M3: a click on its tag toggles it');
+    mouse(tag, 'mousedown', 5, 5, { detail: 1 });
+    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
+    mouse(tag, 'mousedown', 5, 5, { detail: 2 });
+    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 2 });
+    mouse(tag, 'dblclick', 5, 5, { buttons: 0, detail: 2 });
+    eq([QJZ.layouts.current(), masked()], ['U1', !m0], 'M3: a double click expands and leaves the mask as it was');
+    done();
+    var f = mk(at(12, 10, 0, 0), { first: 'U5B', settings: { privacy: { maskMoney: true } } });
+    eq(shownMoney(f), null, 'a saved mask holds after a restart');
+    done();
+  });
+
   // ---------- 1.1.2 item 6: the "+0.xx" float ----------
   // Each float says how much the amount on screen went up since the float before it, in its own cents (QJZ.odometer's
   // rounding): 50,000 a month is NT$ 0.0789 a second, so the amount shows +0.08 most seconds and +0.07 now and then,
