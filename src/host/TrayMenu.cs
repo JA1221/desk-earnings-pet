@@ -9,16 +9,18 @@ using System.Windows.Forms;
 
 // The app's one menu, in A1 colours: the tray icon shows it on right click, and the host shows it for the
 // page's contextMenu message. Every item raises ItemClicked with its action id (layout:U1|U3|U5B|U7|U10|U12|U13,
-// mini, drink, pomodoro, feed, start, adjust, end, topmost, capsule:top|bottomLeft|bottomCenter|bottomRight,
+// mini, drink, undrink, pomodoro, feed, start, adjust, end, topmost, capsule:top|bottomLeft|bottomCenter|bottomRight,
 // settings, history, toggleVisible, quit); the host decides what each does.
 // Ordered by how often each is used (simplification #2, spec 4.9):
-//   記一杯水 3/8, 開始番茄鐘, 餵食 ×N  |  開始上班 / 下班 / 繼續上班, 調整起算時間  |  版型 ▶, 紀錄, 設定  |  隱藏 / 顯示, 結束
+//   記一杯水 3/8, 少記一杯, 開始番茄鐘, 餵食 ×N  |  開始上班 / 下班 / 繼續上班, 調整起算時間  |  版型 ▶, 紀錄, 設定  |  隱藏 / 顯示, 結束
 //   版型 ▶: U1 U3 U5-B U7 U10 U12 U13  |  縮成迷你  |  永遠在最上層 (for the current layout), 膠囊位置 ▶ (U10 only)
 //   膠囊位置 ▶: 上方正中間, 左下, 中下, 右下 (the current dock checked)
 // The work item follows the status the page reports (SetWork): 開始上班 (start) before work, 下班 (end) while the
 // day runs, 繼續上班 (start: the page continues an ended day) after 下班. 餵食 shows the snack count (SetSnacks).
 // 記一杯水 shows the cups and 開始番茄鐘 reads 停止番茄鐘（還剩 N 分） while a focus or a break runs (SetHealth; the
 // label is worked out again each time the menu opens); either way it sends pomodoro and the page toggles.
+// 少記一杯 (1.1.1, undrink: the page takes one cup off today, never below 0) shows only while today's cups are above 0
+// (SetHealth's cups, CupsToday).
 // 縮成迷你 is checked in M3; clicking it there goes back to the main layout (the page toggles).
 // The tray icon (tooltip 錢進中) is a coin drawn at runtime; double-clicking it raises IconDoubleClick.
 public class TrayMenu : IDisposable
@@ -38,6 +40,7 @@ public class TrayMenu : IDisposable
     readonly ToolStripMenuItem work;
     readonly ToolStripMenuItem feed;
     readonly ToolStripMenuItem drink;
+    readonly ToolStripMenuItem undrink;
     readonly ToolStripMenuItem pomodoro;
     string workAction = "start";   // what the work item sends now
     string pomodoroPhase;          // healthMenu pomodoro.phase; null until the page reports
@@ -57,6 +60,8 @@ public class TrayMenu : IDisposable
         menu.Renderer = renderer;
         menu.ShowImageMargin = true;   // room for the check marks
         drink = Add(menu.Items, "記一杯水", "drink");
+        undrink = Add(menu.Items, "少記一杯", "undrink");
+        undrink.Available = false;   // only while today has a cup (SetHealth)
         pomodoro = Add(menu.Items, "開始番茄鐘", "pomodoro");
         feed = Add(menu.Items, "餵食", "feed");
         menu.Items.Add(new ToolStripSeparator());
@@ -171,14 +176,26 @@ public class TrayMenu : IDisposable
     }
 
     // The page's healthMenu: cups = today's cups as the page shows them ("3/8"), or null when it hides them (spec 4.9
-    // #8); phase and endsMs = the pomodoro (idle / focus / break / breakOver, and when a focus or break ends, epoch ms).
+    // #8: the 喝水 reminder is off and today has no cup); phase and endsMs = the pomodoro (idle / focus / break /
+    // breakOver, and when a focus or break ends, epoch ms). 少記一杯 shows while today has a cup.
     public void SetHealth(string cups, string phase, double endsMs)
     {
         string text = string.IsNullOrEmpty(cups) ? null : cups;
         if (drink.ShortcutKeyDisplayString != text) drink.ShortcutKeyDisplayString = text;
+        bool any = CupsToday(cups) > 0;
+        if (undrink.Available != any) undrink.Available = any;
         pomodoroPhase = phase;
         pomodoroEndsMs = endsMs;
         UpdatePomodoroLabel();
+    }
+
+    // Today's cups from healthMenu's cups ("3/8": the whole number before the slash); 0 for null or anything else.
+    public static int CupsToday(string cups)
+    {
+        if (string.IsNullOrEmpty(cups)) return 0;
+        int slash = cups.IndexOf('/');
+        int n;
+        return int.TryParse(slash >= 0 ? cups.Substring(0, slash) : cups, NumberStyles.None, CultureInfo.InvariantCulture, out n) ? n : 0;
     }
 
     // 停止番茄鐘（還剩 N 分） while a focus or a break runs (N whole minutes rounded up, at least 1), else 開始番茄鐘.

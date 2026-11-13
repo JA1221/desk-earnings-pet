@@ -68,11 +68,11 @@ public static class ShowRescue
 
     // Tray and menu actions the user wants to see the result of: they show and raise the window (and give it the
     // keyboard in an activating layout). 隱藏/顯示 toggles on its own; 結束 quits; 永遠在最上層 changes only the band;
-    // the quick actions 記一杯水 (drink) and 開始／停止番茄鐘 (pomodoro) never un-hide the window.
+    // the quick actions 記一杯水 (drink), 少記一杯 (undrink) and 開始／停止番茄鐘 (pomodoro) never un-hide the window.
     public static bool MenuShows(string action)
     {
         return action != null && action != "toggleVisible" && action != "quit" && action != "topmost"
-            && action != "drink" && action != "pomodoro";
+            && action != "drink" && action != "undrink" && action != "pomodoro";
     }
 
     // Of those, the ones whose result shows in the current layout, which then takes the keyboard at once (if it is

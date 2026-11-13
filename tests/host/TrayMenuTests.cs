@@ -33,7 +33,7 @@ public static class TrayMenuTests
     {
         using (var t = new TrayMenu())
         {
-            Assert.Eq("記一杯水|開始番茄鐘|餵食|開始上班|調整起算時間|版型|紀錄|設定|隱藏|結束", ItemLabels(t.Menu.Items), "top level");
+            Assert.Eq("記一杯水|少記一杯|開始番茄鐘|餵食|開始上班|調整起算時間|版型|紀錄|設定|隱藏|結束", ItemLabels(t.Menu.Items), "top level");
         }
     }
 
@@ -70,10 +70,11 @@ public static class TrayMenuTests
     {
         string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "mini", "topmost", "feed", "adjust",
                          "settings", "history", "toggleVisible", "quit",
-                         "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink",
+                         "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink", "undrink",
                          "capsule:top", "capsule:bottomLeft", "capsule:bottomCenter", "capsule:bottomRight" };
         using (var t = new TrayMenu())
         {
+            t.SetHealth("1/8", "idle", 0);   // 少記一杯 shows only with a cup today
             var got = new List<string>();
             t.ItemClicked += got.Add;
             foreach (string id in ids) Item(t, id).PerformClick();
@@ -171,6 +172,44 @@ public static class TrayMenuTests
             Assert.True(string.IsNullOrEmpty(d.ShortcutKeyDisplayString), "hidden by the page: empty");
             Assert.True(d.Enabled, "still clickable");
         }
+    }
+
+    // 1.1.1: 少記一杯 sits right under 記一杯水 and shows only while today's cups (healthMenu cups, "N/goal") are above 0;
+    // the page takes one cup off (undrink), never below 0.
+    public static void Test_UndrinkShowsOnlyWithACupToday()
+    {
+        using (var t = new TrayMenu())
+        {
+            ToolStripMenuItem u = Item(t, "undrink");
+            Assert.Eq("少記一杯", u.Text, "label");
+            Assert.Eq(t.Menu.Items.IndexOf(Item(t, "drink")) + 1, t.Menu.Items.IndexOf(u), "directly under 記一杯水");
+            Assert.True(!u.Available, "nothing reported yet: hidden");
+            t.SetHealth("3/8", "idle", 0);
+            Assert.True(u.Available, "3 cups: shown");
+            Assert.True(string.IsNullOrEmpty(u.ShortcutKeyDisplayString), "no count of its own");
+            var got = new List<string>();
+            t.ItemClicked += got.Add;
+            u.PerformClick();
+            Assert.Eq("undrink", string.Join(",", got.ToArray()), "its action id");
+            t.SetHealth("0/8", "idle", 0);
+            Assert.True(!u.Available, "0 cups: hidden");
+            t.SetHealth("1/8", "focus", 0);
+            Assert.True(u.Available, "1 cup: shown");
+            t.SetHealth(null, "idle", 0);
+            Assert.True(!u.Available, "cups hidden by the page (water off, none today): hidden");
+        }
+    }
+
+    public static void Test_CupsToday()
+    {
+        Assert.Eq(3, TrayMenu.CupsToday("3/8"), "3/8");
+        Assert.Eq(0, TrayMenu.CupsToday("0/8"), "0/8");
+        Assert.Eq(12, TrayMenu.CupsToday("12/8"), "over the goal");
+        Assert.Eq(0, TrayMenu.CupsToday(null), "null");
+        Assert.Eq(0, TrayMenu.CupsToday(""), "empty");
+        Assert.Eq(0, TrayMenu.CupsToday("x/8"), "garbage");
+        Assert.Eq(0, TrayMenu.CupsToday("-2/8"), "negative");
+        Assert.Eq(0, TrayMenu.CupsToday("99999999999/8"), "absurd");
     }
 
     public static void Test_StateShowsChecksAndToggleLabel()

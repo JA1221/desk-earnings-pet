@@ -94,8 +94,8 @@ public static class ShowRescueTests
         foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "feed", "start", "adjust", "end", "settings", "history",
             "layout:U10", "capsule:top", "capsule:bottomRight" })
             Assert.True(ShowRescue.MenuShows(a), a + " shows and raises");
-        // quick actions (記一杯水, 開始番茄鐘) never un-hide the window
-        foreach (string a in new[] { "toggleVisible", "quit", "topmost", "drink", "pomodoro", null })
+        // quick actions (記一杯水, 少記一杯, 開始番茄鐘) never un-hide the window
+        foreach (string a in new[] { "toggleVisible", "quit", "topmost", "drink", "undrink", "pomodoro", null })
             Assert.True(!ShowRescue.MenuShows(a), (a ?? "null") + " does not");
     }
 
@@ -106,7 +106,7 @@ public static class ShowRescueTests
         foreach (string a in new[] { "feed", "start", "adjust", "end", "settings", "history" })
             Assert.True(ShowRescue.MenuActivatesNow(a), a + " activates now");
         foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "toggleVisible", "quit", "topmost", null,
-            "capsule:top", "capsule:bottomRight", "drink", "pomodoro" })
+            "capsule:top", "capsule:bottomRight", "drink", "undrink", "pomodoro" })
             Assert.True(!ShowRescue.MenuActivatesNow(a), (a ?? "null") + " does not");
     }
 
