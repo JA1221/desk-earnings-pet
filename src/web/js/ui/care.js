@@ -29,7 +29,8 @@ window.QJZ = window.QJZ || {};
 // nothing at all (no chatter, event or milestone line, banner or drank line). Nothing is replayed after it; only a
 // queued bubble comes, 3 s after on ends.
 // state also carries standIn (minutesToStand(): null when nothing is asked), nth (the running focus's 第 N 顆 on its
-// start day, else 0) and here, for the layouts.
+// start day, else 0), here and forced (a reminder asked for waits: the timer reads 0, which no countdown shows), for
+// the layouts.
 // Events (on): change (state); prompt {type:'show'|'update'|'wave'|'hide', prompt, view, quiet}; cue ('focus' | 'wave'
 // | 'holdCup' | 'stretch' | null); drank {cups, goalReached}; standup {count, source:'up'|'drink'|'break'|'lock'}.
 QJZ.care = (function () {
@@ -37,7 +38,7 @@ QJZ.care = (function () {
   var R = QJZ.reminders, P = QJZ.pomodoro, Q = QJZ.prompt;
 
   var state = {
-    ready: false, visible: false, fullscreen: false, here: false, panel: false, away: false,
+    ready: false, visible: false, fullscreen: false, here: false, panel: false, away: false, forced: false,
     r: null, p: null, q: null, prompt: null, breakWater: false,
     health: QJZ.health.of(null), goals: { cups: 0, tomatoes: 0, standups: 0 }, show: { cups: false, tomatoes: false },
     cupsText: '', turn: 0, standIn: null, nth: 0
@@ -170,7 +171,10 @@ QJZ.care = (function () {
         if (adv.events.length || stale) savePomodoro();
         state.r = R.advance(state.r, now, rec, s);
         seenRec = { day: rec.day, startMs: rec.startMs, endMs: rec.endMs };
-        var cups = QJZ.health.of(rec).cups;
+        var cups = QJZ.health.of(rec).cups, asks = R.ask(s.health, cups);
+        // a reminder asked for (現在提醒我一次) ends once nothing would be asked (both switches off, or water alone and the
+        // goal reached), so it never pops up later when a switch comes back on or a cup is taken off (final review M-4)
+        if (state.r.forced && !asks.sit && !asks.water) state.r = withR({ forced: false });
         var res = Q.step(state.q, {
           nowMs: now, blocked: !state.visible || state.fullscreen || state.panel, focus: state.p.phase === 'focus',
           working: working(rec, s, now), forced: !!state.r.forced, due: R.due(state.r, now, s.health, cups), notice: state.p.notice,
@@ -228,11 +232,12 @@ QJZ.care = (function () {
     state.prompt = state.q.prompt;
     state.away = state.r.away;
     state.standIn = minutesToStand();
+    state.forced = !!state.r.forced;
     state.nth = p.phase === 'focus' ? healthOn(p.day).tomatoes + 1 : 0;
     var cue = cueNow();
     if (cue !== lastCue) { lastCue = cue; emit('cue', cue); }
     var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.here, state.panel,
-      state.away, state.standIn, state.nth]);
+      state.away, state.standIn, state.nth, state.forced]);
     if (sig !== lastSig) { lastSig = sig; emit('change', state); }
     var menu = { cups: state.show.cups ? state.cupsText : null,
       pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
@@ -412,6 +417,9 @@ QJZ.care = (function () {
         else if (fx === 'ackNotice') { state.p = P.ack(state.p); pomo = true; }
       });
       if (pomo) savePomodoro();
+      // outside work time an answer ends a reminder asked for: 等一下 would bring it back every 10 minutes after 下班,
+      // where a real one never shows (final review M-3); during work it comes back like any other
+      if (state.r.forced && !working(today(), settings(), now)) state.r = withR({ forced: false });
     });
     return done;
   }
@@ -446,7 +454,7 @@ QJZ.care = (function () {
     for (var k in listeners) listeners[k] = [];
     started = false; bridge = null; nowFn = null; seenHistory = null; seenRec = null;
     busy = 0; stepping = false; locked = false; lastNow = null; lineTurn = 0; lastSig = null; lastMenu = null; lastCue = null;
-    state.ready = state.visible = state.fullscreen = state.here = state.panel = state.away = state.breakWater = false;
+    state.ready = state.visible = state.fullscreen = state.here = state.panel = state.away = state.breakWater = state.forced = false;
     state.r = state.p = state.q = state.prompt = null;
     state.health = QJZ.health.of(null); state.goals = { cups: 0, tomatoes: 0, standups: 0 };
     state.show = { cups: false, tomatoes: false }; state.cupsText = ''; state.turn = 0; state.standIn = null; state.nth = 0;

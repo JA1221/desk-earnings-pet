@@ -2295,7 +2295,7 @@
     eq(texts, ['32 分', '31 分'], 'once a minute');
     e.tick(at(12, 9, 49, 59));
     e.tick(at(12, 9, 50));
-    ok($(e, '.u1').classList.contains('prompting') && !drawn(n), 'not while it asks');
+    ok($(e, '.u1').classList.contains('prompting') && getComputedStyle(n).visibility === 'hidden', 'not while it asks (its room kept)');
     clickOn($(e, '[data-answer=up]'));
     eq(seen(n), '50 分', 'answered: the next one');
     C.toggleFocus();
@@ -2392,10 +2392,11 @@
     // under its mouth a white patch from 1 px inside the bubble into the border, so the edge where the half is cut off
     // lies on white at any scale (at 150 % it falls mid-pixel, and the border showed through as a hairline)
     var pa = getComputedStyle(el, '::before'), bw = side === 'bottom' ? r0(b.borderBottomWidth) : r0(b.borderLeftWidth);
-    eq([pa.content !== 'none', pa.backgroundColor], [true, 'rgb(255, 255, 255)'], what + ': the patch');
+    eq([pa.content !== 'none', pa.backgroundColor], [true, b.backgroundColor], what + ': the patch, in the bubble own fill');
     var inward = side === 'bottom' ? r0(pa.bottom) + r0(pa.height) : r0(pa.left) + r0(pa.width), out = side === 'bottom' ? -r0(pa.bottom) : -r0(pa.left);
     ok(inward >= 0.9 && out > 0 && out < bw, what + ': 1 px into the bubble, into the border but not past it ' + [inward, out, bw]);
-    var along = side === 'bottom' ? [r0(pa.left), r0(pa.left) + r0(pa.width), r0(t.left) + sz / 2] :
+    var tx = new DOMMatrix(t.transform).e, px = pa.transform === 'none' ? 0 : new DOMMatrix(pa.transform).e;   // a translateX(-50%)
+    var along = side === 'bottom' ? [r0(pa.left) + px, r0(pa.left) + px + r0(pa.width), r0(t.left) + tx + sz / 2] :
       side === 'leftTop' ? [r0(pa.top), r0(pa.top) + r0(pa.height), r0(t.top) + sz / 2] : [r0(pa.bottom), r0(pa.bottom) + r0(pa.height), r0(t.bottom) + sz / 2];
     near((along[0] + along[1]) / 2, along[2], 0.01, what + ': centred on the tail');
     ok(along[1] - along[0] < 2 * (half - bw * Math.SQRT2), what + ': inside the mouth, between the arms');
@@ -2403,7 +2404,7 @@
     if (side === 'bottom') {
       eq(deg, 45, what + ': points down');
       near(r(t.bottom), -sz / 2, 0.01, what + ': centred on the inner edge of the bottom border');
-      var c = r(t.left) + sz / 2, bl = r(b.borderBottomLeftRadius) - r(b.borderLeftWidth), br = r(b.borderBottomRightRadius) - r(b.borderRightWidth);
+      var c = r(t.left) + tx + sz / 2, bl = r(b.borderBottomLeftRadius) - r(b.borderLeftWidth), br = r(b.borderBottomRightRadius) - r(b.borderRightWidth);
       ok(c - half >= bl - 0.5 && c + half <= el.clientWidth - br + 0.5, what + ': on the straight bottom ' + [c - half, c + half, bl, el.clientWidth - br]);
       return;
     }
@@ -2436,6 +2437,16 @@
         tailCheck(b, 'bottom', x[0] + ' speech without a pet');
         done();
       });
+    });
+    // the final review's I-1 and I-2: U7's money tag points down at the pet, the early-leave question's bubble left at it
+    ['hamster:p0', 'cat:p4'].forEach(function (id) {
+      var e = mk(at(12, 10, 0), { first: 'U7', settings: petOf(id).settings });
+      tailCheck($(e, '.u7 .mtag'), 'bottom', 'U7 money tag ' + id);
+      QJZ.layouts.openPanel('question');
+      $(e, '.q-bubble b').textContent = '昨天是不是 16:02 就下班了？';   // (no question is pending here: its copy, as panels.js writes it)
+      $(e, '.q-bubble small').textContent = '最後一次鎖定螢幕是 16:02，原本會算到 18:05。';
+      tailCheck($(e, '.q-bubble'), 'left', 'the question bubble');
+      done();
     });
   });
 
@@ -2634,5 +2645,88 @@
     eq(ms(), [], 'U7 does not use it');
     ok(dp.classList.contains('hover'), 'its tools stay');
     done();
+  });
+
+  // ---------- 1.1.1 final review ----------
+  // M-1: U10's banner in every dock, the capsule folded, expanded (its grow ended) and as the call: in its lane, on one
+  // line (a longer one is cut short with …), inside the window, clear of the capsule and its shadow.
+  test('layouts DOM: U10\'s banner keeps to its lane on one line: every dock, folded, expanded and the call', function () {
+    var LONGER = BANNER[1] + '再加油一下下吧～再加油一下下吧～再加油一下下吧～';
+    QJZ.settings.DOCKS.forEach(function (dock) {
+      ['folded', 'expanded', 'call'].forEach(function (state) {
+        var e = shown(mk(at(12, 10, 0), { first: 'U10', care: true, rec: today(3, 2, 1),
+          settings: { health: ASK[state === 'call' ? 'both' : 'none'], layout: { capsule: dock } } }));
+        var isl = $(e, '.isl'), at2 = dock + ' ' + state + ': ';
+        if (state === 'call') C._dev({ prompt: 'both' });
+        if (state === 'expanded') hoverOn(isl);
+        eq([isl.classList.contains('hover'), $(e, '.u10').classList.contains('prompting')], [state === 'expanded', state === 'call'], at2 + 'the state');
+        [BANNER[0], LONGER].forEach(function (text, i) {
+          QJZ.layouts.say(text);
+          var r = bannerBox(e), sl = last(e.sent, 'setLayout'), c = isl.getBoundingClientRect();
+          var cap = { left: c.left, top: c.top, right: c.right, bottom: c.bottom + 5 };   // with its shadow
+          ok(r.left >= 0 && r.top >= 0 && r.right <= sl.width && r.bottom <= sl.height, at2 + i + ' inside the window ' + rect4(r));
+          ok(r.height < 40, at2 + i + ' one line: ' + r.height);
+          ok(apart(r, cap), at2 + i + ' clear of the capsule ' + rect4(r) + ' / ' + rect4(cap));
+        });
+        var b = e.root.querySelectorAll('.banner');
+        b = b[b.length - 1];
+        ok(b.scrollWidth > b.clientWidth && getComputedStyle(b).textOverflow === 'ellipsis', dock + ' ' + state + ': the longer one is cut short with …');
+        done();
+      });
+    });
+  });
+
+  // M-2: while working with 起來動 on, the compact countdown only hides (visibility) while its own reminder asks, so the
+  // U7 tag and U1's pills keep their size and places; real status changes (lunch, 下班, a focus) still take it away.
+  test('layouts DOM: the countdown keeps its room while its own reminder asks: U7\'s tag, the pet and U1\'s pills stay put', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U7', care: true, settings: { health: ASK.sit } }));   // 起來動 alone, nothing logged
+    e.tick(at(12, 9, 49, 59));
+    var n = $(e, STANDC.U7), tag = $(e, '.u7 .mtag').getBoundingClientRect(), pet = $(e, '[data-pet]').getBoundingClientRect();
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['1 分'], 'the tag\'s third line is the countdown alone');
+    e.tick(at(12, 9, 50));
+    ok($(e, '.u7').classList.contains('prompting'), 'it asks');
+    eq([getComputedStyle(n).visibility, drawn(n)], ['hidden', true], 'hidden, its room kept');
+    eq($(e, '.u7 .mtag').getBoundingClientRect().height, tag.height, 'the tag keeps its height');
+    eq($(e, '[data-pet]').getBoundingClientRect().top, pet.top, 'the pet does not jump');
+    clickOn($(e, '[data-answer=up]'));
+    eq([getComputedStyle(n).visibility, seen(n)], ['visible', '50 分'], 'answered: back, the next one');
+    e.menu('layout:U1');
+    var pills = function () { return Array.prototype.filter.call($(e, '.u1 .mpills').children, drawn).map(function (p) { return Math.round(p.getBoundingClientRect().left); }); };
+    e.tick(at(12, 10, 39, 59));
+    var before = pills();
+    eq(before.length, 2, 'U1: ▶ 番茄鐘 and the countdown');
+    e.tick(at(12, 10, 40));
+    ok($(e, '.u1').classList.contains('prompting'));
+    eq(pills(), before, 'U1: the pills stay where they were');
+    eq(getComputedStyle($(e, STANDC.U1)).visibility, 'hidden');
+    done();
+  });
+
+  // M-4: while a test reminder waits (a focus holds it) the timer says 0, which no countdown shows (U10's 「0 分後」).
+  test('layouts: while a test reminder waits, no countdown reads 0', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 10));
+    C.toggleFocus();
+    C.remindNow();
+    eq([C.state.standIn, C.state.prompt], [0, null], 'due, held by the focus');
+    var m = U.model(QJZ.app.state, at(12, 9, 10), C.state);
+    eq([m.showStand, m.showStandC, m.standIn], [false, false, '']);
+    hoverOn($(e, '.isl'));
+    ok(!/(^|[^0-9])0 分後/.test(e.root.textContent), 'U10: no 「0 分後」');
+    done();
+  });
+
+  // M-5: the title-bar buttons take no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide it again.
+  test('layouts DOM: a title-bar button keeps no keyboard focus', function () {
+    ['U1', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true }), x = $(e, '.bar [data-act=hide]');
+      ok(mouse(x, 'mousedown', 5, 5).defaultPrevented, name + ': a press does not move the focus to it');
+      x.focus();   // however it got there
+      x.click();
+      eq(of(e.sent, 'hide').length, 1, name + ': 關閉 hides');
+      ok(document.activeElement !== x && !(e.root.contains(document.activeElement) && document.activeElement.tagName === 'BUTTON'),
+        name + ': no button keeps the focus');
+      done();
+    });
   });
 })();

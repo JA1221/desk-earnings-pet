@@ -101,7 +101,13 @@ html.saver :is(.mtop .dot,.u3 .coin){animation:none}
   position:relative;margin-bottom:-6px;z-index:2;font-family:var(--font);color:var(--text);cursor:pointer}
 /* lifted by the scruff (dragged), the pet hangs in front of its tag: the tip under the cursor stays visible */
 .u7 .dpet.held .mtag{z-index:auto}
-.u7 .mtag::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bg);border-right:3px solid var(--line);border-bottom:3px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+/* its pointer down at the pet: the tail of base.css .bubble (1.1.1 final review I-1): only the outer half of the turned
+   square, centred on the inner edge of the border, its fill inside its borders, and a patch of the tag's fill under its
+   mouth; nothing of it reaches inside the tag */
+.u7 .mtag::after{content:"";position:absolute;box-sizing:border-box;left:50%;bottom:-7.5px;width:15px;height:15px;background:var(--bg);
+  background-clip:padding-box;border:0 solid var(--line);border-right-width:3px;border-bottom-width:3px;transform:translateX(-50%) rotate(45deg);
+  clip-path:polygon(100% 0,100% 100%,0 100%)}
+.u7 .mtag::before{content:"";position:absolute;left:50%;bottom:-1.5px;width:11px;height:2.5px;background:var(--bg);transform:translateX(-50%)}
 .u7 .mtag .money{font-size:24px}
 .u7 .mtag .thin{height:7px;margin-top:3px;border-width:2px}
 /* CPU: U7 stays on screen all day; only the pet moves (no perpetual decorative loop: the stripes stand still) */

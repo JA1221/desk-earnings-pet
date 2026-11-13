@@ -194,8 +194,12 @@
 .panel .q{display:flex;align-items:center;gap:14px}
 .panel .q .av{width:88px;height:88px;border-width:3px;box-shadow:3px 3px 0 var(--shadow);cursor:default}
 .panel .q-bubble{position:relative;flex:1;background:#fff;border:2.5px solid var(--line);border-radius:16px;box-shadow:2px 2px 0 var(--shadow);padding:10px 13px}
-.panel .q-bubble::before{content:"";position:absolute;left:-8px;top:50%;width:12px;height:12px;margin-top:-6px;background:#fff;
-  border-left:2.5px solid var(--line);border-bottom:2.5px solid var(--line);transform:rotate(45deg)}
+/* its tail left at the pet: the tail of base.css .bubble.side (1.1.1 final review I-2), centred on its left side, with
+   the white patch under its mouth */
+.panel .q-bubble::after{content:"";position:absolute;box-sizing:border-box;left:-6.5px;top:50%;width:13px;height:13px;margin-top:-6.5px;
+  background:#fff;background-clip:padding-box;border:0 solid var(--line);border-right-width:2.5px;border-bottom-width:2.5px;transform:rotate(135deg);
+  clip-path:polygon(100% 0,100% 100%,0 100%)}
+.panel .q-bubble::before{content:"";position:absolute;left:-1.25px;top:50%;width:2.25px;height:9px;margin-top:-4.5px;background:#fff}
 .panel .q-bubble b{display:block;font-size:16.5px;line-height:1.4}
 .panel .q-bubble small{display:block;font-size:11.5px;font-weight:600;color:var(--sub);margin-top:4px;line-height:1.45}
 .panel .q-btns{display:flex;flex-direction:column;gap:9px}

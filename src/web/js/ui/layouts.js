@@ -227,8 +227,12 @@ QJZ.layouts = (function () {
     var cups = on ? cs.cupsText : '0/' + goals.cups;
     var asks = on && cs.prompt ? cs.prompt.kind : null;   // the prompt that shows: its ring glows (U12)
     var sitOn = !!(hs && QJZ.reminders.ask(hs, 0).sit);
-    var stand = on && sitOn && typeof cs.standIn === 'number' && key === 'working' &&
-      asks !== 'both' && asks !== 'sit' && asks !== 'water' ? cs.standIn : null;   // (not while it is the one asking)
+    var base = on && sitOn && typeof cs.standIn === 'number' && key === 'working' ? cs.standIn : null;
+    // held: its own reminder asks, or one asked for (現在提醒我一次) waits and the timer reads 0 (final review M-4): no
+    // number to show. The compact one then only hides and keeps its room, so its tag or row does not reflow just for
+    // that (M-2); lunch, 下班 and a focus still take it away.
+    var held = base !== null && (asks === 'both' || asks === 'sit' || asks === 'water' || !!cs.forced);
+    var stand = base !== null && !held ? base : null;
     var nth = phase === 'focus' && on && cs.nth > 0 ? '第 ' + cs.nth + ' 顆' : '';
     var frac = phase ? P.fraction(p, sec) : 0, left = 1 - frac;
     var focusMin = hs ? hs.pomodoro.focus : 25;
@@ -236,7 +240,7 @@ QJZ.layouts = (function () {
       phase: phase,
       cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
       showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
-      showStandC: stand !== null && phase !== 'focus', standMin: stand === null ? '' : stand + ' 分',
+      showStandC: stand !== null && phase !== 'focus', standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
@@ -512,15 +516,20 @@ QJZ.layouts = (function () {
     both: function (m) { return m.showCups && m.showTomatoes; }, any: function (m) { return m.showCups || m.showTomatoes; },
     stand: function (m) { return m.showStand; }, cupsStand: function (m) { return m.showCups && m.showStand; },
     // the compact 下次起來動 (1.1.1 item 6), and U7's tag line with it
-    standC: function (m) { return m.showStandC; }, anyS: function (m) { return m.showCups || m.showTomatoes || m.showStandC; },
-    ctS: function (m) { return (m.showCups || m.showTomatoes) && m.showStandC; }
+    standC: function (m) { return m.showStandC || m.standCHeld; },
+    anyS: function (m) { return m.showCups || m.showTomatoes || m.showStandC || m.standCHeld; },
+    ctS: function (m) { return (m.showCups || m.showTomatoes) && (m.showStandC || m.standCHeld); }
   };
   function renderHealth(m, w) {
     var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '') + (m.showStand ? 's' : '') +
-      (m.showStandC ? 'k' : '');
+      (m.showStandC ? 'k' : '') + (m.standCHeld ? 'h' : '');
     if (view.cache.shows !== shows) {
       view.cache.shows = shows;
-      view.shows.forEach(function (n) { var f = SHOW[n.getAttribute('data-show')]; n.hidden = !(f && f(m)); });
+      view.shows.forEach(function (n) {
+        var k = n.getAttribute('data-show'), f = SHOW[k];
+        n.hidden = !(f && f(m));
+        if (k === 'standC') n.style.visibility = m.standCHeld ? 'hidden' : '';   // held: unseen, its room kept (M-2)
+      });
     }
     if (view.cache.phase !== ph) {
       view.cache.phase = ph;
@@ -1369,6 +1378,8 @@ QJZ.layouts = (function () {
     // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
     if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
     else if (answerRun) return;
+    // a title-bar button takes no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide the window again
+    if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
     if (!inRoot(e.target) || isButton(e.target)) return;
     drag = { x: e.screenX, y: e.screenY };
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
@@ -1415,7 +1426,11 @@ QJZ.layouts = (function () {
     var ans = e.target.closest('[data-answer]');
     if (ans) { answer(ans, e.detail > 0); return; }
     var a = e.target.closest('[data-act]');
-    if (a) { act(a.getAttribute('data-act')); return; }
+    if (a) {
+      act(a.getAttribute('data-act'));
+      if (a.classList.contains('tb') && document.activeElement === a) a.blur();   // (however it got the focus: M-5)
+      return;
+    }
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     if (isPetPart(e.target)) poke(e);
   }

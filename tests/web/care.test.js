@@ -958,6 +958,53 @@
     done();
   });
 
+  // Final review M-3: outside work time 等一下 ends a test reminder; a real one never shows after 下班, so neither does
+  // its repeat. (During work it comes back 10 minutes later, as any reminder.)
+  test('care: 現在提醒我一次 after work: 等一下 ends it, and it does not come back', function () {
+    var e = mk(at(9, 0));
+    go(e, at(19, 0));   // 可以下班 since 18:00
+    var m = mark(e);
+    C.remindNow();
+    eq(prompts(e, m), ['show:both']);
+    C.answer('later');
+    eq(C.state.r.forced, false, 'ended');
+    walk(e, at(19, 1), at(19, 30), MIN);
+    eq(prompts(e, m), ['show:both', 'hide'], 'not again at 19:10');
+    done();
+  });
+
+  // Final review M-4: a test reminder ends on the first step where nothing would be asked any more, so it never pops up
+  // later (a switch turned back on, a later 少記一杯), after 下班 too.
+  test('care: a test reminder ends when nothing is asked any more; nothing pops up later', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 10));
+    C.setPanel(true);
+    C.remindNow();
+    A.saveSettings({ health: { sit: { on: false }, water: { on: false } } });
+    go(e, at(9, 10, 1));
+    eq(C.state.r.forced, false, 'both switches off in the same 設定 visit: it ends');
+    A.saveSettings({ health: { sit: { on: true }, water: { on: true } } });
+    C.setPanel(false);
+    var m = mark(e);
+    walk(e, at(9, 10, 2), at(9, 10, 10), 1000);
+    eq(prompts(e, m), [], 'turned back on: nothing pops up');
+    done();
+
+    e = mk(at(9, 0), S(WATER));
+    go(e, at(9, 10));
+    C.setPanel(true);
+    C.remindNow();
+    C.setCups(8);
+    go(e, at(9, 10, 1));
+    eq(C.state.r.forced, false, 'water only and the goal reached: it ends');
+    C.setPanel(false);
+    menu(e, 'undrink');
+    m = mark(e);
+    walk(e, at(9, 10, 2), at(9, 10, 10), 1000);
+    eq(prompts(e, m), [], 'a later 少記一杯 pops nothing up');
+    done();
+  });
+
   test('care: _dev seeds counts, a pomodoro and a prompt (dev.html only)', function () {
     var e = mk(at(10, 0));
     vis(e, false, at(10, 0));

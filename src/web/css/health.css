@@ -252,10 +252,11 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
 /* A line said to the user (a banner) goes in its own lane past the capsule's farthest reach (expanded, or the call):
    the window is 40 px deeper for it (1.1.1 item 1), so it never covers the capsule, whatever the capsule does meanwhile.
    Under the capsule docked at the top, over it docked at the bottom; level with the capsule's corner side. */
-.u10 .fx .banner{top:auto;bottom:4px;font-size:14px;padding:4px 14px}
+/* one line, always in the lane (cut short with … when longer); 12 px clear of the window's sides, room for its pop-in */
+.u10 .fx .banner{top:auto;bottom:4px;font-size:14px;padding:4px 14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 24px)}
 .u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight) .fx .banner{top:4px;bottom:auto}
-.u10.d-bottomLeft .fx .banner{left:2px;translate:50% 0}
-.u10.d-bottomRight .fx .banner{left:auto;right:6px;translate:50% 0}
+.u10.d-bottomLeft .fx .banner{left:10px;translate:50% 0}
+.u10.d-bottomRight .fx .banner{left:auto;right:10px;translate:50% 0}
 
 /* ---------- the rings (U12, G_U12_*): the day's count against its goal; --p and hot come from layouts.js ---------- */
 .gauge3{--p:0;--c:var(--water);--rs:3px 3px 0 var(--line);--glow:rgba(30,158,90,.55);display:flex;flex-direction:column;align-items:center;gap:6px;
