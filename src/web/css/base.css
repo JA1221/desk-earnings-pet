@@ -30,6 +30,8 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .bar .tb.hide{background:#FF8FA3}
 .bar .tb svg{display:block;width:13px;height:13px}
 .bar .tb:active{transform:translate(1px,1px);box-shadow:none}
+/* pressed (1.1.2): 釘選在最上層 while pinned, 設定 while the panel shows in its window: pushed in and filled */
+.bar .tb.on{transform:translate(1px,1px);box-shadow:none;background:#FFE08A}
 .clock{font-size:24px;font-weight:700}
 .status{display:inline-flex;align-items:center;gap:7px;background:var(--st-bg);border:2.5px solid var(--line);border-radius:99px;padding:4px 13px 4px 9px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .status i{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite}

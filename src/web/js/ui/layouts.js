@@ -36,7 +36,10 @@ window.QJZ = window.QJZ || {};
 // the host's hit poll saw the cursor cross off (false) or onto (true) every hit rect; U10's capsule folds on false, as
 // after a mouseout, since off them the window clicks through and a mouseout may never come), capsuleDock {dock} (a
 // dropped U10 snapped to that dock: saved, and setLayout goes again with it even when it is the same, so an older
-// setLayout still on its way cannot undo the snap).
+// setLayout still on its way cannot undo the snap), topmost {on} (1.1.2, optional: the window's topmost as the host
+// set it; saved as the current layout's setting, so the title bar's pin shows it; nothing is sent back).
+// 1.1.2 item 5: U1, U12 and U13 have 釘選在最上層 on their title bar (data-act pin): the menu's 永遠在最上層 for the
+// current layout (toggleTopmost), pressed (.on, aria-pressed) while it is on.
 //
 // settings.layout.current is the last MAIN layout (U1/U3/U5B/U7/U10/U12/U13); M3 and PANEL never go there.
 // settings.layout.mini says the app was left as the mini badge (M3). The first layout after init is the one used last (simplification
@@ -412,6 +415,7 @@ QJZ.layouts = (function () {
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
     v.holds = all(el, '[data-hold]');
+    v.pins = all(el, '.bar .tb.pin');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
@@ -475,6 +479,14 @@ QJZ.layouts = (function () {
     if (view.name === 'PANEL') {
       setText('title', '錢進中 · ' + panelTitle(panelKind));
       if (panels()) panels()._update();
+    }
+    var pinOn = topmostFor(view.name);
+    if (view.cache.pin !== pinOn) {
+      view.cache.pin = pinOn;
+      for (i = 0; i < view.pins.length; i++) {
+        view.pins[i].classList.toggle('on', pinOn);
+        view.pins[i].setAttribute('aria-pressed', String(pinOn));
+      }
     }
     if (view.statusKey !== m.key) {
       if (view.statusKey) view.el.classList.remove('s-' + view.statusKey);
@@ -1243,6 +1255,16 @@ QJZ.layouts = (function () {
     app().saveSettings(patch);
     send('setTopmost', { on: on });
   }
+  // topmost {on} from the host (1.1.2): the window's topmost as the host has it, for the current layout (PANEL: the one it
+  // came from). Saved, so the pin shows it; it came from the host, so nothing goes back.
+  function onTopmost(msg) {
+    if (!ready() || !msg || typeof msg.on !== 'boolean') return;
+    var name = cur === 'PANEL' ? (panelFrom || backTarget(app().state.settings)) : cur;
+    if (!name || topmostFor(name) === msg.on) return;
+    var patch = { layout: { topmost: {} } };
+    patch.layout.topmost[name] = msg.on;
+    app().saveSettings(patch);
+  }
 
   function act(a) {
     switch (a) {
@@ -1254,6 +1276,7 @@ QJZ.layouts = (function () {
       case 'back': if (panels()) panels().close(); else closePanel(); break;
       case 'drink': if (QJZ.care) QJZ.care.drink(); break;
       case 'pomo': if (QJZ.care) QJZ.care.toggleFocus(); break;
+      case 'pin': toggleTopmost(); break;
     }
   }
 
@@ -1630,7 +1653,7 @@ QJZ.layouts = (function () {
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup), QJZ.care.on('snooze', onSnooze));
     }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
-      bridge.on('pointer', onPointer)].forEach(function (off) {
+      bridge.on('pointer', onPointer), bridge.on('topmost', onTopmost)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);

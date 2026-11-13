@@ -2486,9 +2486,10 @@
     ['U1', 'U12', 'U13'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true });
       var bar = $(e, '.bar'), bs = Array.prototype.slice.call(bar.querySelectorAll('[data-act]'));
-      eq(bs.map(function (b) { return b.getAttribute('data-act'); }), ['mini', 'settings', 'hide'], name);
+      eq(bs.map(function (b) { return b.getAttribute('data-act'); }), ['pin', 'mini', 'settings', 'hide'], name + ' (1.1.2: 釘選 first)');
       eq(bs.map(function (b) { return [b.tagName, b.getAttribute('aria-label'), b.title]; }),
-        [['BUTTON', '縮小', '縮小'], ['BUTTON', '設定', '設定'], ['BUTTON', '關閉', '關閉']], name + ': labelled buttons');
+        [['BUTTON', '釘選在最上層', '釘選在最上層'], ['BUTTON', '縮小', '縮小'], ['BUTTON', '設定', '設定'], ['BUTTON', '關閉', '關閉']], name + ': labelled buttons');
+      bs.shift();   // (the pin toggles topmost: its own test)
       var br = bar.getBoundingClientRect();
       bs.forEach(function (b) {
         var r = b.getBoundingClientRect(), cs = getComputedStyle(b);
@@ -2854,6 +2855,44 @@
   });
 
   // M-5: the title-bar buttons take no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide it again.
+  // 1.1.2 item 5: 釘選在最上層 on the title bar (U1, U12, U13): the current layout's topmost (settings.layout.topmost,
+  // setTopmost {on}), pressed while pinned, in step with the menu's 永遠在最上層 and the host's topmost {on}; like the
+  // other title-bar buttons it never takes the focus.
+  test('layouts DOM: the pin on the title bar toggles this layout\'s topmost and shows pressed while it is on', function () {
+    ['U1', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true }), pin = $(e, '.bar [data-act=pin]'), gear = $(e, '.bar [data-act=settings]');
+      function pinned() { return [QJZ.app.state.settings.layout.topmost[name], pin.classList.contains('on'), pin.getAttribute('aria-pressed')]; }
+      ok(pin.querySelector('svg.ic-tbPin'), name + ': its icon');
+      eq(pinned(), [false, false, 'false'], name + ': not pinned (the default)');
+      ok(mouse(pin, 'mousedown', 5, 5).defaultPrevented, name + ': a press does not take the focus');
+      pin.focus();
+      pin.click();
+      eq(pinned(), [true, true, 'true'], name + ': pinned');
+      eq(last(e.sent, 'setTopmost'), { on: true }, name + ': the window goes on top');
+      ok(document.activeElement !== pin, name + ': no focus kept');
+      var on = getComputedStyle(pin), off = getComputedStyle(gear);
+      ok(on.backgroundColor !== off.backgroundColor && on.boxShadow === 'none', name + ': pressed: filled, pushed in');
+      pin.click();
+      eq(pinned(), [false, false, 'false'], name + ': off again');
+      eq(last(e.sent, 'setTopmost'), { on: false });
+      e.menu('topmost');
+      eq(pinned(), [true, true, 'true'], name + ': the menu\'s 永遠在最上層 shows on it');
+      var n = of(e.sent, 'setTopmost').length;
+      e.bridge.emit({ type: 'topmost', on: false });
+      eq(pinned(), [false, false, 'false'], name + ': the host\'s topmost {on} too');
+      eq(of(e.sent, 'setTopmost').length, n, 'and nothing is sent back');
+      e.bridge.emit({ type: 'topmost', on: 'yes' });
+      eq(pinned(), [false, false, 'false'], 'junk is ignored');
+      e.menu('layout:U3');
+      eq(e.root.querySelectorAll('[data-act=pin]').length, 0, 'U3 has no title bar');
+      eq(QJZ.app.state.settings.layout.topmost.U3, false, 'and its own setting');
+      done();
+    });
+    var f = mk(at(12, 10, 0), { first: 'U12', settings: { layout: { topmost: { U12: true } } } });
+    eq($(f, '.bar [data-act=pin]').classList.contains('on'), true, 'a saved pin shows pressed from the start');
+    done();
+  });
+
   test('layouts DOM: a title-bar button keeps no keyboard focus', function () {
     ['U1', 'U12', 'U13'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true }), x = $(e, '.bar [data-act=hide]');

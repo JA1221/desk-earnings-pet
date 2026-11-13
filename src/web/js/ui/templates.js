@@ -26,13 +26,16 @@ window.QJZ = window.QJZ || {};
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
   // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 縮小 (to the mini badge), 設定 and 關閉
-  // (hide). PANEL (noGear) has 縮小 and 關閉 only: it is 設定, or a panel of its own.
-  function tb(act, icon, label) {
-    return '<button type="button" class="tb ' + act + '" data-act="' + act + '" title="' + label + '" aria-label="' + label + '">' + ic(icon) + '</button>';
+  // (hide); 1.1.2 item 5: 釘選在最上層 first (pressed, .on and aria-pressed, while the layout is topmost). PANEL (noGear)
+  // has 縮小 and 關閉 only: it is 設定, or a panel of its own.
+  function tb(act, icon, label, toggle) {
+    return '<button type="button" class="tb ' + act + '" data-act="' + act + '" title="' + label + '" aria-label="' + label + '"' +
+      (toggle ? ' aria-pressed="false"' : '') + '>' + ic(icon) + '</button>';
   }
   function bar(title, noGear) {
     return '<div class="bar"><span class="logo">$</span><span data-b="title">' + title + '</span><div class="tbtns">' +
-      tb('mini', 'tbMin', '縮小') + (noGear ? '' : tb('settings', 'tbGear', '設定')) + tb('hide', 'tbClose', '關閉') + '</div></div>';
+      (noGear ? '' : tb('pin', 'tbPin', '釘選在最上層', true)) + tb('mini', 'tbMin', '縮小') + (noGear ? '' : tb('settings', 'tbGear', '設定')) +
+      tb('hide', 'tbClose', '關閉') + '</div></div>';
   }
   var BAR = bar('錢進中');
   var MONEY = '<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>';

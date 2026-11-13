@@ -1,6 +1,7 @@
 window.QJZ = window.QJZ || {};
 // The small 1.1 icons (drop, tom, stand, rest, hp, cup), drawn from the mockup sprite (docs/prototypes/v1.1/index.html,
-// <symbol id="i-…">), and 1.1.1's title-bar glyphs (tbMin, tbGear, tbClose: plain dark strokes for the round buttons). QJZ.icons.svg(name, cls) is an inline SVG with class "ic" (sized by the CSS that places it);
+// <symbol id="i-…">), and 1.1.1's title-bar glyphs (tbMin, tbGear, tbClose: plain dark strokes for the round buttons;
+// 1.1.2's tbPin, the 釘選在最上層 push pin). QJZ.icons.svg(name, cls) is an inline SVG with class "ic" (sized by the CSS that places it);
 // an unknown name gives ''. Static markup only: nothing in it comes from the user.
 QJZ.icons = (function () {
   var L = '#3D2C24';
@@ -35,7 +36,11 @@ QJZ.icons = (function () {
       '<path d="M10,2.6 V5 M10,15 V17.4 M2.6,10 H5 M15,10 H17.4 M4.8,4.8 L6.5,6.5 M13.5,13.5 L15.2,15.2 M15.2,4.8 L13.5,6.5 M6.5,13.5 L4.8,15.2" ' +
         'stroke="' + L + '" stroke-width="2.8" stroke-linecap="round"/>' +
       '<circle cx="10" cy="10" r="4.3" fill="#FFE08A" stroke="' + L + '" stroke-width="2.4"/>'],
-    tbClose: ['0 0 20 20', '<path d="M5.5,5.5 L14.5,14.5 M14.5,5.5 L5.5,14.5" stroke="' + L + '" stroke-width="3" stroke-linecap="round"/>']
+    tbClose: ['0 0 20 20', '<path d="M5.5,5.5 L14.5,14.5 M14.5,5.5 L5.5,14.5" stroke="' + L + '" stroke-width="3" stroke-linecap="round"/>'],
+    // 1.1.2 item 5: 釘選在最上層, a push pin leaning right (📌), its head in the tomato red
+    tbPin: ['0 0 20 20',
+      '<g transform="rotate(40 10 10)"><path d="M10,12.4 V18.4" stroke="' + L + '" stroke-width="2.4" stroke-linecap="round"/>' +
+      '<path d="M6.4,1.8 H13.6 V4.4 H12.3 L12.9,9.8 L15.2,12.4 H4.8 L7.1,9.8 L7.7,4.4 H6.4 Z" fill="#FF6B57" stroke="' + L + '" stroke-width="1.9" stroke-linejoin="round"/></g>']
   };
 
   // name: one of NAMES; cls: more classes (e.g. 'pi-foc').
