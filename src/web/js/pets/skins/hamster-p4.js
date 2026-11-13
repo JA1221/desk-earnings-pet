@@ -26,6 +26,7 @@
 
   P.register({
     id: 'hamster:p4', kind: 'hamster', skin: 'p4', name: '圓滾麻糬鼠', room: 'sticker', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(2.8);
       var shine = `<path d="M90,110 C96,104 104,101 112,100" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" opacity=".8"/>`;

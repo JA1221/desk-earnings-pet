@@ -22,6 +22,7 @@
 
   P.register({
     id: 'cat:s5', kind: 'cat', skin: 's5', name: '蠟筆手繪貓', room: 'crayon', wrap: 'crayon',
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(2.6, LC);
       var head = `<path d="M76,70 L74,34 L102,54 Z" fill="${O}" ${st}/><path d="M160,70 L162,34 L134,54 Z" fill="${O}" ${st}/><path d="M80,62 L79,42 L96,55 Z" fill="#FF9FB0"/><path d="M156,62 L157,42 L140,55 Z" fill="#FF9FB0"/>

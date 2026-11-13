@@ -10,6 +10,7 @@
 
   P.register({
     id: 'hamster:s4', kind: 'hamster', skin: 's4', name: '扁平幾何鼠', room: 'flat', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var art = `<circle cx="86" cy="76" r="13" fill="${D}"/><circle cx="86" cy="76" r="6.5" fill="#FF9FB0"/><circle cx="150" cy="76" r="13" fill="${D}"/><circle cx="150" cy="76" r="6.5" fill="#FF9FB0"/>
     <circle cx="118" cy="122" r="52" fill="${O}"/><g clip-path="url(#${uid}-b)"><rect x="118" y="60" width="60" height="120" fill="${D}" opacity=".35"/><circle cx="118" cy="152" r="38" fill="${CR}"/><rect x="118" y="110" width="40" height="80" fill="#F3E2CC" opacity=".6"/></g>

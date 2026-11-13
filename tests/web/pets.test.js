@@ -607,20 +607,16 @@
   test('pets: missingPoses lists every hamster and cat skin without poses11', function () {
     var P = QJZ.pets;
     stubSkin();
-    var m = P.missingPoses();
-    eq(m.length, 40, '10 skins x 4 poses until Task 17 declares them (then 0)');
-    m.forEach(function (x) { ok(/^(hamster|cat):\w+ (wave|holdCup|sip|focus)$/.test(x), x); });
-    eq(m.filter(function (x) { return x.indexOf('test:') === 0; }), [], 'the stub is not listed');
+    eq(P.missingPoses(), [], 'every skin declares the four 1.1 poses (Task 17, approved), and the stub is not listed');
     var d = P.get('cat:p4'), had = d.poses11;
     try {
       d.poses11 = ['wave', 'sip'];
       var part = P.missingPoses();
-      eq([part.indexOf('cat:p4 wave'), part.indexOf('cat:p4 sip')], [-1, -1], 'declared');
-      ok(part.indexOf('cat:p4 holdCup') >= 0 && part.indexOf('cat:p4 focus') >= 0, 'not declared');
+      eq(part, ['cat:p4 holdCup', 'cat:p4 focus'], 'only what cat:p4 no longer declares');
     } finally { if (had === undefined) delete d.poses11; else d.poses11 = had; }
   });
 
-  // ---------- Task 17: the 1.1 poses drawn for all 10 skins, shown only with preview until the skins declare them ----------
+  // ---------- Task 17: the 1.1 poses drawn for all 10 skins, and declared (poses11) after the user's OK ----------
   test('pets: the 1.1 poses are states by name, outside the 1.0 review order', function () {
     var P = QJZ.pets;
     eq(P.states.NAMES, STATES, 'NAMES stays the 18 1.0 states');
@@ -648,7 +644,8 @@
           eq(ids.length, ids.filter(function (x, i, a) { return a.indexOf(x) === i; }).length, at + 'duplicate id');
           ok(inBody(doc.querySelector('.look')), at + 'eyes ride on the head');
           if (d.kind === 'hamster') ok(svg.indexOf('class="limb"') < 0, at + 'no arm limbs');
-          ok(hasClass(parse(P.compose(id, view, { state: s })).documentElement, 'st-' + P.FALLBACK[s]), at + 'the stand-in without preview');
+          eq(P.poseFor(id, s), s, at + 'declared');
+          ok(hasClass(parse(P.compose(id, view, { state: s })).documentElement, 'st-' + s), at + 'itself without preview too');
         });
         var po = parse(P.compose(id, 'petonly', { state: s, preview: true }));
         if (s === 'wave' || s === 'holdCup') {

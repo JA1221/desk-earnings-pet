@@ -23,6 +23,7 @@
 
   P.register({
     id: 'hamster:s5', kind: 'hamster', skin: 's5', name: '蠟筆手繪鼠', room: 'crayon', wrap: 'crayon',
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(2.6, LC), main = art(B, uid + '-b', st);
       return {

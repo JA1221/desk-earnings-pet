@@ -32,6 +32,7 @@
 
   P.register({
     id: 'hamster:h2', kind: 'hamster', skin: 'h2', name: '貪吃鼠', room: 'sticker', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(2.8);
       var face = `<path d="M118,104 v7" stroke="#E0923E" stroke-width="3" stroke-linecap="round"/>

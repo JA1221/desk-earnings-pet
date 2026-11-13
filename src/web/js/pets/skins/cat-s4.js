@@ -32,6 +32,7 @@
 
   P.register({
     id: 'cat:s4', kind: 'cat', skin: 's4', name: '扁平幾何貓', room: 'flat', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var art = ears() + `<circle class="fur" cx="118" cy="122" r="52" fill="${O}"/><g clip-path="url(#${uid}-b)"><circle cx="118" cy="170" r="31" fill="${CR}"/>` +
         `<rect x="118" y="68" width="52" height="108" fill="${D}" opacity=".35"/>` +

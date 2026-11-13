@@ -34,6 +34,7 @@
 
   P.register({
     id: 'cat:p0', kind: 'cat', skin: 'p0', name: 'Q版大眼貓', room: 'sticker', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(3);
       var lanyard = `<path d="M104,124 L113,136 M132,124 L123,136" stroke="#4DA3FF" stroke-width="3.2" stroke-linecap="round"/>${C.badge(110, 134.5)}`;

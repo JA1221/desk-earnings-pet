@@ -56,6 +56,7 @@
 
   P.register({
     id: 'cat:h2', kind: 'cat', skin: 'h2', name: '貪吃貓', room: 'sticker', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(2.8);
       var face = `<path d="M108,96.5 v6 M118,95 v8 M128,96.5 v6" stroke="${STRIPE}" stroke-width="3.2" stroke-linecap="round"/>

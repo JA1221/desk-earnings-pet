@@ -22,6 +22,7 @@
 
   P.register({
     id: 'hamster:p0', kind: 'hamster', skin: 'p0', name: 'Q版大眼鼠', room: 'sticker', wrap: null,
+    poses11: ['wave', 'holdCup', 'sip', 'focus'],
     build: function (uid) {
       var st = ST(3);
       var art = `${ear(86, -20, st)}${ear(150, 20, st)}
