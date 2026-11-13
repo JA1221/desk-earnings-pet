@@ -43,7 +43,7 @@ html.opaque,html.opaque body{background:#FFF8EC}
 [data-mask]{cursor:pointer}
 .lay .msk{display:none}
 .lay.masked [data-odo]{display:none}
-.lay.masked .msk{display:inline}
+.lay.masked .msk{display:inline-block;position:relative;top:.22em;letter-spacing:.04em}   /* (the * glyphs sit high: on the digits' middle) */
 .money-label{font-size:13px;font-weight:600;color:var(--sub)}
 .money{font-size:42px;font-weight:700;color:var(--money);line-height:1.1;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap;
   text-shadow:-2px -2px 0 var(--line),2px -2px 0 var(--line),-2px 2px 0 var(--line),2px 2px 0 var(--line),0 2px 0 var(--line),2px 0 0 var(--line),-2px 0 0 var(--line),0 -2px 0 var(--line),4px 5px 0 var(--line)}
