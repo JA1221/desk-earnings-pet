@@ -4,18 +4,40 @@ using System.Drawing;
 
 public static class PresentationTests
 {
-    static readonly Rectangle Display1 = new Rectangle(-1080, -445, 1080, 1920);   // the left portrait monitor
-    static readonly Rectangle Display3 = new Rectangle(0, 0, 1920, 1080);         // the primary
-    static readonly IntPtr Video = new IntPtr(0x1234);
+    static readonly Rectangle Laptop = new Rectangle(0, 0, 1920, 1080);           // monitor A: the laptop's own screen
+    static readonly Rectangle LaptopWork = new Rectangle(0, 0, 1920, 1032);
+    static readonly Rectangle Projector = new Rectangle(1920, 0, 1920, 1080);     // monitor B
+    static readonly Rectangle Display1 = new Rectangle(-1080, -445, 1080, 1920);  // the left portrait monitor
+    static readonly Rectangle[] Monitors = { Laptop, Projector, Display1 };
+    static readonly IntPtr Slides = new IntPtr(0x51);
+    static readonly IntPtr Presenter = new IntPtr(0x52);
 
-    // A borderless window covering monitor exactly (a slide show, a video or a game in full screen).
-    static Presentation.Foreground FullscreenOn(Rectangle monitor)
+    static Presentation.TopWindow W(IntPtr hwnd, Rectangle bounds)
     {
-        Presentation.Foreground f = new Presentation.Foreground();
-        f.Hwnd = Video;
-        f.Bounds = monitor;
-        f.Monitor = monitor;
-        return f;
+        Presentation.TopWindow w = new Presentation.TopWindow();
+        w.Hwnd = hwnd;
+        w.Bounds = bounds;
+        return w;
+    }
+
+    static Presentation.TopWindow Skipped(Rectangle bounds)
+    {
+        Presentation.TopWindow w = W(new IntPtr(0x99), bounds);
+        w.Skipped = true;
+        return w;
+    }
+
+    // PowerPoint with Presenter View (the user's 「ppt投影」): the slide show covers the projector, and the presenter
+    // view, the foreground window, is a maximized window with a title bar on the laptop. Top of the z-order first: our
+    // pet (topmost; skipped), the taskbar (skipped), the presenter view, the slide show, the user's Excel.
+    static List<Presentation.TopWindow> PresenterView()
+    {
+        Presentation.TopWindow presenter = W(Presenter, LaptopWork);
+        presenter.Maximized = true;
+        presenter.Framed = true;
+        return new List<Presentation.TopWindow> {
+            Skipped(new Rectangle(2500, 900, 491, 437)), Skipped(new Rectangle(0, 1032, 1920, 48)), presenter, W(Slides, Projector),
+            W(new IntPtr(0x53), new Rectangle(100, 100, 1200, 800)) };
     }
 
     // SHQueryUserNotificationState: 2 busy (a fullscreen app), 3 Direct3D fullscreen, 4 presentation mode hold
@@ -44,103 +66,108 @@ public static class PresentationTests
         }
     }
 
-    // 1.1.1 item 7: besides QUNS, the foreground window counts as full screen when it covers its whole monitor (the
-    // monitor rect, not the work area).
-    public static void Test_ForegroundCoveringItsMonitor()
+    // A monitor is full screen when the first window in z-order (from the top) that overlaps it, skipped ones aside,
+    // covers the whole monitor rect (not the work area).
+    public static void Test_TheFirstWindowOnAMonitorDecides()
     {
-        Assert.True(Presentation.IsFullscreen(FullscreenOn(Display1)), "borderless, exactly the monitor");
-        Presentation.Foreground f = FullscreenOn(Display3);
-        f.Bounds = Rectangle.Inflate(Display3, 8, 8);
-        Assert.True(Presentation.IsFullscreen(f), "larger than the monitor");
-        f.Maximized = true;
-        Assert.True(Presentation.IsFullscreen(f), "a borderless window maximized over the whole monitor");
-        f.Framed = true;
-        Assert.True(!Presentation.IsFullscreen(f), "a maximized window with a frame on a monitor without a taskbar is not full screen");
-        f.Maximized = false;
-        Assert.True(Presentation.IsFullscreen(f), "a framed window covering the monitor without being maximized counts");
-        f = FullscreenOn(Display3);
-        f.Bounds = new Rectangle(0, 0, 1920, 1032);
-        Assert.True(!Presentation.IsFullscreen(f), "the work area only (the taskbar shows): not full screen");
-        f.Bounds = new Rectangle(1, 0, 1920, 1080);
-        Assert.True(!Presentation.IsFullscreen(f), "one px short of the left edge");
-        f = FullscreenOn(Display1);
-        f.Ignored = true;
-        Assert.True(!Presentation.IsFullscreen(f), "the desktop, the shell, this app's own window, a hidden / minimized / cloaked one");
-        f = FullscreenOn(Display1);
-        f.Hwnd = IntPtr.Zero;
-        Assert.True(!Presentation.IsFullscreen(f), "no foreground window");
-        f = FullscreenOn(Display1);
-        f.Monitor = Rectangle.Empty;
-        Assert.True(!Presentation.IsFullscreen(f), "no monitor");
-        Assert.True(!Presentation.IsFullscreen(new Presentation.Foreground()), "nothing at all");
+        var z = new List<Presentation.TopWindow> { W(Slides, Projector) };
+        Assert.Eq(Slides, Presentation.CoveringWindow(z, Projector), "exactly the monitor");
+        z = new List<Presentation.TopWindow> { W(Slides, Rectangle.Inflate(Projector, 8, 8)) };
+        Assert.Eq(Slides, Presentation.CoveringWindow(z, Projector), "larger than the monitor");
+        z = new List<Presentation.TopWindow> { W(new IntPtr(7), new Rectangle(2000, 100, 400, 300)), W(Slides, Projector) };
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(z, Projector), "a window above it on that monitor: not full screen");
+        z = new List<Presentation.TopWindow> { W(new IntPtr(7), new Rectangle(100, 100, 400, 300)), W(Slides, Projector) };
+        Assert.Eq(Slides, Presentation.CoveringWindow(z, Projector), "a window above it on another monitor does not count");
+        z = new List<Presentation.TopWindow> { W(new IntPtr(7), new Rectangle(1919, 100, 400, 300)), W(Slides, Projector) };
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(z, Projector), "one that reaches 1 px into it does");
+        z = new List<Presentation.TopWindow> { Skipped(new Rectangle(2000, 100, 400, 300)), W(Slides, Projector) };
+        Assert.Eq(Slides, Presentation.CoveringWindow(z, Projector),
+            "skipped windows (ours, the desktop / shell, cloaked, invisible, minimized, tool windows, click-through overlays)");
+        z = new List<Presentation.TopWindow> { W(new IntPtr(7), new Rectangle(2000, 100, 0, 0)), W(Slides, Projector) };
+        Assert.Eq(Slides, Presentation.CoveringWindow(z, Projector), "a zero-size window");
+        z = new List<Presentation.TopWindow> { W(Slides, new Rectangle(1920, 0, 1920, 1032)) };
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(z, Projector), "the work area only (the taskbar shows)");
+        z = new List<Presentation.TopWindow> { W(Slides, new Rectangle(1921, 0, 1920, 1080)) };
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(z, Projector), "1 px short");
+        Presentation.TopWindow max = W(new IntPtr(8), Projector);
+        max.Maximized = true;
+        Assert.Eq(max.Hwnd, Presentation.CoveringWindow(new List<Presentation.TopWindow> { max }, Projector), "a borderless window maximized over the monitor");
+        max.Framed = true;
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(new List<Presentation.TopWindow> { max }, Projector),
+            "a maximized window with a title bar on a monitor without a taskbar is not full screen");
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(new List<Presentation.TopWindow>(), Projector), "no windows");
+        Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(null, Projector), "nothing known");
     }
 
-    // The desktop and the shell cover a monitor too: never full screen.
-    public static void Test_ShellClasses()
+    // The coordinator's cases: presenter view on monitor A, the slide show on B.
+    public static void Test_PresenterViewWithThePetOnTheProjector()
     {
-        foreach (string c in new[] { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow",
-            "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "TaskSwitcherWnd", "ForegroundStaging" })
-            Assert.True(Presentation.ShellClass(c), c + " is the shell");
-        foreach (string c in new[] { "screenClass", "Chrome_WidgetWin_1", "ApplicationFrameWindow", "WindowsForms10.Window.8.app.0.1", "", null })
-            Assert.True(!Presentation.ShellClass(c), (c ?? "null") + " is not");
+        Presentation.State s = Presentation.Decide(false, PresenterView(), Monitors, Projector);
+        Assert.True(s.On && s.Here, "pet on B (the slide show): here");
+        Assert.Eq(Slides, s.Window, "behind the slide show");
+        Assert.Eq((Rectangle?)Projector, s.Monitor, "reports the projector");
     }
 
-    // Here: the full-screen window is on the pet window's monitor. Changed fires when on or here flips; Monitor and
-    // Window name the full-screen window and its monitor.
-    public static void Test_HereOnlyOnThePetsMonitor()
+    public static void Test_PresenterViewWithThePetOnTheLaptop()
     {
-        Presentation.Foreground fg = new Presentation.Foreground();
+        Presentation.State s = Presentation.Decide(false, PresenterView(), Monitors, Laptop);
+        Assert.True(s.On && !s.Here, "pet on A (presenter view, not full screen): on, not here");
+        Assert.Eq(IntPtr.Zero, s.Window, "nothing to step behind");
+        Assert.Eq((Rectangle?)Projector, s.Monitor, "reports the projector, where the full-screen window is");
+    }
+
+    public static void Test_DecideCombinesQunsAndMonitors()
+    {
+        var nothing = new List<Presentation.TopWindow> { W(new IntPtr(9), new Rectangle(100, 100, 800, 600)) };
+        Presentation.State s = Presentation.Decide(false, nothing, Monitors, Laptop);
+        Assert.True(!s.On && !s.Here && !s.Monitor.HasValue && s.Window == IntPtr.Zero, "nothing full screen");
+        s = Presentation.Decide(true, nothing, Monitors, Laptop);
+        Assert.True(s.On && !s.Here && !s.Monitor.HasValue, "QUNS alone: on (reminders wait), no monitor, not here");
+        var fullOnLeft = new List<Presentation.TopWindow> { W(Slides, Display1) };
+        s = Presentation.Decide(false, fullOnLeft, Monitors, Display1);
+        Assert.True(s.On && s.Here && s.Window == Slides, "full screen on the pet's monitor, without QUNS and whatever is foreground");
+        s = Presentation.Decide(false, fullOnLeft, Monitors, null);
+        Assert.True(s.On && !s.Here, "no pet window yet: never here");
+        s = Presentation.Decide(false, fullOnLeft, Monitors, Laptop);
+        Assert.True(s.On && !s.Here && s.Monitor == Display1, "on another monitor: on, not here");
+        s = Presentation.Decide(false, fullOnLeft, new Rectangle[0], Display1);
+        Assert.True(s.On && s.Here, "the pet's monitor counts even when the monitor list is missing");
+    }
+
+    // The flips over a fake z-order: Changed once per change of on or here.
+    public static void Test_HereFollowsTheZOrder()
+    {
+        List<Presentation.TopWindow> z = new List<Presentation.TopWindow>();
         Rectangle? pet = Display1;
         var changes = new List<string>();
-        using (var p = new Presentation(delegate { return 5; }, delegate { return fg; }, delegate { return pet; }))
+        using (var p = new Presentation(delegate { return 5; }, delegate { return z; }, delegate { return Monitors; }, delegate { return pet; }))
         {
             p.Changed += delegate { changes.Add(p.On + "/" + p.Here); };
             p.Poll();
-            Assert.True(!p.On && !p.Here, "nothing full screen");
-            Assert.True(!p.Monitor.HasValue && p.Window == IntPtr.Zero, "no monitor, no window");
-            fg = FullscreenOn(Display1);
+            z = new List<Presentation.TopWindow> { W(Slides, Display1) };
             p.Poll();
-            Assert.True(p.On && p.Here, "full screen on the pet's monitor");
-            Assert.Eq((Rectangle?)Display1, p.Monitor, "reports the monitor");
-            Assert.Eq(Video, p.Window, "and the window");
+            Assert.True(p.On && p.Here && p.Window == Slides, "full screen on the pet's monitor");
             p.Poll();
-            pet = Display3;
+            pet = Laptop;
             p.Poll();
-            Assert.True(p.On && !p.Here, "the pet on another monitor: on, not here");
-            Assert.Eq((Rectangle?)Display1, p.Monitor, "still that monitor");
-            fg = FullscreenOn(Display3);
+            Assert.True(p.On && !p.Here, "the pet moved to another monitor");
+            z = new List<Presentation.TopWindow>();
             p.Poll();
-            Assert.True(p.On && p.Here, "a full-screen window on the pet's monitor again");
-            pet = null;
-            p.Poll();
-            Assert.True(p.On && !p.Here, "no pet window yet: never here");
-            fg = new Presentation.Foreground();
-            p.Poll();
-            Assert.True(!p.On && !p.Here, "over");
-            Assert.True(!p.Monitor.HasValue && p.Window == IntPtr.Zero, "nothing reported");
-            Assert.Eq("True/True,True/False,True/True,True/False,False/False", string.Join(",", changes.ToArray()), "one Changed per flip");
+            Assert.True(!p.On && !p.Here && !p.Monitor.HasValue, "over");
+            Assert.Eq("True/True,True/False,False/False", string.Join(",", changes.ToArray()), "one Changed per flip");
         }
     }
 
-    // QUNS alone (presentation mode, or a full-screen app it saw but no covering foreground window) is on, not here:
-    // reminders wait, the pet stays. A covering foreground window counts without QUNS.
-    public static void Test_QunsAndForegroundCombine()
+    // The window events that can change what is in front (hooked with WINEVENT_OUTOFCONTEXT, own process skipped): only
+    // a top-level window's own event counts (not the caret, the cursor or a child control).
+    public static void Test_RelevantWindowEvents()
     {
-        int state = 4;
-        Presentation.Foreground fg = new Presentation.Foreground();
-        using (var p = new Presentation(delegate { return state; }, delegate { return fg; }, delegate { return (Rectangle?)Display1; }))
-        {
-            p.Poll();
-            Assert.True(p.On && !p.Here, "presentation mode: on, not here");
-            fg = FullscreenOn(Display1);
-            p.Poll();
-            Assert.True(p.On && p.Here, "and a full-screen window on the pet's monitor: here");
-            state = 5;
-            p.Poll();
-            Assert.True(p.On && p.Here, "the covering window alone");
-            fg.Ignored = true;
-            p.Poll();
-            Assert.True(!p.On && !p.Here, "the shell in front: off");
-        }
+        foreach (uint ev in new uint[] { 0x0003, 0x0016, 0x0017, 0x8002, 0x8003, 0x800B, 0x8017, 0x8018 })
+            Assert.True(Presentation.Relevant(ev, 0, 0, true), ev.ToString("x") + " of a top-level window");
+        Assert.True(!Presentation.Relevant(0x800B, -9, 0, false), "the cursor moving");
+        Assert.True(!Presentation.Relevant(0x800B, -8, 0, true), "a caret moving");
+        Assert.True(!Presentation.Relevant(0x800B, 0, 3, true), "a child element");
+        Assert.True(!Presentation.Relevant(0x800B, 0, 0, false), "a child window");
+        Assert.True(!Presentation.Relevant(0x8005, 0, 0, true), "focus inside an app");
     }
 }

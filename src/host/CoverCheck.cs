@@ -86,7 +86,7 @@ public static class CoverCheck
     }
 
     // The frame the user sees (without the invisible resize borders of Windows 10/11), else the window rect.
-    static Rectangle FrameBounds(IntPtr h)
+    public static Rectangle FrameBounds(IntPtr h)
     {
         Native.RECT r;
         if (Native.DwmGetWindowAttribute(h, Native.DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf(typeof(Native.RECT))) != 0

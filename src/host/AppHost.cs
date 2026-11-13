@@ -26,12 +26,13 @@ using Microsoft.Web.WebView2.Core;
 //   the hidden window, which PrePlace put at the start layout's saved spot and size, so the first thing shown is on
 //   the start layout's monitor (it used PANEL's own saved spot, which could be on another monitor).
 // - fullscreen {on, here}: something runs full screen (Presentation: Windows reports a fullscreen app or presentation
-//   mode, or the foreground window covers its whole monitor), sent after every init and on each change; the page
-//   holds its reminders while on. here (1.1.1): that full-screen window is on the pet window's monitor. Then the window
-//   steps back: topmost off (ApplyTopmost) and below that window in the z-order, never activated and never moved, and
-//   no raise (a prompt's, a show's) may lift it above that window; the page shows no bubbles at all. When it ends the
-//   page gets fullscreen {on:false} and the window its topmost back. A full-screen window on another monitor is
-//   {on:true, here:false}: the window stays as it is.
+//   mode, or a monitor's top window covers that whole monitor, foreground or not), sent after every init and on each
+//   change; the page holds its reminders while on. here (1.1.1): the pet window's monitor is full screen (PowerPoint's
+//   slide show on the projector counts while the presenter view has the keyboard). Then the window steps back: topmost
+//   off (ApplyTopmost) and below that full-screen window in the z-order, never activated and never moved, and no raise
+//   (a prompt's, a show's) may lift it above that window; the page shows no bubbles at all. When it ends the page gets
+//   fullscreen {on:false} and the window its topmost back. Only another monitor full screen is {on:true, here:false}:
+//   the window stays as it is.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
 //   activation if the user sees it, and back to the layout's own 永遠在最上層 afterwards (ApplyTopmost). It never
 //   shows a hidden window and never takes the keyboard.
@@ -136,7 +137,7 @@ public class AppHost
             delegate { tray.CloseInnermost(); });
         window.CloseRequested += delegate { wantVisible = false; ApplyVisibility(); };   // Alt+F4: hide; 結束 quits
         window.FormClosing += OnClosing;
-        presentation = new Presentation(Presentation.Query, Presentation.ProbeForeground, PetMonitor);
+        presentation = new Presentation(Presentation.Query, Presentation.ZOrder, Presentation.MonitorRects, PetMonitor);
 
         quitTimer.Interval = QuitWaitMs;
         quitTimer.Tick += delegate { Quit(); };
