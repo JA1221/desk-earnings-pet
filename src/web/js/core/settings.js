@@ -36,7 +36,7 @@ QJZ.settings = (function () {
   var DOCKS = ['top', 'bottomLeft', 'bottomCenter', 'bottomRight'];
   // [min, max, step] per health number (§5.4), keyed by its path under health.
   var HEALTH_RANGES = {
-    'every': [20, 120, 5], 'water.goal': [1, 20, 1],
+    'every': [5, 120, 5], 'water.goal': [1, 20, 1],   // every: 5–120 since 1.1.1 (it was 20–120)
     'pomodoro.focus': [10, 90, 5], 'pomodoro.short': [1, 30, 1], 'pomodoro.long': [5, 60, 5], 'pomodoro.longEvery': [2, 8, 1]
   };
   var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 'h2', 's4', 's5'] };

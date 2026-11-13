@@ -77,10 +77,15 @@ test('settings: health defaults and the derived goals (§4.9, §5.4)', function 
   eq(QJZ.settings.standGoal(d), 9); eq(QJZ.settings.tomatoGoal(d), 4);
   eq(QJZ.settings.standGoal(QJZ.settings.parse('{"hoursPerDay":7.5}').settings), 9); eq(QJZ.settings.standGoal(QJZ.settings.parse('{"health":{"every":120}}').settings), 4);
   eq(QJZ.settings.standGoal(QJZ.settings.parse('{"health":{"every":20}}').settings), 24);
+  eq(QJZ.settings.standGoal(QJZ.settings.parse('{"health":{"every":5}}').settings), 96, '8 h / 5 min (1.1.1)');
 });
 test('settings: health ranges and steps', function () {
   function h(o) { return QJZ.settings.parse(JSON.stringify({ health: o })).settings.health; }
-  eq(h({ every: 53 }).every, 55); eq(h({ every: 52 }).every, 50); eq(h({ every: 10 }).every, 20); eq(h({ every: 500 }).every, 120); eq(h({ every: '50' }).every, 50);
+  eq(h({ every: 53 }).every, 55); eq(h({ every: 52 }).every, 50); eq(h({ every: 500 }).every, 120); eq(h({ every: '50' }).every, 50);
+  // 1.1.1 item 5: 5–120 minutes, step 5 (it was 20–120)
+  eq(QJZ.settings.HEALTH_RANGES.every, [5, 120, 5]);
+  eq(h({ every: 10 }).every, 10); eq(h({ every: 5 }).every, 5); eq(h({ every: 7 }).every, 5); eq(h({ every: 8 }).every, 10);
+  eq(h({ every: 3 }).every, 5); eq(h({ every: 0 }).every, 5); eq(h({ every: -20 }).every, 5); eq(h({ every: 15 }).every, 15);
   eq(h({ water: { goal: 0 } }).water.goal, 1); eq(h({ water: { goal: 8.6 } }).water.goal, 9); eq(h({ water: { goal: 99 } }).water.goal, 20);
   eq(h({ pomodoro: { focus: 7 } }).pomodoro.focus, 10); eq(h({ pomodoro: { focus: 93 } }).pomodoro.focus, 90);
   eq(h({ pomodoro: { short: 0 } }).pomodoro.short, 1); eq(h({ pomodoro: { short: 31 } }).pomodoro.short, 30);

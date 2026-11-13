@@ -832,10 +832,14 @@
     ok($(e, '[data-num=every] [data-dir="+"]').disabled, 'and cannot be pressed');
     QJZ.app.saveSettings({ health: { every: 20 } });
     minus('every');
-    eq(hs().every, 20, '− at 20 stays 20');
+    eq(hs().every, 15, '1.1.1: below 20 now');
+    QJZ.app.saveSettings({ health: { every: 5 } });
+    minus('every');
+    eq(hs().every, 5, '− at 5 stays 5');
     ok($(e, '[data-num=every] [data-dir="-"]').disabled);
+    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 96 次（工時 ÷ 間隔，自動算）', '480 / 5');
     plus('every');
-    eq([hs().every, text(e, '[data-o="num.every"]')], [25, '25']);
+    eq([hs().every, text(e, '[data-o="num.every"]')], [10, '10']);
     minus('water.goal');
     plus('pomodoro.focus');
     eq([hs().water.goal, hs().pomodoro.focus], [7, 30]);

@@ -745,6 +745,202 @@
     done();
   });
 
+  // ---------- 1.1.1 ----------
+  // Item 4: 少記一杯 (the host's menu {action:'undrink'}) is 今天已喝 −: one cup off today, never below 0, nothing else.
+  test('care: 少記一杯 takes one cup off today, never below 0, and changes nothing else', function () {
+    var e = mk(at(9, 0));
+    C.setCups(3);
+    go(e, at(9, 20));
+    var r = JSON.stringify(C.state.r), m = mark(e);
+    menu(e, 'undrink');
+    eq(h(), [2, 0, 0]);
+    eq(A.state.history.days['2026-11-12'].health, { cups: 2, cupGoal: 8, tomatoes: 0, standups: 0 }, 'today, as the calendar reads it');
+    ok(sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.cups === 2; }), 'saved at once');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '2/8', pomodoro: { phase: 'idle', endsMs: null } }], 'the menu follows');
+    eq([events(e, m, 'drank'), events(e, m, 'standup')], [[], []], 'not a cup, not a stand-up');
+    eq(JSON.stringify(C.state.r), r, 'the timer is as it was');
+    menu(e, 'undrink');
+    menu(e, 'undrink');
+    eq(h(), [0, 0, 0]);
+    m = mark(e);
+    menu(e, 'undrink');
+    eq(h(), [0, 0, 0], 'never below 0');
+    eq([sends(e, m, 'saveHistory'), sends(e, m, 'healthMenu')], [[], []], 'and nothing is written');
+    eq(C.undrink(), false);
+    done();
+
+    e = mk(at(9, 0));
+    eq(C.undrink(), false, 'no cup yet today');
+    C._reset();
+    eq(C.undrink(), false, 'not ready');
+    done();
+  });
+
+  test('care: 少記一杯 while the bubble shows: its count at once, and below the goal it asks water again', function () {
+    var e = mk(at(9, 0));
+    C.setCups(3);
+    go(e, at(9, 50));
+    eq(C.view().sub, '已經坐 50 分鐘囉・今天 3/8 杯');
+    menu(e, 'undrink');
+    eq(C.view().sub, '已經坐 50 分鐘囉・今天 2/8 杯', 'the bubble\'s count');
+    done();
+
+    e = mk(at(9, 0));
+    C.setCups(8);
+    go(e, at(9, 50));
+    var m = mark(e);
+    eq(C.state.prompt.kind, 'sit', 'at the goal: only 起來動');
+    menu(e, 'undrink');
+    go(e, at(9, 50, 1));
+    eq(prompts(e, m), ['update:both'], '7/8: water again');
+    eq(C.view().sub, '已經坐 50 分鐘囉・今天 7/8 杯');
+    eq(raises(e, m), [], 'no new bubble, no new raise');
+    done();
+  });
+
+  // Item 5: 設定 → 健康 →「現在提醒我一次」: a real reminder, due now. The gates still hold it (hidden, full screen, a
+  // focus, the open panel: Ruling C1), so pressed in 設定 it shows 3 s after the panel closes. Off work it still shows.
+  test('care: 現在提醒我一次 makes the reminder due now; the open panel holds it until 3 s after it closes', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 7));
+    C.setPanel(true);
+    var m = mark(e);
+    eq(C.remindNow(), true);
+    eq(C.state.standIn, 0, 'due now');
+    go(e, at(9, 7, 30));
+    eq(prompts(e, m), [], 'the panel holds it');
+    e.clock.ms = at(9, 8);
+    C.setPanel(false);
+    go(e, at(9, 8, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 8, 3));
+    eq(prompts(e, m), ['show:both'], 'asks what the switches say');
+    eq(raises(e, m), [true]);
+    eq(C.view().sub, '已經坐 8 分鐘囉・今天 0/8 杯', 'the real time sat');
+    eq(C.view().buttons.map(function (b) { return b.id; }), ['drink', 'up', 'later']);
+    done();
+  });
+
+  test('care: 現在提醒我一次 answers like any reminder: 喝了, 起來了, 等一下', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 10));
+    C.remindNow();
+    eq(C.state.prompt.kind, 'both', 'shown at once when nothing holds it');
+    C.answer('drink');
+    eq(h(), [1, 0, 1], '喝了: a cup and a stand-up');
+    var m = mark(e);
+    walk(e, at(9, 11), at(9, 59), MIN);
+    go(e, at(9, 59, 59));
+    eq(prompts(e, m), [], 'the timer restarted at 09:10');
+    go(e, at(10, 0));
+    eq(prompts(e, m), ['show:both'], 'the next one 50 min later');
+    done();
+
+    e = mk(at(9, 0), S(SIT));
+    go(e, at(9, 10));
+    C.remindNow();
+    eq(C.state.prompt.kind, 'sit', 'only 起來動 on: only that');
+    C.answer('up');
+    eq(h(), [0, 0, 1]);
+    eq(C.minutesToStand(), 50);
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(9, 10));
+    C.remindNow();
+    m = mark(e);
+    C.answer('later');
+    eq(h(), [0, 0, 0]);
+    eq(C.minutesToStand(), 10, 'the time to the end of the snooze');
+    walk(e, at(9, 11), at(9, 19), MIN);
+    go(e, at(9, 19, 59));
+    eq(prompts(e, m), ['hide']);
+    go(e, at(9, 20));
+    eq(prompts(e, m), ['hide', 'show:both'], '等一下: 10 minutes later');
+    done();
+  });
+
+  test('care: 現在提醒我一次 waits for a focus, and shows outside work time too', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 10));
+    C.toggleFocus();
+    var m = mark(e);
+    C.remindNow();
+    walk(e, at(9, 11), at(9, 34), MIN);
+    eq(prompts(e, m), [], 'a focus holds it');
+    go(e, at(9, 35));
+    eq(prompts(e, m), ['show:break+w'], 'the break takes it in: the water line');
+    C.answer('ok');
+    eq(h(), [0, 1, 1], 'and the break was the stand-up');
+    m = mark(e);
+    walk(e, at(9, 36), at(9, 39), MIN);
+    eq(prompts(e, m), [], 'nothing more during the break');
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(12, 20));
+    m = mark(e);
+    eq(prompts(e, m), []);
+    C.remindNow();
+    eq(prompts(e, m), ['show:both'], 'at lunch too: it was asked for');
+    C.answer('up');
+    eq(h(), [0, 0, 1]);
+    done();
+  });
+
+  test('care: 現在提醒我一次 does nothing when nothing would be asked', function () {
+    var e = mk(at(9, 0), S({ asked: true, sit: { on: false }, water: { on: false } }));
+    var m = mark(e);
+    eq(C.remindNow(), false, 'both switches off');
+    go(e, at(9, 0, 5));
+    eq(prompts(e, m), []);
+    done();
+
+    e = mk(at(9, 0), S(null));
+    eq(C.remindNow(), false, 'a 1.0 user who has not answered');
+    done();
+
+    e = mk(at(9, 0), S(WATER));
+    C.setCups(8);
+    eq(C.remindNow(), false, 'water only, and the goal is reached');
+    C._reset();
+    eq(C.remindNow(), false, 'not ready');
+    done();
+  });
+
+  // Item 7: fullscreen {on, here}. on holds the reminders (as before); here (the full-screen window is on the pet's
+  // monitor, the host has stepped the window behind it) also hushes every line. Nothing is replayed after it.
+  test('care: full screen on the pet\'s monitor is here; another monitor holds the reminders only', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 49));
+    var m = mark(e);
+    e.bridge.emit({ type: 'fullscreen', on: true, here: true });
+    eq([C.state.fullscreen, C.state.here], [true, true]);
+    walk(e, at(9, 50), at(9, 54), MIN);
+    eq(prompts(e, m), [], 'the reminder waits');
+    e.clock.ms = at(9, 55);
+    e.bridge.emit({ type: 'fullscreen', on: false });
+    eq([C.state.fullscreen, C.state.here], [false, false]);
+    go(e, at(9, 55, 2));
+    eq(prompts(e, m), []);
+    go(e, at(9, 55, 3));
+    eq(prompts(e, m), ['show:both'], 'the queued reminder 3 s later');
+    done();
+
+    e = mk(at(9, 0));
+    e.bridge.emit({ type: 'fullscreen', on: true, here: false });
+    eq([C.state.fullscreen, C.state.here], [true, false], 'another monitor');
+    e.bridge.emit({ type: 'fullscreen', on: false, here: true });
+    eq([C.state.fullscreen, C.state.here], [false, false], 'here only with on');
+    e.bridge.emit({ type: 'fullscreen', on: true, here: 'yes' });
+    eq(C.state.here, false, 'only true is here');
+    var n = 0;
+    C.on('change', function () { n++; });
+    e.bridge.emit({ type: 'fullscreen', on: true, here: true });
+    eq([C.state.here, n], [true, 1], 'a change');
+    done();
+  });
+
   test('care: _dev seeds counts, a pomodoro and a prompt (dev.html only)', function () {
     var e = mk(at(10, 0));
     vis(e, false, at(10, 0));

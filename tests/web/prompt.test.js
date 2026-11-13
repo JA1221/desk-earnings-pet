@@ -1,7 +1,7 @@
 (function () {
 var P = QJZ.prompt;
 function c(t, o) { o = o || {}; var a = o.ask || '';
-  return { nowMs: t, blocked: !!o.blocked, focus: !!o.focus, working: o.working !== false,
+  return { nowMs: t, blocked: !!o.blocked, focus: !!o.focus, working: o.working !== false, forced: !!o.forced,
     due: { due: !!a, sit: a === 'both' || a === 'sit', water: a === 'both' || a === 'water' }, notice: o.notice || null, noticeWater: !!o.noticeWater }; }
 function st(q, t, o) { return P.step(q, c(t, o)); }
 function ty(x) { return x.events.map(function (e) { return e.type + (e.prompt && e.type !== 'wave' ? ':' + e.prompt.kind + (e.prompt.water ? '+w' : '') : '') + (e.quiet ? ':quiet' : ''); }); }
@@ -77,5 +77,15 @@ test('prompt: view copy', function () {
   var r = P.view({ kind: 'break', water: false }, { breakMin: 5, done: 3 }); eq([r.title, r.sub, r.waterLine], ['休息 5 分鐘！起來走走～', '第 3 顆番茄完成', null]); eq(lab(r), ['好', '跳過休息']);
   var l = P.view({ kind: 'break', water: true }, { breakMin: 15, long: true, done: 4 }); eq([l.title, l.waterLine], ['長休息 15 分鐘！起來走走～', '順便喝口水吧～']); eq(lab(l), ['好', '喝了', '跳過休息']);
   var e = P.view({ kind: 'breakEnd' }, {}); eq(e.title, '休息結束～要開始下一顆嗎？'); eq(lab(e), ['開始', '先不要']);
+});
+// 1.1.1 item 5: a forced reminder (現在提醒我一次) shows outside work time too; the gates still hold it.
+test('prompt: a forced reminder shows outside work time; hidden, full screen, the panel and a focus still hold it', function () {
+  eq(ty(st(P.initial(), at(12, 30), { ask: 'both', working: false })), [], 'lunch: not by itself');
+  var x = st(P.initial(), at(12, 30), { ask: 'both', working: false, forced: true }); eq(ty(x), ['show:both'], 'asked for');
+  eq(ty(st(x.q, at(12, 31), { ask: 'both', working: false, forced: true })), [], 'it stays');
+  eq(ty(st(P.initial(), at(12, 30), { ask: 'both', forced: true, blocked: true })), []);
+  eq(ty(st(P.initial(), at(12, 30), { ask: 'both', forced: true, focus: true })), []);
+  x = st(st(P.initial(), at(12, 30), { ask: 'both', forced: true, blocked: true }).q, at(12, 31), { ask: 'both', forced: true, working: false });
+  eq(ty(x), []); eq(ty(st(x.q, at(12, 31, 3), { ask: 'both', forced: true, working: false })), ['show:both'], '3 s after the gate opens');
 });
 })();

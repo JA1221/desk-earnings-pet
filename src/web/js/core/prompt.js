@@ -3,6 +3,8 @@ window.QJZ = window.QJZ || {};
 //   Q = {prompt:null|Prompt, noticeReadyAt, remindReadyAt, waveAt}
 //   Prompt = {kind:'both'|'sit'|'water'|'break'|'breakEnd', water:boolean, shownMs}
 //   A ready-at of null means "blocked right now": the 3 s gate starts on the first step it is no longer blocked.
+//   step's c: {nowMs, blocked, focus, working, forced, due, notice, noticeWater}. forced (1.1.1, 現在提醒我一次): the
+//   reminder was asked for, so it shows outside work time too; blocked and focus still hold it.
 QJZ.prompt = (function () {
   var GATE_MS = 3000, WAVE_MS = 120000;
   var LINES = {
@@ -23,7 +25,7 @@ QJZ.prompt = (function () {
   function wanted(c) {
     if (c.blocked) return null;
     if (c.notice === 'break' || c.notice === 'breakEnd') return { kind: c.notice, water: c.notice === 'break' && !!c.noticeWater && !!c.working };
-    if (c.working && !c.focus && c.due && c.due.due) return { kind: c.due.sit && c.due.water ? 'both' : (c.due.sit ? 'sit' : 'water'), water: false };
+    if ((c.working || c.forced) && !c.focus && c.due && c.due.due) return { kind: c.due.sit && c.due.water ? 'both' : (c.due.sit ? 'sit' : 'water'), water: false };
     return null;
   }
 

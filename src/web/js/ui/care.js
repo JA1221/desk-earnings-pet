@@ -15,16 +15,21 @@ window.QJZ = window.QJZ || {};
 //     during the focus adds its water line to the break bubble (Ruling M3); a break or 休息結束 left from an earlier
 //     day then ends quietly;
 //  3. the timer runs to now;
-//  4. the arbiter decides the bubble: blocked while hidden, fullscreen or the panel is open (Ruling C1);
+//  4. the arbiter decides the bubble: blocked while hidden, fullscreen or the panel is open (Ruling C1); a reminder
+//     asked for with remindNow (the timer's forced) shows outside work time too;
 //  5. prompt events, raise {on} to the host, then the pet's cue.
 // A fresh 開始上班 (the app's started event) restarts the timer; 繼續上班 and 調整起算時間 do not (§5.1).
 // Saved and sent only on change (Ruling R7): the pomodoro when it changed, healthMenu when its payload changed.
 // A clock set back moves the arbiter's times and 等一下 with it, so no bubble waits for the size of the jump.
 //
-// Host messages: visibility {visible} (false until the first one), fullscreen {on}, session {kind, ms}, menu {action}
-// ('drink', 'pomodoro'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}}.
-// state also carries standIn (minutesToStand(): null when nothing is asked) and nth (the running focus's 第 N 顆 on its
-// start day, else 0), for the layouts.
+// Host messages: visibility {visible} (false until the first one), fullscreen {on, here}, session {kind, ms}, menu
+// {action} ('drink', 'undrink', 'pomodoro'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}}.
+// fullscreen (1.1.1 item 7): on holds the bubbles (state.fullscreen, the gate above); here says the full-screen window
+// is on the pet window's monitor and the host has stepped the window behind it: state.here, and the layouts then say
+// nothing at all (no chatter, event or milestone line, banner or drank line). Nothing is replayed after it; only a
+// queued bubble comes, 3 s after on ends.
+// state also carries standIn (minutesToStand(): null when nothing is asked), nth (the running focus's 第 N 顆 on its
+// start day, else 0) and here, for the layouts.
 // Events (on): change (state); prompt {type:'show'|'update'|'wave'|'hide', prompt, view, quiet}; cue ('focus' | 'wave'
 // | 'holdCup' | 'stretch' | null); drank {cups, goalReached}; standup {count, source:'up'|'drink'|'break'|'lock'}.
 QJZ.care = (function () {
@@ -32,7 +37,7 @@ QJZ.care = (function () {
   var R = QJZ.reminders, P = QJZ.pomodoro, Q = QJZ.prompt;
 
   var state = {
-    ready: false, visible: false, fullscreen: false, panel: false, away: false,
+    ready: false, visible: false, fullscreen: false, here: false, panel: false, away: false,
     r: null, p: null, q: null, prompt: null, breakWater: false,
     health: QJZ.health.of(null), goals: { cups: 0, tomatoes: 0, standups: 0 }, show: { cups: false, tomatoes: false },
     cupsText: '', turn: 0, standIn: null, nth: 0
@@ -168,7 +173,7 @@ QJZ.care = (function () {
         var cups = QJZ.health.of(rec).cups;
         var res = Q.step(state.q, {
           nowMs: now, blocked: !state.visible || state.fullscreen || state.panel, focus: state.p.phase === 'focus',
-          working: working(rec, s, now), due: R.due(state.r, now, s.health, cups), notice: state.p.notice,
+          working: working(rec, s, now), forced: !!state.r.forced, due: R.due(state.r, now, s.health, cups), notice: state.p.notice,
           noticeWater: state.breakWater && R.ask(s.health, cups).water
         });
         state.q = res.q;
@@ -226,8 +231,8 @@ QJZ.care = (function () {
     state.nth = p.phase === 'focus' ? healthOn(p.day).tomatoes + 1 : 0;
     var cue = cueNow();
     if (cue !== lastCue) { lastCue = cue; emit('cue', cue); }
-    var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.panel, state.away,
-      state.standIn, state.nth]);
+    var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.here, state.panel,
+      state.away, state.standIn, state.nth]);
     if (sig !== lastSig) { lastSig = sig; emit('change', state); }
     var menu = { cups: state.show.cups ? state.cupsText : null,
       pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
@@ -282,7 +287,11 @@ QJZ.care = (function () {
 
   // ---- host messages ----
   function onVisibility(msg) { state.visible = !!(msg && msg.visible); step(); }
-  function onFullscreen(msg) { state.fullscreen = !!(msg && msg.on); step(); }
+  function onFullscreen(msg) {
+    state.fullscreen = !!(msg && msg.on);
+    state.here = state.fullscreen && msg.here === true;
+    step();
+  }
   // lock / suspend: away. unlock / logon, or a resume that is not to the lock screen: back; 5 min away while working
   // was a stand-up (§5.1).
   function onSession(msg) {
@@ -305,6 +314,7 @@ QJZ.care = (function () {
   function onMenu(msg) {
     var a = msg && msg.action;
     if (a === 'drink') drink();
+    else if (a === 'undrink') undrink();
     else if (a === 'pomodoro') toggleFocus();
   }
 
@@ -328,6 +338,30 @@ QJZ.care = (function () {
       h.cups = Math.floor(n);
       h.cupGoal = settings().health.water.goal;
       QJZ.app.setHealth(today().day, h);
+    });
+    return true;
+  }
+  // 少記一杯 (1.1.1 item 4, the menu's undrink): 今天已喝 −, one cup off today; at 0 nothing (false). Nothing else
+  // changes: not the timer, no stand-up, no line. The bubble's count, the layouts, the calendar and healthMenu follow
+  // the change; a bubble that stopped asking water at the goal asks it again on the next step.
+  function undrink() {
+    if (!state.ready) return false;
+    var n = QJZ.health.of(today()).cups;
+    return n > 0 && setCups(n - 1);
+  }
+  // 設定 → 健康 →「現在提醒我一次」(1.1.1 item 5): the reminder is due now (QJZ.reminders.force), a real one: it asks
+  // what the switches say, 喝了 / 起來了 / 等一下 answer it as always. The gates still hold it: hidden, full screen, a
+  // focus (its break takes it in), the open panel (Ruling C1: pressed in 設定, it shows 3 s after the panel closes).
+  // It shows outside work time too, since it was asked for. false when nothing would be asked (both switches off, not
+  // answered yet, or water only and the goal reached).
+  function remindNow() {
+    if (!state.ready) return false;
+    var a = R.ask(settings().health, QJZ.health.of(today()).cups);
+    if (!a.sit && !a.water) return false;
+    batch(function () {
+      catchUp(nowFn());
+      state.r = R.force(state.r);
+      step();
     });
     return true;
   }
@@ -412,7 +446,7 @@ QJZ.care = (function () {
     for (var k in listeners) listeners[k] = [];
     started = false; bridge = null; nowFn = null; seenHistory = null; seenRec = null;
     busy = 0; stepping = false; locked = false; lastNow = null; lineTurn = 0; lastSig = null; lastMenu = null; lastCue = null;
-    state.ready = state.visible = state.fullscreen = state.panel = state.away = state.breakWater = false;
+    state.ready = state.visible = state.fullscreen = state.here = state.panel = state.away = state.breakWater = false;
     state.r = state.p = state.q = state.prompt = null;
     state.health = QJZ.health.of(null); state.goals = { cups: 0, tomatoes: 0, standups: 0 };
     state.show = { cups: false, tomatoes: false }; state.cupsText = ''; state.turn = 0; state.standIn = null; state.nth = 0;
@@ -452,7 +486,7 @@ QJZ.care = (function () {
   }
 
   return {
-    state: state, start: start, stepNow: step, on: on, drink: drink, setCups: setCups, toggleFocus: toggleFocus,
-    answer: answer, setPanel: setPanel, minutesToStand: minutesToStand, view: view, _reset: reset, _dev: dev
+    state: state, start: start, stepNow: step, on: on, drink: drink, undrink: undrink, setCups: setCups, toggleFocus: toggleFocus,
+    remindNow: remindNow, answer: answer, setPanel: setPanel, minutesToStand: minutesToStand, view: view, _reset: reset, _dev: dev
   };
 })();

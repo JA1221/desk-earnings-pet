@@ -58,4 +58,20 @@ test('reminders: nothing asked, or a day that never started, is never due; minut
 test('reminders: a long gap across lunch counts only the working time after the lunch end', function () {
   var rec = started(9, 0); eq(R.advance(run(rec, at(9, 0), at(11, 0)), at(14, 0), rec, ALL).ms, 3600000);
 });
+// 1.1.1 item 5: 現在提醒我一次 forces the reminder due now. Whatever restarts the timer ends it; 等一下 snoozes it.
+test('reminders: a forced reminder is due at once, until something restarts the timer', function () {
+  var rec = started(9, 0), r = R.force(run(rec, at(9, 0), at(9, 7)));
+  eq([r.forced, r.ms, r.snoozeUntil], [true, 7 * 60000, null], 'the real time sat is kept');
+  eq(due(r, at(9, 7)), true); eq(R.minutesToNext(r, H, 0), 0);
+  eq(R.due(R.force(R.initial(D, at(9, 0))), at(9, 0), S({ sit: { on: false }, water: { on: false, goal: 8 } }).health, 0).due, false, 'nothing asked: nothing due');
+  eq(due(R.advance(r, at(9, 30), rec, ALL), at(9, 30)), true, 'it stays due');
+  var z = R.snooze(r, at(9, 8));
+  eq([due(z, at(9, 17, 59)), due(z, at(9, 18))], [false, true], '等一下: 10 minutes');
+  eq(R.force(z).snoozeUntil, null, 'forcing again ends the snooze');
+  eq(R.reset(r).forced, false, '喝了 / 起來了'); eq(R.breakStarted(r).forced, false, 'a break');
+  eq(R.comeBack(R.goAway(r, at(9, 10), rec, ALL), at(9, 15), rec, ALL).r.forced, false, 'a lock of 5 min');
+  eq(R.comeBack(R.goAway(r, at(9, 10), rec, ALL), at(9, 14), rec, ALL).r.forced, true, 'a shorter one does not');
+  eq(R.advance(R.force(run(rec, at(9, 0), at(11, 50))), at(13, 10), rec, ALL).forced, false, 'the end of lunch');
+  eq(R.initial(D, at(9, 0)).forced, false);
+});
 })();
