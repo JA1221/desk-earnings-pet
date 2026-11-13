@@ -97,6 +97,7 @@ public class AppHost
     readonly ApplicationContext context = new ApplicationContext();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
     readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
+    readonly MenuClickAway menuClickAway;   // a click on our own window closes the menu (1.1.2 item 2)
     readonly System.Windows.Forms.Timer firstShowTimer = new System.Windows.Forms.Timer();
     string startLayout = "U1";   // the layout used last (HostSettings.StartLayout): what the safety net sizes and places the window for
     bool firstShown;             // the window has been visible to the user (IsWindowVisible) at least once
@@ -159,6 +160,10 @@ public class AppHost
             delegate { if (window.IsHandleCreated) Native.UnregisterHotKey(window.Handle, MenuEscape.Id); },
             delegate { return (Native.GetAsyncKeyState(MenuEscape.VK_ESCAPE) & 0x8000) != 0; },
             delegate { tray.CloseInnermost(); });
+        menuClickAway = new MenuClickAway(
+            delegate(int vk) { return Native.GetAsyncKeyState(vk); },
+            CursorOverWindow,
+            delegate { tray.CloseAll(); });
         window.CloseRequested += delegate { wantVisible = false; ApplyVisibility(); };   // Alt+F4: hide; 結束 quits
         window.FormClosing += OnClosing;
         presentation = new Presentation(Presentation.Query, Presentation.ZOrder, Presentation.MonitorRects, PetMonitor);
@@ -198,7 +203,11 @@ public class AppHost
         tray.Menu.Opening += delegate { if (bridge.IsOpen && !quitting) Send("menuOpening", null); };
         tray.Menu.Closed += delegate
         {
-            try { menuEscape.Stop(); }   // any way the menu closes releases Esc
+            try
+            {
+                menuClickAway.Stop();
+                menuEscape.Stop();   // any way the menu closes releases Esc
+            }
             finally { RestoreFocusAfterMenu(); }
         };
         tray.ShowIcon();
@@ -845,10 +854,25 @@ public class AppHost
     }
 
     // A menu that cannot get the keyboard (no-activate layout, or the keyboard focus is outside our UI thread, for
-    // example in the WebView2 child or the user's app) gets Esc through MenuEscape while it is open.
+    // example in the WebView2 child or the user's app) gets Esc through MenuEscape while it is open. Every menu, from the
+    // page or the tray, in every layout, closes on a click on our own window (MenuClickAway, 1.1.2 item 2).
     void OnMenuOpened()
     {
-        if (!quitting && MenuEscape.Needed(window.NoActivate, KeyboardThread(), uiThread)) menuEscape.Start();
+        if (quitting) return;
+        menuClickAway.Start();
+        if (MenuEscape.Needed(window.NoActivate, KeyboardThread(), uiThread)) menuEscape.Start();
+    }
+
+    // The cursor is over the pet window where the user sees it: the window at the cursor (WindowFromPoint skips it where
+    // it clicks through) is ours or one of its children, the WebView2 page's windows included (another process's, so
+    // GetAncestor). Over the menu, whose popups are top-level windows of their own, or another program's window: false.
+    bool CursorOverWindow()
+    {
+        if (!ShownToUser()) return false;
+        Native.POINT p;
+        if (!Native.GetCursorPos(out p)) return false;
+        IntPtr at = Native.WindowFromPoint(p);
+        return at != IntPtr.Zero && Native.GetAncestor(at, Native.GA_ROOT) == window.Handle;
     }
 
     // The thread whose window has the keyboard focus (or, without one, the active window); 0 when unknown.
@@ -929,7 +953,8 @@ public class AppHost
         {
             try
             {
-                menuEscape.Dispose();   // first: the poll timer goes even if a later step throws
+                menuEscape.Dispose();   // first: the poll timers go even if a later step throws
+                menuClickAway.Dispose();
                 tray.Dispose();   // removes the tray icon
                 window.Close();
                 window.Dispose();
@@ -978,6 +1003,7 @@ public class AppHost
         firstShowTimer.Stop();
         firstShowTimer.Dispose();
         menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered
+        menuClickAway.Stop();
         files.FlushAll();
         RecordExit();
         if (window.IsHandleCreated) HotKey.Unregister(window.Handle);

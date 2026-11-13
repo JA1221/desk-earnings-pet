@@ -171,6 +171,10 @@ internal static class Native
 
     public const uint GA_ROOT = 2;
 
+    // The deepest visible, enabled window at the point (a click-through layered window is skipped).
+    [DllImport("user32.dll")]
+    public static extern IntPtr WindowFromPoint(POINT point);
+
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
 

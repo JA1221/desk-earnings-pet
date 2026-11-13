@@ -141,6 +141,12 @@ public class TrayMenu : IDisposable
         else menu.Close(ToolStripDropDownCloseReason.Keyboard);
     }
 
+    // A click away from the menu (1.1.2, MenuClickAway): every open level closes, as for a click elsewhere.
+    public void CloseAll()
+    {
+        if (menu.Visible) menu.Close(ToolStripDropDownCloseReason.AppClicked);   // its open submenus close with it
+    }
+
     // Removes the tray icon at once (fatal error path; safe to call from any thread, never throws).
     public void HideIcon()
     {

@@ -109,3 +109,140 @@ public static class MenuEscapeTests
         }
     }
 }
+
+// 1.1.2 item 2: a click on our own window closes the menu, in every layout. Neither of the menu's own ways to notice a
+// click reaches it (the press goes to the WebView2 browser process's thread, and the window's activation does not
+// change), so the mouse buttons are polled while the menu is open (MenuClickAway).
+public static class MenuClickAwayTests
+{
+    const short Down = unchecked((short)0x8000);
+    const short Tapped = 0x0001;   // GetAsyncKeyState's "pressed since the last call" bit
+
+    class Fake
+    {
+        public readonly Dictionary<int, short> State = new Dictionary<int, short>();
+        public bool OverOurWindow = true;
+        public int Closes, Looks;
+        public bool CloseThrows;
+        public MenuClickAway Make()
+        {
+            return new MenuClickAway(
+                delegate(int vk) { short s; return State.TryGetValue(vk, out s) ? s : (short)0; },
+                delegate { Looks++; return OverOurWindow; },
+                delegate { Closes++; if (CloseThrows) throw new InvalidOperationException("close failed"); });
+        }
+        public void Set(int vk, short s) { State[vk] = s; }
+    }
+
+    public static void Test_WatchesTheThreeButtons()
+    {
+        Assert.Eq("1,2,4", string.Join(",", Array.ConvertAll(MenuClickAway.Buttons, delegate(int b) { return b.ToString(); })),
+            "VK_LBUTTON, VK_RBUTTON, VK_MBUTTON");
+    }
+
+    public static void Test_Pressed()
+    {
+        Assert.True(MenuClickAway.Pressed(Down, false), "went down since the last look");
+        Assert.True(!MenuClickAway.Pressed(Down, true), "still held");
+        Assert.True(!MenuClickAway.Pressed(0, false), "up");
+        Assert.True(!MenuClickAway.Pressed(0, true), "let go");
+        Assert.True(MenuClickAway.Pressed(Tapped, false), "a tap shorter than one poll (down and up between two looks)");
+        Assert.True(MenuClickAway.Pressed(unchecked((short)(0x8000 | 1)), true), "let go and pressed again between two looks");
+    }
+
+    public static void Test_APressOnOurWindowClosesTheMenu()
+    {
+        var f = new Fake();
+        using (MenuClickAway m = f.Make())
+        {
+            m.Start();
+            Assert.True(m.Active && m.Polling, "polling while the menu is open");
+            m.PollOnce();
+            Assert.Eq(0, f.Closes, "no press: nothing");
+            Assert.Eq(0, f.Looks, "and no window lookup either");
+            f.Set(MenuClickAway.Buttons[0], Down);
+            m.PollOnce();
+            Assert.Eq(1, f.Closes, "left press on our window: closed");
+            m.PollOnce();
+            Assert.Eq(1, f.Closes, "holding it does not close again");
+            f.Set(MenuClickAway.Buttons[0], 0);
+            f.Set(MenuClickAway.Buttons[1], Down);
+            m.PollOnce();
+            Assert.Eq(2, f.Closes, "a right press too (the page then opens the menu again where it was pressed)");
+            f.Set(MenuClickAway.Buttons[1], 0);
+            m.PollOnce();
+            f.Set(MenuClickAway.Buttons[2], Tapped);
+            m.PollOnce();
+            Assert.Eq(3, f.Closes, "a quick middle tap between two looks");
+        }
+    }
+
+    // On the menu itself (its popups are their own top-level windows) or on another program's window, the press is not
+    // ours: the menu handles its own items, and a click elsewhere already closes it by the activation change.
+    public static void Test_APressElsewhereIsLeftToTheMenu()
+    {
+        var f = new Fake();
+        f.OverOurWindow = false;
+        using (MenuClickAway m = f.Make())
+        {
+            m.Start();
+            f.Set(MenuClickAway.Buttons[0], Down);
+            m.PollOnce();
+            Assert.Eq(0, f.Closes, "not over our window: left alone");
+            Assert.Eq(1, f.Looks, "looked once, on the press");
+        }
+    }
+
+    // The right-click that opened the menu (or a button still held when it opens) is not a click away from it.
+    public static void Test_AButtonHeldWhenTheMenuOpensDoesNotCount()
+    {
+        var f = new Fake();
+        f.Set(MenuClickAway.Buttons[1], unchecked((short)(0x8000 | 1)));
+        using (MenuClickAway m = f.Make())
+        {
+            m.Start();
+            f.Set(MenuClickAway.Buttons[1], Down);   // the "pressed since" bit went with the look at Start
+            m.PollOnce();
+            Assert.Eq(0, f.Closes, "still the same press");
+            f.Set(MenuClickAway.Buttons[1], 0);
+            m.PollOnce();
+            f.Set(MenuClickAway.Buttons[1], Down);
+            m.PollOnce();
+            Assert.Eq(1, f.Closes, "a new press does");
+        }
+    }
+
+    public static void Test_StopsWithTheMenu()
+    {
+        var f = new Fake();
+        MenuClickAway m = f.Make();
+        m.Start();
+        m.Stop();
+        m.Stop();
+        Assert.True(!m.Active && !m.Polling, "stopped");
+        f.Set(MenuClickAway.Buttons[0], Down);
+        m.PollOnce();
+        Assert.Eq(0, f.Closes, "no closing after Stop");
+        m.Start();
+        f.Set(MenuClickAway.Buttons[0], 0);
+        m.PollOnce();
+        f.Set(MenuClickAway.Buttons[0], Down);
+        m.PollOnce();
+        Assert.Eq(1, f.Closes, "the next menu is watched again");
+        m.Dispose();
+        Assert.True(!m.Active && !m.Polling, "Dispose stops it (app exit with the menu open)");
+
+        var g = new Fake();
+        g.CloseThrows = true;
+        using (MenuClickAway n = g.Make())
+        {
+            n.Start();
+            g.Set(MenuClickAway.Buttons[0], Down);
+            bool threw = false;
+            try { n.PollOnce(); }
+            catch (InvalidOperationException) { threw = true; }
+            Assert.True(threw, "the failure is not hidden");
+            Assert.True(!n.Active && !n.Polling, "but the poll stops");
+        }
+    }
+}
