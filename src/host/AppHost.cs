@@ -727,8 +727,8 @@ public class AppHost
         if (presentation.Here != steppedBack)
         {
             steppedBack = presentation.Here;
+            if (steppedBack) StepBehind();   // first: from the topmost band straight to below it, never above it in between
             ApplyTopmost();
-            if (steppedBack) StepBehind();
         }
         Send("fullscreen", FullscreenPayload());
     }
@@ -739,7 +739,7 @@ public class AppHost
     }
 
     // Below the full-screen window in the z-order, if the window is above it (its place among the other windows is
-    // kept otherwise). Hidden or shown; never activates or moves it. Call with topmost already off (ApplyTopmost).
+    // kept otherwise). Hidden or shown; never activates or moves it. ApplyTopmost then keeps it out of the topmost band.
     void StepBehind()
     {
         if (window.IsHandleCreated) CoverCheck.KeepBelow(window.Handle, presentation.Window);

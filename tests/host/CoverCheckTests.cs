@@ -62,6 +62,22 @@ public static class CoverCheckTests
         }
     }
 
+    // A topmost window (U7, M3, U10, or a raised prompt) put below a full-screen window that is not topmost leaves the
+    // topmost band in the same step, so it is never above that window on the way down.
+    public static void Test_KeepBelowTakesATopmostWindowOutOfTheBand()
+    {
+        using (var fs = new System.Windows.Forms.Form())
+        using (var pet = new System.Windows.Forms.Form())
+        {
+            IntPtr hf = fs.Handle, hp = pet.Handle;
+            Native.SetWindowPos(hp, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            Assert.True((Native.GetWindowLong(hp, Native.GWL_EXSTYLE) & Native.WS_EX_TOPMOST) != 0, "topmost to begin with");
+            Assert.True(CoverCheck.KeepBelow(hp, hf), "moved below");
+            Assert.True(CoverCheck.IsAbove(hp, hf), "the full-screen window is above it");
+            Assert.True((Native.GetWindowLong(hp, Native.GWL_EXSTYLE) & Native.WS_EX_TOPMOST) == 0, "no longer topmost");
+        }
+    }
+
     public static void Test_APartialOverlapCounts()
     {
         CoverCheck.Above w = Excel();

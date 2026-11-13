@@ -77,8 +77,8 @@ public static class CoverCheck
     }
 
     // Puts hwnd right below other in the z-order unless it is already below it (then its place among the other
-    // windows is kept); never activates, moves or sizes it. True when it moved hwnd. Call with hwnd out of the topmost
-    // band: placed below a topmost window it would join that band.
+    // windows is kept); never activates, moves or sizes it. True when it moved hwnd. A topmost hwnd put below a window
+    // that is not topmost leaves the topmost band in the same step; put below a topmost one it stays in that band.
     public static bool KeepBelow(IntPtr hwnd, IntPtr other)
     {
         if (hwnd == IntPtr.Zero || other == IntPtr.Zero || IsAbove(hwnd, other)) return false;
