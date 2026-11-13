@@ -1064,6 +1064,27 @@
     } finally { S.get = get; done(); }
   });
 
+  // Task 17's measurement (Rulings M11, M12): every skin's painted body, pet and desk, 0–8 s every 40 ms, in petonly
+  // units. [x0, y0, x1]: wave's head rises 9.6 above PET_HIT (cat P0 14.4, cat S5 21.0), as celebrate's does; the rest
+  // stay in it. The left edges (37.5 cat P4's wave paw, 37.6 cat P0 holding the cup) are the bounding-box overestimate
+  // of a rotated paw, up to EDGE (typing, inside PET_HIT, measures 38.6); the painted-pixel scan below checks the real
+  // pixels.
+  test('layouts: the 1.1 poses\' hit boxes cover their motion', function () {
+    var U = QJZ.layouts.util, P = QJZ.pets, EDGE = 0.5;
+    var MEASURED = { wave: [37.5, 14.4, 192.9], holdCup: [37.6, 23.9, 192.9], sip: [40.2, 27.9, 192.9], focus: [38.4, 27.9, 192.9] };
+    var BOX = { wave: U.PET_HIT_TALL, holdCup: U.PET_HIT, sip: U.PET_HIT, focus: U.PET_HIT };
+    var skins = P.list('hamster').concat(P.list('cat'));
+    eq(skins.length, 10);
+    P.NEW_POSES.forEach(function (pose) {
+      var r = BOX[pose], m = MEASURED[pose];
+      ok(r[0] <= m[0] + EDGE && r[1] <= m[1] + EDGE && r[0] + r[2] >= m[2], pose + ': ' + r + ' covers ' + m);
+      skins.forEach(function (d) {
+        eq(P.poseFor(d.id, pose), pose, d.id + ' draws ' + pose + ' itself');
+        eq(U.petHit(pose, d.id), r, d.id + ' ' + pose);
+      });
+    });
+  });
+
   test('layouts DOM: U7 widens the pet hit rect at once while it dangles and narrows it again after dragEnd', function () {
     var U = QJZ.layouts.util, e = mk(at(12, 10, 0), { first: 'U7' });
     var box = $(e, '[data-hit=pet]').getBoundingClientRect();
@@ -1218,7 +1239,10 @@
     var CASES = [['hamster:p0', 'stretch'], ['hamster:s4', 'stretch'], ['hamster:s5', 'stretch'], ['hamster:h2', 'stretch'], ['cat:p0', 'stretch'],
       ['cat:p0', 'angry'], ['cat:p0', 'petted'], ['cat:p0', 'typing'], ['cat:s5', 'doze'], ['cat:s5', 'celebrate'], ['hamster:s5', 'waitBag'],
       ['cat:s4', 'scratch'], ['cat:s4', 'waitBag'], ['cat:h2', 'celebrate'], ['cat:h2', 'angry'], ['cat:h2', 'lunchSleep'],
-      ['cat:p0', 'celebrate'], ['cat:p0', 'waitBag'], ['cat:s5', 'stretch']];
+      ['cat:p0', 'celebrate'], ['cat:p0', 'waitBag'], ['cat:s5', 'stretch'],
+      // the 1.1 poses at their measured extremes (Task 17): the highest waves, the leftmost paws, the cup and the sip
+      ['cat:p0', 'wave'], ['cat:s5', 'wave'], ['cat:p4', 'wave'], ['hamster:p0', 'wave'], ['cat:p0', 'holdCup'],
+      ['hamster:s4', 'holdCup'], ['cat:p0', 'sip'], ['cat:p0', 'focus']];
     wrap.style.cssText = 'position:fixed;left:0;top:0;z-index:99';
     wrap.innerHTML = '<div class="u7 lay"><div class="dpet"><div class="po" data-pet="petonly" data-hit="pet"></div></div></div>';
     document.body.appendChild(wrap);
@@ -1239,13 +1263,19 @@
       CASES.forEach(function (c) {
         po.innerHTML = QJZ.pets.compose(c[0], 'petonly', { state: c[1] });
         var svg = po.firstElementChild, box = po.getBoundingClientRect();
-        var rects = U.bandRects(U.measureBands(c[0], c[1]), c[1], box).map(U.outer), lim = U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(c[1])));
+        // by the skin too: the box and bands of the pose it shows (a 1.1 pose with no skin is its 1.0 stand-in's)
+        var rects = U.bandRects(U.measureBands(c[0], c[1]), c[1], box, c[0]).map(U.outer), lim = U.outer(U.subRect(box, U.PETONLY_VB, U.petHit(c[1], c[0])));
         var top = U.outer(U.subRect(box, U.PETONLY_VB, U.PETONLY_VB))[1];   // the viewBox top: above the box too (N-1)
         ok(rects.length > 1, c.join(' ') + ': bands, not the box');
-        var anims = svg.getAnimations({ subtree: true }), pts = [], worst = 0, at = null;
-        anims.forEach(function (a) { a.pause(); });
+        var anims = svg.getAnimations({ subtree: true }), pts = [], worst = 0, at = null, span = 4800;
+        anims.forEach(function (a) {
+          a.pause();
+          // a loop that starts late (holdCup offers the glass from 3.6 s on): its first round too, up to 8 s
+          var tm = a.effect.getComputedTiming();
+          if (isFinite(tm.duration)) span = Math.max(span, Math.min(8000, tm.delay + tm.duration * (/alternate/.test(tm.direction) ? 2 : 1)));
+        });
         for (var y = top + 1.5; y < lim[1] + lim[3]; y += 3) for (var x = lim[0] + 1.5; x < lim[0] + lim[2]; x += 3) if (dist(x, y, rects) > 0) pts.push([x, y]);
-        for (var t = 35; t <= 4800; t += 265) {   // off the measuring grid (every 100 ms)
+        for (var t = 35; t <= span; t += 265) {   // off the measuring grid (every 100 ms)
           anims.forEach(function (a) { a.currentTime = t; });
           pts.forEach(function (p) {
             var n = document.elementFromPoint(p[0], p[1]);

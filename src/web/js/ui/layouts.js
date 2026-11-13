@@ -89,8 +89,9 @@ QJZ.layouts = (function () {
   // States whose head rises above PET_HIT's top (measured over every skin, N-1 of the d9bba4f re-review): cat P0 13
   // units while it stretches or celebrates and 6 waiting with the bag, cat S5 6 stretching or celebrating, cat P0 1
   // yawning. Their bands may reach up to the viewBox top (they still follow the painted pet), and so does the box that
-  // serves until the bands are measured.
-  var PET_REACH = { stretch: 1, celebrate: 1, waitBag: 1, yawn: 1 };
+  // serves until the bands are measured. The 1.1 poses (Task 17, all 10 skins, 0–8 s): wave jumps 9.6 above it (cat P0
+  // 14.4, cat S5 21.0), as its stand-in celebrate does; holdCup, sip and focus stay inside PET_HIT.
+  var PET_REACH = { stretch: 1, celebrate: 1, waitBag: 1, yawn: 1, wave: 1 };
   var PET_HIT_TALL = [38, 4, 160, 168];
   // The pose skin id shows for state (QJZ.pets.poseFor): a 1.1 pose the skin does not draw yet shows its 1.0 stand-in.
   // Everything here that is keyed by the pet's state goes by that pose, not by the Brain's state (Ruling M11): the hit
