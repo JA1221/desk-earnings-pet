@@ -22,32 +22,37 @@ window.QJZ = window.QJZ || {};
 // Saved and sent only on change (Ruling R7): the pomodoro when it changed, healthMenu when its payload changed.
 // A clock set back moves the arbiter's times and 等一下 with it, so no bubble waits for the size of the jump.
 //
-// Host messages: visibility {visible} (false until the first one), fullscreen {on, here}, session {kind, ms}, menu
-// {action} ('drink', 'undrink', 'pomodoro'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}}.
+// Host messages: visibility {visible} (false until the first one), fullscreen {on, here}, menu {action} ('drink',
+// 'undrink', 'pomodoro', 'stoodUp'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}, sitOn}
+// (sitOn, 1.1.2: the 起來動 reminder is on, for the menu's 我剛起來動過了).
+// 1.1.2 item 9: the session (lock, unlock, suspend, resume) means nothing here any more: a lock is no stand-up and the
+// timer runs on through it (the locked time is sat time). A reminder that comes due meanwhile waits for the window
+// (the host sends visibility false while locked) and shows 3 s after it is back; nothing is said about the lock.
 // fullscreen (1.1.1 item 7): on holds the bubbles (state.fullscreen, the gate above); here says the full-screen window
 // is on the pet window's monitor and the host has stepped the window behind it: state.here, and the layouts then say
 // nothing at all (no chatter, event or milestone line, banner or drank line). Nothing is replayed after it; only a
 // queued bubble comes, 3 s after on ends.
 // state also carries standIn (minutesToStand(): null when nothing is asked), nth (the running focus's 第 N 顆 on its
-// start day, else 0), here and forced (a reminder asked for waits: the timer reads 0, which no countdown shows), for
-// the layouts.
+// start day, else 0), here and forced (a reminder asked for waits: the timer reads 0, which no countdown shows), and
+// snoozed (1.1.2: 等一下 runs, standIn counts to its end; the countdown shows 💤), for the layouts.
 // Events (on): change (state); prompt {type:'show'|'update'|'wave'|'hide', prompt, view, quiet}; cue ('focus' | 'wave'
-// | 'holdCup' | 'stretch' | null); drank {cups, goalReached}; standup {count, source:'up'|'drink'|'break'|'lock'}.
+// | 'holdCup' | 'stretch' | null); drank {cups, goalReached}; standup {count, source:'up'|'drink'|'break'|'manual'}
+// ('manual': 我剛起來動過了, stoodUp); snooze {minutes} (等一下 on a reminder that will come back: the pet says when).
 QJZ.care = (function () {
   var HEARTBEAT_MS = 10000, MIN = 60000;
   var R = QJZ.reminders, P = QJZ.pomodoro, Q = QJZ.prompt;
 
   var state = {
-    ready: false, visible: false, fullscreen: false, here: false, panel: false, away: false, forced: false,
+    ready: false, visible: false, fullscreen: false, here: false, panel: false, forced: false, snoozed: false,
     r: null, p: null, q: null, prompt: null, breakWater: false,
     health: QJZ.health.of(null), goals: { cups: 0, tomatoes: 0, standups: 0 }, show: { cups: false, tomatoes: false },
     cupsText: '', turn: 0, standIn: null, nth: 0
   };
-  var listeners = { change: [], prompt: [], cue: [], drank: [], standup: [] };
+  var listeners = { change: [], prompt: [], cue: [], drank: [], standup: [], snooze: [] };
   var started = false, bridge = null, nowFn = null, heartbeat = null, offs = [];
   var seenHistory = null;   // QJZ.app.state.history as of the last init: a new object means a new init
   var seenRec = null;       // today's {day, startMs, endMs} at the last step: tells a 繼續上班
-  var busy = 0, stepping = false, locked = false, lastNow = null, lineTurn = 0;
+  var busy = 0, stepping = false, lastNow = null, lineTurn = 0;
   var lastSig = null, lastMenu = null, lastCue = null;
 
   function emit(name, arg) {
@@ -92,11 +97,10 @@ QJZ.care = (function () {
   function catchUp(now) {
     if (state.r.day === today().day) state.r = R.advance(state.r, now, today(), settings());
   }
-  // A new day starts its own timer; a lock that is still on stays one.
+  // A new day starts its own timer.
   function followDay(rec, now) {
     if (state.r.day === rec.day) return;
-    var fresh = R.initial(rec.day, now);
-    state.r = state.r.away ? R.goAway(fresh, now, rec, settings()) : fresh;
+    state.r = R.initial(rec.day, now);
     seenRec = null;
   }
   // 繼續上班 makes the time since the 下班 working time again, as for the money. The steps in between counted none of it,
@@ -117,8 +121,7 @@ QJZ.care = (function () {
         remindReadyAt: q.remindReadyAt === null ? null : q.remindReadyAt + d,
         waveAt: q.waveAt + d
       };
-      state.r = withR({ snoozeUntil: typeof r.snoozeUntil === 'number' ? r.snoozeUntil + d : r.snoozeUntil,
-        awayMs: r.away ? r.awayMs + d : r.awayMs });
+      state.r = withR({ snoozeUntil: typeof r.snoozeUntil === 'number' ? r.snoozeUntil + d : r.snoozeUntil });
     }
     lastNow = now;
   }
@@ -230,17 +233,18 @@ QJZ.care = (function () {
     state.show = { cups: !!s.health.water.on || h.cups > 0, tomatoes: h.tomatoes > 0 || p.phase === 'focus' };
     state.cupsText = h.cups + '/' + state.goals.cups;
     state.prompt = state.q.prompt;
-    state.away = state.r.away;
     state.standIn = minutesToStand();
     state.forced = !!state.r.forced;
+    state.snoozed = typeof state.r.snoozeUntil === 'number' && state.r.snoozeUntil > nowFn();
     state.nth = p.phase === 'focus' ? healthOn(p.day).tomatoes + 1 : 0;
     var cue = cueNow();
     if (cue !== lastCue) { lastCue = cue; emit('cue', cue); }
     var sig = JSON.stringify([h, state.goals, state.show, p, state.prompt, state.visible, state.fullscreen, state.here, state.panel,
-      state.away, state.standIn, state.nth, state.forced]);
+      state.standIn, state.nth, state.forced, state.snoozed]);
     if (sig !== lastSig) { lastSig = sig; emit('change', state); }
     var menu = { cups: state.show.cups ? state.cupsText : null,
-      pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
+      pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null },
+      sitOn: R.ask(s.health, h.cups).sit };
     var text = JSON.stringify(menu);
     if (text !== lastMenu) { lastMenu = text; bridge.send('healthMenu', menu); }
   }
@@ -297,30 +301,12 @@ QJZ.care = (function () {
     state.here = state.fullscreen && msg.here === true;
     step();
   }
-  // lock / suspend: away. unlock / logon, or a resume that is not to the lock screen: back; 5 min away while working
-  // was a stand-up (§5.1).
-  function onSession(msg) {
-    var kind = msg && msg.kind;
-    if (kind === 'lock') locked = true;
-    else if (kind === 'unlock' || kind === 'logon') locked = false;
-    if (!state.ready) return;
-    var ms = finite(msg && msg.ms, nowFn());
-    batch(function () {
-      var rec = today(), s = settings();
-      followDay(rec, ms);
-      if (kind === 'lock' || kind === 'suspend') state.r = R.goAway(state.r, ms, rec, s);
-      else if (kind === 'unlock' || kind === 'logon' || (kind === 'resume' && !locked)) {
-        var back = R.comeBack(state.r, ms, rec, s);
-        state.r = back.r;
-        if (back.standup) emit('standup', { count: addHealth(rec.day, 'standups', 1), source: 'lock' });
-      }
-    });
-  }
   function onMenu(msg) {
     var a = msg && msg.action;
     if (a === 'drink') drink();
     else if (a === 'undrink') undrink();
     else if (a === 'pomodoro') toggleFocus();
+    else if (a === 'stoodUp') stoodUp();
   }
 
   // ---- actions ----
@@ -370,6 +356,20 @@ QJZ.care = (function () {
     });
     return true;
   }
+  // 「我剛起來動過了」 (1.1.2 item 7: the menu's stoodUp, or a long press on the countdown): a stand-up, and the timer
+  // restarts (as 起來了 does, with or without a bubble; a 等一下 that runs ends with it). A bubble it answers goes first
+  // (quietly, on the step), so the pet's 收到 (standup source 'manual') is said in its own bubble, not over the prompt.
+  function stoodUp() {
+    if (!state.ready) return false;
+    batch(function () {
+      catchUp(nowFn());
+      var n = addHealth(today().day, 'standups', 1);
+      state.r = R.reset(state.r);
+      step();
+      emit('standup', { count: n, source: 'manual' });
+    });
+    return true;
+  }
   // The pomodoro buttons: idle or after a break, start a focus; during a focus or a break, stop.
   function toggleFocus() {
     if (!state.ready) return false;
@@ -383,7 +383,8 @@ QJZ.care = (function () {
     return true;
   }
   // A button on the bubble. An answer that does something closes the bubble (hide, not quiet) and lowers the window;
-  // a stale or repeated one does nothing (false).
+  // 喝了 on the both bubble keeps it up instead, now asking 起來動 alone (an update). A stale or repeated one does
+  // nothing (false).
   function answer(id) {
     if (!state.ready) return false;
     var done = false;
@@ -394,17 +395,18 @@ QJZ.care = (function () {
       if (!res.effects.length) return;
       done = true;
       state.q = res.q;
-      state.prompt = null;
-      hidden(false);
+      state.prompt = res.q.prompt;
+      if (!res.stays) hidden(false);
       catchUp(now);
-      var cfg = settings().health.pomodoro, pomo = false;
+      var cfg = settings().health.pomodoro, pomo = false, snoozed = false;
       res.effects.forEach(function (fx) {
         if (fx === 'standup') {
           var n = addHealth(today().day, 'standups', 1);
           state.r = R.reset(state.r);
           emit('standup', { count: n, source: id === 'drink' ? 'drink' : 'up' });
         } else if (fx === 'drink') drink();
-        else if (fx === 'snooze') state.r = R.snooze(state.r, now);
+        else if (fx === 'waterDone') state.r = R.waterDone(state.r);
+        else if (fx === 'snooze') { state.r = R.snooze(state.r, now); snoozed = true; }
         else if (fx === 'skipBreak' && state.p.phase === 'break') {
           // Ruling C3: skipping the break means you did not get up; the timer gets back what it had (§5.1).
           var breakDay = QJZ.time.dayKey(state.p.startMs);
@@ -417,9 +419,12 @@ QJZ.care = (function () {
         else if (fx === 'ackNotice') { state.p = P.ack(state.p); pomo = true; }
       });
       if (pomo) savePomodoro();
-      // outside work time an answer ends a reminder asked for: 等一下 would bring it back every 10 minutes after 下班,
+      if (res.stays) { announce({ type: 'update', prompt: state.q.prompt }); return; }
+      // outside work time an answer ends a reminder asked for: 等一下 would bring it back every 5 minutes after 下班,
       // where a real one never shows (final review M-3); during work it comes back like any other
-      if (state.r.forced && !working(today(), settings(), now)) state.r = withR({ forced: false });
+      var back = working(today(), settings(), now);
+      if (state.r.forced && !back) state.r = withR({ forced: false });
+      if (snoozed && back) emit('snooze', { minutes: R.SNOOZE_MS / MIN });
     });
     return done;
   }
@@ -441,8 +446,7 @@ QJZ.care = (function () {
     nowFn = opts.now || function () { return QJZ.app.nowMs(); };
     offs.push(QJZ.app.on('change', onAppChange), QJZ.app.on('second', function () { step(); }), QJZ.app.on('started', onStarted),
       QJZ.app.on('refresh', function () { step(); }));
-    [bridge.on('visibility', onVisibility), bridge.on('fullscreen', onFullscreen), bridge.on('session', onSession),
-      bridge.on('menu', onMenu)].forEach(function (off) { if (typeof off === 'function') offs.push(off); });
+    [bridge.on('visibility', onVisibility), bridge.on('fullscreen', onFullscreen), bridge.on('menu', onMenu)].forEach(function (off) { if (typeof off === 'function') offs.push(off); });
     if (opts.heartbeat !== false) heartbeat = setInterval(step, HEARTBEAT_MS);
   }
 
@@ -453,8 +457,8 @@ QJZ.care = (function () {
     offs = [];
     for (var k in listeners) listeners[k] = [];
     started = false; bridge = null; nowFn = null; seenHistory = null; seenRec = null;
-    busy = 0; stepping = false; locked = false; lastNow = null; lineTurn = 0; lastSig = null; lastMenu = null; lastCue = null;
-    state.ready = state.visible = state.fullscreen = state.here = state.panel = state.away = state.breakWater = state.forced = false;
+    busy = 0; stepping = false; lastNow = null; lineTurn = 0; lastSig = null; lastMenu = null; lastCue = null;
+    state.ready = state.visible = state.fullscreen = state.here = state.panel = state.breakWater = state.forced = state.snoozed = false;
     state.r = state.p = state.q = state.prompt = null;
     state.health = QJZ.health.of(null); state.goals = { cups: 0, tomatoes: 0, standups: 0 };
     state.show = { cups: false, tomatoes: false }; state.cupsText = ''; state.turn = 0; state.standIn = null; state.nth = 0;
@@ -495,6 +499,6 @@ QJZ.care = (function () {
 
   return {
     state: state, start: start, stepNow: step, on: on, drink: drink, undrink: undrink, setCups: setCups, toggleFocus: toggleFocus,
-    remindNow: remindNow, answer: answer, setPanel: setPanel, minutesToStand: minutesToStand, view: view, _reset: reset, _dev: dev
+    remindNow: remindNow, stoodUp: stoodUp, answer: answer, setPanel: setPanel, minutesToStand: minutesToStand, view: view, _reset: reset, _dev: dev
   };
 })();

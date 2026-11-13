@@ -32,17 +32,20 @@ test('reminders: the end of lunch restarts the timer (start 11:20 -> due 13:50, 
   var r = started(11, 20);
   eq(due(run(r, at(11, 20), at(13, 49, 59)), at(13, 49, 59)), false); eq(due(run(r, at(11, 20), at(13, 50)), at(13, 50)), true);
 });
-test('reminders: a lock of 5:00 is a stand-up and restarts the timer, 4:59 is not; a lock during lunch is not', function () {
-  var rec = started(9, 0), r30 = R.goAway(run(rec, at(9, 0), at(9, 30)), at(9, 30), rec, ALL);
-  var short = R.comeBack(r30, at(9, 34, 59), rec, ALL); eq(short.standup, false);
-  eq(due(R.advance(short.r, at(9, 54, 58), rec, ALL), at(9, 54, 58)), false); eq(due(R.advance(short.r, at(9, 54, 59), rec, ALL), at(9, 54, 59)), true);
-  var long = R.comeBack(r30, at(9, 35), rec, ALL); eq([long.standup, long.r.ms], [true, 0]);
-  eq(due(R.advance(long.r, at(10, 25), rec, ALL), at(10, 25)), true);
-  eq(R.comeBack(R.goAway(run(rec, at(9, 0), at(12, 10)), at(12, 10), rec, ALL), at(12, 40), rec, ALL).standup, false, 'lunch');
+// 1.1.2 item 9: a lock is not a stand-up. The timer has no away state: locked time counts as sitting time, and nothing
+// in it restarts the timer (a reminder that comes due meanwhile waits for the window, care's hold rule).
+test('reminders: no lock rule: a lock never restarts the timer, and the locked time counts as sitting', function () {
+  eq([R.goAway, R.comeBack, R.AWAY_STANDUP_MS], [undefined, undefined, undefined], 'no away state at all');
+  eq(Object.keys(R.initial(D, at(9, 0))).filter(function (k) { return /^away/.test(k); }), [], 'nor its fields');
+  var rec = started(9, 0), r = run(rec, at(9, 0), at(9, 30));
+  eq(R.advance(r, at(9, 40), rec, ALL).ms, 40 * 60000, 'ten locked minutes are ten minutes sat');
+  eq(due(R.advance(r, at(9, 50), rec, ALL), at(9, 50)), true, 'due at 09:50 whatever the lock did');
 });
-test('reminders: 等一下 brings it back exactly 10 minutes later', function () {
+// 1.1.2 item 8: 等一下 is 5 minutes, fixed.
+test('reminders: 等一下 brings it back exactly 5 minutes later', function () {
+  eq(R.SNOOZE_MS, 300000);
   var rec = started(9, 0), r = R.snooze(run(rec, at(9, 0), at(9, 51)), at(9, 51));
-  eq(due(R.advance(r, at(10, 0, 59, 999), rec, ALL), at(10, 0, 59, 999)), false); eq(due(R.advance(r, at(10, 1), rec, ALL), at(10, 1)), true);
+  eq(due(R.advance(r, at(9, 55, 59, 999), rec, ALL), at(9, 55, 59, 999)), false); eq(due(R.advance(r, at(9, 56), rec, ALL), at(9, 56)), true);
 });
 test('reminders: reset; a break restarts the timer; skipping the break restores it', function () {
   var rec = started(9, 0), r = R.reset(run(rec, at(9, 0), at(9, 40)));
@@ -66,12 +69,27 @@ test('reminders: a forced reminder is due at once, until something restarts the 
   eq(R.due(R.force(R.initial(D, at(9, 0))), at(9, 0), S({ sit: { on: false }, water: { on: false, goal: 8 } }).health, 0).due, false, 'nothing asked: nothing due');
   eq(due(R.advance(r, at(9, 30), rec, ALL), at(9, 30)), true, 'it stays due');
   var z = R.snooze(r, at(9, 8));
-  eq([due(z, at(9, 17, 59)), due(z, at(9, 18))], [false, true], '等一下: 10 minutes');
+  eq([due(z, at(9, 12, 59)), due(z, at(9, 13))], [false, true], '等一下: 5 minutes');
   eq(R.force(z).snoozeUntil, null, 'forcing again ends the snooze');
   eq(R.reset(r).forced, false, '喝了 / 起來了'); eq(R.breakStarted(r).forced, false, 'a break');
-  eq(R.comeBack(R.goAway(r, at(9, 10), rec, ALL), at(9, 15), rec, ALL).r.forced, false, 'a lock of 5 min');
-  eq(R.comeBack(R.goAway(r, at(9, 10), rec, ALL), at(9, 14), rec, ALL).r.forced, true, 'a shorter one does not');
   eq(R.advance(R.force(run(rec, at(9, 0), at(11, 50))), at(13, 10), rec, ALL).forced, false, 'the end of lunch');
   eq(R.initial(D, at(9, 0)).forced, false);
+});
+// 1.1.2 item 7: 喝了 on a bubble that asks both only logs the cup: the water part of this round is answered
+// (waterDone), so it asks 起來動 alone until the timer restarts. 等一下 keeps that; a restart asks water again.
+test('reminders: water answered: the round asks only 起來動 until the timer restarts', function () {
+  var rec = started(9, 0), r = run(rec, at(9, 0), at(9, 50));
+  eq(R.due(r, at(9, 50), H, 3), { due: true, sit: true, water: true });
+  var w = R.waterDone(r);
+  eq(R.due(w, at(9, 50), H, 3), { due: true, sit: true, water: false }, 'still due, 起來動 alone');
+  eq(R.due(R.advance(w, at(9, 52), rec, ALL), at(9, 52), H, 3), { due: true, sit: true, water: false }, 'as time goes on');
+  var z = R.snooze(w, at(9, 51));
+  eq(R.due(R.advance(z, at(9, 56), rec, ALL), at(9, 56), H, 3), { due: true, sit: true, water: false }, '等一下 keeps it');
+  eq(R.reset(w).waterDone, false, '起來了'); eq(R.breakStarted(w).waterDone, false, 'a break'); eq(R.force(w).waterDone, false, 'a test reminder');
+  eq(R.advance(R.waterDone(run(rec, at(9, 0), at(11, 50))), at(13, 10), rec, ALL).waterDone, false, 'the end of lunch');
+  eq(R.initial(D, at(9, 0)).waterDone, false);
+  var sitOff = S({ sit: { on: false }, water: { on: true, goal: 8 } }).health;
+  eq(R.due(w, at(9, 50), sitOff, 3), { due: true, sit: false, water: true }, '起來動 turned off since: water is asked again');
+  eq(R.minutesToNext(w, H, 3), 0, 'the timer itself is untouched');
 });
 })();

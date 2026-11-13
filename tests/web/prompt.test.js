@@ -50,7 +50,7 @@ test('prompt: an ignored break bubble becomes the break-end bubble', function ()
 test('prompt: pomodoro notices also show outside working hours', function () { eq(ty(st(P.initial(), at(19, 0), { notice: 'breakEnd', working: false })), ['show:breakEnd']); });
 test('prompt: answers', function () {
   function ans(o, btn) { return P.answer(st(P.initial(), at(10, 0), o).q, btn, at(10, 1)).effects; }
-  eq(ans({ ask: 'both' }, 'drink'), ['standup', 'drink']); eq(ans({ ask: 'both' }, 'up'), ['standup']); eq(ans({ ask: 'both' }, 'later'), ['snooze']);
+  eq(ans({ ask: 'both' }, 'drink'), ['drink', 'waterDone']); eq(ans({ ask: 'both' }, 'up'), ['standup']); eq(ans({ ask: 'both' }, 'later'), ['snooze']);
   eq(ans({ ask: 'sit' }, 'up'), ['standup']); eq(ans({ ask: 'sit' }, 'later'), ['snooze']); eq(ans({ ask: 'sit' }, 'drink'), []);
   eq(ans({ ask: 'water' }, 'drink'), ['standup', 'drink']); eq(ans({ ask: 'water' }, 'later'), ['snooze']); eq(ans({ ask: 'water' }, 'up'), []);
   eq(ans({ notice: 'break' }, 'ok'), ['ackNotice']); eq(ans({ notice: 'break' }, 'skip'), ['ackNotice', 'skipBreak']); eq(ans({ notice: 'break' }, 'drink'), []);
@@ -95,5 +95,26 @@ test('prompt: no 「已經坐 N 分鐘囉」 when no minute has been sat', funct
   eq(P.view({ kind: 'sit' }, { min: 0, turn: 0 }).sub, '', '起來動 alone: no sub at all');
   eq(P.view({ kind: 'water' }, { min: 0, cups: 3, cupGoal: 8, turn: 0 }).sub, '今天 3 杯，目標 8 杯', 'water never said it');
   eq(P.view({ kind: 'sit' }, { min: 1, turn: 0 }).sub, '已經坐 1 分鐘囉', 'one minute is said');
+});
+// 1.1.2 item 7: 喝了 on a bubble that asks both only logs a cup; the bubble stays, now the 起來動 one (起來了 / 等一下),
+// and closes only on those. A water-only bubble still closes on 喝了.
+test('prompt: 喝了 on the both bubble keeps it, as the 起來動 bubble', function () {
+  var x = st(P.initial(), at(9, 50), { ask: 'both' }), a = P.answer(x.q, 'drink', at(9, 51));
+  eq(a.effects, ['drink', 'waterDone']);
+  eq(a.q.prompt, { kind: 'sit', water: false, shownMs: at(9, 50) }, 'the same bubble, now asking 起來動');
+  eq(a.stays, true);
+  eq([a.q.remindReadyAt, a.q.noticeReadyAt, a.q.waveAt], [x.q.remindReadyAt, x.q.noticeReadyAt, x.q.waveAt], 'no gate: it never went');
+  eq(P.answer(a.q, 'drink', at(9, 51)).effects, [], 'a second 喝了 does nothing');
+  eq(ty(st(a.q, at(9, 51, 1), { ask: 'sit' })), [], 'the next step leaves it as it is');
+  eq(P.view(a.q.prompt, { min: 50, turn: 0 }).buttons.map(function (b) { return b.id; }), ['up', 'later']);
+  var u = P.answer(a.q, 'up', at(9, 52));
+  eq([u.effects, u.q.prompt, u.stays], [['standup'], null, false], '起來了 closes it');
+  var w = P.answer(st(P.initial(), at(9, 50), { ask: 'water' }).q, 'drink', at(9, 51));
+  eq([w.q.prompt, w.stays], [null, false], 'water alone: 喝了 closes it');
+});
+// 1.1.2 item 11: the combined line fits U5-B.
+test('prompt: the shorter combined line', function () {
+  eq(P.LINES.both[3], '伸懶腰、喝口水，再加油！');
+  eq(P.LINES.both.indexOf('伸個懶腰、喝口水，再繼續加油！'), -1);
 });
 })();

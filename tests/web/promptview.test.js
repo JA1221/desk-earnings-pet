@@ -508,16 +508,17 @@
       var e = remind();
       lines.length = 0;   // (the milestones of the morning, said before 09:50)
       answer(e, 'drink');
-      eq([C.state.health.cups, C.state.health.standups], [1, 1]);
+      eq([C.state.health.cups, C.state.health.standups], [1, 0], '1.1.2: the both bubble\'s 喝了 is the cup only');
+      eq(buttons($(e, '[data-prompt]')), ['up 起來了', 'later 等一下'], 'and the bubble stays, now 起來動 alone');
       eq($(e, '.u1 [data-act=drink] [data-b=cupsLong]').textContent, '1/8 杯');
       var plus = $$(e, '.u1 [data-act=drink] .plus');
       eq(plus.map(function (p) { return p.textContent; }), ['+1'], 'the pill pops +1');
       eq(brain().state, 'sip');
       eq(shownPose(e), QJZ.pets.poseFor(petId(), 'sip'));
       eq(lines, ['drank'], 'a drank line, no petted or standOk (Ruling M9)');
-      ok(bubbleShows(e), 'said');
+      ok(!bubbleShows(e) && $$(e, '.banner').length === 1, 'said as a banner: the prompt still shows');
       e.tick(at(9, 50, 3));
-      eq(brain().state, 'typing', 'then back to work');
+      eq(brain().state, 'wave', 'then it waves: the 起來動 bubble still asks');
       done();
       // the cup that reaches the goal: petted, hearts and a waterGoal line instead
       e = remind({ cups: 7 });
@@ -540,7 +541,7 @@
       eq(brain().state, 'typing');
       done();
       lines.length = 0;
-      // 記一杯水 anywhere else plays the same; a lock stand-up and a break stand-up play nothing here
+      // 記一杯水 anywhere else plays the same; a lock is no stand-up (1.1.2) and says nothing
       e = mk(at(9, 0), { first: 'M3' });
       e.menu('drink');
       eq(brain().state, 'sip');
@@ -551,7 +552,7 @@
       e.bridge.emit({ type: 'session', kind: 'lock', ms: at(9, 10) });
       e.clock.ms = at(9, 20);
       e.bridge.emit({ type: 'session', kind: 'unlock', ms: at(9, 20) });
-      eq(C.state.health.standups, 1, 'a lock stand-up');
+      eq(C.state.health.standups, 0, 'a lock is no stand-up');
       e.tick(at(9, 20, 1));
       eq(lines.filter(function (s) { return s === 'standOk' || s === 'petted'; }), []);
       ok(brain().state !== 'petted');
@@ -637,6 +638,9 @@
     var e = remind({ first: 'U12' });
     eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('hot'); }), [true, false, true]);
     answer(e, 'drink');
+    eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('hot'); }), [false, false, true],
+      '喝了: the water ring is answered, 起來動 still asks');
+    answer(e, 'up');
     eq($$(e, '.u12 .hot').length, 0, 'answered: no glow');
     done();
   });

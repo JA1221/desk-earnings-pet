@@ -36,7 +36,7 @@
     function nowFn() { return clock.ms; }
     C.start({ bridge: bridge, now: nowFn, heartbeat: false });
     A.start({ bridge: bridge, now: nowFn, tick: false });
-    ['prompt', 'cue', 'drank', 'standup'].forEach(function (n) { C.on(n, function (x) { log.push({ n: n, x: x }); }); });
+    ['prompt', 'cue', 'drank', 'standup', 'snooze'].forEach(function (n) { C.on(n, function (x) { log.push({ n: n, x: x }); }); });
     bridge.emit({ type: 'init', settings: JSON.stringify(settings || S()), history: history || null, probeMs: null, nowMs: now, version: 't' });
     bridge.emit({ type: 'visibility', visible: true });
     return { bridge: bridge, sent: sent, clock: clock, log: log };
@@ -95,20 +95,52 @@
     done();
   });
 
-  test('care: 喝了 counts a cup and a stand-up, saved at once', function () {
+  // 1.1.2 item 7: on the bubble that asks both, 喝了 only logs the cup; the bubble stays as the 起來動 one and closes on
+  // 起來了 or 等一下. The water-only bubble still closes on 喝了 (a cup and a stand-up, as before).
+  test('care: 喝了 on the both bubble logs only the cup, saved at once; the bubble stays as 起來了 / 等一下', function () {
     var e = mk(at(9, 0));
     go(e, at(9, 50));
     var m = mark(e);
-    C.answer('drink');
-    eq(h(), [1, 0, 1]);
-    eq(events(e, m, 'standup'), [{ count: 1, source: 'drink' }]);
+    eq(C.answer('drink'), true);
+    eq(h(), [1, 0, 0], 'a cup, no stand-up');
+    eq(events(e, m, 'standup'), []);
     eq(events(e, m, 'drank'), [{ cups: 1, goalReached: false }]);
     ok(sends(e, m, 'saveHistory').some(function (p) { return p.text.indexOf('"cups":1') >= 0; }), 'saved before any later step');
-    eq(A.state.history.days['2026-11-12'].health, { cups: 1, cupGoal: 8, tomatoes: 0, standups: 1 });
-    go(e, at(10, 39, 59));
+    eq(A.state.history.days['2026-11-12'].health, { cups: 1, cupGoal: 8, tomatoes: 0, standups: 0 });
+    eq(prompts(e, m), ['update:sit'], 'the same bubble, now 起來動 alone');
+    eq(raises(e, m), [], 'it stays up');
+    eq(events(e, m, 'cue'), ['wave']);
+    eq(C.view().buttons.map(function (b) { return b.id; }), ['up', 'later']);
+    eq(C.answer('drink'), false, 'a second 喝了 does nothing');
+    walk(e, at(9, 51), at(9, 55), MIN);
+    eq(prompts(e, m), ['update:sit', 'wave', 'wave'], 'it does not ask water again (and re-waves as any bubble)');
+    eq(C.answer('up'), true);
+    eq(h(), [1, 0, 1]);
+    eq(prompts(e, m).slice(3), ['hide']);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'up' }]);
+    go(e, at(10, 44, 59));
+    eq(prompts(e, m).slice(3), ['hide']);
+    go(e, at(10, 45));
+    eq(prompts(e, m).slice(3), ['hide', 'show:both'], 'the next round asks water again');
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(9, 50));
+    C.answer('drink');
+    m = mark(e);
+    C.answer('later');
     eq(prompts(e, m), ['hide']);
-    go(e, at(10, 40));
-    eq(prompts(e, m), ['hide', 'show:both']);
+    go(e, at(9, 55));
+    eq(prompts(e, m), ['hide', 'show:sit'], '等一下 after 喝了: back as 起來動 alone');
+    done();
+
+    e = mk(at(9, 0), S(WATER));
+    go(e, at(9, 50));
+    m = mark(e);
+    C.answer('drink');
+    eq(h(), [1, 0, 1], 'water alone: a cup and a stand-up');
+    eq(prompts(e, m), ['hide'], 'and it closes');
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'drink' }]);
     done();
   });
 
@@ -140,18 +172,25 @@
     done();
   });
 
-  test('care: 等一下 brings it back at 10:00:00', function () {
+  // 1.1.2 item 8: 等一下 is 5 minutes. care says so (snooze {minutes}) for the pet's line, and publishes snoozed for the
+  // countdown's 💤 while it runs.
+  test('care: 等一下 brings it back at 09:55:00; snoozed until then', function () {
     var e = mk(at(9, 0));
     go(e, at(9, 50));
     var m = mark(e);
+    eq(C.state.snoozed, false);
     C.answer('later');
     eq(prompts(e, m), ['hide']);
+    eq(events(e, m, 'snooze'), [{ minutes: 5 }]);
     eq(h(), [0, 0, 0]);
-    walk(e, at(9, 51), at(9, 59), MIN);
-    go(e, at(9, 59, 59));
+    eq([C.state.snoozed, C.state.standIn], [true, 5]);
+    walk(e, at(9, 51), at(9, 54), MIN);
+    eq(C.state.standIn, 1);
+    go(e, at(9, 54, 59));
     eq(prompts(e, m), ['hide']);
-    go(e, at(10, 0));
+    go(e, at(9, 55));
     eq(prompts(e, m), ['hide', 'show:both']);
+    eq(C.state.snoozed, false);
     done();
   });
 
@@ -197,42 +236,52 @@
     done();
   });
 
-  test('care: a lock of 5:00 is a stand-up, 4:59 is not', function () {
+  // 1.1.2 item 9: the lock rule is gone. A lock (the host also sends visibility false) never counts a stand-up and never
+  // restarts the timer: the locked time is sat time. A reminder that comes due meanwhile waits, and shows 3 s after the
+  // unlock (the hold rule). Nothing is said on the way back.
+  test('care: a lock is no stand-up: the timer runs on through it; a reminder due meanwhile shows 3 s after the unlock', function () {
     var e = mk(at(9, 0));
     go(e, at(9, 30));
     var m = mark(e);
     sess(e, 'lock', at(9, 30));
-    eq(C.state.away, true);
-    beat(e, at(9, 33));
-    sess(e, 'unlock', at(9, 35));
-    eq(C.state.away, false);
-    eq(h(), [0, 0, 1]);
-    eq(events(e, m, 'standup'), [{ count: 1, source: 'lock' }]);
-    go(e, at(10, 24, 59));
+    vis(e, false, at(9, 30));
+    eq('away' in C.state, false, 'no away state');
+    beat(e, at(9, 40));
+    beat(e, at(9, 50));
+    beat(e, at(10, 0));
+    eq(prompts(e, m), [], 'due at 09:50, held while locked');
+    sess(e, 'unlock', at(10, 10));
+    vis(e, true, at(10, 10));
+    eq(h(), [0, 0, 0], 'no stand-up');
+    eq(events(e, m, 'standup'), []);
+    eq(C.state.r.ms, 70 * MIN, 'the 40 locked minutes are sat minutes');
+    go(e, at(10, 10, 2));
     eq(prompts(e, m), []);
-    go(e, at(10, 25));
-    eq(prompts(e, m), ['show:both']);
+    go(e, at(10, 10, 3));
+    eq(prompts(e, m), ['show:both'], '3 s after the unlock');
+    eq(C.view().sub, '已經坐 70 分鐘囉・今天 0/8 杯');
     done();
 
     e = mk(at(9, 0));
     go(e, at(9, 30));
     m = mark(e);
     sess(e, 'lock', at(9, 30));
-    sess(e, 'unlock', at(9, 34, 59));
-    eq(h(), [0, 0, 0]);
-    go(e, at(9, 54, 58));
-    eq(prompts(e, m), []);
-    go(e, at(9, 54, 59));
-    eq(prompts(e, m), ['show:both'], 'the 4:59 away did not count');
+    sess(e, 'unlock', at(9, 40));
+    go(e, at(9, 49, 59));
+    eq(prompts(e, m), [], 'a short lock moves nothing either');
+    go(e, at(9, 50));
+    eq(prompts(e, m), ['show:both'], 'due at 09:50 as if it never happened');
     done();
   });
 
-  test('care: suspend / resume while unlocked is the same as a lock; a resume while locked waits for the unlock', function () {
+  test('care: suspend and resume are no stand-up either', function () {
     var e = mk(at(9, 0));
     go(e, at(9, 30));
     sess(e, 'suspend', at(9, 30));
-    sess(e, 'resume', at(9, 35));
-    eq(h(), [0, 0, 1]);
+    sess(e, 'resume', at(9, 45));
+    beat(e, at(9, 45));
+    eq(h(), [0, 0, 0]);
+    eq(C.state.r.ms, 45 * MIN);
     done();
 
     e = mk(at(9, 0));
@@ -240,10 +289,8 @@
     sess(e, 'lock', at(9, 30));
     sess(e, 'suspend', at(9, 31));
     sess(e, 'resume', at(9, 40));
-    eq(h(), [0, 0, 0]);
-    eq(C.state.away, true);
     sess(e, 'unlock', at(9, 41));
-    eq(h(), [0, 0, 1]);
+    eq(h(), [0, 0, 0]);
     done();
   });
 
@@ -573,16 +620,16 @@
 
   test('care: menu pomodoro starts and stops; healthMenu follows only on change', function () {
     var e = mk(at(9, 0));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } }], 'sent after init');
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }], 'sent after init');
     go(e, at(10, 0));
     eq(C.state.prompt.kind, 'both');
     var m = mark(e);
     menu(e, 'pomodoro');
-    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'focus', endsMs: at(10, 25) } }]);
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'focus', endsMs: at(10, 25) }, sitOn: true }]);
     eq(prompts(e, m), ['hide:quiet'], 'a focus sends the open reminder back to its queue at once');
     eq(events(e, m, 'cue'), ['focus']);
     menu(e, 'pomodoro');
-    eq(sends(e, m, 'healthMenu')[1], { cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } });
+    eq(sends(e, m, 'healthMenu')[1], { cups: '0/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true });
     eq(sends(e, m, 'healthMenu').length, 2);
     m = mark(e);
     for (var i = 1; i <= 30; i++) go(e, at(10, 0, i));
@@ -591,7 +638,7 @@
     done();
 
     e = mk(at(9, 0), S(SIT));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: null, pomodoro: { phase: 'idle', endsMs: null } }]);
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: null, pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }]);
     eq([C.state.show.cups, C.state.cupsText], [false, '0/8']);
     C.drink();
     eq([C.state.show.cups, C.state.cupsText], [true, '1/8'], 'a cup logged today shows the count');
@@ -608,7 +655,7 @@
     e.clock.ms = at(9, 25, 5);
     eq(sends(e, m, 'healthMenu'), [], 'nothing steps while hidden here');
     e.bridge.emit({ type: 'menuOpening' });
-    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'break', endsMs: at(9, 30) } }], 'the break, at once');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'break', endsMs: at(9, 30) }, sitOn: true }], 'the break, at once');
     eq(h(), [0, 1, 1]);
     e.bridge.emit({ type: 'menuOpening' });
     eq(sends(e, m, 'healthMenu').length, 1, 'only on change');
@@ -730,16 +777,16 @@
     eq(prompts(e, m), ['wave']);
     done();
 
-    // 等一下: 10 min, whatever the clock did
+    // 等一下: 5 min, whatever the clock did (3 min left at 09:52, set back to 09:35: due at 09:38)
     e = mk(at(9, 0));
     go(e, at(9, 50));
     C.answer('later');
-    go(e, at(9, 55));
+    go(e, at(9, 52));
     m = mark(e);
     go(e, at(9, 35));
-    go(e, at(9, 39, 59));
+    go(e, at(9, 37, 59));
     eq(prompts(e, m), []);
-    go(e, at(9, 40));
+    go(e, at(9, 38));
     eq(prompts(e, m), ['show:both']);
     eq(C.state.r.ms >= 50 * MIN, true, 'no negative time');
     done();
@@ -756,7 +803,7 @@
     eq(h(), [2, 0, 0]);
     eq(A.state.history.days['2026-11-12'].health, { cups: 2, cupGoal: 8, tomatoes: 0, standups: 0 }, 'today, as the calendar reads it');
     ok(sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.cups === 2; }), 'saved at once');
-    eq(sends(e, m, 'healthMenu'), [{ cups: '2/8', pomodoro: { phase: 'idle', endsMs: null } }], 'the menu follows');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '2/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }], 'the menu follows');
     eq([events(e, m, 'drank'), events(e, m, 'standup')], [[], []], 'not a cup, not a stand-up');
     eq(JSON.stringify(C.state.r), r, 'the timer is as it was');
     menu(e, 'undrink');
@@ -827,7 +874,10 @@
     C.remindNow();
     eq(C.state.prompt.kind, 'both', 'shown at once when nothing holds it');
     C.answer('drink');
-    eq(h(), [1, 0, 1], '喝了: a cup and a stand-up');
+    eq(h(), [1, 0, 0], '喝了: a cup; the bubble stays as 起來動');
+    eq(C.state.prompt.kind, 'sit');
+    C.answer('up');
+    eq(h(), [1, 0, 1], '起來了: the stand-up');
     var m = mark(e);
     walk(e, at(9, 11), at(9, 59), MIN);
     go(e, at(9, 59, 59));
@@ -851,12 +901,12 @@
     m = mark(e);
     C.answer('later');
     eq(h(), [0, 0, 0]);
-    eq(C.minutesToStand(), 10, 'the time to the end of the snooze');
-    walk(e, at(9, 11), at(9, 19), MIN);
-    go(e, at(9, 19, 59));
+    eq(C.minutesToStand(), 5, 'the time to the end of the snooze');
+    walk(e, at(9, 11), at(9, 14), MIN);
+    go(e, at(9, 14, 59));
     eq(prompts(e, m), ['hide']);
-    go(e, at(9, 20));
-    eq(prompts(e, m), ['hide', 'show:both'], '等一下: 10 minutes later');
+    go(e, at(9, 15));
+    eq(prompts(e, m), ['hide', 'show:both'], '等一下: 5 minutes later');
     done();
   });
 
@@ -959,7 +1009,7 @@
   });
 
   // Final review M-3: outside work time 等一下 ends a test reminder; a real one never shows after 下班, so neither does
-  // its repeat. (During work it comes back 10 minutes later, as any reminder.)
+  // its repeat. (During work it comes back 5 minutes later, as any reminder.)
   test('care: 現在提醒我一次 after work: 等一下 ends it, and it does not come back', function () {
     var e = mk(at(9, 0));
     go(e, at(19, 0));   // 可以下班 since 18:00
@@ -968,6 +1018,7 @@
     eq(prompts(e, m), ['show:both']);
     C.answer('later');
     eq(C.state.r.forced, false, 'ended');
+    eq(events(e, m, 'snooze'), [], 'and no 「5 分鐘後再叫你」: it will not come back');
     walk(e, at(19, 1), at(19, 30), MIN);
     eq(prompts(e, m), ['show:both', 'hide'], 'not again at 19:10');
     done();
@@ -1002,6 +1053,59 @@
     m = mark(e);
     walk(e, at(9, 10, 2), at(9, 10, 10), 1000);
     eq(prompts(e, m), [], 'a later 少記一杯 pops nothing up');
+    done();
+  });
+
+  // ---------- 1.1.2 ----------
+  // Item 7: 「我剛起來動過了」, from the menu (menu {action:'stoodUp'}) or a long press on the countdown (care.stoodUp):
+  // a stand-up, the timer restarts, and the pet says 收到 (the layouts, on standup source 'manual').
+  test('care: 我剛起來動過了 counts a stand-up and restarts the timer', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 30));
+    var m = mark(e);
+    menu(e, 'stoodUp');
+    eq(h(), [0, 0, 1]);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'manual' }]);
+    ok(sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.standups === 1; }), 'saved at once');
+    eq([C.state.r.ms, C.state.standIn], [0, 50]);
+    go(e, at(10, 19, 59));
+    eq(prompts(e, m), []);
+    go(e, at(10, 20));
+    eq(prompts(e, m), ['show:both'], '50 minutes after it');
+    eq(C.stoodUp(), true);
+    eq(h(), [0, 0, 2]);
+    eq(prompts(e, m), ['show:both', 'hide:quiet'], 'a bubble it answers closes, before the line');
+    eq(e.log.slice(m.log).map(function (x) { return x.n; }).filter(function (n) { return n === 'prompt' || n === 'standup'; }).slice(-2),
+      ['prompt', 'standup'], 'the bubble goes first, then 收到');
+    eq(raises(e, m), [true, false]);
+    done();
+
+    e = mk(at(9, 0));
+    go(e, at(9, 51));
+    C.answer('later');
+    eq(C.state.snoozed, true);
+    C.stoodUp();
+    eq([C.state.snoozed, C.state.standIn], [false, 50], 'it ends a 等一下 too');
+    done();
+
+    e = mk(at(9, 0), S(null));
+    eq(C.stoodUp(), true, 'counted with the reminders off too');
+    eq(h(), [0, 0, 1]);
+    C._reset();
+    eq(C.stoodUp(), false, 'not ready');
+    done();
+  });
+
+  // healthMenu.sitOn (for the host's 我剛起來動過了 item): the 起來動 reminder is on.
+  test('care: healthMenu says whether 起來動 is on', function () {
+    var e = mk(at(9, 0), S(WATER));
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu').pop().sitOn, false);
+    var m = mark(e);
+    A.saveSettings({ health: { sit: { on: true } } });
+    eq(sends(e, m, 'healthMenu').map(function (p) { return p.sitOn; }), [true]);
+    done();
+    e = mk(at(9, 0), S(null));
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu').pop().sitOn, false, 'not answered yet: off');
     done();
   });
 

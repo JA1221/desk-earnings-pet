@@ -2065,9 +2065,9 @@
     e.tick(at(12, 9, 49, 59));
     e.tick(at(12, 9, 50));
     clickOn($(e, '[data-answer=later]'));
-    eq([C.state.standIn, text(e, '.u12 .say')], [10, '再 10 分鐘起來動～'], '等一下: in 10 minutes, not 0');
-    e.tick(at(12, 9, 55, 30));
-    eq(C.state.standIn, 5);
+    eq([C.state.standIn, text(e, '.u12 .say')], [5, '再 5 分鐘起來動～'], '等一下: in 5 minutes, not 0');
+    e.tick(at(12, 9, 52, 30));
+    eq(C.state.standIn, 3);
     e.tick(at(12, 18, 30));   // 可以下班
     eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'after work: no next stand-up');
     done();

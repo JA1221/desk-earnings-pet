@@ -5,10 +5,13 @@ window.QJZ = window.QJZ || {};
 //   A ready-at of null means "blocked right now": the 3 s gate starts on the first step it is no longer blocked.
 //   step's c: {nowMs, blocked, focus, working, forced, due, notice, noticeWater}. forced (1.1.1, 現在提醒我一次): the
 //   reminder was asked for, so it shows outside work time too; blocked and focus still hold it.
+//   1.1.2 item 7: 喝了 on the bubble that asks both only logs the cup (effects drink, waterDone): the bubble stays, as the
+//   起來動 one (answer's stays), and closes on 起來了 or 等一下. Item 11: the combined line 「伸懶腰、喝口水，再加油！」 fits
+//   U5-B.
 QJZ.prompt = (function () {
   var GATE_MS = 3000, WAVE_MS = 120000;
   var LINES = {
-    both: ['起來動一動，順便喝口水～', '坐好久了～起來倒杯水吧！', '起來走走，順便把水杯裝滿～', '伸個懶腰、喝口水，再繼續加油！', '該起來囉～去裝杯水回來吧！'],
+    both: ['起來動一動，順便喝口水～', '坐好久了～起來倒杯水吧！', '起來走走，順便把水杯裝滿～', '伸懶腰、喝口水，再加油！', '該起來囉～去裝杯水回來吧！'],
     sit: ['坐好久了，起來動一動！', '屁股要長香菇了～起來走走吧！', '起來伸個懶腰吧～', '站起來動一動，等等腦袋更清楚！', '該讓椅子休息一下囉～'],
     water: ['喝口水吧～', '水杯空了嗎？補一杯吧～', '補充水分，工作才有精神！', '咕嚕咕嚕～一起喝水吧！', '記得喝水，皮膚才會水噹噹～']
   };
@@ -60,18 +63,23 @@ QJZ.prompt = (function () {
     return ['next', 'stop'];
   }
   var EFFECTS = {
-    both: { drink: ['standup', 'drink'], up: ['standup'], later: ['snooze'] },
+    both: { drink: ['drink', 'waterDone'], up: ['standup'], later: ['snooze'] },
     sit: { up: ['standup'], later: ['snooze'] },
     water: { drink: ['standup', 'drink'], later: ['snooze'] },
     break: { ok: ['ackNotice'], skip: ['ackNotice', 'skipBreak'], drink: ['ackNotice', 'drink'] },
     breakEnd: { next: ['ackNotice', 'nextFocus'], stop: ['ackNotice', 'stopPomodoro'] }
   };
 
-  // The bubble closes on every answer that has effects; the caller hides it. Anything else changes nothing.
+  // The bubble closes on every answer that has effects (the caller hides it), but for 喝了 on the both bubble: that one
+  // stays (stays: true), now asking 起來動 alone; the caller updates it. Anything else changes nothing.
   function answer(q, buttonId, nowMs) {
     var p = q.prompt;
-    if (!p || buttonsFor(p).indexOf(buttonId) < 0) return { q: q, effects: [] };
-    return { q: make(q, { prompt: null, noticeReadyAt: nowMs + GATE_MS, remindReadyAt: nowMs + GATE_MS }), effects: EFFECTS[p.kind][buttonId].slice() };
+    if (!p || buttonsFor(p).indexOf(buttonId) < 0) return { q: q, effects: [], stays: false };
+    var effects = EFFECTS[p.kind][buttonId].slice();
+    if (p.kind === 'both' && buttonId === 'drink') {
+      return { q: make(q, { prompt: { kind: 'sit', water: false, shownMs: p.shownMs } }), effects: effects, stays: true };
+    }
+    return { q: make(q, { prompt: null, noticeReadyAt: nowMs + GATE_MS, remindReadyAt: nowMs + GATE_MS }), effects: effects, stays: false };
   }
 
   function view(p, v) {
