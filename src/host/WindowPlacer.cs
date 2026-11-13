@@ -7,9 +7,13 @@ using System.Windows.Forms;
 // saved position (kept by ScreenFit.Clamp) -> else where the window is now (fully inside its monitor) -> else
 // the bottom-right of the primary work area. A window that grows stays inside its work area (FitAfterGrow) and goes
 // back when it shrinks (ResizeInside).
+// PANEL (設定, 紀錄, onboarding, the questions) has no spot of its own (1.1.1): it opens at the top-left of the window
+// it came from, fully inside that window's work area (PanelBounds), so it never shows on another monitor. A PANEL
+// entry left in window.json by 1.0 / 1.1.0 is kept as it is but no longer read or written.
 public class WindowPlacer
 {
     public const int DefaultMargin = 24;   // physical px in from the work-area corner for a first-ever position
+    public const string PanelLayout = "PANEL";
     readonly UserFiles files;
     WindowPositions positions = new WindowPositions();
     bool placed;
@@ -29,13 +33,49 @@ public class WindowPlacer
     // at that monitor's DPR. Otherwise the page would lay out for the creation monitor, the first setLayout would
     // move the window across a DPI change, and the first frame would show the old-size surface. Without a saved
     // spot that is the primary work area's bottom-right (where Place will put it), never CenterScreen (which
-    // centres under the cursor, possibly on a monitor with another DPI).
+    // centres under the cursor, possibly on a monitor with another DPI). The window gets the layout's saved size at
+    // that monitor's scale (StartSize), so the saved spot is kept or clamped exactly as Place will do it, and a start
+    // that opens with a panel opens it beside the start layout's own rect (PanelFrom).
     public void PrePlace(Form window, string layout)
     {
         Point saved;
         Point? spot = positions.TryGet(layout, out saved) ? saved : (Point?)null;
+        Rectangle primary = Screen.PrimaryScreen.WorkingArea;
+        Size? css = SavedSize(layout);
+        double scale = css.HasValue ? ScaleAt(spot.HasValue ? new Rectangle(spot.Value, css.Value) : primary) : 1;
         window.StartPosition = FormStartPosition.Manual;
-        window.Bounds = StartBounds(spot, window.Size, WorkAreas(), Screen.PrimaryScreen.WorkingArea);
+        window.Bounds = StartBounds(spot, StartSize(css, scale, window.Size), WorkAreas(), primary);
+    }
+
+    // The hidden window's size before the page reports one: the start layout's saved CSS size at scale (physical px
+    // per CSS px; 0 or less: 1), rounded as PetWindow rounds it, else fallback (the window's own size).
+    public static Size StartSize(Size? savedCss, double scale, Size fallback)
+    {
+        if (!savedCss.HasValue || savedCss.Value.Width < 1 || savedCss.Value.Height < 1) return fallback;
+        return PetGeometry.WindowSize(savedCss.Value.Width, savedCss.Value.Height, scale > 0 ? scale : 1);
+    }
+
+    // Whether layout has a saved spot.
+    public bool HasSpot(string layout)
+    {
+        Point p;
+        return positions.TryGet(layout, out p);
+    }
+
+    // Physical px per CSS px on the monitor nearest r's centre (its effective DPI / 96); 1 when unknown.
+    static double ScaleAt(Rectangle r)
+    {
+        try
+        {
+            Native.POINT pt;
+            pt.X = r.X + r.Width / 2;
+            pt.Y = r.Y + r.Height / 2;
+            uint dx, dy;
+            IntPtr mon = Native.MonitorFromPoint(pt, Native.MONITOR_DEFAULTTONEAREST);
+            if (mon == IntPtr.Zero || Native.GetDpiForMonitor(mon, Native.MDT_EFFECTIVE_DPI, out dx, out dy) != 0) return 1;
+            return PetGeometry.DpiScale((int)dy);
+        }
+        catch (Exception) { return 1; }
     }
 
     // The saved spot kept on screen (the same rule as Place), else Decide's first-ever spot.
@@ -59,6 +99,36 @@ public class WindowPlacer
         Rectangle now = window.Bounds;
         Rectangle fit = Refit(now, hostChosen, areas);
         if (fit != now) window.Bounds = fit;
+    }
+
+    // Moves window (already at the panel's size) beside the window it came from (PanelFrom), or to the first-ever
+    // spot without one. Like Place, a landing that changed the DPI is fitted again.
+    public void PlacePanel(Control window, Rectangle? from)
+    {
+        Rectangle[] areas = WorkAreas();
+        window.Bounds = PanelBounds(from, window.Size, areas, Screen.PrimaryScreen.WorkingArea);
+        placed = true;
+        Rectangle now = window.Bounds;
+        Rectangle fit = Refit(now, true, areas);
+        if (fit != now) window.Bounds = fit;
+    }
+
+    // A panel of size opens at from's top-left, moved fully inside the work area nearest from's centre (the monitor
+    // the user sees that window on); without from it goes where a first-ever window goes (Decide).
+    public static Rectangle PanelBounds(Rectangle? from, Size size, Rectangle[] areas, Rectangle primaryWorkArea)
+    {
+        bool hostChosen;
+        if (!from.HasValue || areas == null || areas.Length == 0) return Decide(null, null, size, areas, primaryWorkArea, out hostChosen);
+        return ScreenFit.MoveInside(new Rectangle(from.Value.Location, size), ScreenFit.NearestArea(from.Value, areas));
+    }
+
+    // The window a panel opens beside, given the window's rect now: that rect once a layout has shown (layoutShown: the
+    // page reported one, or the safety net showed the start layout); before that, at a start that opens with a panel,
+    // the same rect when the start layout has a saved spot (PrePlace put the hidden window there at its saved size),
+    // else null (a first-ever start: PanelBounds' first-ever spot).
+    public static Rectangle? PanelFrom(bool layoutShown, bool startSpotSaved, Rectangle current)
+    {
+        return layoutShown || startSpotSaved ? current : (Rectangle?)null;
     }
 
     // CSS size the first-show safety net uses when the page has not reported one: U1's (340 + the 7 px shadow wide).

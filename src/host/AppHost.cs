@@ -21,6 +21,10 @@ using Microsoft.Web.WebView2.Core;
 //   nearest dock of the monitor it landed on (CapsuleDock; the page learns it from capsuleDock); that spot is saved.
 //   Any other window that grows stays inside its work area if it was inside (WindowPlacer.FitAfterGrow, spec 5.7);
 //   a spot it is pushed to is never saved (Ruling C5), only one the user drags it to.
+// - PANEL (設定, 紀錄, onboarding, the questions) opens beside the window it came from, inside that window's work area
+//   (WindowPlacer.PanelBounds, 1.1.1); a drag of it is not saved. A start that opens with a panel opens it beside
+//   the hidden window, which PrePlace put at the start layout's saved spot and size, so the first thing shown is on
+//   the start layout's monitor (it used PANEL's own saved spot, which could be on another monitor).
 // - fullscreen {on}: Windows reports a fullscreen app or presentation mode (Presentation), after every init and on
 //   each change; the page holds its reminders meanwhile.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
@@ -399,6 +403,7 @@ public class AppHost
         double w = Bridge.Num(d, "width", 0), h = Bridge.Num(d, "height", 0);
         if (string.IsNullOrEmpty(name) || name.Length > MaxLayoutName || !(w >= 1) || !(h >= 1)) return;
         bool changed = name != layout;
+        bool shownBefore = layout != null || rescued;   // a layout was placed before this one (PanelFrom)
         layout = name;
         if (name == "U10") capsuleDock = CapsuleDock.Parse(Bridge.Str(d, "dock"));
         window.NoActivate = ShowRescue.NoActivateLayout(name);
@@ -408,16 +413,25 @@ public class AppHost
         window.SetContentSize(css.Width, css.Height, Dpr(d));
         if (changed)
         {
-            Size? savedCss = placer.SavedSize(name);   // the size the layout had when its spot was saved
-            placer.Place(window, name);
             growFrom = null;
             growTo = null;
-            bool pushed = false;
-            if (name == "U10") DockCapsule(window.Bounds);   // on the monitor of its saved spot
-            else if (savedCss.HasValue && savedCss.Value != css) pushed = FitAfterSwitch(savedCss.Value);
-            // Pushed in: the saved spot and the size it was saved at stay as they are (Ruling C5), so every switch
-            // pushes it in again; a saved size of the new size would make the saved spot look like a chosen overhang.
-            if (!pushed) placer.RememberSize(name, css);
+            if (name == WindowPlacer.PanelLayout)
+            {
+                // Beside the window it came from, on that monitor (1.1.1): at a start that opens with a panel, the hidden
+                // window PrePlace put at the start layout's spot. PANEL's own saved spot is not used.
+                placer.PlacePanel(window, WindowPlacer.PanelFrom(shownBefore, placer.HasSpot(startLayout), before));
+            }
+            else
+            {
+                Size? savedCss = placer.SavedSize(name);   // the size the layout had when its spot was saved
+                placer.Place(window, name);
+                bool pushed = false;
+                if (name == "U10") DockCapsule(window.Bounds);   // on the monitor of its saved spot
+                else if (savedCss.HasValue && savedCss.Value != css) pushed = FitAfterSwitch(savedCss.Value);
+                // Pushed in: the saved spot and the size it was saved at stay as they are (Ruling C5), so every switch
+                // pushes it in again; a saved size of the new size would make the saved spot look like a chosen overhang.
+                if (!pushed) placer.RememberSize(name, css);
+            }
             ApplyTopmost();
         }
         else if (!window.Moving)   // a new size mid-drag (another DPI) is left to the drop (OnMoveEnded)
@@ -502,8 +516,11 @@ public class AppHost
             Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
-        placer.Remember(layout, window.Location);
-        placer.RememberSize(layout, layoutCss);   // with the size the user placed it at, which FitAfterSwitch reads
+        if (layout != WindowPlacer.PanelLayout)   // a panel always opens beside its window: its own spot is not kept
+        {
+            placer.Remember(layout, window.Location);
+            placer.RememberSize(layout, layoutCss);   // with the size the user placed it at, which FitAfterSwitch reads
+        }
         Send("dragEnd", null);
     }
 

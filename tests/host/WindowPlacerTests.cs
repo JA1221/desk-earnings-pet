@@ -178,6 +178,73 @@ public static class WindowPlacerTests
         Assert.True(!from.HasValue && !to.HasValue, "not a push");
     }
 
+    // 1.1.1 (the user's own window.json): U1 on the left portrait monitor at 150 %, PANEL saved on the primary. A panel
+    // opened from U1 used PANEL's own spot, so 設定 jumped to the other monitor. It now opens at the top-left of the
+    // window it came from, moved fully inside that window's work area.
+    public static void Test_PanelOpensBesideTheWindowItCameFrom()
+    {
+        Rectangle u1 = new Rectangle(-566, 501, 521, 914);   // saved {"x":-566,"y":501,"w":347,"h":609} at 150 %
+        Size panel = new Size(611, 960);                    // 407 x 640 CSS px at 150 %
+        Rectangle r = WindowPlacer.PanelBounds(u1, panel, Areas, Primary);
+        Assert.Eq(new Rectangle(-611, 443, 611, 960), r, "beside U1, pushed in from the right edge and above the taskbar");
+        Assert.True(Left.Contains(r), "on U1's monitor, not the primary where PANEL was saved (923, 364)");
+        Rectangle u10 = new Rectangle(690, 914, 540, 112);   // U10 at bottomCenter on the primary (100 %)
+        Assert.Eq(new Rectangle(690, 392, 407, 640), WindowPlacer.PanelBounds(u10, new Size(407, 640), Areas, Primary),
+            "from U10 at the bottom: aligned left, lifted to fit above the taskbar");
+        Assert.Eq(new Rectangle(300, 200, 407, 640), WindowPlacer.PanelBounds(new Rectangle(300, 200, 347, 593), new Size(407, 640), Areas, Primary),
+            "room enough: exactly at the window's top-left");
+    }
+
+    public static void Test_PanelStaysOnTheMonitorOfTheWindowsCentre()
+    {
+        // a window hanging over the left monitor's right edge, its centre on the primary: the primary's panel
+        Rectangle from = new Rectangle(-100, 100, 400, 300);
+        Assert.Eq(new Rectangle(0, 100, 407, 640), WindowPlacer.PanelBounds(from, new Size(407, 640), Areas, Primary), "pushed onto the primary");
+        // the other way round: centre on the left monitor
+        from = new Rectangle(-300, 100, 400, 300);
+        Assert.Eq(new Rectangle(-611, 100, 611, 960), WindowPlacer.PanelBounds(from, new Size(611, 960), Areas, Primary), "kept on the left monitor");
+        // the window's monitor is gone: the nearest one that exists
+        Assert.Eq(new Rectangle(1513, 300, 407, 640), WindowPlacer.PanelBounds(new Rectangle(5000, 300, 347, 593), new Size(407, 640), new[] { Primary }, Primary),
+            "a gone monitor: the nearest work area");
+        // a panel taller than the work area fills its height there
+        Assert.Eq(new Rectangle(100, 0, 407, 1032), WindowPlacer.PanelBounds(new Rectangle(100, 500, 347, 593), new Size(407, 1500), Areas, Primary),
+            "too tall: shrunk to the area");
+    }
+
+    // A first-ever start that opens with a panel (onboarding): no window to open beside, so the first-ever spot.
+    public static void Test_PanelWithoutAWindowGoesWhereAFirstWindowGoes()
+    {
+        bool hostChosen;
+        Assert.Eq(WindowPlacer.Decide(null, null, new Size(407, 640), Areas, Primary, out hostChosen),
+            WindowPlacer.PanelBounds(null, new Size(407, 640), Areas, Primary), "primary bottom-right, margin in");
+    }
+
+    // The window a panel opens beside: the window as it is when a layout was shown (or the safety net showed one); at a
+    // start that opens with a panel, the hidden window PrePlace put at the start layout's saved spot; none on a
+    // first-ever start.
+    public static void Test_PanelFrom()
+    {
+        Rectangle now = new Rectangle(-566, 501, 521, 914);
+        Assert.Eq((Rectangle?)now, WindowPlacer.PanelFrom(true, false, now), "from a layout that showed");
+        Assert.Eq((Rectangle?)now, WindowPlacer.PanelFrom(false, true, now), "the first layout is a panel: the start layout's saved spot");
+        Assert.Eq((Rectangle?)null, WindowPlacer.PanelFrom(false, false, now), "first-ever start: nothing to open beside");
+    }
+
+    // PrePlace sizes the hidden window as the start layout will show (its saved CSS size at the scale of its monitor),
+    // so the saved spot is kept or clamped exactly as Place will and the page loads on the monitor it shows on. With
+    // the 300 x 300 default, U10 at bottomCenter was clamped 182 px up, and a spot near a monitor edge could be clamped
+    // onto the next monitor.
+    public static void Test_StartSizeIsTheSavedSizeAtItsMonitorsScale()
+    {
+        Assert.Eq(new Size(521, 914), WindowPlacer.StartSize(new Size(347, 609), 1.5, new Size(300, 300)), "U1 at 150 %");
+        Assert.Eq(new Size(540, 112), WindowPlacer.StartSize(new Size(540, 112), 1.0, new Size(300, 300)), "U10 at 100 %");
+        Assert.Eq(new Size(300, 300), WindowPlacer.StartSize(null, 1.5, new Size(300, 300)), "nothing saved: the window's own size");
+        Assert.Eq(new Size(300, 300), WindowPlacer.StartSize(new Size(0, 609), 1.5, new Size(300, 300)), "an unusable size: the window's own size");
+        Assert.Eq(new Size(347, 609), WindowPlacer.StartSize(new Size(347, 609), 0, new Size(300, 300)), "no scale known: 1");
+        Rectangle u10 = WindowPlacer.StartBounds(new Point(690, 914), WindowPlacer.StartSize(new Size(540, 112), 1.0, new Size(300, 300)), Areas, Primary);
+        Assert.Eq(new Rectangle(690, 914, 540, 112), u10, "the user's U10 at bottomCenter: exactly its spot");
+    }
+
     public static void Test_RescueSizeIsSavedElseDefault()
     {
         Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");
