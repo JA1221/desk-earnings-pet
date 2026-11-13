@@ -626,6 +626,56 @@
     done();
   });
 
+  // Final review m-2: §5.6 stores a day's cup goal so that its colour never changes afterwards; a goal changed during the
+  // day is the goal the day closes with, so its cell is the same before and after 04:00.
+  test('care: a cup goal changed during the day is the goal the day closes with', function () {
+    function cell(key) {
+      var cal = QJZ.health.calendar(A.state.history, '2026-11', A.state.today, A.state.settings);
+      return [].concat.apply([], cal.weeks).filter(function (c) { return c && c.day === key; })[0];
+    }
+    function full() { var c = cell('2026-11-12'); return [c.full, c.level]; }
+    // lowered from 8 to 6 with 6 cups: ✓ today, and still ✓ after 04:00 (it lost its ✓ there before)
+    var e = mk(at(9, 0));
+    for (var i = 0; i < 6; i++) C.drink();
+    eq(full(), [false, 3], 'goal 8');
+    var m = mark(e);
+    A.saveSettings({ health: { water: { goal: 6 } } });
+    eq(full(), [true, 4], 'goal 6: today is full');
+    var stamped = A.state.today.health.cupGoal;
+    var saved = sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.cupGoal === 6; });
+    go(e, day(13, 4, 0, 1));
+    eq(A.state.today.day, '2026-11-13');
+    eq(full(), [true, 4], 'the same after 04:00');
+    eq(A.state.history.days['2026-11-12'].health.cupGoal, 6);
+    eq(stamped, 6, 'today carried the new goal at once');
+    ok(saved, 'and it was saved at once');
+    m = mark(e);
+    A.saveSettings({ health: { water: { goal: 10 } } });
+    eq(full(), [true, 4], 'a closed day keeps its goal');
+    eq('health' in A.state.today, false, 'a new day with no counts gets no record of its own');
+    eq(sends(e, m, 'saveHistory'), [], 'and nothing is written for it');
+    done();
+
+    // raised from 8 to 10 with 8 cups: not full today, and no ✓ the next morning either
+    e = mk(at(9, 0));
+    for (i = 0; i < 8; i++) C.drink();
+    eq(full(), [true, 4], 'goal 8');
+    A.saveSettings({ health: { water: { goal: 10 } } });
+    eq(full(), [false, 3], 'goal 10');
+    go(e, day(13, 4, 0, 1));
+    eq(full(), [false, 3], 'the same after 04:00');
+    eq(A.state.history.days['2026-11-12'].health.cupGoal, 10);
+    done();
+
+    // a day without counts: changing the goal writes nothing
+    e = mk(at(9, 0));
+    m = mark(e);
+    A.saveSettings({ health: { water: { goal: 5 } } });
+    eq('health' in A.state.today, false);
+    eq(sends(e, m, 'saveHistory'), []);
+    done();
+  });
+
   test('care: a 1.0 user is never reminded before answering', function () {
     var e = mk(at(9, 0), S(null)), m = mark(e);
     walk(e, at(9, 0), at(17, 59), 10 * MIN);

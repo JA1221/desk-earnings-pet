@@ -214,6 +214,7 @@ QJZ.care = (function () {
   // day it started (第 N 顆), so a focus across 04:00 keeps its number; 0 without a focus.
   function publish() {
     if (!state.ready) return;
+    followGoal();
     var s = settings(), h = QJZ.health.of(today()), p = state.p;
     state.health = h;
     state.goals = { cups: s.health.water.goal, tomatoes: QJZ.settings.tomatoGoal(s), standups: QJZ.settings.standGoal(s) };
@@ -232,6 +233,16 @@ QJZ.care = (function () {
       pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
     var text = JSON.stringify(menu);
     if (text !== lastMenu) { lastMenu = text; bridge.send('healthMenu', menu); }
+  }
+  // §5.6: today carries the cup goal it is played against, and the calendar judges today by the current goal. So a goal
+  // changed during the day re-stamps today's (final review m-2): the day closes with the goal it showed, and its cell
+  // is the same before and after 04:00. Written only when it differs, on a day that has counts (a stamped goal).
+  function followGoal() {
+    var rec = today(), h = QJZ.health.of(rec), goal = settings().health.water.goal;
+    if (h.cupGoal === null || h.cupGoal === goal) return;
+    h.cupGoal = goal;
+    busy++;   // its change event publishes nothing: the publish that called this goes on with the new record
+    try { QJZ.app.setHealth(rec.day, h); } finally { busy--; }
   }
   // Minutes to the next reminder (null: nothing is asked). After 等一下 it is the time until the snooze ends, not 0.
   function minutesToStand() {
