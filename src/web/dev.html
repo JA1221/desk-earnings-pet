@@ -61,7 +61,7 @@
 <code>?notice=hotkey|storage|both</code> 模擬 host 警告、
 <code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」、<code>?obstep=2|3</code> 直接到歡迎畫面第 2 / 3 步（沒填薪資就填 50,000）。<br>
 寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。<br>
-健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒，
+健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒（<code>?sit=on</code> 打開起來動提醒），
 <code>?pomo=focus|break|breakOver</code> 番茄鐘正在專心（還剩 13 分）/ 休息 / 休息結束（番茄鐘存在 localStorage，要清掉加 <code>?fresh=1</code>），
 <code>?prompt=both|sit|water|break|breakEnd</code> 馬上冒出那個提醒泡泡（both / sit / water 會照著打開提醒開關，加 <code>?turn=0~4</code> 選第幾句；break 加 <code>?water=on</code> 多一行「順便喝口水吧～」）。<br>
 U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（存進設定，像右鍵選單的「膠囊位置」），<code>?hover=1</code> 滑鼠停在膠囊上（展開）。</p>
@@ -268,12 +268,13 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   // seeded through QJZ.care._dev once care has started (the mock host sends no visibility; _dev counts the window as
   // shown).
   var devCare = { cups: devQ.get('cups'), tomatoes: devQ.get('tom'), standups: devQ.get('stand') }, devPomo = devQ.get('pomo');
-  var devWater = devQ.get('water') === 'on', devPrompt = /^(both|sit|water|break|breakEnd)$/.test(devQ.get('prompt') || '') ? devQ.get('prompt') : null;
-  if (devWater || devPomo || devPrompt || Object.keys(devCare).some(function (k) { return devCare[k] !== null; })) {
+  var devWater = devQ.get('water') === 'on', devSit = devQ.get('sit') === 'on', devPrompt = /^(both|sit|water|break|breakEnd)$/.test(devQ.get('prompt') || '') ? devQ.get('prompt') : null;
+  if (devWater || devSit || devPomo || devPrompt || Object.keys(devCare).some(function (k) { return devCare[k] !== null; })) {
     var offCare = QJZ.app.on('change', function () {
       offCare();
       setTimeout(function () {
         if (devWater) QJZ.app.saveSettings({ health: { asked: true, water: { on: true } } });
+        if (devSit) QJZ.app.saveSettings({ health: { asked: true, sit: { on: true } } });
         if (devPrompt === 'both' || devPrompt === 'sit' || devPrompt === 'water') {
           QJZ.app.saveSettings({ health: { asked: true, sit: { on: devPrompt !== 'water' }, water: { on: devPrompt !== 'sit' } } });
         }
