@@ -53,7 +53,8 @@
   function events(e, m, n) { return e.log.slice(m.log).filter(function (x) { return x.n === n; }).map(function (x) { return x.x; }); }
   function prompts(e, m) {
     return events(e, m, 'prompt').map(function (x) {
-      return x.type + (x.prompt && x.type !== 'wave' ? ':' + x.prompt.kind + (x.prompt.water ? '+w' : '') : '') + (x.quiet ? ':quiet' : '');
+      return x.type + (x.prompt && x.type !== 'wave' ? ':' + x.prompt.kind + (x.prompt.water ? '+w' : '') + (x.prompt.drank ? '+drank' : '') : '') +
+        (x.quiet ? ':quiet' : '');
     });
   }
   function sends(e, m, type) { return e.sent.slice(m.sent).filter(function (s) { return s.type === type; }).map(function (s) { return s.p; }); }
@@ -107,13 +108,15 @@
     eq(events(e, m, 'drank'), [{ cups: 1, goalReached: false }]);
     ok(sends(e, m, 'saveHistory').some(function (p) { return p.text.indexOf('"cups":1') >= 0; }), 'saved before any later step');
     eq(A.state.history.days['2026-11-12'].health, { cups: 1, cupGoal: 8, tomatoes: 0, standups: 0 });
-    eq(prompts(e, m), ['update:sit'], 'the same bubble, now 起來動 alone');
+    eq(prompts(e, m), ['update:both+drank'], 'the same bubble, its water answered: it asks 起來動 alone');
     eq(raises(e, m), [], 'it stays up');
     eq(events(e, m, 'cue'), ['wave']);
-    eq(C.view().buttons.map(function (b) { return b.id; }), ['up', 'later']);
+    eq(C.view().buttons.map(function (b) { return b.id + (b.done ? ' done' : ''); }), ['drank done', 'up', 'later'], 'review M-1: 喝了 stays in place, done');
     eq(C.answer('drink'), false, 'a second 喝了 does nothing');
+    eq(C.answer('drank'), false, 'nor a click on the done one');
+    eq(h(), [1, 0, 0]);
     walk(e, at(9, 51), at(9, 55), MIN);
-    eq(prompts(e, m), ['update:sit', 'wave', 'wave'], 'it does not ask water again (and re-waves as any bubble)');
+    eq(prompts(e, m), ['update:both+drank', 'wave', 'wave'], 'it does not ask water again (and re-waves as any bubble)');
     eq(C.answer('up'), true);
     eq(h(), [1, 0, 1]);
     eq(prompts(e, m).slice(3), ['hide']);
@@ -596,12 +599,30 @@
     menu(e, 'drink');
     eq(h(), [8, 0, 0]);
     eq(events(e, m, 'drank'), [{ cups: 8, goalReached: true }]);
+    eq(prompts(e, m), ['update:both+drank'], '1.1.2 ruling: a cup from anywhere is 喝了 on this bubble');
     go(e, at(9, 50, 1));
-    eq(prompts(e, m), ['update:sit']);
-    eq(C.answer('drink'), false, '喝了 has left the bubble: a stale press does nothing');
+    eq(prompts(e, m), ['update:both+drank']);
+    eq(C.answer('drink'), false, '喝了 is done: a stale press does nothing');
     eq(h(), [8, 0, 0]);
     menu(e, 'drink');
     eq(h(), [9, 0, 0], 'each press counts once');
+    done();
+
+    // 1.1.2 ruling: below the goal too, from the tray, the menu or a cups button: the bubble asks 起來動 alone
+    e = mk(at(9, 0));
+    C.setCups(3);
+    go(e, at(9, 50));
+    m = mark(e);
+    menu(e, 'drink');
+    C.drink();   // (a cups button on a layout)
+    eq(h(), [5, 0, 0], 'two cups, no stand-up');
+    eq(prompts(e, m), ['update:both+drank'], 'once');
+    eq(raises(e, m), []);
+    eq(C.view().buttons.map(function (b) { return b.id; }), ['drank', 'up', 'later']);
+    walk(e, at(9, 51), at(9, 53), MIN);
+    eq(prompts(e, m).filter(function (p) { return p !== 'wave'; }), ['update:both+drank'], 'and it stays so');
+    C.answer('up');
+    eq(h(), [5, 0, 1]);
     done();
 
     e = mk(at(9, 0), S(WATER));
@@ -875,7 +896,7 @@
     eq(C.state.prompt.kind, 'both', 'shown at once when nothing holds it');
     C.answer('drink');
     eq(h(), [1, 0, 0], '喝了: a cup; the bubble stays as 起來動');
-    eq(C.state.prompt.kind, 'sit');
+    eq([C.state.prompt.kind, C.state.prompt.drank], ['both', true]);
     C.answer('up');
     eq(h(), [1, 0, 1], '起來了: the stand-up');
     var m = mark(e);

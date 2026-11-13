@@ -84,6 +84,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay [data-hold].holding::after{visibility:visible;animation:qjz-hold 1.2s linear 1 forwards}
 @keyframes qjz-hold{from{--hold:0}to{--hold:100}}
 .lay [data-hold].charged{background:#C4F3D7}
+.lay .gauge3 .rg[data-hold].charged{background:radial-gradient(closest-side,#C4F3D7 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 
 /* ---------- U7 (A_U7): one more line on the tag ---------- */
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
@@ -153,6 +154,10 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay .rb-btns button:active{transform:translate(1px,1px)}
 .lay .rb-btns .ok{background:var(--bar)}
 .lay .rb-btns .drink{background:#9AD0FF}
+/* 喝了 done (1.1.2 review M-1): in its place, faded, with a ✓ on its corner; the same size, so nothing moves */
+.lay .rb-btns button.done{position:relative;opacity:.55;box-shadow:none;cursor:default;transform:none}
+.lay .rb-btns button.done::after{content:"✓";position:absolute;right:-5px;top:-7px;width:15px;height:15px;border-radius:50%;background:#1E9E5A;
+  color:#fff;font-size:10px;line-height:15px;text-align:center;font-weight:800}
 .rb-ic{position:absolute;left:-13px;top:-15px;width:32px;height:32px;border-radius:50%;background:var(--bar);border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--line);
   display:grid;place-items:center}
 .rb-ic svg.ic{width:21px;height:21px}
@@ -354,6 +359,9 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
   border:2.5px solid var(--line);border-radius:99px;padding:5px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .u13:is(.p-foc,.p-brk) .bigring .br-go .go{background:#fff}
 .bigring .br-go:active .go{transform:translate(calc(1px - 50%),1px)}
+/* while a phase runs only ■ 停止 takes the click; the rest of the ring lets it through (1.1.2 review) */
+.u13:is(.p-foc,.p-brk) .bigring .br-go{pointer-events:none;cursor:default}
+.u13:is(.p-foc,.p-brk) .bigring .br-go .go{pointer-events:auto;cursor:pointer}
 /* a prompt sits inside the ring (Ruling C4, G_U13_rem): the ring goes full and green with a thinner band, glows, and
    holds nothing else. Three buttons wrap two and one, without the icon and the sub, so every line stays inside. */
 .u13.prompting .bigring{--p:100!important;--c:var(--rest);--hole:88%;--rs:4px 4px 0 var(--line),0 0 0 4px var(--glow);animation:ringhot 1.3s ease-in-out 3}

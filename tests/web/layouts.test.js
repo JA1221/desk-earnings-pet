@@ -2013,8 +2013,8 @@
     eq(sizeOf(e), size, 'the window keeps its size');
     e.tick(at(12, 9, 10));
     eq([text(e, '.u13 .br-run [data-b=mmss]'), ring.style.getPropertyValue('--p')], ['15:00', '60']);
-    clickOn(go);
-    eq(C.state.p.phase, 'idle', '■ 停止 on the ring stops it');
+    clickOn($(e, '.u13 .br-go .go'));
+    eq(C.state.p.phase, 'idle', '■ 停止 stops it');
     e.tick(at(12, 9, 49, 59));
     e.tick(at(12, 9, 50));
     var rem = $(e, '.u13 [data-prompt-ring]');
@@ -2419,16 +2419,32 @@
     var m0 = masked();
     clickOn(petPart(e));
     eq(masked(), m0, 'a poke is a poke');
+    // M3 (review I-1): a double click there expands it, so a click on its tag waits DBL_MS before it toggles; a double
+    // click cancels it, and the mask never drops, not even for a moment
     e.menu('mini');
-    var tag = $(e, '.m3 .tagm');
-    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
-    eq(masked(), !m0, 'M3: a click on its tag toggles it');
+    var tag = $(e, '.m3 .tagm'), T = e.clock.ms;
     mouse(tag, 'mousedown', 5, 5, { detail: 1 });
     mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
-    mouse(tag, 'mousedown', 5, 5, { detail: 2 });
-    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 2 });
-    mouse(tag, 'dblclick', 5, 5, { buttons: 0, detail: 2 });
-    eq([QJZ.layouts.current(), masked()], ['U1', !m0], 'M3: a double click expands and leaves the mask as it was');
+    eq(masked(), m0, 'M3: a click on its tag waits for a double click');
+    e.tick(T + U.DBL_MS - 1);
+    eq(masked(), m0);
+    e.tick(T + U.DBL_MS);
+    eq(masked(), !m0, 'M3: then it toggles');
+    if (!masked()) {   // the case of I-1: masked, and a double click to expand
+      mouse(tag, 'mousedown', 5, 5, { detail: 1 });
+      mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
+      e.tick(T + 2 * U.DBL_MS + 5);
+    }
+    ok(masked() && $(e, '.m3').classList.contains('masked'), 'masked now');
+    var flashed = false;
+    [['mousedown', 1], ['click', 1], ['mousedown', 2], ['click', 2], ['dblclick', 2]].forEach(function (s) {
+      mouse(tag, s[0], 5, 5, { detail: s[1], buttons: s[0] === 'mousedown' ? 1 : 0 });
+      var lay = $(e, '.lay');
+      flashed = flashed || !masked() || !lay.classList.contains('masked');
+    });
+    eq([QJZ.layouts.current(), masked(), flashed], ['U1', true, false], 'M3: a double click expands, the money masked all along');
+    e.tick(T + 10 * U.DBL_MS);
+    eq(masked(), true, 'and nothing toggles later');
     done();
     var f = mk(at(12, 10, 0, 0), { first: 'U5B', settings: { privacy: { maskMoney: true } } });
     eq(shownMoney(f), null, 'a saved mask holds after a restart');
@@ -2535,6 +2551,101 @@
         ['water off, no cup', function () { C.toggleFocus(); QJZ.app.saveSettings({ health: { water: { on: false } } }); C._dev({ cups: 0, tomatoes: 0 }); }]
       ];
       steps.forEach(function (s) { s[1](); eq(where(s[0]), at0, name + ': ' + s[0] + ' moved it'); });
+      done();
+    });
+  });
+
+  // ---------- 1.1.2 review: U13 stops only on ■ 停止 ----------
+  // Idle the whole ring starts a focus; while a phase runs only ■ 停止 (on the same spot as 開始專心) stops it, and a click
+  // anywhere else on the ring does nothing (the click that brings U13 to the front, or that closes the menu, lands there).
+  function hitAt(x, y) { return document.elementFromPoint(x, y); }   // (the page scrolled to its top first)
+  test('layouts DOM: U13: idle the ring starts; while a phase runs only ■ 停止 stops it, the rest of the ring does nothing', function () {
+    window.scrollTo(0, 0);
+    var e = shown(mk(at(12, 9, 0), { first: 'U13', care: true }));
+    var ring = $(e, '.u13 .bigring').getBoundingClientRect(), cx = (ring.left + ring.right) / 2;
+    var spots = [[cx, ring.top + 30], [ring.left + 40, (ring.top + ring.bottom) / 2], [cx, (ring.top + ring.bottom) / 2 - 10]];
+    var t = hitAt(spots[0][0], spots[0][1]);
+    mouse(t, 'click', spots[0][0], spots[0][1], { buttons: 0, detail: 1 });
+    eq(C.state.p.phase, 'focus', 'idle: the ring top starts it');
+    spots.forEach(function (p, i) {
+      mouse(hitAt(p[0], p[1]), 'click', p[0], p[1], { buttons: 0, detail: 1 });
+      eq(C.state.p.phase, 'focus', 'running: a click on the ring (' + i + ') does nothing');
+    });
+    var pill = $(e, '.u13 .br-go .go').getBoundingClientRect(), px = (pill.left + pill.right) / 2, py = (pill.top + pill.bottom) / 2;
+    ok(hitAt(px, py) === $(e, '.u13 .br-go .go'), 'the pill takes the click');
+    eq(getComputedStyle($(e, '.u13 .br-go')).cursor !== 'pointer' && getComputedStyle($(e, '.u13 .br-go .go')).cursor === 'pointer', true, 'only it looks clickable');
+    mouse(hitAt(px, py), 'click', px, py, { buttons: 0, detail: 1 });
+    eq(C.state.p.phase, 'idle', '■ 停止 stops it');
+    var t2 = hitAt(spots[1][0], spots[1][1]);
+    mouse(t2, 'click', spots[1][0], spots[1][1], { buttons: 0, detail: 1 });
+    eq(C.state.p.phase, 'focus', 'idle again: anywhere on the ring starts');
+    done();
+  });
+
+  // ---------- 1.1.2 review: U12's 起來動 ring takes the long press too ----------
+  test('layouts DOM: U12: a long press on the 起來動 ring is 我剛起來動過了; a short one does nothing', function () {
+    var e = shown(mk(at(12, 9, 0, 0), { first: 'U12', care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    var g = $(e, '.u12 [data-gauge=stand] [data-hold]'), T = at(12, 9, 18);
+    ok(g && drawn(g) && g.querySelector('svg.ic-stand'), 'the 起來動 ring holds');
+    mouse(g, 'mousedown', 10, 10, { detail: 1 });
+    eq(holdAnims().length, 1, 'its ring fills while it is held');
+    e.clock.ms = T + 400;
+    mouse(g, 'mouseup', 10, 10, { buttons: 0 });
+    mouse(g, 'click', 10, 10, { buttons: 0, detail: 1 });
+    eq([C.state.health.standups, holdAnims().length], [0, 0], 'a short press counts nothing');
+    e.clock.ms = T;
+    mouse(g, 'mousedown', 10, 10, { detail: 1 });
+    e.clock.ms = T + U.HOLD_MS;
+    mouse(g, 'mouseup', 10, 10, { buttons: 0 });
+    eq([C.state.health.standups, C.state.standIn, text(e, '.u12 [data-gauge=stand] [data-b=standups]')], [1, 50, '1'], '我剛起來動過了');
+    var b = e.root.querySelectorAll('.banner');
+    eq(b[b.length - 1].textContent, '收到！');
+    eq(of(e.sent, 'dragStart').length, 0, 'never a drag');
+    e.tick(at(12, 10, 8, 1));
+    e.tick(at(12, 10, 8, 3));   // (due 50 minutes after the stand-up at 09:18:01.2)
+    eq(C.answer('later'), true);
+    eq(C.state.snoozed, true);
+    ok(!g.classList.contains('snz') && drawn(g.querySelector('svg.ic-stand')), 'it counts stand-ups: no 💤 there');
+    done();
+  });
+
+  // ---------- 1.1.2 review M-1: after 喝了 on the both bubble nothing moves ----------
+  // The bubble stays with 喝了 left in place, done (disabled, no answer): 起來了 and 等一下 stay where they were, in every
+  // layout, and a second click where 喝了 was answers nothing (it was a stand-up nobody did).
+  test('layouts DOM: after 喝了 the bubble\'s buttons stay where they were, and a second click on 喝了\'s spot does nothing', function () {
+    window.scrollTo(0, 0);
+    ['U1', 'U3', 'U5B', 'U7', 'M3', 'U10', 'U12', 'U13'].forEach(function (name) {
+      var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH } }));
+      e.tick(at(12, 9, 49, 59));
+      e.tick(at(12, 9, 50));
+      function rects() {
+        var out = {};
+        Array.prototype.forEach.call(e.root.querySelectorAll('.rb-btns button'), function (b, i) {
+          var r = b.getBoundingClientRect();
+          out[i] = [r.left, r.top, r.width, r.height].map(function (v) { return Math.round(v); });
+        });
+        return out;
+      }
+      var before = rects(), d = $(e, '[data-answer=drink]'), dr = d.getBoundingClientRect(), x = dr.left + dr.width / 2, y = dr.top + dr.height / 2;
+      clickOn(d);
+      eq([C.state.health.cups, C.state.health.standups], [1, 0], name);
+      var after = rects();
+      Object.keys(before).forEach(function (k) {
+        ok(Math.abs(before[k][0] - after[k][0]) <= 2 && Math.abs(before[k][1] - after[k][1]) <= 2 && Math.abs(before[k][2] - after[k][2]) <= 2,
+          name + ' button ' + k + ' stays: ' + JSON.stringify([before[k], after[k]]));
+      });
+      var done0 = e.root.querySelector('.rb-btns button.done');
+      ok(done0 && done0.disabled && !done0.hasAttribute('data-answer') && done0.textContent === '喝了', name + ': 喝了 in its place, done');
+      ok(done0.hasAttribute('data-hit'), name + ': still ours (a hit rect)');
+      var under = hitAt(x, y);
+      ok(under === done0 || done0.contains(under), name + ': what is under the cursor is the done 喝了');
+      mouse(under, 'mousedown', x, y, { detail: 1 });
+      mouse(under, 'mouseup', x, y, { buttons: 0 });
+      mouse(under, 'click', x, y, { buttons: 0, detail: 1 });
+      eq([C.state.health.standups, !!C.state.prompt], [0, true], name + ': a second click there counts no stand-up, the bubble stays');
+      clickOn($(e, '[data-answer=up]'));
+      eq(C.state.health.standups, 1, name + ': 起來了 still answers');
       done();
     });
   });

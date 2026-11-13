@@ -102,7 +102,8 @@ QJZ.templates = (function () {
       '<div class="gauge3" data-gauge="tom"><span class="rg"><span class="g-day">' + ic('tom') + '<b data-b="tomNum"></b></span>' +
         '<span class="g-run"><small data-b="phaseShort"></small><b data-b="mmss"></b><small data-b="nth"></small></span></span>' +
         '<span class="gl" data-b="tomLabel"></span></div>' +
-      '<div class="gauge3" data-gauge="stand"><span class="rg">' + ic('stand') + '<b data-b="standups"></b></span>' +
+      '<div class="gauge3" data-gauge="stand"><span class="rg" data-hold="gauge" title="起來動（長按＝我剛起來動過了）">' + ic('stand') +
+        '<b data-b="standups"></b></span>' +
         '<span class="gl" data-b="standLabel"></span></div></div>';
   }
   var TEMPLATES = {
@@ -187,8 +188,9 @@ QJZ.templates = (function () {
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
     // U13 番茄鐘優先 (G_U13_*): the big ring is the one pomodoro button (spec §5.2, 1.1.2 item 4): idle it reads 下一顆 25
-    // 分鐘 and ▶ 開始專心; it counts a focus (red) or a break (green) down with ■ 停止 on the same spot. A prompt sits
-    // inside it (Ruling C4). The pet sits on its edge, outside the button. Under it the tomato slots (one per the day's
+    // 分鐘 and ▶ 開始專心; it counts a focus (red) or a break (green) down with ■ 停止 on the same spot, and then only ■ 停止
+    // stops it (1.1.2 review: the rest of the ring lets clicks through; layouts.js checks too). A prompt sits inside it
+    // (Ruling C4). The pet sits on its edge, outside the button. Under it the tomato slots (one per the day's
     // goal), and the cups and the next stand-up.
     U13: function () {
       return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +

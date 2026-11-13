@@ -392,11 +392,12 @@
       ok($(e, '[data-answer=up]') === btn, name + ': not redrawn while what it shows is the same');
       if (name === 'U1') clickOn($(e, '.u1 [data-act=drink]'));   // the cups pill beside it
       else e.menu('drink');   // the menu or the tray
-      eq(C.state.prompt.kind, 'both', name + ': still asks both');
+      eq([C.state.prompt.kind, C.state.prompt.drank], ['both', true], name + ': 1.1.2 ruling: the cup answers its water, as 喝了 does');
       eq(sub(), '已經坐 50 分鐘囉・今天 1/8 杯', name + ': the count follows');
       e.menu('drink');
       eq(sub(), '已經坐 50 分鐘囉・今天 2/8 杯', name);
-      eq(buttons($(e, '[data-prompt]')), ['drink 喝了', 'up 起來了', 'later 等一下']);
+      eq(buttons($(e, '[data-prompt]')), ['up 起來了', 'later 等一下'], name + ': 喝了 done, 起來了 and 等一下 to answer');
+      ok($(e, '[data-prompt] button.done[disabled]'), name + ': 喝了 left in its place, done');
       btn = $(e, '[data-answer=up]');
       e.tick(at(9, 50, 3));
       ok($(e, '[data-answer=up]') === btn && sub() === '已經坐 50 分鐘囉・今天 2/8 杯', name + ': then left alone');

@@ -5,9 +5,11 @@ window.QJZ = window.QJZ || {};
 //   A ready-at of null means "blocked right now": the 3 s gate starts on the first step it is no longer blocked.
 //   step's c: {nowMs, blocked, focus, working, forced, due, notice, noticeWater}. forced (1.1.1, 現在提醒我一次): the
 //   reminder was asked for, so it shows outside work time too; blocked and focus still hold it.
-//   1.1.2 item 7: 喝了 on the bubble that asks both only logs the cup (effects drink, waterDone): the bubble stays, as the
-//   起來動 one (answer's stays), and closes on 起來了 or 等一下. Item 11: the combined line 「伸懶腰、喝口水，再加油！」 fits
-//   U5-B.
+//   1.1.2 item 7: 喝了 on the bubble that asks both only logs the cup (effects drink, waterDone): the bubble stays (answer's
+//   stays), asking 起來動 alone, and closes on 起來了 or 等一下. It stays the same bubble (review M-1): kind 'both' with
+//   drank, its title as it was and 喝了 left in place, done (the button 'drank': disabled, no answer), so 起來了 never
+//   slides under the cursor. drank(q) does the same for a cup logged anywhere else (the 1.1.2 ruling). Item 11: the
+//   combined line 「伸懶腰、喝口水，再加油！」 fits U5-B.
 QJZ.prompt = (function () {
   var GATE_MS = 3000, WAVE_MS = 120000;
   var LINES = {
@@ -15,10 +17,12 @@ QJZ.prompt = (function () {
     sit: ['坐好久了，起來動一動！', '屁股要長香菇了～起來走走吧！', '起來伸個懶腰吧～', '站起來動一動，等等腦袋更清楚！', '該讓椅子休息一下囉～'],
     water: ['喝口水吧～', '水杯空了嗎？補一杯吧～', '補充水分，工作才有精神！', '咕嚕咕嚕～一起喝水吧！', '記得喝水，皮膚才會水噹噹～']
   };
-  var LABELS = { drink: '喝了', up: '起來了', later: '等一下', ok: '好', skip: '跳過休息', next: '開始', stop: '先不要' };
+  var LABELS = { drink: '喝了', drank: '喝了', up: '起來了', later: '等一下', ok: '好', skip: '跳過休息', next: '開始', stop: '先不要' };
   var ICONS = { both: 'stand', sit: 'stand', water: 'drop', break: 'rest', breakEnd: 'tom' };
 
   function isNotice(p) { return p.kind === 'break' || p.kind === 'breakEnd'; }
+  // what a reminder bubble asks now: a both bubble whose water was answered (drank) asks 起來動 alone
+  function asks(p) { return p.drank ? 'sit' : p.kind; }
   function make(q, o) {
     return { prompt: 'prompt' in o ? o.prompt : q.prompt, noticeReadyAt: 'noticeReadyAt' in o ? o.noticeReadyAt : q.noticeReadyAt,
       remindReadyAt: 'remindReadyAt' in o ? o.remindReadyAt : q.remindReadyAt, waveAt: 'waveAt' in o ? o.waveAt : q.waveAt };
@@ -46,7 +50,7 @@ QJZ.prompt = (function () {
         if (!isNotice(pr) || pr.kind !== w.kind) { hide(); show(w); }
         else if (pr.water !== w.water) { pr = { kind: pr.kind, water: w.water, shownMs: pr.shownMs }; events.push({ type: 'update', prompt: pr }); }
       } else if (isNotice(pr)) hide();
-      else if (pr.kind !== w.kind) { pr = { kind: w.kind, water: false, shownMs: pr.shownMs }; events.push({ type: 'update', prompt: pr }); }
+      else if (asks(pr) !== w.kind) { pr = { kind: w.kind, water: false, shownMs: pr.shownMs }; events.push({ type: 'update', prompt: pr }); }
       if (pr && now >= waveAt + WAVE_MS && events.length === 0) {
         waveAt = pr.shownMs + Math.floor((now - pr.shownMs) / WAVE_MS) * WAVE_MS;
         events.push({ type: 'wave', prompt: pr });
@@ -56,7 +60,7 @@ QJZ.prompt = (function () {
   }
 
   function buttonsFor(p) {
-    if (p.kind === 'both') return ['drink', 'up', 'later'];
+    if (p.kind === 'both') return p.drank ? ['drank', 'up', 'later'] : ['drink', 'up', 'later'];
     if (p.kind === 'sit') return ['up', 'later'];
     if (p.kind === 'water') return ['drink', 'later'];
     if (p.kind === 'break') return p.water ? ['ok', 'drink', 'skip'] : ['ok', 'skip'];
@@ -73,18 +77,26 @@ QJZ.prompt = (function () {
   // The bubble closes on every answer that has effects (the caller hides it), but for 喝了 on the both bubble: that one
   // stays (stays: true), now asking 起來動 alone; the caller updates it. Anything else changes nothing.
   function answer(q, buttonId, nowMs) {
+    var p = q.prompt, fx = p && buttonsFor(p).indexOf(buttonId) >= 0 ? EFFECTS[p.kind][buttonId] : null;
+    if (!fx) return { q: q, effects: [], stays: false };   // (the done 喝了 answers nothing)
+    if (p.kind === 'both' && buttonId === 'drink') return { q: drank(q).q, effects: fx.slice(), stays: true };
+    return { q: make(q, { prompt: null, noticeReadyAt: nowMs + GATE_MS, remindReadyAt: nowMs + GATE_MS }), effects: fx.slice(), stays: false };
+  }
+  // A cup logged while a both bubble shows (喝了 on it, or the tray, the menu, a cups button): the same bubble, its water
+  // answered. -> {q, changed}
+  function drank(q) {
     var p = q.prompt;
-    if (!p || buttonsFor(p).indexOf(buttonId) < 0) return { q: q, effects: [], stays: false };
-    var effects = EFFECTS[p.kind][buttonId].slice();
-    if (p.kind === 'both' && buttonId === 'drink') {
-      return { q: make(q, { prompt: { kind: 'sit', water: false, shownMs: p.shownMs } }), effects: effects, stays: true };
-    }
-    return { q: make(q, { prompt: null, noticeReadyAt: nowMs + GATE_MS, remindReadyAt: nowMs + GATE_MS }), effects: effects, stays: false };
+    if (!p || p.kind !== 'both' || p.drank) return { q: q, changed: false };
+    return { q: make(q, { prompt: { kind: 'both', water: false, shownMs: p.shownMs, drank: true } }), changed: true };
   }
 
   function view(p, v) {
     v = v || {};
-    var buttons = buttonsFor(p).map(function (id) { return { id: id, label: LABELS[id] }; });
+    var buttons = buttonsFor(p).map(function (id) {
+      var b = { id: id, label: LABELS[id] };
+      if (id === 'drank') b.done = true;
+      return b;
+    });
     var title, sub = '', waterLine = null;
     if (p.kind === 'break') {
       title = (v.long ? '長休息 ' : '休息 ') + v.breakMin + ' 分鐘！起來走走～'; sub = '第 ' + v.done + ' 顆番茄完成'; waterLine = p.water ? '順便喝口水吧～' : null;
@@ -100,5 +112,5 @@ QJZ.prompt = (function () {
     return { kind: p.kind, icon: ICONS[p.kind], title: title, sub: sub, waterLine: waterLine, buttons: buttons };
   }
 
-  return { initial: initial, step: step, answer: answer, view: view, LINES: LINES, GATE_MS: GATE_MS, WAVE_MS: WAVE_MS };
+  return { initial: initial, step: step, answer: answer, drank: drank, asks: asks, view: view, LINES: LINES, GATE_MS: GATE_MS, WAVE_MS: WAVE_MS };
 })();

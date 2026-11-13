@@ -499,8 +499,10 @@ QJZ.panels = (function () {
       var m = questionModel(qn, rec, s.settings, s.today.day);
       out(c, 'qtext', m.text);
       out(c, 'qnote', m.planned ? '最後一次鎖定螢幕是 ' + m.lock + '，原本會算到 ' + m.planned + '。' : '');
-      out(c, 'qyes', m.yes ? '算到 ' + m.lock + ' ・ NT$ ' + m.yes : '');
-      out(c, 'qno', m.no ? '算到 ' + m.planned + ' ・ NT$ ' + m.no : '');
+      // the money mask (1.1.2 review M-2): this panel opens by itself, not on purpose, so its amounts are masked too
+      var mask = !!(s.settings.privacy && s.settings.privacy.maskMoney);
+      out(c, 'qyes', m.yes ? '算到 ' + m.lock + ' ・ NT$ ' + (mask ? '***' : m.yes) : '');
+      out(c, 'qno', m.no ? '算到 ' + m.planned + ' ・ NT$ ' + (mask ? '***' : m.no) : '');
     },
     healthAsk: function (c) { QJZ.panelsHealth.askBuild(c); }
   };

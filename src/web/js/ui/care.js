@@ -217,9 +217,10 @@ QJZ.care = (function () {
     if (state.p.phase === 'focus') return 'focus';
     var pr = state.q.prompt;
     if (!pr) return null;
-    if (pr.kind === 'both' || pr.kind === 'water') return 'holdCup';
-    if (pr.kind === 'sit') return 'wave';
-    return pr.kind === 'break' ? 'stretch' : null;
+    var k = Q.asks(pr);   // (a both bubble whose water was answered asks 起來動 alone)
+    if (k === 'both' || k === 'water') return 'holdCup';
+    if (k === 'sit') return 'wave';
+    return k === 'break' ? 'stretch' : null;
   }
   // Derived state (the §4.9 #8 rule lives here only), then cue, change and healthMenu, each only when it changed.
   // standIn: minutesToStand(), so a change (a working minute gone by) is a change. nth: the running focus's place on the
@@ -311,12 +312,23 @@ QJZ.care = (function () {
 
   // ---- actions ----
   // One cup today, any time (§5.3). Only 喝水 on: any cup restarts the timer (§5.1).
+  // 1.1.2 ruling: a cup logged anywhere (the tray, the menu, a cups button, the bubble's 喝了) while the bubble asks both
+  // answers its water, as 喝了 does: the same bubble asks 起來動 alone (QJZ.prompt.drank), and the round's water is done.
   function drink() {
     if (!state.ready) return false;
     batch(function () {
       var s = settings(), goal = s.health.water.goal, before = QJZ.health.of(today()).cups;
       var cups = addHealth(today().day, 'cups', 1);
       if (!s.health.sit.on) { catchUp(nowFn()); state.r = R.reset(state.r); }
+      else {
+        var d = Q.drank(state.q);
+        if (d.changed) {
+          state.q = d.q;
+          state.prompt = d.q.prompt;
+          state.r = R.waterDone(state.r);
+          announce({ type: 'update', prompt: d.q.prompt });
+        }
+      }
       emit('drank', { cups: cups, goalReached: before < goal && cups >= goal });
     });
     return true;

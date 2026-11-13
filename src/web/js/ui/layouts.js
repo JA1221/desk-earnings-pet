@@ -107,8 +107,8 @@ window.QJZ = window.QJZ || {};
 // screen rose since the last one, in the cents it shows (floatPlus): never a rate rounded on its own. A second with no
 // visible rise has none; after a gap (hidden, a clock jump), at lunch or after work there is none for the jump.
 // 1.1.2 item 10: the money mask (settings.privacy.maskMoney). A click on the amount ([data-mask]: the amount in U1, U3,
-// U5-B, U12, U13, U7's whole money tag, U10's amounts, M3's tag) turns it on or off (a drag or a poke never does; M3's
-// double click expands and leaves it as it was). While it is on, every main layout is .masked: the odometers show ***,
+// U5-B, U12, U13, U7's whole money tag, U10's amounts, M3's tag) turns it on or off (a drag or a poke never does; on
+// M3's tag only DBL_MS later, so its double click expands without the money showing for a moment). While it is on, every main layout is .masked: the odometers show ***,
 // and so do 每秒 +NT$, 本月累計, 可以買 and U10's amounts (the model); no "+0.xx" floats, and the pet says no amount
 // (QJZ.lines' masked). PANEL (設定, 紀錄) is never masked.
 QJZ.layouts = (function () {
@@ -255,7 +255,7 @@ QJZ.layouts = (function () {
     var goals = on && cs.goals ? cs.goals : hs ?
       { cups: hs.water.goal, tomatoes: QJZ.settings.tomatoGoal(s), standups: QJZ.settings.standGoal(s) } : { cups: 0, tomatoes: 0, standups: 0 };
     var cups = on ? cs.cupsText : '0/' + goals.cups;
-    var asks = on && cs.prompt ? cs.prompt.kind : null;   // the prompt that shows: its ring glows (U12)
+    var asks = on && cs.prompt ? QJZ.prompt.asks(cs.prompt) : null;   // what the prompt that shows asks: its ring glows (U12)
     var sitOn = !!(hs && QJZ.reminders.ask(hs, 0).sit);
     var base = on && sitOn && typeof cs.standIn === 'number' && key === 'working' ? cs.standIn : null;
     // held: its own reminder asks, or one asked for (現在提醒我一次) waits and the timer reads 0 (final review M-4): no
@@ -390,7 +390,7 @@ QJZ.layouts = (function () {
   var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
   var answerRun = false; // the run of presses under way (a click, its double, …) began on a prompt's answer button
   var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
-  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0 };
+  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0, mask: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var capRaf = 0;        // the frame asked for while U10's capsule grows or shrinks (capTick)
   var offs = [];
@@ -439,7 +439,7 @@ QJZ.layouts = (function () {
     v.prings = all(el, '[data-pring]');
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
-    v.holds = all(el, '[data-hold]');
+    v.holds = all(el, '[data-hold]:not([data-hold=gauge])');   // the countdowns (U12's 起來動 ring counts, no 💤)
     v.pins = all(el, '.bar .tb.pin');
     v.gears = all(el, '.bar .tb.settings');
     var p = el.querySelector('[data-pet]');
@@ -1072,6 +1072,7 @@ QJZ.layouts = (function () {
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     if (name !== 'PANEL') inPlace = null;
     holdEnd(false);
+    maskCancel();
     stopSay();
     unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
@@ -1374,6 +1375,7 @@ QJZ.layouts = (function () {
     var ms = app().nowMs();
     petTick(ms);
     chatter(ms);
+    if (maskDue !== null && ms >= maskDue) maskFire();   // (M3's click on its tag, by the app's clock too)
   }
   // QJZ.app caught up while hidden (or the menu is opening): only the menu needs it now, the rest renders on re-show.
   function onRefresh() {
@@ -1504,7 +1506,7 @@ QJZ.layouts = (function () {
     if (dragging) endDrag();   // a new press: whatever drag there was is over
     dragged = false;
     // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
-    if (e.detail <= 1) { answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]')); maskRun = false; }
+    if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
     else if (answerRun) return;
     // a title-bar button takes no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide the window again
     if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
@@ -1558,6 +1560,9 @@ QJZ.layouts = (function () {
     var ans = e.target.closest('[data-answer]');
     if (ans) { answer(ans, e.detail > 0); return; }
     var a = e.target.closest('[data-act]');
+    // U13 (1.1.2 review): while a phase runs only ■ 停止 stops it; the rest of the ring does nothing (layouts.css also
+    // lets clicks through it), so the click that brings U13 forward or closes the menu never ends a focus
+    if (a && a.classList.contains('br-go') && /\bp-(foc|brk)\b/.test(view.el.className) && !e.target.closest('.go')) return;
     if (a) {
       act(a.getAttribute('data-act'));
       if (a.classList.contains('tb') && document.activeElement === a) a.blur();   // (however it got the focus: M-5)
@@ -1566,16 +1571,30 @@ QJZ.layouts = (function () {
     if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     var mk = e.target.closest('[data-mask]');
-    if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses (M3's double click: onDbl)
-      if (e.detail <= 1) { toggleMask(); maskRun = true; }
+    if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses
+      if (e.detail > 1) return;
+      if (cur === 'M3') maskLater(); else toggleMask();
       return;
     }
     if (isPetPart(e.target)) poke(e);
   }
-  var maskRun = false;   // this run of presses (a click, its double) toggled the mask
   function toggleMask() {
     if (!ready()) return;
     app().saveSettings({ privacy: { maskMoney: !app().state.settings.privacy.maskMoney } });
+  }
+  // M3 (1.1.2 review I-1): a double click there expands it, so a click on its tag toggles the mask only DBL_MS later; a
+  // double click (onDbl) or any layout change cancels it, so the money never shows for a moment on the way to expanding.
+  var maskDue = null;   // the app-clock time the pending toggle is due
+  function maskLater() {
+    maskDue = app().nowMs() + DBL_MS;
+    clearTimeout(timers.mask);
+    timers.mask = setTimeout(maskFire, DBL_MS);
+  }
+  function maskCancel() { maskDue = null; clearTimeout(timers.mask); timers.mask = 0; }
+  function maskFire() {
+    var due = maskDue !== null && cur === 'M3';
+    maskCancel();
+    if (due) toggleMask();
   }
   // An answer button (final review m-3). The bubble goes at once, so the second press of a double click lands on
   // whatever was under the button: that press, its click and its dblclick do nothing (answerRun: onDown, onClick,
@@ -1611,8 +1630,7 @@ QJZ.layouts = (function () {
   function onDbl(e) {
     if (answerRun) return;
     if (cur !== 'M3' || !inRoot(e.target)) return;
-    if (maskRun && e.target.closest('[data-mask]')) toggleMask();   // its first click toggled the mask: as it was
-    maskRun = false;
+    maskCancel();   // its first click was not a mask click
     show(backTarget(app().state.settings));
   }
   // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
@@ -1775,7 +1793,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null; maskRun = false;
+    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null; maskDue = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();

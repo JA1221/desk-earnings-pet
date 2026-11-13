@@ -96,19 +96,29 @@ test('prompt: no 「已經坐 N 分鐘囉」 when no minute has been sat', funct
   eq(P.view({ kind: 'water' }, { min: 0, cups: 3, cupGoal: 8, turn: 0 }).sub, '今天 3 杯，目標 8 杯', 'water never said it');
   eq(P.view({ kind: 'sit' }, { min: 1, turn: 0 }).sub, '已經坐 1 分鐘囉', 'one minute is said');
 });
-// 1.1.2 item 7: 喝了 on a bubble that asks both only logs a cup; the bubble stays, now the 起來動 one (起來了 / 等一下),
+// 1.1.2 item 7: 喝了 on a bubble that asks both only logs a cup; the bubble stays, asking 起來動 alone (起來了 / 等一下),
 // and closes only on those. A water-only bubble still closes on 喝了.
-test('prompt: 喝了 on the both bubble keeps it, as the 起來動 bubble', function () {
+// Review M-1: it stays the same bubble, its title and buttons where they were: 喝了 is left in place, done (drank: a
+// disabled 「喝了」 with a ✓), so 起來了 never slides under the cursor and a second click there answers nothing.
+test('prompt: 喝了 on the both bubble keeps it, 喝了 left in its place, done; it asks 起來動 alone', function () {
   var x = st(P.initial(), at(9, 50), { ask: 'both' }), a = P.answer(x.q, 'drink', at(9, 51));
   eq(a.effects, ['drink', 'waterDone']);
-  eq(a.q.prompt, { kind: 'sit', water: false, shownMs: at(9, 50) }, 'the same bubble, now asking 起來動');
+  eq(a.q.prompt, { kind: 'both', water: false, shownMs: at(9, 50), drank: true }, 'the same bubble, its water answered');
   eq(a.stays, true);
   eq([a.q.remindReadyAt, a.q.noticeReadyAt, a.q.waveAt], [x.q.remindReadyAt, x.q.noticeReadyAt, x.q.waveAt], 'no gate: it never went');
   eq(P.answer(a.q, 'drink', at(9, 51)).effects, [], 'a second 喝了 does nothing');
-  eq(ty(st(a.q, at(9, 51, 1), { ask: 'sit' })), [], 'the next step leaves it as it is');
-  eq(P.view(a.q.prompt, { min: 50, turn: 0 }).buttons.map(function (b) { return b.id; }), ['up', 'later']);
+  eq(P.answer(a.q, 'drank', at(9, 51)).effects, [], 'nor does the done one');
+  eq(ty(st(a.q, at(9, 51, 1), { ask: 'sit' })), [], 'the next step leaves it as it is: it asks 起來動 alone already');
+  var v = P.view(a.q.prompt, { min: 50, cups: 1, cupGoal: 8, turn: 0 }), b0 = P.view(x.q.prompt, { min: 50, cups: 0, cupGoal: 8, turn: 0 });
+  eq(v.buttons, [{ id: 'drank', label: '喝了', done: true }, { id: 'up', label: '起來了' }, { id: 'later', label: '等一下' }]);
+  eq([v.title, v.icon, v.kind], [b0.title, b0.icon, 'both'], 'its title stays (nothing moves)');
+  eq(v.sub, '已經坐 50 分鐘囉・今天 1/8 杯');
+  eq(P.drank(x.q).q.prompt, a.q.prompt, 'P.drank: the same change, for a cup logged anywhere else');
+  eq([P.drank(x.q).changed, P.drank(a.q).changed, P.drank(P.initial()).changed], [true, false, false], 'only a both bubble not yet answered');
+  eq(ty(st(a.q, at(9, 51, 2), { ask: 'water' })), ['update:water'], '起來動 turned off meanwhile: the water bubble');
   var u = P.answer(a.q, 'up', at(9, 52));
   eq([u.effects, u.q.prompt, u.stays], [['standup'], null, false], '起來了 closes it');
+  eq(P.answer(a.q, 'later', at(9, 52)).effects, ['snooze'], '等一下 too');
   var w = P.answer(st(P.initial(), at(9, 50), { ask: 'water' }).q, 'drink', at(9, 51));
   eq([w.q.prompt, w.stays], [null, false], 'water alone: 喝了 closes it');
 });

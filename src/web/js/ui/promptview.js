@@ -54,12 +54,15 @@ QJZ.promptView = (function () {
     return n;
   }
   function title(tag, cls, view) { return glued(el(tag, cls), view.title); }
+  // A done button (b.done, 1.1.2 review M-1: 喝了 once the cup is logged) keeps its place: disabled, no answer, still a
+  // hit rect, so a second click there lands on it and does nothing.
   function buttons(list, tag) {
     var row = el(tag, 'rb-btns');
     (list || []).forEach(function (b) {
-      var n = el('button', BTN[b.id] || '', b.label);
+      var n = el('button', (b.done ? 'drink done' : BTN[b.id] || ''), b.label);
       n.type = 'button';
-      n.setAttribute('data-answer', b.id);
+      if (b.done) { n.disabled = true; n.setAttribute('aria-label', b.label + '（已記一杯）'); }
+      else n.setAttribute('data-answer', b.id);
       n.setAttribute('data-hit', '');
       row.appendChild(n);
     });

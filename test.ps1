@@ -12,9 +12,11 @@ if (-not $edge) { Write-Host 'WEB: msedge.exe not found'; exit 1 }
 $profileDir = if ($EdgeProfile) { [IO.Path]::GetFullPath($EdgeProfile) } else { Join-Path $root 'tests\web\.edge-profile' }
 $outFile = Join-Path ([IO.Path]::GetTempPath()) ('qjz-web-' + [Guid]::NewGuid().ToString('N') + '.txt')
 $url = ([Uri](Join-Path $root 'tests\web\run.html')).AbsoluteUri
-$edgeArgs = @('--headless=new', '--disable-gpu', '--no-first-run', "--user-data-dir=`"$profileDir`"", '--virtual-time-budget=5000', '--dump-dom', "`"$url`"")
+# quiet Edge: no sync, no background networking, no component updater (they only slow a test run down and add processes)
+$edgeArgs = @('--headless=new', '--disable-gpu', '--no-first-run', '--disable-sync', '--disable-background-networking', '--disable-component-update',
+    "--user-data-dir=`"$profileDir`"", '--virtual-time-budget=5000', '--dump-dom', "`"$url`"")
 $proc = Start-Process -PassThru -FilePath $edge -ArgumentList $edgeArgs -RedirectStandardOutput $outFile -RedirectStandardError ($outFile + '.err') -WindowStyle Hidden
-if (-not $proc.WaitForExit(60000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+if (-not $proc.WaitForExit(120000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }   # the run takes ~50 s; room under load
 Start-Sleep -Milliseconds 300
 # stop leftover Edge processes that use our dedicated profile (crashpad handler etc.)
 Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like ('*' + $profileDir + '*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }

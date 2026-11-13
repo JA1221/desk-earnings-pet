@@ -463,6 +463,21 @@
     done();
   });
 
+  // 1.1.2 review M-2: the question opens by itself (not on purpose, as 設定 and 紀錄 are), so with the money mask on its
+  // two amounts are masked; the times are enough to answer.
+  test('panels DOM: with the money mask on, the early-leave question shows no amount', function () {
+    var s = JSON.parse(JSON.stringify(SET_UP));
+    s.privacy = { maskMoney: true };
+    var e = mk(at(12, 10, 0), { history: yesterdayOpen([15, 0]), settings: s });
+    ok($(e, '.panel.p-question'), 'it asks');
+    eq([text(e, '[data-o=qyes]'), text(e, '[data-o=qno]')], ['算到 15:00 ・ NT$ ***', '算到 18:00 ・ NT$ ***']);
+    ok(!/\d\.\d\d/.test(e.root.textContent), 'no amount anywhere on it: ' + e.root.textContent);
+    done();
+    e = mk(at(12, 10, 0), { history: yesterdayOpen([15, 0]) });
+    ok(/^算到 15:00 ・ NT\$ [\d,]+\.\d\d$/.test(text(e, '[data-o=qyes]')), 'unmasked: the amount ' + text(e, '[data-o=qyes]'));
+    done();
+  });
+
   test('panels DOM: 沒有 keeps the planned end', function () {
     var e = mk(at(12, 10, 0), { history: yesterdayOpen([15, 0]) });
     $(e, '[data-pa=no]').click();
