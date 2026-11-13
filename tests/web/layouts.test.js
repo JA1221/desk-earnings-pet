@@ -2502,10 +2502,11 @@
         mouse(b, 'mouseup', r.left + 40, r.top + 5, { buttons: 0 });
       });
       eq(of(e.sent, 'dragStart').length, 0, name + ': they never drag');
+      var title = text(e, '[data-b=title]');
       bs[1].click();
-      eq([QJZ.layouts.current(), text(e, '[data-b=title]')], ['PANEL', '錢進中 · 設定'], name + ': 設定 opens 設定');
+      eq([QJZ.layouts.current(), text(e, '.ptitle'), text(e, '[data-b=title]')], ['PANEL', '設定', title], name + ': 設定 opens 設定, in its window (1.1.2)');
       eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
-        ['mini', 'hide'], 'PANEL: 縮小 and 關閉');
+        ['pin', 'mini', 'settings', 'hide'], name + ': its own title bar stays');
       QJZ.layouts.closePanel();
       eq(QJZ.layouts.current(), name, 'back');
       $(e, '.bar [data-act=hide]').click();
@@ -2855,6 +2856,63 @@
   });
 
   // M-5: the title-bar buttons take no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide it again.
+  // 1.1.2 item 3: from U1, U12 and U13, 設定 and 紀錄 (and 調整起算時間) turn the same window into the panel, at the same
+  // size: setLayout {layout:'PANEL', inPlace:true, width, height, dpr} with the window's size as it is, and the content
+  // scrolls inside it. The window keeps its title bar (title, 釘選, 縮小, 設定, 關閉); 設定 shows pressed while 設定 shows
+  // and pressed again goes back. The other layouts open the panel beside them, at its own size, as before.
+  test('layouts DOM: 設定 and 紀錄 from U1, U12 and U13 open in the same window, at its size, under its own title bar', function () {
+    ['U1', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true }), was = last(e.sent, 'setLayout'), title = text(e, '[data-b=title]');
+      var gear = function () { return $(e, '.bar [data-act=settings]'); };
+      function pressed() { return [gear().classList.contains('on'), gear().getAttribute('aria-pressed')]; }
+      gear().click();
+      eq(QJZ.layouts.current(), 'PANEL', name);
+      eq(last(e.sent, 'setLayout'), { layout: 'PANEL', inPlace: true, width: was.width, height: was.height, dpr: window.devicePixelRatio },
+        name + ': the same window at the same size');
+      var win = $(e, '.win.panel'), r = win.getBoundingClientRect();
+      eq([r.width, r.height], [was.width - 7, was.height - 7], name + ': the panel fills it (its shadow as before)');
+      ok(win.classList.contains('inplace') && win.classList.contains('p-settings'), name);
+      eq([text(e, '[data-b=title]'), text(e, '.ptitle')], [title, '設定'], name + ': its own title');
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
+        ['pin', 'mini', 'settings', 'hide'], name + ': its own buttons');
+      eq(pressed(), [true, 'true'], name + ': 設定 pressed');
+      var sc = $(e, '.pscroll'), sr = sc.getBoundingClientRect();
+      ok(sc.scrollHeight > sc.clientHeight && sr.bottom <= r.bottom, name + ': the content scrolls inside it');
+      ok(win.scrollWidth <= win.clientWidth && sc.scrollWidth <= sc.clientWidth + 1, name + ': nothing wider than it');
+      var tabs = $(e, '.tabs').getBoundingClientRect(), tab = $(e, '[data-tab]').getBoundingClientRect();
+      ok(tabs.height < tab.height * 1.6 && tabs.right <= r.right, name + ': the tabs on one row');
+      eq(last(e.sent, 'setTopmost'), { on: false }, name + ': its own topmost');
+      gear().click();
+      eq(QJZ.layouts.current(), name, name + ': pressed again, back');
+      var back = last(e.sent, 'setLayout');
+      eq([back.layout, back.width, back.height, 'inPlace' in back], [name, was.width, was.height, false], name + ': as it was');
+      e.menu('history');
+      eq([QJZ.layouts.current(), text(e, '.ptitle'), last(e.sent, 'setLayout').inPlace], ['PANEL', '紀錄', true], name + ': 紀錄 too');
+      eq(pressed(), [false, 'false'], name + ': 設定 not pressed for 紀錄');
+      gear().click();
+      eq([QJZ.layouts.current(), text(e, '.ptitle'), pressed()[0], last(e.sent, 'setLayout').inPlace], ['PANEL', '設定', true, true],
+        name + ': 設定 from 紀錄: in the same window');
+      $(e, '[data-act=back]').click();
+      eq(QJZ.layouts.current(), name, name + ': 完成 goes back');
+      e.menu('adjust');
+      eq([QJZ.layouts.current(), last(e.sent, 'setLayout').inPlace], ['PANEL', true], name + ': 調整起算時間 too');
+      e.menu('mini');
+      eq(QJZ.layouts.current(), 'M3', name + ': 縮小 from it');
+      e.menu('settings');
+      eq('inPlace' in last(e.sent, 'setLayout'), false, name + ': from M3: beside it, as before');
+      done();
+    });
+    ['U3', 'U5B', 'U7', 'U10'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true });
+      e.menu('settings');
+      var sl = last(e.sent, 'setLayout');
+      eq([sl.layout, 'inPlace' in sl, sl.width], ['PANEL', false, 407], name + ': beside it, at its own size');
+      eq(text(e, '[data-b=title]'), '錢進中 · 設定', name);
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['mini', 'hide']);
+      done();
+    });
+  });
+
   // 1.1.2 item 5: 釘選在最上層 on the title bar (U1, U12, U13): the current layout's topmost (settings.layout.topmost,
   // setTopmost {on}), pressed while pinned, in step with the menu's 永遠在最上層 and the host's topmost {on}; like the
   // other title-bar buttons it never takes the focus.

@@ -85,6 +85,13 @@
 .panel .tabs{flex:none;display:flex;flex-wrap:wrap;gap:6px}
 .panel .tabs button{font-size:13.5px;font-weight:700;border:2px solid var(--line);background:#fff;border-radius:99px;padding:4px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .panel .tabs button.on{background:var(--bar)}
+/* 1.1.2 item 3: in U1's, U12's or U13's own window (layouts.js gives it that window's size, under its title bar): a
+   little less padding and compact tabs, one row down to U13's 300 px; the content scrolls inside (.pscroll) */
+.panel.inplace .pbody{padding:12px}
+.panel.inplace .tabs{gap:4px;flex-wrap:nowrap}
+.panel.inplace .tabs button{font-size:12px;padding:4px 7px}
+.panel.inplace .hist-sum{flex-wrap:wrap;row-gap:0}   /* 本月合計 and the sum on a line, the days under them when narrow */
+.panel .hist-sum small{white-space:nowrap}
 /* 關於: 使用說明 and 第三方授權 open on a click */
 .panel .disc-h{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 0;border:0;background:none;
   text-align:left;color:var(--text)}

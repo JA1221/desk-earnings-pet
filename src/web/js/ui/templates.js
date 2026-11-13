@@ -37,7 +37,9 @@ QJZ.templates = (function () {
       (noGear ? '' : tb('pin', 'tbPin', '釘選在最上層', true)) + tb('mini', 'tbMin', '縮小') + (noGear ? '' : tb('settings', 'tbGear', '設定')) +
       tb('hide', 'tbClose', '關閉') + '</div></div>';
   }
-  var BAR = bar('錢進中');
+  // The title of each layout with a title bar; PANEL in its window (1.1.2 item 3) keeps the one it was opened from.
+  var TITLES = { U1: '錢進中', U12: '錢進中 · 健康', U13: '錢進中 · 番茄鐘' };
+  var BAR = bar(TITLES.U1);
   var MONEY = '<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
   // During a pomodoro the pill reads 專心中 / 休息中 with its icon (health.css shows the one for the layout's p-foc / p-brk).
   var PILL = '<div class="status"><i></i>' + ic('hp', 'pi-foc') + ic('rest', 'pi-brk') + '<span data-b="status"></span></div>';
@@ -173,7 +175,7 @@ QJZ.templates = (function () {
     // U12 健康儀表板 (G_U12_*): the money and the 下班 countdown, the three rings, the pet saying when the next stand-up
     // is; a prompt is the small bubble beside the pet (it takes the line's place) and its ring glows.
     U12: function () {
-      return '<div class="win u12 dash lay" data-hit>' + bar('錢進中 · 健康') + '<div class="body">' +
+      return '<div class="win u12 dash lay" data-hit>' + bar(TITLES.U12) + '<div class="body">' +
         '<div class="dtop">' + PILL + '<span class="dl2" data-b="remainPhrase"></span></div>' +
         '<div class="money-box dmb" data-plus><div class="money-label">今天已經賺到</div>' + MONEY +
           '<div class="thin"><div class="fill" data-fill></div></div></div>' +
@@ -186,7 +188,7 @@ QJZ.templates = (function () {
     // inside it (Ruling C4). The pet sits on its edge, outside the button. Under it the tomato slots (one per the day's
     // goal), and the cups and the next stand-up.
     U13: function () {
-      return '<div class="win u13 pomo1 lay" data-hit>' + bar('錢進中 · 番茄鐘') + '<div class="body">' +
+      return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +
         '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus><span class="cur">NT$</span> <span class="odo" data-odo></span></span></div>' +
         '<div class="ptop2"><span data-b="remainPhrase"></span><div class="thin"><div class="fill" data-fill></div></div></div>' +
         '<div class="ringwrap"><div class="bigring" data-gauge="pomo">' +
@@ -201,9 +203,11 @@ QJZ.templates = (function () {
             '<span data-b="standLine"></span></span></div>' +
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
-    PANEL: function () {
-      return '<div class="win panel lay" data-hit>' + bar('錢進中', true) + '<div class="pbody" data-panel></div>' +
-        '<div class="fx" data-fx data-fxwin></div></div>';
+    // o.from (1.1.2 item 3): shown in the window of U1, U12 or U13, with that window's title bar (.inplace)
+    PANEL: function (o) {
+      var t = o && TITLES.hasOwnProperty(o.from) ? TITLES[o.from] : null;
+      return '<div class="win panel lay' + (t ? ' inplace' : '') + '" data-hit>' + (t ? bar(t) : bar('錢進中', true)) +
+        '<div class="pbody" data-panel></div><div class="fx" data-fx data-fxwin></div></div>';
     }
   };
   TEMPLATES.parts = { BAR: BAR, MONEY: MONEY, PILL: PILL, feedBtn: feedBtn };

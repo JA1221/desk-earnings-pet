@@ -7,12 +7,16 @@ window.QJZ = window.QJZ || {};
 // asks for one (onboarding, an early-leave question); closing it goes to the start layout.
 //
 // Host protocol (page -> host; sizes and rects in CSS px, dpr = window.devicePixelRatio):
-//   setLayout {layout, width, height, dpr, dock?}  width / height reach the layout root's right / bottom edge plus
+//   setLayout {layout, width, height, dpr, dock?, inPlace?}  width / height reach the layout root's right / bottom edge plus
 //                                           the 7px hard shadow (U10: the root is the whole window). Sent
 //                                           synchronously after rendering (the window is still hidden at start and
 //                                           rAF does not run there), again whenever the size or the DPR changes.
 //                                           U10's always carries dock (settings.layout.capsule: top | bottomLeft |
 //                                           bottomCenter | bottomRight), and goes again when it changes.
+//                                           inPlace (1.1.2 item 3): PANEL in the window it was opened from (U1, U12,
+//                                           U13; 設定, 紀錄, 調整起算時間): width / height are that window's own, as
+//                                           sent last, and the panel fits itself to them (its content scrolls). Every
+//                                           setLayout of that PANEL carries it; one without it is a panel of its own.
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
 //                                           through. Sent with every setLayout and whenever the rects change
 //                                           (hover tools, text growing, resize, the pet's pose). Speech bubbles
@@ -40,6 +44,10 @@ window.QJZ = window.QJZ || {};
 // set it; saved as the current layout's setting, so the title bar's pin shows it; nothing is sent back).
 // 1.1.2 item 5: U1, U12 and U13 have 釘選在最上層 on their title bar (data-act pin): the menu's 永遠在最上層 for the
 // current layout (toggleTopmost), pressed (.on, aria-pressed) while it is on.
+// 1.1.2 item 3: from U1, U12 and U13 the panel (設定, 紀錄, 調整起算時間) takes the same window at the same size
+// (inPlace) under that window's title bar; 設定 there shows pressed while 設定 shows and, pressed again, closes it (as
+// 完成 does). From 紀錄, 設定 switches to 設定 in the same window. Switching kinds keeps the window; any other layout
+// ends it. From U3, U5-B, U7, M3 and U10 the panel opens beside them at its own size, as in 1.1.1.
 //
 // settings.layout.current is the last MAIN layout (U1/U3/U5B/U7/U10/U12/U13); M3 and PANEL never go there.
 // settings.layout.mini says the app was left as the mini badge (M3). The first layout after init is the one used last (simplification
@@ -136,6 +144,7 @@ QJZ.layouts = (function () {
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
   var REACTIONS = { petted: 1, angry: 1, eat: 1, hop: 1, dangle: 1 };
+  var INPLACE = ['U1', 'U12', 'U13'], INPLACE_KINDS = { settings: 1, history: 1, adjust: 1 };   // (1.1.2 item 3)
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -357,6 +366,7 @@ QJZ.layouts = (function () {
   // ================= runtime =================
   var root = null, bridge = null, first = null, session = null, resumeAt = null;
   var cur = null, panelKind = 'settings', panelFrom = null, shown = false;
+  var inPlace = null;    // PANEL in the window it came from (1.1.2 item 3): {from, width, height}, that window's size
   var view = null;
   var sent = { size: '', hits: '', menu: '', dims: null };   // dims: the last setLayout's {width, height}
   var drag = null;       // {x, y} while the primary button is down on a draggable spot
@@ -395,8 +405,8 @@ QJZ.layouts = (function () {
     return list;
   }
 
-  function build(name) {
-    root.innerHTML = QJZ.templates[name]();
+  function build(name, opts) {
+    root.innerHTML = QJZ.templates[name](opts);
     var el = root.firstElementChild;
     var v = { name: name, el: el, b: {}, cache: {}, odos: [], money: null, statusKey: null, petKey: null, pet: null };
     all(el, '[data-b]').forEach(function (n) {
@@ -416,6 +426,7 @@ QJZ.layouts = (function () {
     v.tslots = all(el, '[data-tslots]');
     v.holds = all(el, '[data-hold]');
     v.pins = all(el, '.bar .tb.pin');
+    v.gears = all(el, '.bar .tb.settings');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
@@ -477,8 +488,16 @@ QJZ.layouts = (function () {
     var st = app().state, m = model(st, app().nowMs(), careState()), i;
     for (var k in view.b) if (Object.prototype.hasOwnProperty.call(view.b, k) && k in m) setText(k, m[k]);
     if (view.name === 'PANEL') {
-      setText('title', '錢進中 · ' + panelTitle(panelKind));
+      if (!inPlace) setText('title', '錢進中 · ' + panelTitle(panelKind));   // in its window: that window's title
       if (panels()) panels()._update();
+    }
+    var gearOn = view.name === 'PANEL' && !!inPlace && (panelKind === 'settings' || panelKind === 'adjust');
+    if (view.cache.gear !== gearOn) {
+      view.cache.gear = gearOn;
+      for (i = 0; i < view.gears.length; i++) {
+        view.gears[i].classList.toggle('on', gearOn);
+        view.gears[i].setAttribute('aria-pressed', String(gearOn));
+      }
     }
     var pinOn = topmostFor(view.name);
     if (view.cache.pin !== pinOn) {
@@ -686,6 +705,7 @@ QJZ.layouts = (function () {
   // The layout root, and a prompt bubble that reaches past it (U7 / M3: a long one), with its 4px shadow. U10's root is
   // the whole window (its capsule's own shadow is inside it): no room for the hard shadow.
   function measure() {
+    if (view.name === 'PANEL' && inPlace) return { width: inPlace.width, height: inPlace.height };   // the window's own size
     var r = view.el.getBoundingClientRect(), right = r.right, bottom = r.bottom, pad = view.name === 'U10' ? 0 : SHADOW;
     var p = view.el.classList.contains('prompting') ? view.el.querySelector('[data-prompt] .rbub') : null;
     if (p) {
@@ -1009,6 +1029,7 @@ QJZ.layouts = (function () {
       sent.dims = { width: size.width, height: size.height };
       var msg = { layout: view.name, width: size.width, height: size.height, dpr: dpr };
       if (dock) msg.dock = dock;
+      if (view.name === 'PANEL' && inPlace) msg.inPlace = true;
       send('setLayout', msg);
       forceHits = true;
     }
@@ -1031,14 +1052,19 @@ QJZ.layouts = (function () {
   function show(name) {
     if (ALL.indexOf(name) < 0 || !root || !ready()) return false;
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
+    if (name !== 'PANEL') inPlace = null;
     holdEnd(false);
     stopSay();
     unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
     cur = name;
-    view = build(name);
+    view = build(name, name === 'PANEL' && inPlace ? { from: inPlace.from } : null);
     try {
       if (name === 'PANEL' && panels()) panels()._mount(view.el, panelKind);
+      if (name === 'PANEL' && inPlace) {   // the window's size, less the hard shadow (as measured for the others)
+        view.el.style.width = (inPlace.width - SHADOW) + 'px';
+        view.el.style.height = (inPlace.height - SHADOW) + 'px';
+      }
       render();
       drawPrompt();   // the prompt that shows, in this layout's slot, before the size goes out
     } catch (e) {
@@ -1078,8 +1104,14 @@ QJZ.layouts = (function () {
     try { v = session ? session.getItem(SHOWN_KEY) : null; } catch (e) {}
     return isMain(v) || v === 'M3' ? v : null;
   }
+  // From U1, U12 or U13, 設定, 紀錄 and 調整起算時間 take that window as it is (inPlace); a panel already showing keeps
+  // its window whatever it switches to.
   function openPanel(kind) {
     panelKind = panels() && panels().has(kind) ? kind : 'settings';
+    if (cur !== 'PANEL') {
+      inPlace = INPLACE.indexOf(cur) >= 0 && INPLACE_KINDS.hasOwnProperty(panelKind) && sent.dims ?
+        { from: cur, width: sent.dims.width, height: sent.dims.height } : null;
+    }
     return show('PANEL');
   }
   function closePanel() {
@@ -1269,7 +1301,10 @@ QJZ.layouts = (function () {
   function act(a) {
     switch (a) {
       case 'feed': feed(); break;
-      case 'settings': openPanel('settings'); break;
+      case 'settings':   // in its window, pressed while 設定 shows: pressed again it closes (as 完成)
+        if (cur === 'PANEL' && inPlace && (panelKind === 'settings' || panelKind === 'adjust')) { if (panels()) panels().close(); else closePanel(); }
+        else openPanel('settings');
+        break;
       case 'mini': show('M3'); break;
       case 'hide': send('hide', {}); break;
       case 'menu': send('contextMenu', {}); break;
@@ -1697,7 +1732,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null;
+    answerRun = false; held = null; hold = null; inPlace = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
