@@ -145,6 +145,10 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .rbub.t-bl::after{left:24px;bottom:-8.5px;transform:rotate(45deg)}
 .rbub.t-l{transform-origin:0 75%}
 .rbub.t-l::after{left:-8.5px;bottom:20px;transform:rotate(135deg)}
+/* under the tail's mouth, a white patch from 1 px inside the bubble into its border (base.css .bubble::before) */
+.rbub::before{content:"";position:absolute;background:#fff}
+.rbub.t-bl::before{left:25.5px;bottom:-1.5px;width:14px;height:2.5px}
+.rbub.t-l::before{left:-1.5px;bottom:21.5px;width:2.5px;height:14px}
 /* M3: the small one */
 .rbub.sm{width:178px;padding:9px 9px 10px 12px;border-radius:16px}
 .rbub.sm .rb-t{font-size:14px;line-height:1.35}

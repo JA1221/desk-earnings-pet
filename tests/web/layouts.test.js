@@ -2385,9 +2385,20 @@
   function tailCheck(el, side, what) {
     var t = getComputedStyle(el, '::after'), b = getComputedStyle(el), sz = parseFloat(t.width), half = sz * Math.SQRT1_2;
     function r(v) { return parseFloat(v) || 0; }
+    var r0 = r;
     eq(t.clipPath.replace(/\s+/g, '').split('0px').join('0%'), 'polygon(100%0%,100%100%,0%100%)', what + ': only the outer half');
     eq([t.boxSizing, t.height], ['border-box', t.width], what + ': a square of its own size');
     eq(t.backgroundClip, 'padding-box', what + ': its white stops inside its borders (no light seam on them)');
+    // under its mouth a white patch from 1 px inside the bubble into the border, so the edge where the half is cut off
+    // lies on white at any scale (at 150 % it falls mid-pixel, and the border showed through as a hairline)
+    var pa = getComputedStyle(el, '::before'), bw = side === 'bottom' ? r0(b.borderBottomWidth) : r0(b.borderLeftWidth);
+    eq([pa.content !== 'none', pa.backgroundColor], [true, 'rgb(255, 255, 255)'], what + ': the patch');
+    var inward = side === 'bottom' ? r0(pa.bottom) + r0(pa.height) : r0(pa.left) + r0(pa.width), out = side === 'bottom' ? -r0(pa.bottom) : -r0(pa.left);
+    ok(inward >= 0.9 && out > 0 && out < bw, what + ': 1 px into the bubble, into the border but not past it ' + [inward, out, bw]);
+    var along = side === 'bottom' ? [r0(pa.left), r0(pa.left) + r0(pa.width), r0(t.left) + sz / 2] :
+      side === 'leftTop' ? [r0(pa.top), r0(pa.top) + r0(pa.height), r0(t.top) + sz / 2] : [r0(pa.bottom), r0(pa.bottom) + r0(pa.height), r0(t.bottom) + sz / 2];
+    near((along[0] + along[1]) / 2, along[2], 0.01, what + ': centred on the tail');
+    ok(along[1] - along[0] < 2 * (half - bw * Math.SQRT2), what + ': inside the mouth, between the arms');
     var m = new DOMMatrix(t.transform), deg = Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI);
     if (side === 'bottom') {
       eq(deg, 45, what + ': points down');

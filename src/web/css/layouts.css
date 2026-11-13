@@ -78,6 +78,7 @@ html.saver :is(.mtop .dot,.u3 .coin){animation:none}
 /* beside the head it grows downwards from eye height, below the side pills (--clear), with the tail at its top */
 .u3 .bubble.side{--bw:150px;bottom:auto;top:max(calc(var(--ty) - 17px),var(--clear,0px));transform-origin:0 0;border-radius:4px 14px 14px 14px}
 .u3 .bubble.side::after{bottom:auto;top:4.5px}
+.u3 .bubble.side::before{bottom:auto;top:6px}
 
 /* ---------- U5-B 橫向極簡 ---------- */
 /* 546 = 1.0's 480 + the 1.1 right column (A_U5_2, spec §4.4 「整條會變寬約 65px」; health.css .rcol) */
