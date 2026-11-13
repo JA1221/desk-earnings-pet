@@ -2588,4 +2588,51 @@
       done();
     } finally { html.classList.toggle('calm', was); }
   });
+
+  // pointer {inside} from the host's hit poll (1.1.1, after the review): off every hit rect, U10's capsule folds as after
+  // a mouseout (100 ms, then its 200 ms), even when no mouseout came; back on before the fold began, it stays. The 4 s
+  // fallback stays. U7 does not use it: its tools are reached across click-through gaps between the pet and them.
+  test('layouts DOM: U10 folds on the host\'s pointer {inside:false}, without a mouseout; back on before it began, it stays', function () {
+    var e = mk(at(12, 10, 0), { first: 'U10', care: true }), isl = $(e, '.isl'), pend = [], n = 0, st = window.setTimeout, ct = window.clearTimeout;
+    function fake(fn) {   // the hover timers (100 / 300 ms) held here, the rest real
+      window.setTimeout = function (f, ms) { if (ms === 100 || ms === 300) { pend.push({ id: 1e6 + ++n, f: f, ms: ms }); return 1e6 + n; } return st.apply(window, arguments); };
+      window.clearTimeout = function (id) { pend = pend.filter(function (p) { return p.id !== id; }); return ct.apply(window, arguments); };
+      try { fn(); } finally { window.setTimeout = st; window.clearTimeout = ct; }
+    }
+    function fire() { pend.splice(0).forEach(function (p) { p.f(); }); capDone(isl); }
+    function ms() { return pend.map(function (p) { return p.ms; }); }
+    hoverOn(isl);
+    fake(function () { e.bridge.emit({ type: 'pointer', inside: false }); });
+    eq(ms(), [100], 'the fold starts 100 ms later, as after a mouseout');
+    ok(isl.classList.contains('hover'), 'not yet');
+    fire();
+    ok(!isl.classList.contains('hover'), 'folded, though no mouseout came');
+    eq(hitsOf(e), [U.outer(isl.getBoundingClientRect())], 'and the hit rect with it');
+    fake(function () { e.bridge.emit({ type: 'pointer', inside: false }); });
+    eq(ms(), [], 'folded already: nothing to do');
+    hoverOn(isl);
+    fake(function () {
+      e.bridge.emit({ type: 'pointer', inside: false });
+      e.bridge.emit({ type: 'pointer', inside: true });
+    });
+    eq(ms(), [], 'back on before the fold began: it stays');
+    ok(isl.classList.contains('hover'));
+    fake(function () {
+      mouse(isl, 'mouseout', 0, 0, { relatedTarget: document.body, buttons: 0 });
+      e.bridge.emit({ type: 'pointer', inside: false });
+    });
+    eq(ms(), [100], 'a mouseout and the host\'s word: one fold');
+    fire();
+    ok(!isl.classList.contains('hover'));
+    fake(function () { e.bridge.emit({ type: 'pointer' }); e.bridge.emit({ type: 'pointer', inside: 'no' }); });
+    eq(ms(), [], 'junk is ignored');
+    done();
+
+    var f = mk(at(12, 10, 0), { first: 'U7' }), dp = $(f, '[data-hover]');
+    mouse(dp, 'mouseover', 0, 0, { buttons: 0 });
+    fake(function () { f.bridge.emit({ type: 'pointer', inside: false }); });
+    eq(ms(), [], 'U7 does not use it');
+    ok(dp.classList.contains('hover'), 'its tools stay');
+    done();
+  });
 })();

@@ -42,6 +42,12 @@ public class PetWindow : Form
 
     public event EventHandler WebReady;
 
+    // The cursor moved onto (true) or off (false) every hit rect, as the hit poll saw it (1.1.1): only on a crossing
+    // (PointerEdge). Once off them the window clicks through and the page gets no more mouse events, so this is how
+    // it learns the pointer has gone even when WebView2 sends it no mouseout.
+    public event Action<bool> PointerChanged;
+    private readonly PointerEdge pointer = new PointerEdge();
+
     // WebView2 setup failed; the window cannot be shown usefully. Raised at most once. Without a subscriber the
     // window shows the message itself and closes. (A transparency failure is not one: see ForceOpaque.)
     public event Action<string> InitFailed;
@@ -359,7 +365,9 @@ public class PetWindow : Form
     private void UpdateClickThrough()
     {
         if (!IsHandleCreated) return;
-        bool through = !CursorOnHitRect();
+        bool on = CursorOnHitRect(), through = !on;
+        bool? crossed = pointer.Step(on);
+        if (crossed.HasValue && PointerChanged != null) PointerChanged(crossed.Value);
         int ex = Native.GetWindowLong(Handle, Native.GWL_EXSTYLE);
         int want = through ? ex | Native.WS_EX_TRANSPARENT : ex & ~Native.WS_EX_TRANSPARENT;
         if (want != ex) Native.SetWindowLong(Handle, Native.GWL_EXSTYLE, want);

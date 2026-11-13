@@ -44,6 +44,10 @@ using Microsoft.Web.WebView2.Core;
 //   (ShowRescue.HotkeyHides); a covered one is raised instead, but one stepped back for full screen is hidden.
 // - While the window is hidden or the session is locked the page gets visibility {visible:false} and the hit
 //   poll stops; showing / unlocking reverses both.
+// - pointer {inside} (1.1.1): the 30 Hz hit poll saw the cursor cross onto (true) or off (false) every hit rect
+//   (PetWindow.PointerChanged, PetGeometry's PointerEdge); sent only on a crossing, never repeated. Off them the window
+//   clicks through and the page gets no mouse events, so this tells it the pointer has gone (U10's capsule folds on it)
+//   even when WebView2 passes it no mouseout.
 // - Alt+F4 hides the window. Any close from outside (WM_CLOSE, Windows ending the session) shuts the app down.
 // - Every end (結束, a close from outside, Windows ending the session) records the time in session.json
 //   (ExitStamp); the next start hands it to the page as init lastExitMs, with the .bak texts (init backups) and
@@ -132,6 +136,7 @@ public class AppHost
         window.InitFailed += delegate(string message) { Fatal("window init failed", message); };
         window.WebReady += delegate { OnWebReady(); };
         window.MoveEnded += delegate { OnMoveEnded(); };
+        window.PointerChanged += delegate(bool inside) { Send("pointer", new { inside = inside }); };
         window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) OnHotkey(); else menuEscape.OnHotKey(id); };
         window.SessionEnding += delegate { OnSessionEnding(); };
         menuEscape = new MenuEscape(

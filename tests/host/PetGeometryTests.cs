@@ -25,6 +25,26 @@ public static class PetGeometryTests
         Assert.True(PetGeometry.GrabOrigin(1000, 500, new PointF(320, 260), 320, 260, 1.0).HasValue, "the far corner is inside");
     }
 
+    // 1.1.1: the hit poll tells the page pointer {inside} only when the cursor crosses onto or off the hit rects, so a
+    // capsule the pointer left folds on time even when WebView2 sends no mouseout once the window clicks through.
+    public static void Test_PointerEdgeReportsOnlyTheCrossings()
+    {
+        PointerEdge e = new PointerEdge();
+        Assert.True(!e.Inside, "a new window starts outside (it clicks through until the cursor is on a hit rect)");
+        Assert.True(!e.Step(false).HasValue, "still outside: nothing");
+        Assert.Eq((bool?)true, e.Step(true), "onto a hit rect");
+        Assert.True(!e.Step(true).HasValue && !e.Step(true).HasValue, "each 30 Hz poll while on it: nothing");
+        Assert.Eq((bool?)false, e.Step(false), "off every hit rect");
+        Assert.True(!e.Step(false).HasValue, "and nothing more while off");
+        Assert.Eq((bool?)true, e.Step(true), "back on");
+        Assert.True(e.Inside, "Inside follows");
+        // as the poll uses it: the cursor against the capsule's rect, the window at (400, 300), 150 %
+        RectangleF[] capsule = { new RectangleF(170, 0, 200, 36) };
+        PointerEdge p = new PointerEdge();
+        Assert.Eq((bool?)true, p.Step(PetGeometry.HitTest(capsule, 400 + 300, 300 + 30, 400, 300, 1.5)), "on the capsule");
+        Assert.Eq((bool?)false, p.Step(PetGeometry.HitTest(capsule, 400 + 600, 300 + 30, 400, 300, 1.5)), "off it (400 CSS px)");
+    }
+
     public static void Test_DpiScale()
     {
         Assert.Eq(1.0, PetGeometry.DpiScale(96), "96");

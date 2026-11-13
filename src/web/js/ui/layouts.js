@@ -32,7 +32,9 @@ window.QJZ = window.QJZ || {};
 //                 reads 開始上班), 'working' (下班; also at lunch and 可以下班) or 'ended' (繼續上班); snacks to feed.
 //                 Checked on every render and on QJZ.app's refresh (hidden: every minute, and when the host's
 //                 menuOpening asks), so the menu never shows an old day or old snacks.
-// Host -> page: menu {action} (TrayMenu ids; capsule:<dock> is the 膠囊位置 item), dragEnd {}, capsuleDock {dock} (a
+// Host -> page: menu {action} (TrayMenu ids; capsule:<dock> is the 膠囊位置 item), dragEnd {}, pointer {inside} (1.1.1:
+// the host's hit poll saw the cursor cross off (false) or onto (true) every hit rect; U10's capsule folds on false, as
+// after a mouseout, since off them the window clicks through and a mouseout may never come), capsuleDock {dock} (a
 // dropped U10 snapped to that dock: saved, and setLayout goes again with it even when it is the same, so an older
 // setLayout still on its way cannot undo the snap).
 //
@@ -1527,6 +1529,17 @@ QJZ.layouts = (function () {
     timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, hoverOutMs(view.name));
   }
 
+  // pointer {inside} from the host (1.1.1): off every hit rect, U10's capsule starts its fold as after a mouseout (unless
+  // one already did); back on before it began, it stays. U7's tools do not use it: they are reached across the
+  // click-through gap between the pet and them, where their own mouseout delay covers the crossing. The 4 s idle
+  // timeout stays for a page that hears neither.
+  function onPointer(msg) {
+    if (!view || view.name !== 'U10' || !view.hover || !msg || typeof msg.inside !== 'boolean') return;
+    if (msg.inside) { clearTimeout(timers.hover); timers.hover = 0; return; }
+    if (timers.hover || !view.hover.classList.contains('hover')) return;
+    timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, hoverOutMs(view.name));
+  }
+
   function onTransitionEnd(e) { if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-hit')) sync(false); }
 
   function watchDpr() {
@@ -1556,7 +1569,8 @@ QJZ.layouts = (function () {
       offs.push(QJZ.care.on('change', onCare), QJZ.care.on('prompt', onPrompt), QJZ.care.on('cue', onCue),
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup));
     }
-    [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock)].forEach(function (off) {
+    [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
+      bridge.on('pointer', onPointer)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);

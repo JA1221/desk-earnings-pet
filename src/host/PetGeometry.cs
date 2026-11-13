@@ -46,3 +46,20 @@ public static class PetGeometry
         return false;
     }
 }
+
+// The cursor on or off the hit rects, as the hit poll sees it (1.1.1): Step(inside) gives the new state when it changed,
+// else null, so the page hears pointer {inside} only on a crossing. It starts off them: a new window clicks through until
+// the cursor is on a hit rect.
+public sealed class PointerEdge
+{
+    bool inside;
+
+    public bool Inside { get { return inside; } }
+
+    public bool? Step(bool now)
+    {
+        if (now == inside) return null;
+        inside = now;
+        return now;
+    }
+}
