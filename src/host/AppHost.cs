@@ -73,7 +73,7 @@ using Microsoft.Web.WebView2.Core;
 // menu only while healthMenu's cups say today has a cup, 我剛起來動過了 only while healthMenu's sitOn is true.
 public class AppHost
 {
-    public const string Version = "1.1.1";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
+    public const string Version = "1.1.2";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
     const string Origin = "https://app.qjz/";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;
