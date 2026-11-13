@@ -23,17 +23,18 @@ QJZ.fx = (function () {
     else node.remove();
   }
 
-  // "+0.08" floating up from the money box.
+  // "+0.08" floating up from the amount (layouts.js: its [data-plus]; the cups' 「+1」 the same way), over its last
+  // digits. data-plus="short": it rises less (U13's amount sits just under the title bar).
   function plus(boxEl, text) {
     if (!boxEl) return;
-    var p = el('plus', text);
+    var p = el('plus', text), short = boxEl.getAttribute && boxEl.getAttribute('data-plus') === 'short';
     p.style.right = (14 + Math.random() * 24) + 'px';
     p.style.top = '-4px';
     boxEl.appendChild(p);
     done(p.animate([
       { transform: 'translateY(6px)', opacity: 0 },
       { opacity: 1, offset: 0.25 },
-      { transform: 'translateY(-18px)', opacity: 0 }
+      { transform: short ? 'translateY(-8px)' : 'translateY(-18px)', opacity: 0 }
     ], { duration: 1200, easing: 'ease-out' }), p);
   }
 

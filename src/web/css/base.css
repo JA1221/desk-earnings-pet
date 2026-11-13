@@ -38,7 +38,7 @@ html.opaque,html.opaque body{background:#FFF8EC}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(30,158,90,.6)}100%{box-shadow:0 0 0 7px rgba(30,158,90,0)}}
 .pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:2.5px solid var(--line);border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .fx{position:absolute;inset:0;pointer-events:none}
-.money-box{position:relative}
+.money-box,[data-plus]{position:relative}   /* [data-plus]: the amount the "+0.xx" goes up from (1.1.2) */
 .money-label{font-size:13px;font-weight:600;color:var(--sub)}
 .money{font-size:42px;font-weight:700;color:var(--money);line-height:1.1;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap;
   text-shadow:-2px -2px 0 var(--line),2px -2px 0 var(--line),-2px 2px 0 var(--line),2px 2px 0 var(--line),0 2px 0 var(--line),2px 0 0 var(--line),-2px 0 0 var(--line),0 -2px 0 var(--line),4px 5px 0 var(--line)}

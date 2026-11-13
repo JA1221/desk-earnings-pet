@@ -103,6 +103,9 @@ window.QJZ = window.QJZ || {};
 // does nothing, and a press there never drags the window, pokes the pet or toggles the mask. The pet says 收到！ (standup
 // source 'manual'); after 等一下 it says 「好，5 分鐘後再叫你～」 (care's snooze), and the chips show 💤 N 分 until the
 // snooze ends (class snz).
+// 1.1.2 item 6: the "+0.xx" that goes up from the amount (its [data-plus]) once a second says how much the amount on
+// screen rose since the last one, in the cents it shows (floatPlus): never a rate rounded on its own. A second with no
+// visible rise has none; after a gap (hidden, a clock jump), at lunch or after work there is none for the jump.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
@@ -313,7 +316,7 @@ QJZ.layouts = (function () {
       rate: rateText(s.salary, perSec),
       hearts: heartsText(v.hearts), bolts: v.bolts,
       snacks: snacks, snack: SNACK[kind] + '×' + snacks,
-      plus: key === 'working' && perSec > 0 ? '+' + perSec.toFixed(2) : null
+      plus: key === 'working' && perSec > 0   // the amount rises: the "+0.xx" floats (floatPlus)
     };
     for (var k in hc) if (k !== 'phase') m[k] = hc[k];
     return m;
@@ -1073,6 +1076,7 @@ QJZ.layouts = (function () {
     }
     sync(true);   // synchronous: the first one is what shows the window
     view.live = true;
+    plusBase();   // the next "+0.xx" counts from what this layout showed first
     remember(name === 'PANEL' ? panelFrom : name);
     send('setTopmost', { on: topmostFor(name) });
     var s = app().state.settings;
@@ -1376,7 +1380,27 @@ QJZ.layouts = (function () {
     if (!view) return;
     var m = render();
     sync(false);   // text can change sizes (M3 tag, fonts arriving)
-    if (m && m.plus && QJZ.fx) for (var i = 0; i < view.plus.length; i++) QJZ.fx.plus(view.plus[i], m.plus);
+    if (m) floatPlus(m);
+  }
+  // ---- the "+0.xx" (1.1.2 item 6) ----
+  // The cents of the amount as it is shown (QJZ.odometer's rounding), and where the last float left it.
+  var plusCents = null, plusAt = null;
+  function shownCents() {
+    var s = app().state.snap;
+    return s ? parseInt(money(s.earned).replace(/\D/g, ''), 10) : 0;
+  }
+  function plusBase() { plusCents = ready() ? shownCents() : null; plusAt = ready() ? app().nowMs() : null; }
+  // Once a second: the rise since the last float, when there is one; a gap of more than a couple of seconds (hidden,
+  // the clock moved) or no floats now (lunch, after work, no salary) only takes the amount as it is.
+  function floatPlus(m) {
+    var now = app().nowMs(), cents = shownCents(), gap = plusAt === null || now - plusAt > 2500 || now < plusAt;
+    plusAt = now;
+    if (gap || !m.plus || plusCents === null || cents < plusCents) { plusCents = cents; return; }
+    if (cents === plusCents) return;
+    var d = cents - plusCents;
+    plusCents = cents;
+    if (!QJZ.fx) return;
+    for (var i = 0; i < view.plus.length; i++) QJZ.fx.plus(view.plus[i], '+' + (d / 100).toFixed(2));
   }
 
   // ---- QJZ.care events (Task 11) ----
@@ -1723,7 +1747,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null; inPlace = null;
+    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();

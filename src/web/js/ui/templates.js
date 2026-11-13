@@ -40,7 +40,8 @@ QJZ.templates = (function () {
   // The title of each layout with a title bar; PANEL in its window (1.1.2 item 3) keeps the one it was opened from.
   var TITLES = { U1: '錢進中', U12: '錢進中 · 健康', U13: '錢進中 · 番茄鐘' };
   var BAR = bar(TITLES.U1);
-  var MONEY = '<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
+  // [data-plus] (1.1.2 item 6): the amount itself, where the "+0.xx" goes up from (QJZ.fx.plus)
+  var MONEY = '<div class="money" data-plus><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
   // During a pomodoro the pill reads 專心中 / 休息中 with its icon (health.css shows the one for the layout's p-foc / p-brk).
   var PILL = '<div class="status"><i></i>' + ic('hp', 'pi-foc') + ic('rest', 'pi-brk') + '<span data-b="status"></span></div>';
   function feedBtn(cls) {
@@ -107,7 +108,7 @@ QJZ.templates = (function () {
       return '<div class="win u1 lay" data-hit>' + BAR + '<div class="body">' +
         '<div class="row-top"><div class="clock" data-b="clock"></div>' + standC('mp st') + PILL + '</div>' +
         '<div class="scene-wrap"><div class="scene" data-pet="scene"></div>' + pring() + '<div class="fx" data-fx><div class="bubble" data-bubble></div></div></div>' +
-        '<div class="money-box" data-plus><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate" data-b="rate"></div>' + mpills() + '</div>' +
+        '<div class="money-box"><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate" data-b="rate"></div>' + mpills() + '</div>' +
         '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
           '<div class="track"><div class="fill" data-fill></div></div></div>' +
         '<div class="chips"><div class="chip"><small data-b="itemLabel"></small><b data-b="item"></b></div>' +
@@ -122,7 +123,7 @@ QJZ.templates = (function () {
           '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
         '<div class="side" data-bubble-clear><div class="pill alt" data-alt><span data-b="card"></span>' +
           '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
-        '<div class="hud-bottom money-box" data-plus><div class="coin">$</div>' + MONEY +
+        '<div class="hud-bottom money-box"><div class="coin">$</div>' + MONEY +
           '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div>' +
           tomslots() + '</div>' +
         '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
@@ -132,14 +133,14 @@ QJZ.templates = (function () {
         '<div class="mtop"><span class="dot"></span><span class="mline"><span data-b="status"></span> ・ <span data-b="hm"></span></span>' +
           standC('st') + '<span class="pline" data-prompt-line hidden></span>' + feedBtn('feed') +
           '<button type="button" class="x" data-act="menu" title="選單">⋯</button></div>' +
-        '<div class="money-box" data-plus>' + MONEY + '</div>' +
+        '<div class="money-box">' + MONEY + '</div>' +
         '<div class="thin"><div class="fill" data-fill></div></div>' +
         '<div class="meta2"><span data-b="pct"></span><span data-b="remainPhrase"></span></div>' +
         '</div>' + rcol() + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     U7: function () {
       return '<div class="u7 lay"><div class="dpet" data-hover>' + pring() +
-        '<div class="mtag money-box" data-plus data-hit>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div>' + hline() + '</div>' +
+        '<div class="mtag money-box" data-hit>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div>' + hline() + '</div>' +
         '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
         '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
           '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
@@ -177,7 +178,7 @@ QJZ.templates = (function () {
     U12: function () {
       return '<div class="win u12 dash lay" data-hit>' + bar(TITLES.U12) + '<div class="body">' +
         '<div class="dtop">' + PILL + '<span class="dl2" data-b="remainPhrase"></span></div>' +
-        '<div class="money-box dmb" data-plus><div class="money-label">今天已經賺到</div>' + MONEY +
+        '<div class="money-box dmb"><div class="money-label">今天已經賺到</div>' + MONEY +
           '<div class="thin"><div class="fill" data-fill></div></div></div>' +
         gauges() +
         '<div class="dfoot"><div class="po" data-pet="petonly"></div><div class="say" data-show="stand" data-b="dsay"></div>' + PSLOT + '</div>' +
@@ -189,7 +190,7 @@ QJZ.templates = (function () {
     // goal), and the cups and the next stand-up.
     U13: function () {
       return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +
-        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus><span class="cur">NT$</span> <span class="odo" data-odo></span></span></div>' +
+        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="short"><span class="cur">NT$</span> <span class="odo" data-odo></span></span></div>' +
         '<div class="ptop2"><span data-b="remainPhrase"></span><div class="thin"><div class="fill" data-fill></div></div></div>' +
         '<div class="ringwrap"><div class="bigring" data-gauge="pomo">' +
           '<button type="button" class="br-go" data-act="pomo" title="番茄鐘"><span class="br-idle"><small data-b="nextFocus"></small><b data-b="focusFull"></b></span>' +

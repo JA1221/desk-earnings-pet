@@ -107,7 +107,7 @@
     eq(m.rate, '每秒 +NT$ 0.079');
     eq(m.snacks, 2);
     eq(m.snack, '🌻×2');
-    eq(m.plus, '+0.08');
+    eq(m.plus, true, 'floats while working (1.1.2: their number is the amount\'s own rise, onSecond)');
     eq(m.petState, 'typing');
     eq(m.hearts, '♥♥♥♥♡');
     ok(m.bolts >= 0 && m.bolts <= 5);
@@ -123,7 +123,7 @@
 
   test('layouts: model at 12:30 (lunch), 18:00 (done), ended, before, off', function () {
     var lunch = U.model(fakeState(at(12, 12, 30), at(12, 9, 0)), at(12, 12, 30));
-    eq([lunch.status, lunch.petState, lunch.plus], ['午休中', 'lunchSleep', null]);
+    eq([lunch.status, lunch.petState, lunch.plus], ['午休中', 'lunchSleep', false]);
     eq(lunch.money, U.model(fakeState(at(12, 12, 0), at(12, 9, 0)), at(12, 12, 0)).money, 'lunch is unpaid');
     var done = U.model(fakeState(at(12, 18, 0), at(12, 9, 0)), at(12, 18, 0));
     eq([done.status, done.petState, done.remain, done.pct, done.money], ['可以下班', 'celebrate', '00:00:00', '100.0%', '2,272.73']);
@@ -303,7 +303,9 @@
     eq(text(e, '[data-b=clock]'), '11:00:00');
     eq(text(e, '[data-b=remain]'), '06:00:00');
     eq($(e, '[data-odo]').getAttribute('aria-label'), '568.18');
-    ok($(e, '[data-plus] .plus'), '+0.08 floats');
+    ok(!$(e, '[data-plus] .plus'), 'no float for the hour jumped (1.1.2)');
+    e.tick(at(12, 11, 0, 1));
+    ok($(e, '[data-plus] .plus'), 'one second later its rise floats');
     done();
   });
 
@@ -2347,6 +2349,78 @@
     eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['10/12・×12・119 分']);
     ok(box($(e, '.u7 .hline')).width <= box($(e, '.u7 .mtag')).width, 'U7: inside the tag');
     done();
+  });
+
+  // ---------- 1.1.2 item 6: the "+0.xx" float ----------
+  // Each float says how much the amount on screen went up since the float before it, in its own cents (QJZ.odometer's
+  // rounding): 50,000 a month is NT$ 0.0789 a second, so the amount shows +0.08 most seconds and +0.07 now and then,
+  // and the floats say the same. A second with no visible rise has none (the rise waits for the next); after a gap (the
+  // window hidden) or at lunch it starts over, with no float for the jump. It rises from beside the amount itself.
+  function floats(fn) {
+    var real = QJZ.fx.plus, out = [];
+    QJZ.fx.plus = function (el, t) { if (t.charAt(0) === '+' && t !== '+1') out.push({ el: el, text: t }); return real.apply(this, arguments); };
+    try { fn(out); } finally { QJZ.fx.plus = real; }
+  }
+  function shownCents(e) { return Math.round(parseFloat($(e, '[data-odo]').getAttribute('aria-label').replace(/,/g, '')) * 100); }
+  test('layouts DOM: each "+0.xx" is the amount\'s own rise on screen since the float before it', function () {
+    floats(function (out) {
+      var T = at(12, 10, 0, 0), e = mk(T, { first: 'U5B' }), was = shownCents(e), want = [], t;
+      for (var k = 1; k <= 400; k++) {   // the app's tick, 100 ms, for 40 s
+        t = T + k * 100;
+        e.tick(t);
+        if (k % 10 === 0) {
+          var now = shownCents(e);
+          if (now > was) want.push('+' + ((now - was) / 100).toFixed(2));
+          was = now;
+        }
+      }
+      eq(out.map(function (f) { return f.text; }), want, 'the floats are the rises of the amount shown');
+      ok(want.indexOf('+0.07') >= 0 && want.indexOf('+0.08') >= 0, 'both +0.07 and +0.08 come up: ' + want.join(' '));
+      eq(out.length, 40, 'one a second');
+      // hidden for ten minutes (10:00:40 to 10:10:40): no float for the jump, then one second's worth
+      out.length = 0;
+      e.bridge.emit({ type: 'visibility', visible: false });
+      e.clock.ms = at(12, 10, 10, 40);
+      e.bridge.emit({ type: 'visibility', visible: true });
+      e.tick(at(12, 10, 10, 40) + 100);
+      eq(out.length, 0, 'no float for the time hidden');
+      e.tick(at(12, 10, 10, 41));
+      ok(out.length === 1 && /^\+0\.0[78]$/.test(out[0].text), 'then one second\'s rise: ' + (out[0] && out[0].text));
+      // lunch: none; the first after it is one second's worth
+      out.length = 0;
+      for (t = at(12, 12, 0, 0); t <= at(12, 13, 0, 0); t += 30000) e.tick(t);
+      eq(out.length, 0, 'none at lunch');
+      e.tick(at(12, 13, 0, 1));
+      ok(out.length === 1 && /^\+0\.0[78]$/.test(out[0].text), 'after lunch: ' + (out[0] && out[0].text));
+      done();
+      // a small rate (NT$ 0.0047 a second): a float only when the amount moves, +0.01 each
+      e = mk(at(12, 10, 0, 0), { first: 'U5B', settings: { salary: { mode: 'monthly', amount: 3000, divisor: 22 } } });
+      out.length = 0;
+      for (t = at(12, 10, 0, 1); t <= at(12, 10, 0, 30); t += 1000) e.tick(t);
+      ok(out.length >= 12 && out.length <= 15 && out.every(function (f) { return f.text === '+0.01'; }), 'every rise once: ' + out.map(function (f) { return f.text; }).join(' '));
+      done();
+    });
+  });
+
+  test('layouts DOM: the "+0.xx" rises from beside the amount, in every layout that shows one', function () {
+    floats(function (out) {
+      var e = mk(at(12, 10, 0, 0)), bad = [];
+      ['U1', 'U3', 'U5B', 'U7', 'U12', 'U13'].forEach(function (name, i) {
+        e.menu('layout:' + name);
+        out.length = 0;
+        e.tick(at(12, 10, 0, i + 1));
+        eq(out.length, 1, name + ': one float');
+        var f = out[0].el.querySelector('.plus'), amount = $(e, '[data-odo]').closest('.money, .pm');
+        var a = amount.getBoundingClientRect(), r = f.getBoundingClientRect(), w = $(e, '.lay').getBoundingClientRect(), cx = (r.left + r.right) / 2;
+        var bar = $(e, '.bar'), at0 = JSON.stringify({ float: [r.left, r.top, r.right, r.bottom].map(Math.round), amount: [a.left, a.top, a.right, a.bottom].map(Math.round) });
+        if (out[0].el !== amount) bad.push(name + ': on ' + out[0].el.className + ', not on the amount ' + at0);
+        else if (!(cx >= a.left - 30 && cx <= a.right + 8 && r.bottom >= a.top - 6 && r.top <= a.top + a.height / 2)) bad.push(name + ': not beside the amount ' + at0);
+        else if (!(r.left >= w.left && r.right <= w.right && r.top >= w.top)) bad.push(name + ': outside the window ' + at0);
+        else if (bar && r.top < bar.getBoundingClientRect().bottom) bad.push(name + ': over the title bar ' + at0);
+      });
+      eq(bad, [], 'every float beside its amount');
+      done();
+    });
   });
 
   // ---------- 1.1.2 item 4: one pomodoro button, in one place ----------
