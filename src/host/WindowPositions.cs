@@ -6,9 +6,13 @@ using System.Web.Script.Serialization;
 // Per layout, owned by the host only: the window's top-left (physical px) and the page's last reported size (CSS px,
 // for the first-show safety net). Stored as %AppData%\錢進中\window.json:
 // {"U1":{"x":100,"y":200,"w":347,"h":593},"U7":{"x":-900,"y":40}}. Both parts are optional per layout.
+// 1.1.2: one more entry, "anchor", is the shared spot of every layout but U10 (WindowPlacer): its x / y is the top-left
+// and its w / h the PHYSICAL size of the window it was set with (a layout's w / h are CSS px). 1.1.1 reads it as a layout
+// it never shows, so a downgrade keeps it and writes it back unchanged; the layouts' own entries stay readable for it.
 // Unreadable text and bad values are skipped, never thrown.
 public class WindowPositions
 {
+    public const string AnchorKey = "anchor";
     const int MaxNameLength = 32;
     const double MaxCoordinate = 1000000;
     const int MaxCssSize = 4096;
@@ -36,6 +40,24 @@ public class WindowPositions
     public void SetSize(string layout, Size cssSize)
     {
         if (ValidName(layout) && ValidSize(cssSize.Width) && ValidSize(cssSize.Height)) sizes[layout] = cssSize;
+    }
+
+    // The shared anchor: its top-left and, when known, the physical size of the window it was set with.
+    public bool TryGetAnchor(out Point at, out Size? size)
+    {
+        size = null;
+        if (!TryGet(AnchorKey, out at)) return false;
+        Size s;
+        if (TryGetSize(AnchorKey, out s)) size = s;
+        return true;
+    }
+
+    // A size outside 1..4096 px is left out (unknown).
+    public void SetAnchor(Point at, Size size)
+    {
+        Set(AnchorKey, at);
+        sizes.Remove(AnchorKey);
+        SetSize(AnchorKey, size);
     }
 
     public string ToJson()

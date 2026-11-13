@@ -89,6 +89,41 @@ public static class WindowPositionsTests
         Assert.True(!q.TryGetSize("U7", out s), "no size for U7");
     }
 
+    // 1.1.2: the shared anchor is one more entry, "anchor", beside the layouts; its w / h are the physical size of the
+    // window it was set with. The layouts' own entries stay as they are (a downgrade to 1.1.1 still reads them).
+    public static void Test_AnchorIsAnEntryBesideTheLayouts()
+    {
+        WindowPositions p = WindowPositions.Parse("{\"U1\":{\"x\":-602,\"y\":520,\"w\":347,\"h\":609}}");
+        Point at;
+        Size? size;
+        Assert.True(!p.TryGetAnchor(out at, out size), "a 1.1.1 file has no anchor");
+        p.SetAnchor(new Point(-602, 520), new Size(521, 914));
+        Assert.Eq("{\"U1\":{\"x\":-602,\"y\":520,\"w\":347,\"h\":609},\"anchor\":{\"x\":-602,\"y\":520,\"w\":521,\"h\":914}}", p.ToJson(), "json shape");
+        WindowPositions q = WindowPositions.Parse(p.ToJson());
+        Assert.True(q.TryGetAnchor(out at, out size), "read back");
+        Assert.Eq(new Point(-602, 520), at, "anchor spot");
+        Assert.Eq((Size?)new Size(521, 914), size, "the size it was set with");
+        Assert.Eq(new Point(-602, 520), Get(q, "U1"), "U1's own entry is untouched");
+        // 1.1.1 reads "anchor" as a layout it never shows: it keeps it and writes it back as it was
+        q.Set("U3", new Point(1, 2));
+        Assert.True(q.ToJson().Contains("\"anchor\":{\"x\":-602,\"y\":520,\"w\":521,\"h\":914}"), "kept through another save");
+    }
+
+    public static void Test_AnchorWithoutASizeOrWithABadOne()
+    {
+        Point at;
+        Size? size;
+        WindowPositions p = WindowPositions.Parse("{\"anchor\":{\"x\":10,\"y\":-20}}");
+        Assert.True(p.TryGetAnchor(out at, out size) && at == new Point(10, -20), "a spot alone");
+        Assert.True(!size.HasValue, "no size: unknown");
+        p = WindowPositions.Parse("{\"anchor\":{\"x\":10,\"y\":-20,\"w\":0,\"h\":5}}");
+        Assert.True(p.TryGetAnchor(out at, out size) && !size.HasValue, "a bad size: unknown");
+        p = WindowPositions.Parse("{\"anchor\":{\"w\":300,\"h\":300}}");
+        Assert.True(!p.TryGetAnchor(out at, out size), "a size alone is no anchor");
+        p = WindowPositions.Parse("{\"anchor\":5}");
+        Assert.True(!p.TryGetAnchor(out at, out size), "garbage");
+    }
+
     public static void Test_BadSizesAreSkipped()
     {
         WindowPositions p = WindowPositions.Parse(

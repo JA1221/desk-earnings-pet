@@ -245,6 +245,110 @@ public static class WindowPlacerTests
         Assert.Eq(new Rectangle(690, 914, 540, 112), u10, "the user's U10 at bottomCenter: exactly its spot");
     }
 
+    // 1.1.2 item 1: every layout but U10 opens with its top-left at the one shared anchor.
+    public static void Test_AtAnchor_EveryLayoutAtTheSameTopLeft()
+    {
+        Point a = new Point(-1000, 300);          // on DISPLAY1 (150 %)
+        Size? set = new Size(521, 914);           // U1 was dropped there
+        Assert.Eq(new Rectangle(-1000, 300, 521, 914), WindowPlacer.AtAnchor(a, set, new Size(521, 914), Areas), "U1 itself");
+        Assert.Eq(new Rectangle(-1000, 300, 761, 603), WindowPlacer.AtAnchor(a, set, new Size(761, 603), Areas), "U3 fits: the same top-left");
+        Assert.Eq(new Rectangle(-1000, 300, 263, 263), WindowPlacer.AtAnchor(a, set, new Size(263, 263), Areas), "M3: the same top-left");
+        Assert.Eq(new Rectangle(-1000, 300, 611, 960), WindowPlacer.AtAnchor(a, set, new Size(611, 960), Areas), "a panel too");
+    }
+
+    // Pushed inside the work area only when it does not fit there; the push is not kept, so the next layout that fits
+    // is back at the anchor.
+    public static void Test_AtAnchor_PushedInsideOnlyWhenItDoesNotFit()
+    {
+        Point low = new Point(-1000, 1100);       // U5-B dropped low on DISPLAY1 (work-area bottom 1403)
+        Assert.Eq(new Rectangle(-1000, 1403 - 914, 521, 914), WindowPlacer.AtAnchor(low, new Size(830, 240), new Size(521, 914), Areas),
+            "U1 would reach under the taskbar: pushed up, x kept");
+        Assert.Eq(new Rectangle(-1000, 1100, 830, 240), WindowPlacer.AtAnchor(low, new Size(830, 240), new Size(830, 240), Areas),
+            "back to U5-B: at the anchor again, not where U1 was pushed to");
+        Point edge = new Point(-500, 300);        // M3 near DISPLAY1's right edge
+        Assert.Eq(new Rectangle(-761, 300, 761, 603), WindowPlacer.AtAnchor(edge, new Size(263, 263), new Size(761, 603), Areas),
+            "U3 pushed left");
+    }
+
+    // "On the same monitor": a push goes into the work area of the window the anchor was set with, not into whichever
+    // monitor the bigger window's centre would land on.
+    public static void Test_AtAnchor_StaysOnTheMonitorItWasSetOn()
+    {
+        Point a = new Point(-200, 300);           // M3 dropped near DISPLAY1's right edge; its centre is on DISPLAY1
+        Rectangle r = WindowPlacer.AtAnchor(a, new Size(263, 263), new Size(761, 603), Areas);
+        Assert.Eq(new Rectangle(-761, 300, 761, 603), r, "U3 pushed back onto DISPLAY1");
+        Assert.True(Left.Contains(r), "not onto the primary, where U3's own centre would be");
+        Assert.Eq(new Rectangle(-200, 300, 100, 100), WindowPlacer.AtAnchor(a, new Size(263, 263), new Size(100, 100), Areas), "a smaller one fits");
+    }
+
+    // The window the anchor was set with (the drop, or 1.1.1's saved spot at the upgrade) comes back exactly as 1.1.1 kept
+    // a saved spot: an overhang the user chose stays while at least half of it is inside one work area. Another size that
+    // would hang over is pushed inside.
+    public static void Test_AtAnchor_TheUsersOwnWindowKeepsItsOverhang()
+    {
+        Point a = new Point(1700, 100);
+        Assert.Eq(new Rectangle(1700, 100, 400, 300), WindowPlacer.AtAnchor(a, new Size(400, 300), new Size(400, 300), new[] { Primary }),
+            "the user's own overhang (55 % inside) is kept");
+        Assert.Eq(new Rectangle(1455, 100, 465, 300), WindowPlacer.AtAnchor(a, new Size(400, 300), new Size(465, 300), new[] { Primary }),
+            "another size: pushed inside");
+        Assert.Eq(new Rectangle(1400, 300, 520, 340), WindowPlacer.AtAnchor(new Point(9000, 300), new Size(520, 340), new Size(520, 340), new[] { Primary }),
+            "its monitor is gone: moved inside, like a saved spot");
+        Assert.Eq(new Rectangle(1455, 100, 465, 300), WindowPlacer.AtAnchor(a, null, new Size(465, 300), new[] { Primary }),
+            "the size it was set with is unknown: pushed inside when it hangs over");
+        Assert.Eq(new Rectangle(1700, 100, 200, 300), WindowPlacer.AtAnchor(a, null, new Size(200, 300), new[] { Primary }), "and kept when it fits");
+        Assert.Eq(new Rectangle(1700, 100, 200, 300), WindowPlacer.AtAnchor(a, new Size(200, 300), new Size(200, 300), new Rectangle[0]),
+            "no monitors known: unchanged");
+    }
+
+    // No anchor yet. The upgrade: the layout's own saved spot from 1.1.1's window.json, at the size it was saved at (the
+    // start layout's), so that start shows exactly where 1.1.1 showed it; else the window's top-left once a layout has
+    // shown (moved inside); else the first-ever spot.
+    public static void Test_SeedAnchor()
+    {
+        bool hostChosen;
+        Rectangle u1 = WindowPlacer.SeedAnchor(new Point(-602, 520), new Size(521, 914), null, new Size(521, 914), Areas, Primary);
+        Assert.Eq(new Rectangle(-602, 520, 521, 914), u1, "the user's U1 (window.json, 347 x 609 at 150 %)");
+        Assert.Eq(WindowPlacer.Decide(new Point(-602, 520), null, new Size(521, 914), Areas, Primary, out hostChosen),
+            WindowPlacer.AtAnchor(u1.Location, u1.Size, new Size(521, 914), Areas), "a start in U1: exactly where 1.1.1 put it");
+        Rectangle m3 = WindowPlacer.SeedAnchor(new Point(-100, 300), new Size(263, 263), null, new Size(263, 263), Areas, Primary);
+        Assert.Eq(new Rectangle(-100, 300, 263, 263), WindowPlacer.AtAnchor(m3.Location, m3.Size, new Size(263, 263), Areas),
+            "an M3 the user left across two monitors stays across them");
+        Assert.Eq(WindowPlacer.Decide(new Point(-100, 300), null, new Size(263, 263), Areas, Primary, out hostChosen),
+            WindowPlacer.AtAnchor(m3.Location, m3.Size, new Size(263, 263), Areas), "as 1.1.1 kept it");
+        Assert.Eq(new Rectangle(0, 118, 521, 914), WindowPlacer.AtAnchor(m3.Location, m3.Size, new Size(521, 914), Areas),
+            "U1 from that M3: pushed inside the monitor M3 is mostly on");
+        Assert.Eq(new Rectangle(-602, 520, 300, 300), WindowPlacer.SeedAnchor(new Point(-602, 520), null, null, new Size(300, 300), Areas, Primary),
+            "no saved size: the window's own");
+        Assert.Eq(new Rectangle(1220, 400, 700, 160), WindowPlacer.SeedAnchor(null, null, new Point(1400, 400), new Size(700, 160), Areas, Primary),
+            "no saved spot: the window's top-left, moved fully inside its monitor");
+        Assert.Eq(WindowPlacer.Decide(null, null, new Size(521, 914), Areas, Primary, out hostChosen),
+            WindowPlacer.SeedAnchor(null, null, null, new Size(521, 914), Areas, Primary), "first-ever: the primary's bottom-right");
+    }
+
+    // What a layout change does with the window (1.1.2): U10 docks; a panel opens beside its window, or in place (the
+    // same window, same spot and size) when the page asks for it; every other layout goes to the anchor.
+    public static void Test_MoveFor()
+    {
+        foreach (string l in new[] { "U1", "U3", "U5B", "U7", "M3", "U12", "U13" })
+        {
+            Assert.Eq(LayoutMove.Anchor, WindowPlacer.MoveFor(l, false), l + ": the anchor");
+            Assert.Eq(LayoutMove.Anchor, WindowPlacer.MoveFor(l, true), l + ": only a panel opens in place");
+        }
+        Assert.Eq(LayoutMove.Dock, WindowPlacer.MoveFor("U10", false), "U10 docks");
+        Assert.Eq(LayoutMove.Dock, WindowPlacer.MoveFor("U10", true), "U10 docks even when asked otherwise");
+        Assert.Eq(LayoutMove.Beside, WindowPlacer.MoveFor("PANEL", false), "a panel beside its window, as in 1.1.1");
+        Assert.Eq(LayoutMove.InPlace, WindowPlacer.MoveFor("PANEL", true), "inPlace: the window as it is");
+    }
+
+    // A drag in any layout but U10 moves the anchor (a panel's too: it is the same window); U10 snaps to a dock instead.
+    public static void Test_DragMovesTheAnchor()
+    {
+        foreach (string l in new[] { "U1", "U3", "U5B", "U7", "M3", "U12", "U13", "PANEL" })
+            Assert.True(WindowPlacer.DragMovesAnchor(l), l + " moves the anchor");
+        Assert.True(!WindowPlacer.DragMovesAnchor("U10"), "U10 snaps to a dock");
+        Assert.True(!WindowPlacer.DragMovesAnchor(null), "no layout yet");
+    }
+
     public static void Test_RescueSizeIsSavedElseDefault()
     {
         Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");

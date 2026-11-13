@@ -34,7 +34,7 @@ public class HostSettings
     // privacy.hideFromCapture: keep the window out of screen captures and sharing.
     public bool CaptureGuard { get; private set; }
 
-    // The page's first layout, the one used last (WindowPlacer.PrePlace puts the hidden window at its saved spot).
+    // The page's first layout, the one used last (WindowPlacer.PrePlace puts the hidden window where it will show).
     public string StartLayout { get; private set; }
 
     // Canonical combo (HotKey.Normalize).

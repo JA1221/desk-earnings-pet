@@ -17,14 +17,17 @@ using Microsoft.Web.WebView2.Core;
 // - Host -> page messages wait in the Bridge until the page's init, then go out in order. After every init the
 //   page also gets the current state: visibility, fullscreen, a hotkey failure, unreadable files (storageError).
 // - U7, M3 and U10 never take focus when clicked; the other layouts activate normally (keyboard input).
-// - U10's capsule sits at its dock (setLayout dock) on the work area of its monitor, and a drop snaps it to the
-//   nearest dock of the monitor it landed on (CapsuleDock; the page learns it from capsuleDock); that spot is saved.
-//   Any other window that grows stays inside its work area if it was inside (WindowPlacer.FitAfterGrow, spec 5.7);
-//   a spot it is pushed to is never saved (Ruling C5), only one the user drags it to.
+// - 1.1.2 item 1: every layout but U10 opens with its top-left at the one shared anchor, pushed inside the work area
+//   only when it does not fit there (WindowPlacer.AtAnchor); a user's drop in any of them (a panel's too) moves the
+//   anchor. A spot the window is pushed to is never saved (Ruling C5), only one the user drags it to. With no anchor in
+//   window.json (the first 1.1.2 start), the start layout's own 1.1.1 spot becomes it, so that start shows exactly
+//   where it did. U10's capsule sits at its dock (setLayout dock) on the work area of the monitor the window is on, and
+//   a drop snaps it to the nearest dock of the monitor it landed on (CapsuleDock; the page learns it from capsuleDock);
+//   leaving U10 goes back to the anchor. A window that grows within its layout stays inside its work area if it was
+//   inside (WindowPlacer.ResizeInside, spec 5.7).
 // - PANEL (設定, 紀錄, onboarding, the questions) opens beside the window it came from, inside that window's work area
-//   (WindowPlacer.PanelBounds, 1.1.1); a drag of it is not saved. A start that opens with a panel opens it beside
-//   the hidden window, which PrePlace put at the start layout's saved spot and size, so the first thing shown is on
-//   the start layout's monitor (it used PANEL's own saved spot, which could be on another monitor).
+//   (WindowPlacer.PanelBounds, 1.1.1). A start that opens with a panel opens it beside the hidden window, which
+//   PrePlace put where the start layout shows, so the first thing shown is on the start layout's monitor.
 // - fullscreen {on, here}: something runs full screen (Presentation: Windows reports a fullscreen app or presentation
 //   mode, or a monitor's top window covers that whole monitor, foreground or not), sent after every init and on each
 //   change; the page holds its reminders while on. here (1.1.1): the pet window's monitor is full screen (PowerPoint's
@@ -444,22 +447,27 @@ public class AppHost
         {
             growFrom = null;
             growTo = null;
-            if (name == WindowPlacer.PanelLayout)
+            switch (WindowPlacer.MoveFor(name, false))
             {
-                // Beside the window it came from, on that monitor (1.1.1): at a start that opens with a panel, the hidden
-                // window PrePlace put at the start layout's spot. PANEL's own saved spot is not used.
-                placer.PlacePanel(window, WindowPlacer.PanelFrom(shownBefore, placer.HasSpot(startLayout), before));
-            }
-            else
-            {
-                Size? savedCss = placer.SavedSize(name);   // the size the layout had when its spot was saved
-                placer.Place(window, name);
-                bool pushed = false;
-                if (name == "U10") DockCapsule(window.Bounds);   // on the monitor of its saved spot
-                else if (savedCss.HasValue && savedCss.Value != css) pushed = FitAfterSwitch(savedCss.Value);
-                // Pushed in: the saved spot and the size it was saved at stay as they are (Ruling C5), so every switch
-                // pushes it in again; a saved size of the new size would make the saved spot look like a chosen overhang.
-                if (!pushed) placer.RememberSize(name, css);
+                case LayoutMove.Beside:
+                    // Beside the window it came from, on that monitor (1.1.1): at a start that opens with a panel, the
+                    // hidden window PrePlace put where the start layout shows. PANEL's own saved spot is not used.
+                    placer.PlacePanel(window, WindowPlacer.PanelFrom(shownBefore, placer.StartSpotKnown, before));
+                    break;
+                case LayoutMove.Dock:
+                    DockCapsule(before);   // on the monitor the window is on
+                    placer.RememberSize(name, css);
+                    break;
+                default:
+                    {
+                        // The anchor (1.1.2). Without one yet, this layout's own 1.1.1 spot becomes it, at the size it was
+                        // saved at (the upgrade), else the window's top-left once a layout has shown.
+                        Size? savedCss = placer.SavedSize(name);
+                        placer.PlaceAtAnchor(window, name, savedCss.HasValue ? window.ToPhysical(savedCss.Value) : (Size?)null,
+                            shownBefore ? before.Location : (Point?)null);
+                        placer.RememberSize(name, css);   // the next start's PrePlace and the safety net size it so
+                        break;
+                    }
             }
             presentation.Poll();   // another monitor: is a full-screen window in front there?
             UpdateStepBack();
@@ -480,18 +488,6 @@ public class AppHost
         }
     }
 
-    // A layout whose size changed since its spot was saved (U5-B is about 65 px wider in 1.1, spec 5.7) grows from that
-    // spot and is pushed back inside if it was fully inside. The pushed-in spot is not saved, so the saved one (1.0's)
-    // survives (Ruling C5). True when it pushed the window.
-    bool FitAfterSwitch(Size savedCss)
-    {
-        Rectangle saved = new Rectangle(window.Location, window.ToPhysical(savedCss));
-        Point fit = WindowPlacer.FitAfterGrow(saved, window.Size, WindowPlacer.WorkAreas()).Location;
-        if (fit == window.Location) return false;
-        window.Location = fit;
-        return true;
-    }
-
     // The same layout changed size (a prompt bubble beside U7 / M3): a window that was inside stays fully inside through
     // every grow and partial shrink, and goes back to where it was once it fits there, unless the user moved it
     // meanwhile (WindowPlacer.ResizeInside). No spot is saved.
@@ -509,8 +505,8 @@ public class AppHost
         return (int)Math.Round(CapsuleMarginCss * window.CssScale, MidpointRounding.AwayFromZero);
     }
 
-    // U10 goes to its dock on the work area nearest the centre of from (the window's rect before this change), and the
-    // spot is saved so the next start pre-places the window on that monitor.
+    // U10 goes to its dock on the work area nearest the centre of from (the window's rect before this change: the monitor
+    // the window is on), and the spot is saved so the next start in U10 pre-places the window on that monitor.
     void DockCapsule(Rectangle from)
     {
         Rectangle area = CapsuleDock.AreaFor(from, WindowPlacer.WorkAreas());
@@ -554,10 +550,12 @@ public class AppHost
             Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
-        if (layout != WindowPlacer.PanelLayout)   // a panel always opens beside its window: its own spot is not kept
+        if (WindowPlacer.DragMovesAnchor(layout)) placer.SetAnchor(window.Bounds);   // 1.1.2: the spot of every layout but U10
+        if (layout != WindowPlacer.PanelLayout)
         {
+            // The layout's own 1.1.1 entry, no longer read for placement: kept up to date for a downgrade.
             placer.Remember(layout, window.Location);
-            placer.RememberSize(layout, layoutCss);   // with the size the user placed it at, which FitAfterSwitch reads
+            placer.RememberSize(layout, layoutCss);
         }
         Send("dragEnd", null);
     }
@@ -672,7 +670,8 @@ public class AppHost
         {
             Size css = WindowPlacer.RescueSize(placer.SavedSize(startLayout));
             window.SetContentSize(css.Width, css.Height, 0);
-            placer.Place(window, startLayout);
+            if (WindowPlacer.MoveFor(startLayout, false) == LayoutMove.Dock) placer.PlaceAtOwnSpot(window, startLayout);   // U10: its last dock spot
+            else placer.PlaceAtAnchor(window, startLayout, window.Size, null);
             window.NoActivate = ShowRescue.NoActivateLayout(startLayout);   // a rescued M3/U7/U10 must not take focus
             ApplyTopmost();   // the start layout's (no layout yet)
             rescued = true;
