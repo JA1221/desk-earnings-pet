@@ -404,10 +404,12 @@ QJZ.care = (function () {
   // Dev only (dev.html, Ruling R3), like reset: index.html never calls it. o = {cups, tomatoes, standups (today's counts),
   // pomo: 'focus' (13 min left) | 'break' | 'breakOver', prompt: 'both' | 'sit' | 'water' (the reminder is due; its
   // switches must be on) | 'break' | 'breakEnd' (that bubble), shown at once, water: the break bubble asks water too (as
-  // when a reminder came due during the focus; 喝水 must be on)}. dev.html has no host, so the window counts as shown.
+  // when a reminder came due during the focus; 喝水 must be on), turn: which line of the reminder's copy it shows
+  // (QJZ.prompt.LINES, from 0)}. dev.html has no host, so the window counts as shown.
   function dev(o) {
     if (!state.ready) return;
     o = o || {};
+    if (typeof o.turn === 'number' && o.turn >= 0) state.turn = Math.floor(o.turn);
     batch(function () {
       var now = nowFn(), s = settings(), cfg = s.health.pomodoro, key = today().day, h = QJZ.health.of(today());
       ['cups', 'tomatoes', 'standups'].forEach(function (k) { if (typeof o[k] === 'number' && o[k] >= 0) h[k] = o[k]; });

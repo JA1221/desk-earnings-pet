@@ -687,6 +687,8 @@
     e = mk(at(9, 10));
     C._dev({ prompt: 'both' });
     eq(C.state.prompt.kind, 'both');
+    C._dev({ prompt: 'both', turn: 3 });   // which line of the copy (dev.html ?turn=, for the screenshots)
+    eq(C.view().title, QJZ.prompt.LINES.both[3]);
     done();
   });
 })();
