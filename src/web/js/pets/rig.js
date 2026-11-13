@@ -93,6 +93,9 @@ QJZ.pets.rig = (function () {
   function add(o, k, m) { if (m) o[k] = (o[k] || '') + m; }
   // grown-arm outlines cut to outside the body (rig.inkClip), outside the arm's own moving group so the cut stays put
   function clipInk(rig, m) { return m && rig.inkClip ? '<g clip-path="' + rig.inkClip + '">' + m + '</g>' : m; }
+  // the slot for a grown arm's outline: an outline behind the body ('back') whose fur is in the front layer goes to
+  // 'under', which the avatar leaves out with that front layer (cat S5: else a dark arm shows in its portrait)
+  function inkSlot(ink, fill) { return ink === 'back' && fill === 'front' ? 'under' : ink; }
   function paws(rig, list) {
     return list.map(function (p) { return rig.paw(p[0], p[1], p[2]); }).join('');
   }
@@ -113,7 +116,7 @@ QJZ.pets.rig = (function () {
       return o;
     }
     var a = h.arm, g = grow(rig, [a[0], a[1]], h.w), g0 = `<g class="armL" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
-    add(o, h.ink === 'back' && h.fill === 'front' ? 'under' : h.ink, g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
+    add(o, inkSlot(h.ink, h.fill), g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
     add(o, h.fill, g0 + g.fill + rig.paw(a[1][0], a[1][1], a[2]) + '</g>');
     return o;
   }
@@ -141,7 +144,7 @@ QJZ.pets.rig = (function () {
         }
         u.arms.forEach(function (a, i) {
           var g = grow(rig, [a[0], a[1]], u.w), g0 = `<g class="arm${i ? 'R' : 'L'}" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
-          add(o, u.ink, g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
+          add(o, inkSlot(u.ink, u.fill), g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
           add(o, u.fill, g0 + g.fill + rig.paw(a[1][0], a[1][1], a[2]) + '</g>');
         });
         return o;
@@ -155,7 +158,7 @@ QJZ.pets.rig = (function () {
         var s = rig.scratch, r = { front: rig.pawR }, oy = s.arm ? s.paw[1] + 6 : s.paw[1];
         if (s.arm) {
           var gs = grow(rig, s.arm, s.w);
-          add(r, s.ink, clipInk(rig, gs.ink));
+          add(r, inkSlot(s.ink, s.fill), clipInk(rig, gs.ink));
           add(r, s.fill, gs.fill);
         }
         add(r, 'over', `<g class="scr" style="transform-origin:${s.paw[0]}px ${oy}px">${rig.paw(s.paw[0], s.paw[1], s.paw[2])}</g>`);
@@ -168,7 +171,7 @@ QJZ.pets.rig = (function () {
           o3.over = `<g class="armL" style="transform-origin:${q[0]}px ${n(q[1] + 7)}px">${rig.paw(q[0], q[1], q[2])}</g>`;
         } else {
           var a0 = u2.arms[0], g2 = grow(rig, [a0[0], a0[1]], u2.w), g3 = `<g class="armL" style="transform-origin:${a0[0][0]}px ${a0[0][1]}px">`;
-          add(o3, u2.ink, g2.ink ? clipInk(rig, g3 + g2.ink + '</g>') : '');
+          add(o3, inkSlot(u2.ink, u2.fill), g2.ink ? clipInk(rig, g3 + g2.ink + '</g>') : '');
           add(o3, u2.fill, g3 + g2.fill + rig.paw(a0[1][0], a0[1][1], a0[2]) + '</g>');
         }
         var pivot = d.restArm ? d.restArm[0] : [r2[0] - 7, r2[1] + 2];

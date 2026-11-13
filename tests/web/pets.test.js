@@ -735,4 +735,23 @@
       });
     } finally { host.remove(); }
   });
+  // The portrait (avatar) has no front layer, so an arm whose fur is drawn there must not leave its outline behind:
+  // every arm outline in an avatar has its fur over it (the same limb path in the fur colour). Cat S5's 1.0 arms (up,
+  // scratch, the waitBag wave) used to show as dark arms in its portrait.
+  test('pets: no cat avatar shows an arm outline without its fur, in any state', function () {
+    var P = QJZ.pets;
+    P.list('cat').forEach(function (d) {
+      var ink = d.build('a0').rig.line[0];
+      function paint(el) { var f = el.getAttribute('fill'); return (f && f !== 'none' ? f : el.getAttribute('stroke')) || ''; }
+      STATES.concat(P.NEW_POSES).forEach(function (s) {
+        [{ state: s }, { state: s, props: ['bag'] }].forEach(function (o) {
+          var limbs = parse(P.compose(d.id, 'avatar', o)).querySelectorAll('.limb');
+          var bare = Array.prototype.filter.call(limbs, function (el) {
+            return paint(el) === ink && !Array.prototype.some.call(limbs, function (f) { return f !== el && f.getAttribute('d') === el.getAttribute('d') && paint(f) !== ink; });
+          });
+          eq(bare.length, 0, d.id + ' ' + s + (o.props ? ' + bag' : '') + ': arm outlines without fur in the avatar');
+        });
+      });
+    });
+  });
 })();
