@@ -1,6 +1,6 @@
 window.QJZ = window.QJZ || {};
 // The small 1.1 icons (drop, tom, stand, rest, hp, cup), drawn from the mockup sprite (docs/prototypes/v1.1/index.html,
-// <symbol id="i-…">). QJZ.icons.svg(name, cls) is an inline SVG with class "ic" (sized by the CSS that places it);
+// <symbol id="i-…">), and 1.1.1's title-bar glyphs (tbMin, tbGear, tbClose: plain dark strokes for the round buttons). QJZ.icons.svg(name, cls) is an inline SVG with class "ic" (sized by the CSS that places it);
 // an unknown name gives ''. Static markup only: nothing in it comes from the user.
 QJZ.icons = (function () {
   var L = '#3D2C24';
@@ -29,7 +29,13 @@ QJZ.icons = (function () {
       '<path d="M1.6,1.6 H12.4 L11.1,13.6 A1.6,1.6 0 0 1 9.5,15 H4.5 A1.6,1.6 0 0 1 2.9,13.6 Z" fill="#fff"/>' +
       '<path d="M2.3,5.3 H11.7 L10.7,13.6 H3.3 Z" fill="#7CC4FF"/>' +
       '<path d="M4.5,7.2 V11.4" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>' +
-      '<path d="M1.6,1.6 H12.4 L11.1,13.6 A1.6,1.6 0 0 1 9.5,15 H4.5 A1.6,1.6 0 0 1 2.9,13.6 Z" fill="none" stroke="' + L + '" stroke-width="1.6" stroke-linejoin="round"/>']
+      '<path d="M1.6,1.6 H12.4 L11.1,13.6 A1.6,1.6 0 0 1 9.5,15 H4.5 A1.6,1.6 0 0 1 2.9,13.6 Z" fill="none" stroke="' + L + '" stroke-width="1.6" stroke-linejoin="round"/>'],
+    tbMin: ['0 0 20 20', '<path d="M4.5,10 H15.5" stroke="' + L + '" stroke-width="3" stroke-linecap="round"/>'],
+    tbGear: ['0 0 20 20',
+      '<path d="M10,2.6 V5 M10,15 V17.4 M2.6,10 H5 M15,10 H17.4 M4.8,4.8 L6.5,6.5 M13.5,13.5 L15.2,15.2 M15.2,4.8 L13.5,6.5 M6.5,13.5 L4.8,15.2" ' +
+        'stroke="' + L + '" stroke-width="2.8" stroke-linecap="round"/>' +
+      '<circle cx="10" cy="10" r="4.3" fill="#FFE08A" stroke="' + L + '" stroke-width="2.4"/>'],
+    tbClose: ['0 0 20 20', '<path d="M5.5,5.5 L14.5,14.5 M14.5,5.5 L5.5,14.5" stroke="' + L + '" stroke-width="3" stroke-linecap="round"/>']
   };
 
   // name: one of NAMES; cls: more classes (e.g. 'pi-foc').

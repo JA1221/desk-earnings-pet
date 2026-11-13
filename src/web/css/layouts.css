@@ -27,7 +27,6 @@
   text-shadow:-1.5px -1.5px 0 var(--line),1.5px -1.5px 0 var(--line),-1.5px 1.5px 0 var(--line),1.5px 1.5px 0 var(--line),2px 3px 0 var(--line)}
 .mmoney small{font-size:13px;color:var(--cur)}
 .lay button{font-family:inherit;color:var(--text);cursor:pointer}
-.bar .dots i{cursor:pointer}
 .mtop{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sub);white-space:nowrap}
 .mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite;flex:none}
 .meta2{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--sub);margin-top:6px}

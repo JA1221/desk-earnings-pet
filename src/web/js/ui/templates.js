@@ -19,9 +19,14 @@ window.QJZ = window.QJZ || {};
 // [data-b=standMin]; U7's tag line anyS / ctS), as a readout only.
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
-  function bar(title) {
-    return '<div class="bar"><span class="logo">$</span><span data-b="title">' + title + '</span><div class="dots">' +
-      '<i data-act="mini" title="縮成迷你"></i><i data-act="hide" title="隱藏"></i></div></div>';
+  // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 縮小 (to the mini badge), 設定 and 關閉
+  // (hide). PANEL (noGear) has 縮小 and 關閉 only: it is 設定, or a panel of its own.
+  function tb(act, icon, label) {
+    return '<button type="button" class="tb ' + act + '" data-act="' + act + '" title="' + label + '" aria-label="' + label + '">' + ic(icon) + '</button>';
+  }
+  function bar(title, noGear) {
+    return '<div class="bar"><span class="logo">$</span><span data-b="title">' + title + '</span><div class="tbtns">' +
+      tb('mini', 'tbMin', '縮小') + (noGear ? '' : tb('settings', 'tbGear', '設定')) + tb('hide', 'tbClose', '關閉') + '</div></div>';
   }
   var BAR = bar('錢進中');
   var MONEY = '<div class="money"><span class="cur">NT$</span><span class="odo" data-odo></span></div>';
@@ -184,7 +189,7 @@ QJZ.templates = (function () {
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
     PANEL: function () {
-      return '<div class="win panel lay" data-hit>' + BAR + '<div class="pbody" data-panel></div>' +
+      return '<div class="win panel lay" data-hit>' + bar('錢進中', true) + '<div class="pbody" data-panel></div>' +
         '<div class="fx" data-fx data-fxwin></div></div>';
     }
   };

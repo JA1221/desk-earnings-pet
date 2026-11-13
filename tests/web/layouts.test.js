@@ -2334,4 +2334,39 @@
     ok(box($(e, '.u7 .hline')).width <= box($(e, '.u7 .mtag')).width, 'U7: inside the tag');
     done();
   });
+
+  // Item 2: every main window with a title bar (U1, U12, U13) has three small icon buttons on it, in the sticker style
+  // (round, outlined, a hard shadow): 縮小 (to the mini badge), 設定 (opens 設定) and 關閉 (hides). PANEL keeps 縮小 and 關閉.
+  test('layouts DOM: U1, U12 and U13 have 縮小, 設定 and 關閉 on their title bar; 設定 opens 設定', function () {
+    ['U1', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true });
+      var bar = $(e, '.bar'), bs = Array.prototype.slice.call(bar.querySelectorAll('[data-act]'));
+      eq(bs.map(function (b) { return b.getAttribute('data-act'); }), ['mini', 'settings', 'hide'], name);
+      eq(bs.map(function (b) { return [b.tagName, b.getAttribute('aria-label'), b.title]; }),
+        [['BUTTON', '縮小', '縮小'], ['BUTTON', '設定', '設定'], ['BUTTON', '關閉', '關閉']], name + ': labelled buttons');
+      var br = bar.getBoundingClientRect();
+      bs.forEach(function (b) {
+        var r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+        ok(b.querySelector('svg.ic') && b.textContent.trim() === '', name + ': an icon, no text');
+        ok(r.width >= 18 && r.width <= 26 && Math.abs(r.width - r.height) < 0.5, name + ': small and round ' + r.width);
+        ok(r.top >= br.top && r.bottom <= br.bottom && r.right <= br.right - 8, name + ': on the bar');
+        ok(parseFloat(cs.borderTopWidth) >= 2 && cs.boxShadow !== 'none', name + ': outlined, with its hard shadow');
+        mouse(b, 'mousedown', r.left + 5, r.top + 5);
+        mouse(b, 'mousemove', r.left + 40, r.top + 5);
+        mouse(b, 'mouseup', r.left + 40, r.top + 5, { buttons: 0 });
+      });
+      eq(of(e.sent, 'dragStart').length, 0, name + ': they never drag');
+      bs[1].click();
+      eq([QJZ.layouts.current(), text(e, '[data-b=title]')], ['PANEL', '錢進中 · 設定'], name + ': 設定 opens 設定');
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
+        ['mini', 'hide'], 'PANEL: 縮小 and 關閉');
+      QJZ.layouts.closePanel();
+      eq(QJZ.layouts.current(), name, 'back');
+      $(e, '.bar [data-act=hide]').click();
+      eq(of(e.sent, 'hide').length, 1, name + ': 關閉 hides');
+      $(e, '.bar [data-act=mini]').click();
+      eq(QJZ.layouts.current(), 'M3', name + ': 縮小 goes to the mini badge');
+      done();
+    });
+  });
 })();

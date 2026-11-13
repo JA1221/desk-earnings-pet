@@ -23,9 +23,13 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .win{position:relative;overflow:hidden;user-select:none;background:var(--bg);border:3px solid var(--line);border-radius:28px;box-shadow:7px 7px 0 var(--shadow);font-family:var(--font);color:var(--text)}
 .bar{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bar);border-bottom:3px solid var(--line);font-weight:700;font-size:15px}
 .bar .logo{width:22px;height:22px;border-radius:50%;background:#FFE08A;border:2.5px solid var(--line);display:grid;place-items:center;font-size:11px}
-.bar .dots{margin-left:auto;display:flex;gap:6px}
-.bar .dots i{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--line);background:#fff}
-.bar .dots i:last-child{background:#FF8FA3}
+/* 縮小 設定 關閉 (1.1.1): round sticker buttons, an icon each; 關閉 keeps the old pink dot's colour */
+.bar .tbtns{margin-left:auto;display:flex;gap:5px}
+.bar .tb{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--line);background:#fff;box-shadow:1.5px 1.5px 0 var(--shadow);
+  display:grid;place-items:center;padding:0;cursor:pointer}
+.bar .tb.hide{background:#FF8FA3}
+.bar .tb svg{display:block;width:13px;height:13px}
+.bar .tb:active{transform:translate(1px,1px);box-shadow:none}
 .clock{font-size:24px;font-weight:700}
 .status{display:inline-flex;align-items:center;gap:7px;background:var(--st-bg);border:2.5px solid var(--line);border-radius:99px;padding:4px 13px 4px 9px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .status i{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite}
