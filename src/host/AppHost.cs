@@ -68,8 +68,9 @@ using Microsoft.Web.WebView2.Core;
 // Host-only menu actions: toggleVisible (a hidden page cannot show itself) and quit (sent to the page as
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs). Every other
 // TrayMenu id goes to the page as menu {action}. The quick actions drink (記一杯水), undrink (少記一杯, 1.1.1: the page
-// takes one cup off today, never below 0) and pomodoro do not show a hidden window (ShowRescue.MenuShows); 少記一杯
-// is in the menu only while healthMenu's cups say today has a cup.
+// takes one cup off today, never below 0), stoodUp (我剛起來動過了, 1.1.2: the page counts a stand-up, restarts the sit
+// timer and the pet says 「收到！」) and pomodoro do not show a hidden window (ShowRescue.MenuShows); 少記一杯 is in the
+// menu only while healthMenu's cups say today has a cup, 我剛起來動過了 only while healthMenu's sitOn is true.
 public class AppHost
 {
     public const string Version = "1.1.1";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
@@ -376,11 +377,12 @@ public class AppHost
                     tray.SetSnacks(snacks >= 0 && snacks <= 99999 ? (int)Math.Floor(snacks) : -1);
                     break;
                 }
-            case "healthMenu":   // 記一杯水's cups, 少記一杯 (cups > 0) and the 開始番茄鐘 / 停止番茄鐘 item follow the page
+            case "healthMenu":   // 記一杯水's cups, 少記一杯 (cups > 0), 我剛起來動過了 (sitOn, 1.1.2) and 開始 / 停止番茄鐘 follow the page
                 {
                     object p;
                     Dictionary<string, object> pomodoro = d.TryGetValue("pomodoro", out p) ? p as Dictionary<string, object> : null;
-                    tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0));
+                    tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0),
+                        Bridge.Bool(d, "sitOn") == true);
                     break;
                 }
             case "setTopmost":   // after every layout change, and from the menu's 永遠在最上層 or the title bar's pin (1.1.2)
