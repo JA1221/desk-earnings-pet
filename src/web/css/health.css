@@ -108,6 +108,9 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .rbub .rb-t{display:block;font-size:15.5px;line-height:1.38;font-weight:700}
 /* the lines break after the copy's own punctuation (，～！), not inside a phrase, and come out about as long */
 .rbub .rb-t,.u5b .call .ct{word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}
+/* 「～」 never starts a line (final review I-1): promptview puts it and the character before it in one .nobr, an atomic
+   inline (a nowrap span in the line itself would make text-wrap:balance pass over the break after 「！」) */
+.lay .nobr{display:inline-block;white-space:nowrap}
 .rbub small{display:block;font-size:11px;font-weight:600;color:var(--sub);margin-top:3px;line-height:1.45}
 .rbub .rb-w{font-size:12.5px;font-weight:700;color:var(--text);line-height:1.4}
 .rbub small svg.ic{width:13px;height:13px;margin-right:2px}

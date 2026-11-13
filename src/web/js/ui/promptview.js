@@ -14,7 +14,8 @@ window.QJZ = window.QJZ || {};
 //   render(layoutEl, layoutName, view)  draws view = {kind, icon, title, sub, waterLine, buttons:[{id, label}]}: the
 //       title, sub, water line and buttons in order (U5-B: the title and the buttons). Each button is a
 //       <button data-answer="<id>" data-hit>. Texts go in through textContent; focus() is never called. A null view
-//       clears. -> true when the layout has a slot for it.
+//       clears. -> true when the layout has a slot for it. In the title and the water line each 「～」 shares a span.nobr
+//       with the character before it, so no line starts with one (final review I-1).
 //   clear(layoutEl)  empties the slots and drops .prompting.
 //   wave(layoutEl, layoutName)  one knock (§4.2 敲窗): M3's ring, U13's big ring, U5-B's pill, U10's capsule (a pop, as
 //       a call rings), else the bubble. Each call is one run that replaces the last, never a loop. -> the Animation, or
@@ -39,6 +40,20 @@ QJZ.promptView = (function () {
     n.innerHTML = QJZ.icons ? QJZ.icons.svg(name) : '';   // static markup (QJZ.icons)
     return n;
   }
+  // The copy into n, each 「～」 kept on the line of the character before it (final review I-1): that character and its
+  // 「～」 go in one span.nobr (health.css: an inline-block that never wraps), so a line may break after a 「～」 but
+  // never before one. The text itself is the copy, unchanged (textContent).
+  function glued(n, text) {
+    var s = String(text), re = /[^～]～+/g, at = 0, m;
+    while ((m = re.exec(s))) {
+      if (m.index > at) n.appendChild(document.createTextNode(s.slice(at, m.index)));
+      n.appendChild(el('span', 'nobr', m[0]));
+      at = m.index + m[0].length;
+    }
+    if (at < s.length) n.appendChild(document.createTextNode(s.slice(at)));
+    return n;
+  }
+  function title(tag, cls, view) { return glued(el(tag, cls), view.title); }
   function buttons(list, tag) {
     var row = el(tag, 'rb-btns');
     (list || []).forEach(function (b) {
@@ -53,14 +68,13 @@ QJZ.promptView = (function () {
   function waterLine(view, cls) {
     var w = el('small', cls);
     w.innerHTML = QJZ.icons ? QJZ.icons.svg('drop') : '';   // static markup (QJZ.icons)
-    w.appendChild(document.createTextNode(view.waterLine));
-    return w;
+    return glued(w, view.waterLine);
   }
   function bubble(view, name) {
     var b = el('div', 'rbub ' + (TAIL[name] || 't-bl') + (SMALL[name] || ''));
     b.setAttribute('data-hit', '');
     b.appendChild(icon(view.icon, 'rb-ic' + (TONE[view.icon] ? ' ' + TONE[view.icon] : '')));
-    b.appendChild(el('b', 'rb-t', view.title));
+    b.appendChild(title('b', 'rb-t', view));
     if (view.sub) b.appendChild(el('small', 'rb-s', view.sub));
     if (view.waterLine) b.appendChild(waterLine(view, 'rb-w'));
     b.appendChild(buttons(view.buttons, 'div'));
@@ -68,7 +82,7 @@ QJZ.promptView = (function () {
   }
   function call(view) {
     var f = document.createDocumentFragment(), col = el('span', 'icol');
-    col.appendChild(el('b', 'imsg', view.title));
+    col.appendChild(title('b', 'imsg', view));
     if (view.sub) col.appendChild(el('span', 'isub', view.sub));
     if (view.waterLine) col.appendChild(waterLine(view, 'isub'));
     f.appendChild(col);
@@ -79,14 +93,14 @@ QJZ.promptView = (function () {
     var f = document.createDocumentFragment();
     f.appendChild(icon(view.icon, 'rb-ic2'));
     if (view.sub) f.appendChild(el('small', 'rb-s', view.sub));
-    f.appendChild(el('b', 'rb-t', view.title));
+    f.appendChild(title('b', 'rb-t', view));
     if (view.waterLine) f.appendChild(waterLine(view, 'rb-w'));
     f.appendChild(buttons(view.buttons, 'div'));
     return f;
   }
   function line(view) {
     var f = document.createDocumentFragment(), call = icon(view.icon, 'call' + (TONE[view.icon] ? ' ' + TONE[view.icon] : ''));
-    call.appendChild(el('span', 'ct', view.title));
+    call.appendChild(title('span', 'ct', view));
     f.appendChild(call);
     f.appendChild(buttons(view.buttons, 'span'));
     return f;

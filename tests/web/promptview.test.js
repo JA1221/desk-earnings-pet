@@ -640,4 +640,75 @@
     eq($$(e, '.u12 .hot').length, 0, 'answered: no glow');
     done();
   });
+
+  // ---------- typesetting (final review I-1) ----------
+  // The lines of el as drawn: each character's box (a Range), a new line wherever one sits lower than the last by more
+  // than half the font size. Characters that draw nothing (a space at a line end) are left out.
+  function drawnLines(el) {
+    var half = parseFloat(getComputedStyle(el).fontSize) / 2, lines = [], mid = null, boxes = [];
+    var walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n;
+    while ((n = walk.nextNode())) {
+      for (var i = 0; i < n.data.length; i++) {
+        var r = document.createRange();
+        r.setStart(n, i);
+        r.setEnd(n, i + 1);
+        var rc = r.getClientRects();
+        if (!rc.length || !(rc[0].width > 0)) continue;
+        var m = (rc[0].top + rc[0].bottom) / 2;
+        if (mid === null || m > mid + half) lines.push('');
+        mid = m;
+        lines[lines.length - 1] += n.data.charAt(i);
+        boxes.push(rc[0]);
+      }
+    }
+    return { lines: lines, boxes: boxes };
+  }
+  // Every title of QJZ.prompt (each line of both / sit / water, the breaks short and long, with and without the water
+  // line, 休息結束) in all 8 layouts, U13's ring and U5-B's narrow line included: 「～」 never starts a line and is never
+  // alone on one; the title keeps its text and stays inside its box.
+  test('promptView: 「～」 never starts a line, in every title and every layout (I-1)', function () {
+    var views = [];
+    ['both', 'sit', 'water'].forEach(function (k) {
+      QJZ.prompt.LINES[k].forEach(function (t, i) {
+        views.push(QJZ.prompt.view({ kind: k, water: false, shownMs: 0 }, { turn: i, min: 50, cups: 3, cupGoal: 8 }));
+      });
+    });
+    [[false, 5, false], [false, 30, true], [true, 15, false], [true, 60, true]].forEach(function (b) {
+      views.push(QJZ.prompt.view({ kind: 'break', water: b[2], shownMs: 0 }, { long: b[0], breakMin: b[1], done: 3 }));
+    });
+    views.push(QJZ.prompt.view({ kind: 'breakEnd', water: false, shownMs: 0 }, {}));
+    var tildes = views.filter(function (v) { return v.title.indexOf('～') >= 0; }).length;
+    ok(tildes >= 12, 'the titles with 「～」: ' + tildes);
+    var bad = [], checked = 0, wrapped = 0;
+    ['U1', 'U3', 'U5B', 'U7', 'M3', 'U10', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(9, 0), { first: name }), lay = $(e, '.lay');
+      views.forEach(function (v) {
+        ok(QJZ.promptView.render(lay, name, v), name + ': drawn');
+        var slot = lay.querySelector('[data-prompt],[data-prompt-line],[data-prompt-call],[data-prompt-ring]');
+        var texts = [[slot.querySelector('.rb-t, .ct, .imsg'), v.title]];
+        var wl = v.waterLine && slot.querySelector('.rb-w, .icol > .isub:last-child');   // (U5-B's line has none)
+        if (wl) texts.push([wl, v.waterLine]);
+        texts.forEach(function (tv) {
+          var el = tv[0], want = tv[1];
+          ok(el && drawn(el), name + ': ' + want + ' drawn');
+          eq(el.textContent, want, name + ': the copy verbatim');
+          var d = drawnLines(el), box = el.getBoundingClientRect(), what = name + ' 「' + d.lines.join(' / ') + '」';
+          checked++;
+          if (d.lines.length > 1) wrapped++;
+          eq(d.lines.join('').replace(/\s/g, ''), want.replace(/\s/g, ''), what + ': every character drawn once');
+          d.lines.forEach(function (l, i) {
+            if (i > 0 && l.charAt(0) === '～') bad.push(what + ': line ' + (i + 1) + ' starts with 「～」');
+            if (/^～+$/.test(l.replace(/\s/g, ''))) bad.push(what + ': 「～」 alone on line ' + (i + 1));
+          });
+          if (getComputedStyle(el).overflow !== 'hidden' && d.boxes.some(function (r) { return r.left < box.left - 1 || r.right > box.right + 1; })) {
+            bad.push(what + ': out of its box');
+          }
+        });
+      });
+      QJZ.promptView.clear(lay);
+      done();
+    });
+    eq(bad, []);
+    ok(checked >= 8 * views.length && wrapped >= 20, 'checked ' + checked + ', of which wrapped ' + wrapped);
+  });
 })();
