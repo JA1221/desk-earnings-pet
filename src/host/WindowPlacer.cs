@@ -182,6 +182,12 @@ public class WindowPlacer
         return LayoutMove.Anchor;
     }
 
+    // Whether layout has an entry of its own in window.json: any layout name but the anchor's (WindowPositions.AnchorKey).
+    public static bool LayoutEntry(string layout)
+    {
+        return layout != null && layout != WindowPositions.AnchorKey;
+    }
+
     // setLayout's inPlace (1.1.2 item 3): only the JSON true asks for it.
     public static bool InPlaceAsked(Dictionary<string, object> setLayout)
     {
@@ -237,7 +243,7 @@ public class WindowPlacer
     public void RememberSize(string layout, Size cssSize)
     {
         Size old;
-        if (layout == null || (positions.TryGetSize(layout, out old) && old == cssSize)) return;
+        if (!LayoutEntry(layout) || (positions.TryGetSize(layout, out old) && old == cssSize)) return;
         positions.SetSize(layout, cssSize);
         files.Save(files.Window, positions.ToJson());
     }
@@ -253,7 +259,7 @@ public class WindowPlacer
     public void Remember(string layout, Point location)
     {
         Point old;
-        if (layout == null || (positions.TryGet(layout, out old) && old == location)) return;
+        if (!LayoutEntry(layout) || (positions.TryGet(layout, out old) && old == location)) return;
         positions.Set(layout, location);
         files.Save(files.Window, positions.ToJson());
     }

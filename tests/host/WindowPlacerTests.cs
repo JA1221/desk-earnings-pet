@@ -367,6 +367,15 @@ public static class WindowPlacerTests
         Assert.True(!WindowPlacer.DragMovesAnchor(null), "no layout yet");
     }
 
+    // The anchor's entry is not a layout's: a layout of that name (never sent by the page) may not overwrite it.
+    public static void Test_LayoutEntries()
+    {
+        foreach (string l in new[] { "U1", "U3", "U5B", "U7", "M3", "U10", "U12", "U13" })
+            Assert.True(WindowPlacer.LayoutEntry(l), l + " has its own entry");
+        Assert.True(!WindowPlacer.LayoutEntry(WindowPositions.AnchorKey), "\"anchor\" is the anchor's");
+        Assert.True(!WindowPlacer.LayoutEntry(null), "no layout");
+    }
+
     public static void Test_RescueSizeIsSavedElseDefault()
     {
         Assert.Eq(new Size(347, 593), WindowPlacer.RescueSize(new Size(347, 593)), "the start layout's saved CSS size");
