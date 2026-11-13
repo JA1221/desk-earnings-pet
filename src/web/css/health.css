@@ -30,12 +30,16 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .tom-btn .cnt{position:absolute;right:-9px;top:-9px;min-width:22px;height:20px;border-radius:99px;background:var(--bar);border:2px solid var(--line);
   font-weight:700;font-size:11.5px;display:grid;place-items:center;padding:0 4px;line-height:1}
 
-/* ---------- U1 (A_U1_3): three small pills under the 每秒 line ---------- */
-.mpills{display:flex;justify-content:center;gap:6px;margin-top:8px}
+/* ---------- U1 (A_U1_3): three small pills under the 每秒 line ----------
+   1.1.2 item 4: the 番茄鐘 button in the middle, as wide for ▶ 番茄鐘 as for ■ 停止; the cups on its left and the
+   tomatoes on its right come and go without moving it (equal side columns). */
+.mpills{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:6px;margin-top:8px}
+.mpills .mps{display:flex;gap:6px;min-width:0}
+.mpills .mps.l{justify-content:flex-end}
 .mp{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;background:#fff;border:2px solid var(--line);border-radius:99px;
   padding:1px 10px 1px 5px;box-shadow:2px 2px 0 var(--line);white-space:nowrap;line-height:1.45;color:var(--text)}
 .mp svg.ic{width:15px;height:15px}
-.mp.go{background:var(--bar);padding:1px 10px}
+.mp.go{background:var(--bar);padding:1px 6px;width:76px;justify-content:center}
 .lay:is(.p-foc,.p-brk) .mp.go{background:#fff}
 
 /* ---------- U3 (A_U3_2, no bottle): the water and tomato buttons in one row, right of the money ---------- */
@@ -43,6 +47,8 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u3 .tomslots{grid-column:3;grid-row:1/span 2;display:flex;gap:10px;align-items:flex-start;pointer-events:auto}
 .u3 .tomslot{display:flex;flex-direction:column;align-items:center;gap:3px}
 .u3 .tomslot .n{font-size:13px;line-height:1.2}
+/* the tomato count's line is kept when it does not show (1.1.2 item 4): the tomato button never moves */
+.u3 .tomslot .cap{display:block;height:16px}
 
 /* ---------- U5-B (A_U5_2): the right column ---------- */
 .u5b .rcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;margin-left:8px;padding-left:12px;border-left:2.5px dashed var(--dash);
@@ -51,13 +57,14 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .rcol .tom-btn svg.ic{width:31px;height:31px}
 .u5b .rcol .lbl2{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:2px;white-space:nowrap;background:none;border:0;padding:1px 2px;line-height:1.3}
 .u5b .rcol .lbl2 svg.ic{width:14px;height:14px}
+/* the cups' line is kept when they do not show (1.1.2 item 4): the tomato button never moves */
+.u5b .rcol .cap{display:flex;justify-content:center;width:48px;height:17px}   /* (a longer count overflows it evenly) */
 
-/* ---------- 1.1.1 item 6: the next stand-up, compact (🧍 N 分), a readout that never moves ---------- */
+/* ---------- 1.1.1 item 6: the next stand-up, compact (🧍 N 分), a readout that never moves ----------
+   U1's sits in the top row beside the status (1.1.2: the pills keep the 番茄鐘 button in their middle) */
 .mp.st{gap:2px;padding:1px 8px 1px 4px}
-/* U1 with the countdown too: the four pills tighten a little, so even 10/12 杯・×12・▶ 番茄鐘・119 分 keeps one line */
-.mpills:has(> .st:not([hidden])){gap:4px}
-.mpills:has(> .st:not([hidden])) .mp{padding-left:4px;padding-right:8px}
-.mpills:has(> .st:not([hidden])) .mp.go{padding:1px 8px}
+.u1 .row-top{gap:8px}
+.u1 .row-top .st{margin-left:auto}
 .u3 .hud-top .pill.st{gap:3px;padding:4px 10px 4px 7px}
 .u3 .hud-top .pill.st svg.ic{width:16px;height:16px}
 .u5b .mtop .st{display:inline-flex;align-items:center;gap:2px}
@@ -241,7 +248,7 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
 .u10.prompting .isl > .iv:not(.iv-r){display:none}   /* (also over the countdown of a break) */
 .u10.prompting .isl > .iv-r{display:flex}
 .isl .gd{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--st-bg);flex:none}
-.isl .im{font-family:"Fredoka",var(--font);font-weight:700;font-size:16px;line-height:1.2;color:#FFC857}
+.isl .im{font-family:"Fredoka",var(--font);font-weight:700;font-size:16px;line-height:1.2;color:#FFC857;font-variant-numeric:tabular-nums}
 .isl .im.sm{font-size:13px}
 .isl .iv-x .im{font-size:30px;line-height:1.05}
 .u10.p-foc .isl .iv-f .im:not(.sm){color:#FF9A85}
@@ -251,9 +258,13 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
   font-family:"Fredoka",var(--font);font-weight:700;font-size:12px;line-height:1.35}
 .isl .ichip svg.ic{width:14px;height:14px}
 .isl button.ichip:active{transform:translate(1px,1px)}
-.isl .ichip .go{margin-left:3px}
+.isl .ichip .go{margin:0 3px}
+.isl .iv-x .ichip[data-act=pomo]{min-width:74px}   /* room for 🍅 ■ ×12: its count never widens it (1.1.2 item 4) */
 .isl .isub{font-size:11.5px;font-weight:700;color:#E8D9C4;display:inline-flex;align-items:center;gap:5px}
 .isl .icol{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+/* the chips: the 番茄鐘 button first, the column as wide as its widest chip can get, so nothing moves the button
+   (1.1.2 item 4; the money beside it has even digits for the same reason) */
+.isl .icol.chips{min-width:92px;min-height:66px}   /* three chips' room: the first never moves up or down */
 .isl .ibar{display:block;height:9px;width:170px;border-radius:99px;background:#5A463C;overflow:hidden}
 .isl .ibar i{display:block;height:100%;width:0;background:repeating-linear-gradient(-45deg,#FFC857 0 5px,#FFB627 5px 10px)}
 .isl .iv-r .icol{gap:2px}
@@ -332,15 +343,17 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
 .bigring.rest{--c:var(--rest)}
 .bigring b{font-family:"Fredoka",var(--font);font-size:44px;line-height:1;font-weight:700}
 .bigring small{font-size:11.5px;font-weight:700;color:var(--sub)}
-/* idle: the whole ring is the 開始專心 button */
-.bigring .br-go{position:absolute;inset:0;border-radius:50%;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:2px}
-.bigring .br-go .go{margin-top:6px;font-size:13.5px;font-weight:700;line-height:1.2;background:var(--bar);border:2.5px solid var(--line);border-radius:99px;
-  padding:5px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
-.bigring .br-go:active .go{transform:translate(1px,1px)}
-.bigring .br-run{display:none;flex-direction:column;align-items:center;gap:2px}
-.u13:is(.p-foc,.p-brk) .bigring .br-go{display:none}
+/* the whole ring is the one 番茄鐘 button (1.1.2 item 4): what it counts above, and ▶ 開始專心 or ■ 停止 always on the
+   same spot under it, inside the ring's hole */
+.bigring .br-go{position:absolute;inset:0;border-radius:50%;border:0;background:none;padding:0 0 76px;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end}
+.bigring .br-idle,.bigring .br-run{display:flex;flex-direction:column;align-items:center;gap:2px}
+.bigring .br-run,.u13:is(.p-foc,.p-brk) .bigring .br-idle{display:none}
 .u13:is(.p-foc,.p-brk) .bigring .br-run{display:flex}
+.bigring .br-go .go{position:absolute;left:50%;top:120px;transform:translateX(-50%);font-size:13.5px;font-weight:700;line-height:1.2;background:var(--bar);
+  border:2.5px solid var(--line);border-radius:99px;padding:5px 14px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
+.u13:is(.p-foc,.p-brk) .bigring .br-go .go{background:#fff}
+.bigring .br-go:active .go{transform:translate(calc(1px - 50%),1px)}
 /* a prompt sits inside the ring (Ruling C4, G_U13_rem): the ring goes full and green with a thinner band, glows, and
    holds nothing else. Three buttons wrap two and one, without the icon and the sub, so every line stays inside. */
 .u13.prompting .bigring{--p:100!important;--c:var(--rest);--hole:88%;--rs:4px 4px 0 var(--line),0 0 0 4px var(--glow);animation:ringhot 1.3s ease-in-out 3}
@@ -363,12 +376,7 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
 .pomo1 .tsl svg.ic{width:21px;height:21px}
 .pomo1 .tsl.many svg.ic{width:16px;height:16px}
 .pomo1 .tsl svg.ic.e{opacity:.25}
-/* 停止 only while a phase runs; its room is always kept, so the window keeps its size */
-.pomo1 .pbtns{display:flex;gap:8px;visibility:hidden}
-.u13:is(.p-foc,.p-brk) .pbtns{visibility:visible}
-.pomo1 .pbtns .stop{font-size:12.5px;font-weight:700;line-height:1.2;background:#fff;border:2px solid var(--line);border-radius:99px;padding:3px 10px;
-  box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
-.pomo1 .pbtns .stop:active{transform:translate(1px,1px)}
+
 .pomo1 .pline{display:flex;align-items:center;gap:4px;min-height:16px;font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .pomo1 .pline .pp{display:inline-flex;align-items:center;gap:3px}
 .pomo1 .pline svg.ic{width:15px;height:15px}

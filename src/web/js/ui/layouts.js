@@ -250,7 +250,7 @@ QJZ.layouts = (function () {
       showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
       snoozed: base !== null && !!cs.snoozed,   // 等一下 runs: the countdown to its end, with 💤 (1.1.2)
       showStandC: stand !== null && phase !== 'focus', standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
-      pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
+      pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶', pomoGo: phase ? '■ 停止' : '▶ 開始專心',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
       nth: nth,
