@@ -379,7 +379,9 @@ QJZ.layouts = (function () {
   // ================= runtime =================
   var root = null, bridge = null, first = null, session = null, resumeAt = null;
   var cur = null, panelKind = 'settings', panelFrom = null, shown = false;
-  var inPlace = null;    // PANEL in the window it came from (1.1.2 item 3): {from, width, height}, that window's size
+  // PANEL in the window it came from (1.1.2 item 3): {from, width, height (the window's size, as sent), w, h (the layout
+  // root's own box, which the panel takes: the page may put the root anywhere, dev.html pads it)}
+  var inPlace = null;
   var view = null;
   var sent = { size: '', hits: '', menu: '', dims: null };   // dims: the last setLayout's {width, height}
   var drag = null;       // {x, y} while the primary button is down on a draggable spot
@@ -1077,9 +1079,9 @@ QJZ.layouts = (function () {
     view = build(name, name === 'PANEL' && inPlace ? { from: inPlace.from } : null);
     try {
       if (name === 'PANEL' && panels()) panels()._mount(view.el, panelKind);
-      if (name === 'PANEL' && inPlace) {   // the window's size, less the hard shadow (as measured for the others)
-        view.el.style.width = (inPlace.width - SHADOW) + 'px';
-        view.el.style.height = (inPlace.height - SHADOW) + 'px';
+      if (name === 'PANEL' && inPlace) {   // the box of the layout it came from, so the window's size stays
+        view.el.style.width = inPlace.w + 'px';
+        view.el.style.height = inPlace.h + 'px';
       }
       render();
       drawPrompt();   // the prompt that shows, in this layout's slot, before the size goes out
@@ -1126,8 +1128,9 @@ QJZ.layouts = (function () {
   function openPanel(kind) {
     panelKind = panels() && panels().has(kind) ? kind : 'settings';
     if (cur !== 'PANEL') {
-      inPlace = INPLACE.indexOf(cur) >= 0 && INPLACE_KINDS.hasOwnProperty(panelKind) && sent.dims ?
-        { from: cur, width: sent.dims.width, height: sent.dims.height } : null;
+      inPlace = INPLACE.indexOf(cur) >= 0 && INPLACE_KINDS.hasOwnProperty(panelKind) && sent.dims && view ?
+        { from: cur, width: sent.dims.width, height: sent.dims.height, w: view.el.getBoundingClientRect().width,
+          h: view.el.getBoundingClientRect().height } : null;
     }
     return show('PANEL');
   }

@@ -3021,6 +3021,7 @@
   test('layouts DOM: 設定 and 紀錄 from U1, U12 and U13 open in the same window, at its size, under its own title bar', function () {
     ['U1', 'U12', 'U13'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true }), was = last(e.sent, 'setLayout'), title = text(e, '[data-b=title]');
+      var own = $(e, '.lay').getBoundingClientRect();
       var gear = function () { return $(e, '.bar [data-act=settings]'); };
       function pressed() { return [gear().classList.contains('on'), gear().getAttribute('aria-pressed')]; }
       gear().click();
@@ -3028,7 +3029,7 @@
       eq(last(e.sent, 'setLayout'), { layout: 'PANEL', inPlace: true, width: was.width, height: was.height, dpr: window.devicePixelRatio },
         name + ': the same window at the same size');
       var win = $(e, '.win.panel'), r = win.getBoundingClientRect();
-      eq([r.width, r.height], [was.width - 7, was.height - 7], name + ': the panel fills it (its shadow as before)');
+      eq([r.width, r.height], [own.width, own.height], name + ': the panel takes the layout box (its shadow as before)');
       ok(win.classList.contains('inplace') && win.classList.contains('p-settings'), name);
       eq([text(e, '[data-b=title]'), text(e, '.ptitle')], [title, '設定'], name + ': its own title');
       eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
@@ -3060,6 +3061,15 @@
       eq('inPlace' in last(e.sent, 'setLayout'), false, name + ': from M3: beside it, as before');
       done();
     });
+    // wherever the page puts the layout (dev.html pads it): the panel takes the window's own box, the same size
+    var g = mk(at(12, 10, 0), { first: 'U13', care: true }), box = $(g, '.u13').getBoundingClientRect();
+    g.root.style.left = g.root.style.top = '14px';
+    window.dispatchEvent(new Event('resize'));
+    $(g, '.bar [data-act=settings]').click();
+    var pr = $(g, '.win.panel').getBoundingClientRect();
+    g.root.style.left = g.root.style.top = '0px';
+    eq([pr.width, pr.height], [box.width, box.height], 'an offset page: the same box');
+    done();
     ['U3', 'U5B', 'U7', 'U10'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true });
       e.menu('settings');

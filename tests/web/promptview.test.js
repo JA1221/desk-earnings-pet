@@ -171,7 +171,8 @@
     eq(p.textContent, '起來動一動，順便喝口水～' + '已經坐 50 分鐘囉・今天 0/8 杯' + '喝了起來了等一下');
     eq(buttons(p), ['drink 喝了', 'up 起來了', 'later 等一下']);
     // B 方案 1: a big bubble at the top right, over the status row, inside the window
-    var win = $(e, '.u1').getBoundingClientRect(), b = box($(e, '.u1 .rbub')), st = $(e, '.u1 .status').getBoundingClientRect();
+    // (all in page coordinates: an earlier test that focused a field below the headless window may leave it scrolled)
+    var win = box($(e, '.u1')), b = box($(e, '.u1 .rbub')), st = box($(e, '.u1 .status'));
     ok(b.right <= win.right - 4 && b.left > win.left + win.width / 3 && b.top < st.bottom && b.bottom > st.top && b.right >= st.right - 2,
       'top right, over the status row: ' + JSON.stringify([b.left, b.top, b.right, b.bottom]));
     ok(b.width >= 180, 'bigger than a speech bubble: ' + b.width);
