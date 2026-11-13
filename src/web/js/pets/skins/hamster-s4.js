@@ -41,7 +41,9 @@
           holdArm: { paws: [[108, 135, 0], [128, 135, 0]] },
           scratch: { paw: [70, 95, 0] },
           pack: { lift: 6,
-            desk: { bag: [176, 141, 0.86], wave: [72, 96, 0], rest: [166, 126, 0] } }
+            desk: { bag: [176, 141, 0.86], wave: [72, 96, 0], rest: [166, 126, 0] } },
+          hello: { paw: [67, 104, 0], pivot: [73, 110] }, glass: [118, 137, 0.9], glassArm: { paws: [[107.5, 139, 0], [128.5, 139, 0]] },
+          phones: { l: [69, 104, -8], r: [167, 104, 8], size: [13, 21] }
         },
         poses: {
           // the circle flattens into a wide oval over the keyboard

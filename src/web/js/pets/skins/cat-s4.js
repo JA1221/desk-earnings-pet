@@ -69,7 +69,10 @@
           up: { ink: 'back', fill: 'over', w: [13, 10], arms: [[[84, 140], [60, 103], -30], [[152, 140], [176, 103], 30]] },
           holdArm: { paws: [[107, 136, 0], [129, 136, 0]] },
           scratch: { ink: 'back', fill: 'over', w: 11, arm: [[82, 134], [60, 114], [64, 90]], paw: [68, 82, 0] },
-          pack: { lift: 5, desk: { bag: [178, 141, 0.86], rest: [164, 128, 0] } }
+          pack: { lift: 5, desk: { bag: [178, 141, 0.86], rest: [164, 128, 0] } },
+          hello: { ink: 'back', fill: 'over', w: [13, 10], arm: [[84, 138], [58, 96], -35] }, glass: [118, 139, 0.88], bang: [179, 78],
+          glassArm: { paws: [[107, 140, 0], [129, 140, 0]] },
+          phones: { l: [67, 112, -8], r: [169, 112, 8], size: [13, 21] }
         },
         poses: {
           // the circle flattens into a wide oval over the keyboard, tail curled beside it

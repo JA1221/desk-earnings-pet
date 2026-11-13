@@ -59,7 +59,9 @@
           holdArm: { paws: [[110, 143, 25], [126, 143, -25]] },
           scratch: { paw: [69, 115, -55] },
           pack: { lift: 8,
-            desk: { bag: [178, 141, 0.86], wave: [66, 112, -45], rest: [168, 124, -25] } }
+            desk: { bag: [178, 141, 0.86], wave: [66, 112, -45], rest: [168, 124, -25] } },
+          hello: { paw: [67, 113, -50], pivot: [73, 119] }, glass: [118, 143, 0.64], glassArm: { paws: [[109, 144, 35], [127, 144, -35]] },
+          phones: { l: [67, 121, -8], r: [169, 121, 8], size: [12, 19] }
         },
         poses: {
           // the mochi melts flat over the keyboard

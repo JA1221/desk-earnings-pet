@@ -137,11 +137,11 @@ QJZ.pets.compose = (function () {
 
     // arms (desk pose only: the lying and dangling drawings bring their own). A held prop brings holding paws, unless
     // the state's own arms hold it (rig.GRIP: hold, and the 1.1 glass and one-paw cup)
-    var GRIP = P.rig.GRIP, arms = { back: '', front: '', over: '', grip: '' };
+    var GRIP = P.rig.GRIP, arms = { back: '', under: '', front: '', over: '', grip: '' };
     var mode = held ? (GRIP[st.arms] ? st.arms : 'hold') : bag ? 'wave' : st.arms;
     if (pose === 'desk') {
       var a = P.rig.arms(rig, mode), z = alt.arms ? P.rig.arms(rig, alt.arms) : null;
-      ['back', 'front', 'over', 'grip'].forEach(function (k) {
+      ['back', 'under', 'front', 'over', 'grip'].forEach(function (k) {
         if (!z) arms[k] = a[k] || '';
         else arms[k] = (a[k] ? '<g class="pose-a">' + a[k] + '</g>' : '') + (z[k] ? '<g class="pose-b">' + z[k] + '</g>' : '');
       });
@@ -168,7 +168,7 @@ QJZ.pets.compose = (function () {
       behind = '';
       front = '<g class="pa">' + layer(prop(pr.back) + (pl.back || '')) + layer(pl.pre) + layer(pl.front) + layer(prop(pr.front)) + layer(pl.post) + '</g>';
     } else {
-      behind = bod(up(layer(prop(pr.back) + arms.back + (L.back || '')) + layer(L.pre)));
+      behind = bod(up(layer(prop(pr.back) + arms.back + arms.under + (L.back || '')) + layer(L.pre)));
       front = bod(up(layer(prop(pr.front) + arms.front) + layer(L.post)));
     }
     var desk = seed + extra(pr.desk);

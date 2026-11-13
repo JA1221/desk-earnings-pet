@@ -224,7 +224,8 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 /* wave 跳起來揮手（敲窗）: little jumps, the left paw waving hard, knock marks bursting in time, a ! popping */
 .pet-svg.st-wave .bod{animation:jumpy .9s ease-in-out infinite}
 @keyframes jumpy{0%,100%{transform:translateY(0) scale(calc(1 + .03 * var(--m)),calc(1 - .06 * var(--m)))}16%{transform:translateY(calc(-3px * var(--m))) scale(calc(1 - .04 * var(--m)),calc(1 + .05 * var(--m)))}42%{transform:translateY(calc(-11px * var(--m))) scale(1,1)}62%{transform:translateY(calc(-8px * var(--m))) scale(1,1)}86%{transform:translateY(0) scale(calc(1 + .035 * var(--m)),calc(1 - .07 * var(--m)))}}
-.pet-svg.st-wave .head,.pet-svg.st-wave .squish{animation:giddy .6s ease-in-out infinite}
+/* the head tilts, but a mochi (.squish: the whole body) does not, so a waving arm grown from it stays on (cat P4) */
+.pet-svg.st-wave .head{animation:giddy .6s ease-in-out infinite}
 .pet-svg:is(.st-wave,.st-holdCup) .armL{animation:hi .3s ease-in-out infinite alternate}
 @keyframes hi{from{transform:rotate(calc(-6deg * var(--m)))}to{transform:rotate(calc(8deg * var(--m)))}}
 /* a hamster has no arm: its paw rocks further about the wrist */
@@ -244,7 +245,7 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 @keyframes cupB{0%,96%{opacity:0}97%,100%{opacity:1}}
 .pet-svg.st-holdCup .bod{animation:rock .6s ease-in-out 6,offer 3.2s ease-in-out 3.6s infinite}
 @keyframes offer{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-1.5px * var(--m))) rotate(calc(1.2deg * var(--m)))}}
-.pet-svg.st-holdCup .head,.pet-svg.st-holdCup .squish{animation:giddy 1.2s ease-in-out 3}
+.pet-svg.st-holdCup .head{animation:giddy 1.2s ease-in-out 3}
 .pet-svg.st-holdCup .held{animation:cupBob 3.2s ease-in-out 4s infinite}
 @keyframes cupBob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-1.2px * var(--m))) rotate(calc(-3deg * var(--m)))}}
 /* sip 喝一口 (SIP_MS, once): the straw to the mouth, eyes shut, three gulps and the water going down; then ^^ */

@@ -620,9 +620,7 @@
     } finally { if (had === undefined) delete d.poses11; else d.poses11 = had; }
   });
 
-  // Task 17 Step 0, the draft gate: the four poses drawn for the two default skins first, shown only with preview
-  var DRAFTED = ['hamster:p0', 'cat:p0'];
-
+  // ---------- Task 17: the 1.1 poses drawn for all 10 skins, shown only with preview until the skins declare them ----------
   test('pets: the 1.1 poses are states by name, outside the 1.0 review order', function () {
     var P = QJZ.pets;
     eq(P.states.NAMES, STATES, 'NAMES stays the 18 1.0 states');
@@ -634,63 +632,110 @@
     });
   });
 
-  test('pets: the 1.1 poses compose for hamster P0 and cat P0 with preview, and stay stand-ins without it', function () {
+  test('pets: every skin composes the new poses', function () {
     var P = QJZ.pets;
-    DRAFTED.forEach(function (id) {
+    eq(all().length, 10, 'ten skins');
+    all().forEach(function (d) {
+      var id = d.id;
       P.NEW_POSES.forEach(function (s) {
         VIEWS.forEach(function (view) {
           var at = id + ' ' + s + ' ' + view + ': ', svg = P.compose(id, view, { state: s, preview: true }), doc = parse(svg), root = doc.documentElement;
           eq(doc.getElementsByTagName('parsererror').length, 0, at + 'parses');
           ok(!/<!--[A-Z]+-->/.test(svg) && !/undefined|NaN|\$\{|\[object/.test(svg), at + 'no leftover slot or value');
-          ok(hasClass(root, 'st-' + s) && hasClass(root, 'kind-' + P.get(id).kind), at + 'root classes');
+          ok(hasClass(root, 'st-' + s) && hasClass(root, 'kind-' + d.kind), at + 'root classes');
           eq(unresolved(svg), [], at + 'refs');
           var ids = svgIds(svg);
           eq(ids.length, ids.filter(function (x, i, a) { return a.indexOf(x) === i; }).length, at + 'duplicate id');
           ok(inBody(doc.querySelector('.look')), at + 'eyes ride on the head');
-          if (P.get(id).kind === 'hamster') ok(svg.indexOf('class="limb"') < 0, at + 'no arm limbs');
+          if (d.kind === 'hamster') ok(svg.indexOf('class="limb"') < 0, at + 'no arm limbs');
           ok(hasClass(parse(P.compose(id, view, { state: s })).documentElement, 'st-' + P.FALLBACK[s]), at + 'the stand-in without preview');
         });
         var po = parse(P.compose(id, 'petonly', { state: s, preview: true }));
         if (s === 'wave' || s === 'holdCup') {
           ok(po.querySelector('.armL') && po.querySelector('.knock .knk') && po.querySelector('.knock .bang'), id + ' ' + s + ': waves, with knock marks and a !');
           ok(within(po.querySelector('.armL'), 'bod'), id + ' ' + s + ': the waving paw moves with the body');
+          if (d.kind === 'cat') ok(po.querySelector('.armL .limb'), id + ' ' + s + ': a cat waves with its arm');
         }
         if (s === 'holdCup' || s === 'sip') {
-          var water = po.querySelector('.held .lvl');
-          ok(water, id + ' ' + s + ': the glass is held');
+          ok(po.querySelector('.held .lvl'), id + ' ' + s + ': the glass is held');
           ok(po.querySelector('.held .pawL') === null, id + ' ' + s + ': holding paws, not the typing ones');
         }
         if (s === 'holdCup') ok(po.querySelector('.held .pose-a') && po.querySelector('.held .pose-b') && po.querySelector('.pose-a .armL'), id + ' holdCup: one paw on the glass while waving, then both');
         if (s === 'focus') {
-          var cups = po.querySelectorAll('.head rect[fill="#FF6B57"]');
-          eq(cups.length, 2, id + ' focus: two headphone cups on the head');
+          eq(po.querySelectorAll('.pa rect[fill="#FF6B57"]').length, 2, id + ' focus: two headphone cups');
+          ok(inBody(po.querySelector('.pa rect[fill="#FF6B57"]')), id + ' focus: the headphones ride on the head');
           ok(po.querySelector('.pawL') && po.querySelector('.pawR'), id + ' focus: typing');
         }
       });
     });
   });
 
-  test('pets: cat P0 waves with an arm that grows out from under its head, and sips with the straw in its mouth', function () {
+  // the root of a cat's waving arm lies inside its own body (the fur drawn over it hides the seam), the avatar never
+  // shows an arm's outline without its fur, and every sip straw ends in the middle of the tiny o mouth
+  test('pets: cats wave with arms grown out of the body; every sip straw is in the mouth', function () {
     var P = QJZ.pets, host = document.createElement('div');
     host.style.cssText = 'position:absolute;left:-2000px;top:0;width:176px;height:170px';
     document.body.appendChild(host);
-    try {
-      var rig = P.get('cat:p0').build('w0').rig, root = rig.hello.arm[0];
-      ['wave', 'holdCup'].forEach(function (s) {
-        host.innerHTML = P.compose('cat:p0', 'petonly', { state: s, preview: true });
-        var svg = host.firstElementChild, pt = svg.createSVGPoint(), limb = svg.querySelector('.armL .limb');
-        pt.x = root[0]; pt.y = root[1];
-        ok(limb, s + ': a grown arm');
-        ok(Array.prototype.some.call(svg.querySelectorAll('.head path'), function (p) { return p.getAttribute('fill') !== 'none' && p.isPointInFill(pt); }),
-          s + ': the arm root ' + root + ' is covered by the head, so no seam shows');
+    function bodyAt(svg, x, y) {
+      var pt = svg.createSVGPoint(); pt.x = x; pt.y = y;
+      return Array.prototype.some.call(svg.querySelectorAll('.pa path,.pa circle,.pa ellipse'), function (el) {
+        var f = el.getAttribute('fill');
+        return f && f !== 'none' && !el.closest('.armL,.prop,.held,.knock,clipPath,defs') && el.isPointInFill(pt);
       });
-      // the sip straw ends in the middle of the tiny o mouth
-      var face = P.get('cat:p0').build('w1').face;
-      host.innerHTML = P.compose('cat:p0', 'petonly', { state: 'sip', preview: true });
-      var mouth = host.querySelector('.mouth-a path'), straw = host.querySelector('.held path[stroke="#FF8A3D"]');
-      var m = mouth.getBBox(), sb = straw.getBBox(), g = straw.parentNode.transform.baseVal.consolidate().matrix;
-      ok(Math.abs(sb.y + g.f - (m.y + m.height / 2)) < 1.5 && Math.abs(sb.x + sb.width / 2 + g.e - face.mouth[0]) < 1.5,
-        'straw top ' + (sb.y + g.f) + ' at the mouth ' + (m.y + m.height / 2));
+    }
+    try {
+      P.list('cat').forEach(function (d) {
+        var rig = d.build('w0').rig, root = rig.hello.arm[0];
+        ['wave', 'holdCup'].forEach(function (s) {
+          host.innerHTML = P.compose(d.id, 'petonly', { state: s, preview: true });
+          ok(bodyAt(host.firstElementChild, root[0], root[1]), d.id + ' ' + s + ': the arm root ' + root + ' is inside the body');
+          host.innerHTML = P.compose(d.id, 'avatar', { state: s, preview: true });
+          var inks = host.querySelectorAll('.armL .limb[fill="' + rig.line[0] + '"]'), furs = host.querySelectorAll('.armL .limb:not([fill="' + rig.line[0] + '"])');
+          ok(inks.length === 0 || furs.length > 0, d.id + ' ' + s + ' avatar: no arm outline without its fur');
+        });
+      });
+      all().forEach(function (d) {
+        host.innerHTML = P.compose(d.id, 'petonly', { state: 'sip', preview: true });
+        var mouth = host.querySelector('.mouth-a path:not([fill="none"])'), straw = host.querySelector('.held path[stroke="#FF8A3D"]');
+        // the glass's own placement (translate, scale): the nearest transform attribute, not the animation's
+        var m = mouth.getBBox(), sb = straw.getBBox(), g = straw.parentNode.closest('[transform]').transform.baseVal.consolidate().matrix;
+        var top = g.d * sb.y + g.f, x = g.a * (sb.x + sb.width / 2) + g.e, my = m.y + m.height / 2, mx = m.x + m.width / 2;
+        ok(Math.abs(top - my) < 1.5 && Math.abs(x - mx) < 1.5, d.id + ': straw top ' + [x, top].map(Math.round) + ' at the mouth ' + [mx, my].map(Math.round));
+      });
+    } finally { host.remove(); }
+  });
+
+  test('pets: the crayon skins draw the new poses with no filter above a moving part, and with the saver grain', function () {
+    var P = QJZ.pets, host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-2000px;top:0;width:300px;height:200px';
+    document.body.appendChild(host);
+    function movingUnder(svg, sel) {
+      var bad = [];
+      Array.prototype.forEach.call(svg.querySelectorAll('*'), function (el) {
+        if (getComputedStyle(el).animationName === 'none') return;
+        var f = el.closest(sel);
+        if (f && svg.contains(f)) bad.push(el.getAttribute('class') || el.tagName);
+      });
+      return bad;
+    }
+    try {
+      ['hamster:s5', 'cat:s5'].forEach(function (id) {
+        P.NEW_POSES.forEach(function (s) {
+          VIEWS.forEach(function (view) {
+            var at = id + ' ' + s + ' ' + view + ': ';
+            host.innerHTML = P.compose(id, view, { state: s, preview: true });
+            eq(movingUnder(host.firstElementChild, '[filter]'), [], at + 'crayon off what moves');
+            ok(host.querySelectorAll('[filter*="-crayon"]').length > 0, at + 'still crayon');
+            var text = P.compose(id, view, { state: s, preview: true, saver: true }), ids = svgIds(text);
+            eq(text.indexOf('-crayon)'), -1, at + 'saver: no crayon filter');
+            eq(unresolved(text), [], at + 'saver: refs resolve');
+            eq(ids.filter(function (x, i) { return ids.indexOf(x) !== i; }), [], at + 'saver: each pattern once');
+            host.innerHTML = text;
+            ok(hasClass(host.firstElementChild, 'st-' + s), at + 'saver: the pose');
+            eq(host.querySelectorAll('.pa [filter],.tops [filter]').length, 0, at + 'saver: no filter on the pet');
+          });
+        });
+      });
     } finally { host.remove(); }
   });
 })();

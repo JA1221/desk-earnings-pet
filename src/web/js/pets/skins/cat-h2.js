@@ -100,7 +100,10 @@
           up: { ink: 'over', fill: 'over', w: [10.5, 8], arms: [[[77, 122], [58, 104], -40], [[159, 122], [178, 104], 40]] },
           holdArm: { paws: [[108, 143, 25], [128, 143, -25]] },
           scratch: { ink: 'over', fill: 'over', w: [10.5, 8], arm: [[78, 120], [72, 104]], paw: [74, 98, -40] },
-          pack: { lift: 6, desk: { bag: [178, 141, 0.86], rest: [164, 127, -20] } }
+          pack: { lift: 6, desk: { bag: [178, 141, 0.86], rest: [164, 127, -20] } },
+          hello: { ink: 'over', fill: 'over', w: [10.5, 8], arm: [[77, 122], [56, 100], -40] }, glass: [118, 143.5, 0.66], bang: [179, 92],
+          // the fish stays on top of the band
+          phones: { l: [65, 116, -10], r: [171, 116, 10], apex: 91.5, size: [12, 19], top: topFish(118, 86.4, -9, 1.3) }
         },
         poses: {
           lie: {

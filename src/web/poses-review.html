@@ -7,36 +7,46 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/pets.css">
 <style>
-  /* Review page for the 1.1 poses (Task 17, spec §5.8). Not shipped in the app. Every compose call passes
-     {preview:true} (Ruling R3), so a pose shows before its skin declares it.
-     URL params: ?rows=hamster:p0,cat:p0 (skin ids or a kind; default: the skins drawn so far, DRAWN below);
+  /* Review page for the 1.1 poses (Task 17, spec §5.8): 10 skins x 4 poses. Not shipped in the app. Every compose
+     call passes {preview:true} (Ruling R3), so a pose shows before its skin declares it.
+     URL params: ?rows=hamster:p0,cat (skin ids or a kind; default all 10);
+     ?sheet=grid one still row per skin: each pose's first and last key frame and its avatar (the contact sheet);
      ?sheet=1 a still contact sheet of key frames (for headless screenshots), with ?poses=wave,sip, ?frames=100,900
-     (ms) and ?w=<px> (page width) to look closer. */
+     (ms) and ?w=<px> (page width) to look closer; ?io=0 keeps every cell playing (headless shots: the
+     IntersectionObserver that pauses off-screen cells never lets a virtual-time screenshot finish). */
   :root{--gap:10px}
   html{background:#FFF8EC;-webkit-text-size-adjust:100%}
   body{min-height:100vh;background:#FFF8EC;color:var(--text);font-family:"Microsoft JhengHei UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;padding:0 16px 56px;overflow-x:hidden}
-  .num{font-family:Fredoka,"Microsoft JhengHei UI",sans-serif}
-  .wrap{max-width:860px;margin:0 auto}
+  .wrap{max-width:1080px;margin:0 auto}
 
   .top{display:flex;align-items:center;gap:14px;padding:22px 0 10px}
   .logo{width:52px;height:52px;border-radius:50%;background:#FFC857;border:3px solid var(--line);box-shadow:3px 3px 0 var(--line);overflow:hidden;flex:none}
   .logo svg{display:block;width:100%;height:100%}
   h1{font-size:24px;font-weight:800;line-height:1.2}
   h1 small{display:block;font-size:13px;font-weight:700;color:var(--sub);margin-top:3px}
-  .lede{font-size:14.5px;line-height:1.75;color:#6B5446;margin:6px 0 12px}
+  .lede{font-size:14.5px;line-height:1.75;color:#6B5446;margin:6px 0 12px;max-width:760px}
   .lede b{color:var(--text)}
-  .ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;align-items:center}
   .chip{font:inherit;font-weight:800;font-size:14px;border:3px solid var(--line);background:#fff;border-radius:99px;padding:6px 16px;box-shadow:3px 3px 0 var(--line);cursor:pointer;color:var(--text)}
   .chip.on{background:#8EE3B0}
   .chip:active{transform:translate(1px,1px)}
+  .seg{display:inline-flex;border:3px solid var(--line);border-radius:99px;box-shadow:3px 3px 0 var(--line);overflow:hidden;background:#fff}
+  .seg button{font:inherit;font-weight:800;font-size:14px;border:0;background:transparent;padding:6px 14px;cursor:pointer;color:var(--text)}
+  .seg button+button{border-left:3px solid var(--line)}
+  .seg button.on{background:#FFC857}
+  .jump{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+  .jump a{font-size:13px;font-weight:800;color:var(--text);text-decoration:none;background:#FFE08A;border:2px solid var(--line);border-radius:99px;padding:2px 11px}
 
-  .pose{margin-top:26px;background:#fff;border:3px solid var(--line);border-radius:22px;box-shadow:5px 5px 0 var(--line);padding:14px 14px 16px}
+  .pose{margin-top:26px;background:#fff;border:3px solid var(--line);border-radius:22px;box-shadow:5px 5px 0 var(--line);padding:14px 14px 16px;scroll-margin-top:12px}
   .pose h2{font-size:20px;font-weight:800;line-height:1.3}
   .pose h2 .en{font-family:Fredoka,sans-serif;font-size:13px;font-weight:600;color:var(--sub);margin-left:6px}
   .use{display:inline-block;margin-top:6px;font-size:13px;font-weight:800;background:#FFE08A;border:2px solid var(--line);border-radius:99px;padding:1px 10px}
   .desc{font-size:14px;line-height:1.7;color:#5C463A;margin:8px 0 2px}
   .cap{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--sub);margin:14px 0 6px}
-  .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
+  /* five a row: the hamsters, then their cats; two a row on a phone */
+  .grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--gap)}
+  @media (max-width:600px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  main.only-hamster .k-cat,main.only-cat .k-hamster{display:none}
 
   /* U7: the pet straight on the desktop wallpaper */
   .wall{position:relative;overflow:hidden;border:3px solid var(--line);border-radius:16px;box-shadow:3px 3px 0 var(--line);
@@ -53,8 +63,10 @@
   /* what shows today: the 1.0 stand-in */
   .was{margin-top:14px;padding:10px;border:2.5px dashed #C9B6A6;border-radius:16px;background:#FFF8EC}
   .was .cap{margin:0 0 8px}
-  .was .pair{grid-template-columns:repeat(2,minmax(0,124px));justify-content:start}
+  .was .grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+  @media (max-width:600px){.was .grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .was .wall{border-width:2.5px;border-radius:12px;box-shadow:none;opacity:.92}
+  .off *{animation-play-state:paused!important}
 
   /* still contact sheet (?sheet=1) */
   .sheet{display:grid;gap:8px;margin-top:16px}
@@ -64,13 +76,19 @@
   .sheet .t{font-family:Fredoka,sans-serif;font-size:11px;color:var(--sub);text-align:center;margin-top:2px}
   .sheet .room{border-width:2px;border-radius:8px}
   .sheet .av.big{width:100%;height:auto;aspect-ratio:1}
+  .sheet .av.mid{width:100%;height:auto;aspect-ratio:1;border-width:2px}
+  .sheet .hd{font-size:13px;font-weight:800;text-align:center;border-bottom:3px solid var(--line);padding-bottom:3px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header class="top"><div class="logo" id="logo"></div><h1>寵物新動作審稿<small>1.1 的 4 個新動作</small></h1></header>
-  <p class="lede" id="lede">先畫預設的兩隻：<b>Q版大眼鼠</b>和<b>Q版大眼貓</b>。樣子 OK 之後，再照同樣的畫法畫其他 8 個造型。每一格都會動：上面是桌面寵物，下面是大視窗裡的房間，虛線框裡是現在暫用的舊動作，給你對照。</p>
-  <div class="ctrl"><button class="chip" id="pauseBtn" type="button">暫停動畫</button><button class="chip" id="replayBtn" type="button">從頭播放</button></div>
+  <header class="top"><div class="logo" id="logo"></div><h1>寵物新動作審稿<small>10 個造型 × 4 個新動作</small></h1></header>
+  <p class="lede" id="lede">照你 OK 的兩隻（Q版大眼鼠、Q版大眼貓）的畫法，把 <b>10 個造型</b>都畫好了。每一格都會動：最上面是桌面寵物和大頭照，下面是大視窗裡的房間，虛線框裡是現在暫用的舊動作。有想改的地方，記下「造型＋動作」告訴我就好。</p>
+  <div class="ctrl">
+    <div class="seg" id="kindSeg"><button type="button" data-k="" class="on">全部</button><button type="button" data-k="hamster">黃金鼠</button><button type="button" data-k="cat">貓</button></div>
+    <button class="chip" id="pauseBtn" type="button">暫停動畫</button><button class="chip" id="replayBtn" type="button">從頭播放</button>
+  </div>
+  <nav class="jump" id="jump"></nav>
   <main id="main"></main>
 </div>
 
@@ -96,8 +114,6 @@
 (function () {
   var P = QJZ.pets, $ = function (id) { return document.getElementById(id); };
   var q = new URLSearchParams(location.search);
-  // the skins drawn so far (Step 0: the two defaults first, the draft gate)
-  var DRAWN = ['hamster:p0', 'cat:p0'];
   var POSES = [
     { id: 'wave', use: '只開「起來動」的提醒', desc: '小跳步、一隻手用力揮，手旁邊有敲窗的線，頭旁邊冒出驚嘆號。提醒出現時跳 4 秒。' },
     { id: 'holdCup', use: '有問喝水的提醒', desc: '先一手拿水杯、一手揮手約 4 秒，再用雙手捧著水杯等你。每 2 分鐘敲窗時會再揮一次。', replay: 9000 },
@@ -107,28 +123,30 @@
   // key frames for the contact sheet (ms into the pose)
   var FRAMES = { wave: [80, 380, 640], holdCup: [150, 2000, 6200], sip: [600, 1300, 2900], focus: [60, 200, 330] };
 
-  var skins = DRAWN;
+  var skins = P.list('hamster').concat(P.list('cat'));
   if (q.get('rows')) {
     var want = q.get('rows').split(',');
-    skins = P.list('hamster').concat(P.list('cat')).filter(function (d) { return want.indexOf(d.id) >= 0 || want.indexOf(d.kind) >= 0; })
-      .map(function (d) { return d.id; });
+    skins = skins.filter(function (d) { return want.indexOf(d.id) >= 0 || want.indexOf(d.kind) >= 0; });
   }
+  skins = skins.map(function (d) { return d.id; });
   function svg(id, view, state) { return P.compose(id, view, { state: state, preview: true }); }
   function label(st) { return P.states.get(st).label; }
   function was(pose) { return P.FALLBACK[pose]; }
+  function cell(id, view, state, cls) { return '<div class="' + cls + '" data-k="' + id + '" data-v="' + view + '" data-s="' + state + '"></div>'; }
+  function kindOf(id) { return 'k-' + P.get(id).kind; }
 
   function poseHtml(p) {
-    var h = '<section class="pose" data-pose="' + p.id + '"><h2>' + label(p.id) + '<span class="en">' + p.id + '</span></h2>' +
+    var h = '<section class="pose" id="' + p.id + '" data-pose="' + p.id + '"><h2>' + label(p.id) + '<span class="en">' + p.id + '</span></h2>' +
       '<span class="use">用在：' + p.use + '</span><p class="desc">' + p.desc + '</p>';
-    h += '<p class="cap">桌面寵物</p><div class="pair">';
+    h += '<p class="cap">桌面寵物和大頭照</p><div class="grid">';
     skins.forEach(function (id) {
-      h += '<div><div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + p.id + '"></div></div>' +
-        '<div class="who"><div class="av" data-k="' + id + '" data-v="avatar" data-s="' + p.id + '"></div><span>' + P.get(id).name + '</span></div></div>';
+      h += '<div class="' + kindOf(id) + '"><div class="wall">' + cell(id, 'petonly', p.id, 'po') + '</div>' +
+        '<div class="who">' + cell(id, 'avatar', p.id, 'av') + '<span>' + P.get(id).name + '</span></div></div>';
     });
-    h += '</div><p class="cap">大視窗的房間</p><div class="pair">';
-    skins.forEach(function (id) { h += '<div class="room" data-k="' + id + '" data-v="scene" data-s="' + p.id + '"></div>'; });
-    h += '</div><div class="was"><p class="cap">現在暫用：' + label(was(p.id)) + '</p><div class="pair">';
-    skins.forEach(function (id) { h += '<div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + was(p.id) + '"></div></div>'; });
+    h += '</div><p class="cap">大視窗的房間</p><div class="grid">';
+    skins.forEach(function (id) { h += '<div class="' + kindOf(id) + '">' + cell(id, 'scene', p.id, 'room') + '</div>'; });
+    h += '</div><div class="was"><p class="cap">現在暫用：' + label(was(p.id)) + '</p><div class="grid">';
+    skins.forEach(function (id) { h += '<div class="wall ' + kindOf(id) + '">' + cell(id, 'petonly', was(p.id), 'po') + '</div>'; });
     return h + '</div></div></section>';
   }
 
@@ -160,6 +178,28 @@
     });
   }
 
+  // ?sheet=grid: one row per skin, each pose's first and last key frame and its avatar
+  function grid() {
+    if (q.get('w')) document.querySelector('.wrap').style.maxWidth = parseInt(q.get('w'), 10) + 'px';
+    var cols = 'grid-template-columns:96px repeat(4,minmax(0,1fr) minmax(0,1fr) minmax(0,.62fr))', h = '<div class="sheet">';
+    h += '<div class="row" style="' + cols + '"><div></div>' + POSES.map(function (p) { return '<div class="hd" style="grid-column:span 3">' + label(p.id) + '</div>'; }).join('') + '</div>';
+    skins.forEach(function (id) {
+      h += '<div class="row" style="' + cols + '"><div class="lab">' + P.get(id).name + '<small>' + id + '</small></div>';
+      POSES.forEach(function (p) {
+        var fr = FRAMES[p.id];
+        [fr[0], fr[2]].forEach(function (t) { h += '<div class="wall"><div class="po" data-k="' + id + '" data-v="petonly" data-s="' + p.id + '" data-t="' + t + '"></div></div>'; });
+        h += '<div class="av mid" data-k="' + id + '" data-v="avatar" data-s="' + p.id + '" data-t="' + fr[0] + '"></div>';
+      });
+      h += '</div>';
+    });
+    $('main').innerHTML = h + '</div>';
+    fill($('main'));
+    Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (el) {
+      var t = parseFloat(el.getAttribute('data-t'));
+      el.firstElementChild.getAnimations({ subtree: true }).forEach(function (a) { a.pause(); a.currentTime = t; });
+    });
+  }
+
   // one-shot poses (holdCup's wave, sip) play again every so often, as the app redraws them
   var timers = [];
   function replayAll() {
@@ -177,12 +217,14 @@
   }
 
   $('logo').innerHTML = P.compose('hamster:p0', 'avatar', { state: 'wave', preview: true });
-  if (q.get('sheet') === '1') {
+  if (q.get('sheet') === '1' || q.get('sheet') === 'grid') {
     document.querySelector('.ctrl').style.display = 'none';
-    $('lede').textContent = '靜態對照表：每個動作取幾個時間點（毫秒），最右邊是現在暫用的舊動作。';
-    sheet();
+    $('lede').textContent = q.get('sheet') === 'grid' ? '靜態對照表：10 個造型 × 4 個新動作，每個動作取開頭和後段兩個畫面，加上大頭照。' :
+      '靜態對照表：每個動作取幾個時間點（毫秒），最右邊是現在暫用的舊動作。';
+    if (q.get('sheet') === 'grid') grid(); else sheet();
     return;
   }
+  $('jump').innerHTML = POSES.map(function (p) { return '<a href="#' + p.id + '">' + label(p.id) + '</a>'; }).join('');
   $('main').innerHTML = POSES.map(poseHtml).join('');
   replayAll();
   start();
@@ -193,6 +235,20 @@
     if (on) { timers.forEach(clearInterval); timers = []; } else start();
   };
   $('replayBtn').onclick = function () { replayAll(); if (!document.documentElement.classList.contains('paused')) start(); };
+  Array.prototype.forEach.call($('kindSeg').querySelectorAll('button'), function (b) {
+    b.onclick = function () {
+      var k = b.getAttribute('data-k');
+      Array.prototype.forEach.call($('kindSeg').querySelectorAll('button'), function (x) { x.classList.toggle('on', x === b); });
+      $('main').className = k ? 'only-' + k : '';
+    };
+  });
+  // pause the cells scrolled out of view (about 160 animated pets on one page)
+  if ('IntersectionObserver' in window && q.get('io') !== '0') {
+    var io = new IntersectionObserver(function (list) {
+      list.forEach(function (en) { en.target.classList.toggle('off', !en.isIntersecting); });
+    }, { rootMargin: '160px' });
+    Array.prototype.forEach.call(document.querySelectorAll('.grid > div'), function (c) { io.observe(c); });
+  }
 })();
 </script>
 </body>

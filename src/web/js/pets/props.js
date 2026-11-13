@@ -76,7 +76,9 @@ QJZ.pets.props = (function () {
   // the glass at p ([x,y,scale]) with an orange straw (path straw, a light stripe along hl) standing in the water, seen
   // through the glass; the water level is .lvl (scaled from the bottom)
   function glassArt(ctx, p, straw, hl) {
-    var rim = `<ellipse cx="0" cy="-11" rx="8" ry="2.2" fill="#F7FCFF" ${ol(ctx, 1.8)}/>`;
+    // flat (S4) skins have no ink: the glass keeps a soft blue edge instead, so it still reads on a cream chest
+    var edge = function (w) { return ctx.mode === 'flat' ? `stroke="#8EC2EA" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round" class="keep"` : ol(ctx, w); };
+    var rim = `<ellipse cx="0" cy="-11" rx="8" ry="2.2" fill="#F7FCFF" ${edge(1.8)}/>`;
     var sw = (ctx.mode === 'flat' ? '' : `<path d="${straw}" fill="none" stroke="${ctx.L}" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>`) +
       `<path class="keep" d="${straw}" fill="none" stroke="#FF8A3D" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>` +
       `<path class="keep" d="${hl}" fill="none" stroke="#FFC48F" stroke-width="1" stroke-linecap="round"/>`;
@@ -84,7 +86,7 @@ QJZ.pets.props = (function () {
       `<circle cx="-2.4" cy="5.2" r="1.1" fill="#fff" opacity=".85"/><circle cx="1" cy="2.4" r=".75" fill="#fff" opacity=".85"/>`, 'transform-origin:0 9.7px');
     return at(p, `<path d="${GLASS} Z" fill="#EAF6FF"/>` + rim + sw + water +
       `<path class="keep" d="M-5.2,-8 L-4.3,4.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>` +
-      `<path d="${GLASS}" fill="none" ${ol(ctx, 2.2)}/><path d="M-8,-11 A8,2.2 0 0 0 8,-11" fill="none" ${ol(ctx, 1.8)}/>`);
+      `<path d="${GLASS}" fill="none" ${edge(2.2)}/><path d="M-8,-11 A8,2.2 0 0 0 8,-11" fill="none" ${edge(1.8)}/>`);
   }
   var ZED = 'M-4.5,-5.5 h9 v2.4 l-5.6,6.2 h5.6 v2.4 h-9 v-2.4 l5.6,-6.2 h-5.6 z';
 
@@ -255,11 +257,11 @@ QJZ.pets.props = (function () {
     glass: function (ctx) {
       return { held: glassArt(ctx, ctx.rig.glass || ctx.rig.hold, 'M2.6,8 L4.4,-13 L11,-15.4', 'M5.4,-13.8 L10.4,-15.6') };
     },
-    // the same glass with the straw straight up in the mouth (sip): rig.sipGlass, else centred SIP_STRAW under the
-    // middle of the tiny o mouth; the water (.lvl) goes down
+    // the same glass with the straw straight up in the mouth (sip): rig.sipGlass, else centred under the middle of the
+    // tiny o mouth, as big as the skin's glass (its straw then SIP_STRAW x that scale long); the water (.lvl) goes down
     sipGlass: function (ctx) {
-      var f = ctx.face, y = f.mouthStyle === 'y', u = y ? 4.6 : f.mouthSize[0];
-      var p = ctx.rig.sipGlass || [f.mouth[0], n((y ? f.mouth[1] + 2.6 : f.mouth[1]) + u * 0.55 + SIP_STRAW)];
+      var f = ctx.face, y = f.mouthStyle === 'y', u = y ? 4.6 : f.mouthSize[0], s = (ctx.rig.glass || ctx.rig.hold)[2] || 1;
+      var p = ctx.rig.sipGlass || [f.mouth[0], n((y ? f.mouth[1] + 2.6 : f.mouth[1]) + u * 0.55 + SIP_STRAW * s), s];
       return { held: glassArt(ctx, p, 'M0.4,8 L0,-' + SIP_STRAW, 'M-0.5,-6 L-0.5,-' + (SIP_STRAW - 2)) };
     },
     // refreshed: sparkles popping beside the cheeks, a yellow one and a water-blue one (the end of a sip)
@@ -281,7 +283,8 @@ QJZ.pets.props = (function () {
       return { over: `<g class="knock">` + at(k, anim('knk', burst)) + at(q, anim('bang', bang)) + '</g>' };
     },
     // headphones: a band over the head between two tomato cups on its sides (rig.phones {l, r: [x,y,rot], apex: y,
-    // size: [w,h]}; by default from rig.side and rig.top)
+    // size: [w,h], top}; by default from rig.side and rig.top). top: what sits on the head (H2's seed, the cat's fish),
+    // drawn again over the band so the band passes under it
     headphones: function (ctx) {
       var s = ctx.rig.side, t = ctx.rig.top, ph = ctx.rig.phones || {};
       var l = ph.l || [s[0][0] + 1, s[0][1], -6], r = ph.r || [s[1][0] - 1, s[1][1], 6], sz = ph.size || [14, 22];
@@ -290,7 +293,7 @@ QJZ.pets.props = (function () {
       var d = `M${n(x0)},${n(y0)} Q${n((x0 + x2) / 2)},${n(cy)} ${n(x2)},${n(y2)}`;
       var band = (ctx.mode === 'flat' ? '' : `<path d="${d}" fill="none" stroke="${ctx.L}" stroke-width="8.6" stroke-linecap="round"/>`) +
         `<path class="keep" d="${d}" fill="none" stroke="#FF6B57" stroke-width="${ctx.mode === 'flat' ? 5 : 4.2}" stroke-linecap="round"/>`;
-      return { over: band + place([l[0], l[1], 1, l[2]], phoneCup(ctx, -1, sz[0], sz[1])) + place([r[0], r[1], 1, r[2]], phoneCup(ctx, 1, sz[0], sz[1])) };
+      return { over: band + (ph.top || '') + place([l[0], l[1], 1, l[2]], phoneCup(ctx, -1, sz[0], sz[1])) + place([r[0], r[1], 1, r[2]], phoneCup(ctx, 1, sz[0], sz[1])) };
     },
     // focused brows: short strokes over the eyes, a little lower at the nose
     brows: function (ctx) {

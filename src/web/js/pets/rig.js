@@ -40,6 +40,7 @@ QJZ.pets = QJZ.pets || {};
 //   sipGlass: [x,y,scale] (optional) the glass while sipping, its straw in the mouth (default: under the tiny o mouth)
 //   glassArm: {paws, arms?, w} (optional, default holdArm) the paws (and cat limbs) that hold the glass
 //   bang:    [x,y]  (optional, default qm) the ! of the knock marks;  phones: the headphones (props.js headphones)
+// The hello arm, glass, sipGlass, glassArm, bang and phones are per skin; a skin without them gets the defaults above.
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 //   inkClip: 'url(#id)'      (optional) a clip that keeps only what lies outside the body: then a skin can put the
 //                            outlines of its grown arms (up, wave, scratch) in the same moving group as the body and the
@@ -49,9 +50,11 @@ QJZ.pets = QJZ.pets || {};
 // Cat arms grow out of the body without a seam: `ink` names the slot drawn before the body (the outline), `fill`
 // the slot drawn after it (the fur, which covers the body's outline where the arm joins). Arms in front of the body
 // (holding, hugging) are outlined limbs whose root is patched with fur (front()).
-// arms(rig, mode) -> {back, front, over, grip}: markup for the pet's back layer (behind the body), front layer
+// arms(rig, mode) -> {back, under, front, over, grip}: markup for the pet's back layer (behind the body), front layer
 // (after the desk, behind a cat's head), the OVER slot (inside the head group, in front of the face) and grip, the
-// paws that hold the held prop (compose puts them in the OVER slot with it, in the moving .held group).
+// paws that hold the held prop (compose puts them in the OVER slot with it, in the moving .held group). under: the
+// outline, behind the body, of an arm whose fur is in the front layer; the avatar has no front layer, so compose
+// leaves it out there (an outline alone would show as a dark arm).
 // Modes: type | rest | up | hold | scratch, and wave (the desk backpack: wave with one paw, pat the bag with the other);
 // 1.1: hello (wave with the left paw, the right one rests on the keys), glass (both paws hold the water glass:
 // glassArm) and cup (wave with the left paw, the right one holds the glass). GRIP: the modes that hold the held prop.
@@ -110,7 +113,7 @@ QJZ.pets.rig = (function () {
       return o;
     }
     var a = h.arm, g = grow(rig, [a[0], a[1]], h.w), g0 = `<g class="armL" style="transform-origin:${a[0][0]}px ${a[0][1]}px">`;
-    add(o, h.ink, g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
+    add(o, h.ink === 'back' && h.fill === 'front' ? 'under' : h.ink, g.ink ? clipInk(rig, g0 + g.ink + '</g>') : '');
     add(o, h.fill, g0 + g.fill + rig.paw(a[1][0], a[1][1], a[2]) + '</g>');
     return o;
   }
