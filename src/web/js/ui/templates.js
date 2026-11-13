@@ -192,7 +192,7 @@ QJZ.templates = (function () {
     // goal), and the cups and the next stand-up.
     U13: function () {
       return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +
-        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="short"' + MASK + '><span class="cur">NT$</span> <span class="odo" data-odo></span>' +
+        '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="left"' + MASK + '><span class="cur">NT$</span> <span class="odo" data-odo></span>' +
           MSK + '</span></div>' +
         '<div class="ptop2"><span data-b="remainPhrase"></span><div class="thin"><div class="fill" data-fill></div></div></div>' +
         '<div class="ringwrap"><div class="bigring" data-gauge="pomo">' +
