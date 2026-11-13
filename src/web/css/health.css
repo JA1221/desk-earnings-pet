@@ -212,6 +212,7 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
 .u10:is(.p-foc,.p-brk) .isl:not(.hover) > .iv-c{display:none}
 .u10:is(.p-foc,.p-brk) .isl:not(.hover) > .iv-f{display:flex}
 .isl.hover{border-radius:30px;padding:12px 14px 12px 12px;gap:14px}
+.isl.morph{overflow:hidden}   /* growing or shrinking (layouts.js capMorph): what does not fit yet is clipped */
 .isl.hover .av{width:74px;height:74px;border-width:3px}
 .isl.hover > .iv{display:none}
 .isl.hover > .iv-x{display:flex}

@@ -73,6 +73,11 @@ window.QJZ = window.QJZ || {};
 // 1.1 layouts (Task 12, spec §4.5, §5.7; G_U10_*, G_U12_*, G_U13_*). U10 is one fixed window whose capsule sits at its
 // dock (class d-<dock>) and expands while the pointer is on it ([data-hover], as U7's tools); a prompt makes it the call,
 // a pomodoro its countdown; only the capsule takes clicks, and it shows no odometer (it changes at most once a second).
+// 1.1.1 item 8: the capsule grows and shrinks over CAP_MS inside its fixed window (capMorph: its size, padding, corners
+// and avatar from where they are to the new view's, which fades in), with its hit rect following it on every frame
+// until the end (capTick), and none under reduced motion. It starts folding 100 ms after the pointer leaves (U7's tools:
+// 300 ms), so it is folded about 0.3 s after. Below or above the capsule's farthest reach the window has a lane for
+// banners (health.css). Nothing runs once a fold or a grow has ended.
 // U12's rings and U13's big ring are [data-gauge]s (--p, hot for the prompt that asks for them, rest in a break), U13's
 // tomato slots [data-tslots]. None of them has a speech bubble: their lines are banners, and they never chatter.
 // 1.1.1 item 7: while a full-screen window is on the pet window's monitor (QJZ.care.state.here: the host has stepped
@@ -344,6 +349,7 @@ QJZ.layouts = (function () {
   var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
   var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
+  var capRaf = 0;        // the frame asked for while U10's capsule grows or shrinks (capTick)
   var offs = [];
   var docBound = false;
   var brain = null;      // QJZ.behavior.Brain: lives across layout switches
@@ -1450,9 +1456,53 @@ QJZ.layouts = (function () {
   // view; either way the hit rects follow.
   function setHover(on) {
     if (!view || !view.hover || view.hover.classList.contains('hover') === on) return;
+    var isl = view.name === 'U10' ? view.hover : null, from = isl ? capLook(isl) : null;
+    if (isl) capStop(isl);
     view.hover.classList.toggle('hover', on);
+    if (isl) capMorph(isl, from);
     sync(false);
   }
+  // ---- U10's capsule grows and shrinks (1.1.1 item 8) ----
+  // Its views differ in size, padding, corners and avatar; from (capLook before the class changed: where it is now, in
+  // the middle of an earlier change too) to the new view's, over CAP_MS, the new view fading in. While it runs the capsule
+  // clips what does not fit yet (.morph), and its hit rect follows it every frame (capTick). Reduced motion: at once.
+  var CAP_MS = 200, CAP_ID = 'qjz-cap';
+  function capLook(isl) {
+    var cs = getComputedStyle(isl), av = isl.querySelector('.av'), as = av ? getComputedStyle(av) : null;
+    return {
+      isl: { width: isl.offsetWidth + 'px', height: isl.offsetHeight + 'px', paddingTop: cs.paddingTop, paddingRight: cs.paddingRight,
+        paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, borderRadius: cs.borderTopLeftRadius, columnGap: cs.columnGap },
+      av: as ? { width: as.width, height: as.height, borderWidth: as.borderTopWidth } : null
+    };
+  }
+  function capAnims(isl) { return isl.getAnimations({ subtree: true }).filter(function (a) { return a.id === CAP_ID; }); }
+  function capRunning(isl) { return capAnims(isl).some(function (a) { return a.playState === 'running'; }); }
+  function capStop(isl) { capAnims(isl).forEach(function (a) { a.cancel(); }); }
+  function capMorph(isl, from) {
+    var to = capLook(isl), calm = document.documentElement.classList.contains('calm');
+    if (calm || (from.isl.width === to.isl.width && from.isl.height === to.isl.height)) { isl.classList.remove('morph'); return; }
+    var opt = { duration: CAP_MS, easing: 'cubic-bezier(.3,.7,.3,1)', id: CAP_ID }, av = isl.querySelector('.av');
+    isl.classList.add('morph');
+    var a = isl.animate([from.isl, to.isl], opt);
+    if (av && from.av && to.av) av.animate([from.av, to.av], opt);
+    Array.prototype.forEach.call(isl.children, function (v) {
+      if (v.classList.contains('iv') && getComputedStyle(v).display !== 'none') v.animate([{ opacity: 0 }, { opacity: 1 }], opt);
+    });
+    a.onfinish = function () { capTick(); };
+    if (!capRaf && window.requestAnimationFrame) capRaf = window.requestAnimationFrame(capTick);
+  }
+  // One frame of it: the hit rect where the capsule is now; at the end, the last one and nothing more.
+  function capTick() {
+    capRaf = 0;
+    if (!view || view.name !== 'U10' || !view.hover) return;
+    var running = capRunning(view.hover);
+    if (!running) view.hover.classList.remove('morph');
+    sync(false);
+    if (running && window.requestAnimationFrame) capRaf = window.requestAnimationFrame(capTick);
+  }
+  // How long after the pointer leaves the expanded part goes: U10's capsule 100 ms (folded about 0.3 s after, with its
+  // CAP_MS), U7's tools 300 ms (time to cross from the pet to them).
+  function hoverOutMs(name) { return name === 'U10' ? 100 : 300; }
   // mouseover and mousemove: entering shows them, moving keeps them (they also go 4 s after the last move, in
   // case the pointer left without a mouseout when the window turned click-through). A move while they show only
   // pushes the deadline; the one idle timer re-arms itself for the rest when it fires early.
@@ -1474,7 +1524,7 @@ QJZ.layouts = (function () {
   function onOut(e) {
     if (!view || !view.hover || !view.hover.contains(e.target) || view.hover.contains(e.relatedTarget)) return;
     clearTimeout(timers.hover);
-    timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, 300);
+    timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, hoverOutMs(view.name));
   }
 
   function onTransitionEnd(e) { if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-hit')) sync(false); }
@@ -1545,6 +1595,8 @@ QJZ.layouts = (function () {
       root.innerHTML = '';
     }
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
+    if (capRaf && window.cancelAnimationFrame) window.cancelAnimationFrame(capRaf);
+    capRaf = 0;
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
@@ -1563,7 +1615,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,

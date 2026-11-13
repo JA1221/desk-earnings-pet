@@ -1760,12 +1760,20 @@
   function shown(e) { e.bridge.emit({ type: 'visibility', visible: true }); return e; }   // care prompts only while the window shows
   function hitsOf(e) { return last(e.sent, 'hitRects').rects; }
   function sizeOf(e) { var s = last(e.sent, 'setLayout'); return [s.width, s.height]; }
-  // The pointer leaves el: what the 300 ms delay after the mouseout does, at once.
+  // U10's capsule grows and shrinks over U.CAP_MS (1.1.1 item 8): its animations end at once, and the page measures
+  // again as on a resize (in the page a frame does it), for the tests that look at where it ends up.
+  function capDone(el) {
+    el.getAnimations({ subtree: true }).forEach(function (a) { if (a.id === 'qjz-cap') a.finish(); });
+    window.dispatchEvent(new Event('resize'));
+  }
+  function hoverOn(el) { mouse(el, 'mouseover'); capDone(el); }
+  // The pointer leaves el: what the delay after the mouseout does (300 ms; U10 100 ms), at once, and the fold's end.
   function leave(el) {
     var st = window.setTimeout, run = [];
-    window.setTimeout = function (fn, ms) { if (ms === 300) { run.push(fn); return 0; } return st.apply(window, arguments); };
+    window.setTimeout = function (fn, ms) { if (ms === 300 || ms === 100) { run.push(fn); return 0; } return st.apply(window, arguments); };
     try { mouse(el, 'mouseout', 0, 0, { relatedTarget: document.body, buttons: 0 }); } finally { window.setTimeout = st; }
     run.forEach(function (f) { f(); });
+    capDone(el);
   }
 
   test('layouts DOM: U10: one window size for collapsed / hover / remind / focus', function () {
@@ -1783,7 +1791,7 @@
       if (w) ok(r.width >= w[0] && r.width <= w[1] && r.height >= h[0] && r.height <= h[1], state + ': ' + r.width + 'x' + r.height);
     }
     check('collapsed', [180, 280], [34, 40]);
-    mouse($(e, '.isl'), 'mouseover');
+    hoverOn($(e, '.isl'));
     check('hover', [320, 500], [92, 106]);
     e.menu('layout:U10');   // built again: collapsed
     e.tick(at(12, 9, 50));
@@ -1822,7 +1830,7 @@
     eq([sl.layout, sl.dock], ['U10', 'bottomRight']);
     ok($(e, '.u10').classList.contains('d-bottomRight'));
     eq(where(), 'right bottom');
-    mouse($(e, '.isl'), 'mouseover');
+    hoverOn($(e, '.isl'));
     eq(where(), 'right bottom', 'expanded up and to the left, away from its corner');
     var n = of(e.sent, 'setLayout').length;
     e.bridge.emit({ type: 'capsuleDock', dock: 'top' });   // the host snapped a drop to the top
@@ -1858,7 +1866,7 @@
     var isl = $(e, '.isl'), small = isl.getBoundingClientRect();
     eq(hitsOf(e), [U.outer(small)], 'only the capsule takes clicks');
     eq(shownText(e.root.querySelectorAll('.iv-c > :not(.gd)')), ['NT$ 284'], 'collapsed: whole dollars, no chips');
-    mouse(isl, 'mouseover');
+    hoverOn(isl);
     ok(isl.classList.contains('hover'));
     var big = isl.getBoundingClientRect();
     ok(big.width > small.width + 100 && big.height > small.height + 40, 'expanded ' + big.width + 'x' + big.height);
@@ -1873,7 +1881,7 @@
     QJZ.app.saveSettings({ health: BOTH });
     C.drink();
     eq(shownText(e.root.querySelectorAll('.iv-c > .ichip')), ['1'], 'a cup today: the cups chip (§4.9 #8)');
-    mouse(isl, 'mouseover');
+    hoverOn(isl);
     eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['1/8 杯', '▶', '50 分後'], 'water on: the cups; the reminder asked: the next stand-up');
     clickOn($(e, '.iv-x [data-act=drink]'));
     eq(C.state.health.cups, 2, 'the cups chip logs a cup');
@@ -1895,7 +1903,7 @@
     eq([text(e, '.iv-r .imsg'), text(e, '.iv-r .isub')], ['起來動一動，順便喝口水～', '已經坐 50 分鐘囉・今天 3/8 杯']);
     eq(Array.prototype.map.call(call.querySelectorAll('[data-answer]'), function (b) { return b.textContent; }), ['喝了', '起來了', '等一下']);
     ok(!drawn($(e, '.iv-c')) && !drawn($(e, '.iv-x')) && !drawn($(e, '.iv-f')), 'nothing else on it');
-    mouse($(e, '.isl'), 'mouseover');
+    hoverOn($(e, '.isl'));
     ok(drawn(call) && !drawn($(e, '.iv-x')), 'the pointer on it keeps the call');
     var cap = U.layoutBox($(e, '.isl')), h0 = U.outer(cap);   // (it may be in the middle of its knock)
     eq(hitsOf(e)[0], h0, 'the capsule');
@@ -2081,7 +2089,7 @@
     eq(shownText(e.root.querySelectorAll('.u13 .pline')), ['0/8 杯'], 'U13: the cups only, no stand-up, no separator');
     eq(e.root.textContent.indexOf('分後'), -1, 'U13: no 「0 分後」');
     e.menu('layout:U10');
-    mouse($(e, '.isl'), 'mouseover');
+    hoverOn($(e, '.isl'));
     eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['0/8 杯', '▶'], 'U10: no stand-up chip');
     eq(e.root.textContent.indexOf('分後'), -1, 'U10: no 「0 分後」');
     e.tick(at(12, 13, 0, 30));   // lunch is over: the timer starts again
@@ -2493,4 +2501,80 @@
     });
   });
 
+  // Item 8: U10's capsule folds about 0.3 s after the pointer leaves: 100 ms, then 200 ms of shrinking (it was a 300 ms
+  // wait and then a jump). Growing and shrinking animate inside the fixed window, the hit rect follows the capsule as it
+  // shows on every frame of it, and nothing runs once it has ended. U7's tools keep their 300 ms.
+  function capAnims(isl) { return isl.getAnimations({ subtree: true }).filter(function (a) { return a.id === 'qjz-cap'; }); }
+  test('layouts DOM: U10 starts folding 0.1 s after the pointer leaves; U7\'s tools keep 0.3 s', function () {
+    eq([U.hoverOutMs('U10'), U.hoverOutMs('U7'), U.CAP_MS], [100, 300, 200]);
+    ['U10', 'U7'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true }), h = $(e, '[data-hover]'), delays = [], st = window.setTimeout;
+      mouse(h, 'mouseover', 0, 0, { buttons: 0 });
+      window.setTimeout = function (fn, ms) { delays.push(ms); return st.apply(window, arguments); };
+      try { mouse(h, 'mouseout', 0, 0, { relatedTarget: document.body, buttons: 0 }); } finally { window.setTimeout = st; }
+      eq(delays, [name === 'U10' ? 100 : 300], name);
+      done();
+    });
+  });
+
+  test('layouts DOM: U10 grows and shrinks over 0.2 s inside its window; the hit rect follows the capsule every frame', function () {
+    var raf = [], orig = window.requestAnimationFrame;
+    window.requestAnimationFrame = function (f) { raf.push(f); return raf.length; };
+    function frame() { var f = raf.shift(); if (f) f(performance.now()); }
+    try {
+      var e = mk(at(12, 10, 0), { first: 'U10', care: true }), isl = $(e, '.isl'), size = sizeOf(e), small = isl.getBoundingClientRect();
+      mouse(isl, 'mouseover', 0, 0, { buttons: 0 });
+      var anims = capAnims(isl);
+      ok(anims.length >= 3, 'the capsule, its avatar and the view it shows now: ' + anims.length);
+      ok(anims.every(function (a) { var t = a.effect.getComputedTiming(); return t.duration === 200 && t.iterations === 1; }), '0.2 s, once');
+      eq(sizeOf(e), size, 'the window keeps its size');
+      near(isl.getBoundingClientRect().width, small.width, 0.5, 'it starts where it was');
+      eq(hitsOf(e), [U.outer(isl.getBoundingClientRect())], 'the hit rect is the capsule as it shows');
+      eq(raf.length, 1, 'a frame is asked for');
+      anims.forEach(function (a) { a.currentTime = 100; });
+      var mid = isl.getBoundingClientRect();
+      frame();
+      ok(mid.width > small.width + 40 && mid.height > small.height + 15, 'half way it is bigger ' + mid.width + 'x' + mid.height);
+      eq(hitsOf(e), [U.outer(mid)], 'and the hit rect with it');
+      eq(raf.length, 1, 'the next frame');
+      anims.forEach(function (a) { a.finish(); });
+      frame();
+      var big = isl.getBoundingClientRect();
+      eq(hitsOf(e), [U.outer(big)], 'at the end: the expanded capsule');
+      ok(big.width > mid.width && big.height > mid.height);
+      eq([raf.length, capAnims(isl).length], [0, 0], 'then nothing runs');
+      eq(sizeOf(e), size);
+
+      // it folds from wherever it is
+      mouse(isl, 'mouseover', 0, 0, { buttons: 0 });
+      leave(isl);   // (ends the fold at once)
+      raf.splice(0).forEach(function (f) { f(performance.now()); });
+      near(isl.getBoundingClientRect().width, small.width, 0.5, 'folded');
+      eq(hitsOf(e), [U.outer(isl.getBoundingClientRect())]);
+      mouse(isl, 'mouseover', 0, 0, { buttons: 0 });
+      capAnims(isl).forEach(function (a) { a.currentTime = 100; });
+      mid = isl.getBoundingClientRect();
+      var st = window.setTimeout, run = [];
+      window.setTimeout = function (fn, ms) { if (ms === 100) { run.push(fn); return 0; } return st.apply(window, arguments); };
+      try { mouse(isl, 'mouseout', 0, 0, { relatedTarget: document.body, buttons: 0 }); } finally { window.setTimeout = st; }
+      run.forEach(function (f) { f(); });
+      near(isl.getBoundingClientRect().width, mid.width, 0.5, 'a fold half way through growing starts from there, no jump');
+      raf.splice(0).forEach(function (f) { f(performance.now()); });
+      eq(hitsOf(e), [U.outer(isl.getBoundingClientRect())]);
+      done();
+    } finally { window.requestAnimationFrame = orig; }
+  });
+
+  test('layouts DOM: U10 under reduced motion changes size at once, with no animation', function () {
+    var html = document.documentElement, was = html.classList.contains('calm');
+    html.classList.add('calm');
+    try {
+      var e = mk(at(12, 10, 0), { first: 'U10', care: true }), isl = $(e, '.isl'), small = isl.getBoundingClientRect().width;
+      mouse(isl, 'mouseover', 0, 0, { buttons: 0 });
+      eq(capAnims(isl).length, 0);
+      ok(isl.getBoundingClientRect().width > small + 100, 'expanded at once');
+      eq(hitsOf(e), [U.outer(isl.getBoundingClientRect())]);
+      done();
+    } finally { html.classList.toggle('calm', was); }
+  });
 })();

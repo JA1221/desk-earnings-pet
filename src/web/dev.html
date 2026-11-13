@@ -299,7 +299,12 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
         var h = document.querySelector('#root [data-hover]');
         if (h) h.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, buttons: 0 }));
       }
-      setTimeout(function () { rest('mouseover'); setInterval(function () { rest('mousemove'); }, 1000); }, 50);
+      setTimeout(function () {
+        rest('mouseover');
+        // the capsule's grow ends at once (headless screenshots draw no frame before the shot to run it)
+        document.getAnimations().forEach(function (a) { if (a.id === 'qjz-cap') a.finish(); });
+        setInterval(function () { rest('mousemove'); }, 1000);
+      }, 50);
     });
   }
   QJZ.care.start();
