@@ -2343,6 +2343,105 @@
     done();
   });
 
+  // ---------- 1.1.2 item 7: the countdown chip ----------
+  // A long press (HOLD_MS, about 1.2 s, by the app's clock) on the 🧍 countdown, in every layout that shows one, is
+  // 我剛起來動過了: a ring fills around the chip while it is held (that animation runs only then), and the release
+  // after it counts (care.stoodUp; the pet says 收到！). A short click, or a press that slides off it, does nothing: no
+  // stand-up, no window drag, no poke, no mask. During 等一下 the chip shows 💤 N 分 until the snooze ends.
+  var HOLD_CHIP = { U1: '.u1 .mpills [data-hold]', U3: '.u3 .hud-top [data-hold]', U5B: '.u5b .mtop [data-hold]', U7: '.u7 .hline [data-hold]',
+    U10: '.u10 .iv-x [data-hold]', U13: '.u13 .pline [data-hold]' };
+  function holdAnims() { return document.getAnimations().filter(function (a) { return a.animationName === 'qjz-hold'; }); }
+  function chipFor(e, name) {
+    if (name === 'U10') { mouse($(e, '.u10 [data-hover]'), 'mouseover', 0, 0, { buttons: 0 }); capDone($(e, '.u10 [data-hover]')); }
+    return $(e, HOLD_CHIP[name]);
+  }
+  test('layouts DOM: a long press on the countdown is 我剛起來動過了 (U1, U3, U5-B, U7, U10, U13); a short one does nothing', function () {
+    ok(U.HOLD_MS >= 1000 && U.HOLD_MS <= 1500, 'about 1.2 s: ' + U.HOLD_MS);
+    ['U1', 'U3', 'U5B', 'U7', 'U10', 'U13'].forEach(function (name) {
+      var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH } }));
+      e.tick(at(12, 9, 18));
+      var chip = chipFor(e, name), T = at(12, 9, 18);
+      ok(chip && drawn(chip), name + ': the chip shows');
+      ok(chip.querySelector('svg.ic-stand') && /32 分/.test(seen(chip)), name + ': 🧍 32 分');
+      eq(holdAnims().length, 0, name + ': nothing runs before it is held');
+      var pets = 0, pet = QJZ.app.pet, masked = !!QJZ.app.state.settings.privacy.maskMoney;
+      QJZ.app.pet = function () { pets++; return pet.apply(this, arguments); };
+      // a short press: nothing
+      e.clock.ms = T;
+      mouse(chip, 'mousedown', 10, 10, { detail: 1 });
+      ok(chip.classList.contains('holding'), name + ': held');
+      var run = holdAnims();
+      eq(run.length, 1, name + ': the ring fills while it is held');
+      eq([run[0].effect.getComputedTiming().iterations, Math.round(run[0].effect.getComputedTiming().duration)], [1, U.HOLD_MS], name + ': once, over the hold');
+      mouse(chip, 'mousemove', 30, 10);
+      e.clock.ms = T + 500;
+      mouse(chip, 'mouseup', 30, 10, { buttons: 0 });
+      mouse(chip, 'click', 30, 10, { buttons: 0, detail: 1 });
+      eq([C.state.health.standups, C.state.standIn], [0, 32], name + ': a short press counts nothing');
+      ok(!chip.classList.contains('holding') && holdAnims().length === 0, name + ': and the ring is gone');
+      // slid off before the release: nothing
+      e.clock.ms = T;
+      mouse(chip, 'mousedown', 10, 10, { detail: 1 });
+      mouse(document.body, 'mousemove', 300, 300);
+      e.clock.ms = T + 1500;
+      mouse(chip, 'mouseup', 10, 10, { buttons: 0 });
+      eq(C.state.health.standups, 0, name + ': slid off: nothing');
+      // held long enough: a stand-up and the timer restarts
+      e.clock.ms = T;
+      mouse(chip, 'mousedown', 10, 10, { detail: 1 });
+      e.clock.ms = T + U.HOLD_MS;
+      mouse(chip, 'mouseup', 10, 10, { buttons: 0 });
+      mouse(chip, 'click', 10, 10, { buttons: 0, detail: 1 });
+      eq([C.state.health.standups, C.state.standIn], [1, 50], name + ': 我剛起來動過了');
+      eq(of(e.sent, 'dragStart').length, 0, name + ': never a window drag');
+      QJZ.app.pet = pet;
+      eq(pets, 0, name + ': never a poke');
+      eq(!!QJZ.app.state.settings.privacy.maskMoney, masked, name + ': never the money mask');
+      eq(holdAnims().length, 0, name + ': nothing runs after it');
+      done();
+    });
+  });
+
+  test('layouts DOM: 我剛起來動過了 from the menu or the chip: the pet says 收到！; 等一下 says when, and the chip shows 💤 N 分', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U5B', care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    e.menu('stoodUp');
+    var b = e.root.querySelectorAll('.banner');
+    eq([C.state.health.standups, b.length && b[b.length - 1].textContent], [1, '收到！'], 'U5-B: a banner');
+    done();
+    e = shown(mk(at(12, 9, 0), { first: 'U1', care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    e.menu('stoodUp');
+    eq(QJZ.layouts._brain().state, 'petted', 'U1: the pet is pleased');
+    ok($(e, '[data-bubble]').classList.contains('show'), 'and says it in its bubble');
+    // 等一下
+    e.tick(at(12, 10, 7, 59));
+    e.tick(at(12, 10, 8));
+    ok($(e, '.u1').classList.contains('prompting'));
+    e.menu('layout:U5B');
+    clickOn($(e, '[data-answer=later]'));
+    b = e.root.querySelectorAll('.banner');
+    eq(b[b.length - 1].textContent, '好，5 分鐘後再叫你～');
+    ['U5B', 'U1', 'U3', 'U7', 'U10', 'U13'].forEach(function (name) {
+      e.menu('layout:' + name);
+      var chip = chipFor(e, name);
+      ok(drawn(chip), name + ': the chip shows during 等一下');
+      ok(chip.classList.contains('snz') && drawn(chip.querySelector('.zz')) && !drawn(chip.querySelector('svg.ic-stand')), name + ': 💤, not 🧍');
+      eq(chip.querySelector('.zz').textContent, '💤');
+      ok(/^5 分/.test(chip.querySelector('[data-b]').textContent), name + ': ' + chip.querySelector('[data-b]').textContent);
+    });
+    e.menu('layout:U1');
+    var chip = $(e, HOLD_CHIP.U1);
+    e.tick(at(12, 10, 11));
+    eq([chip.querySelector('[data-b]').textContent, drawn(chip.querySelector('.zz'))], ['2 分', true]);
+    e.tick(at(12, 10, 13));
+    ok($(e, '.u1').classList.contains('prompting'), 'the snooze ends: it asks again');
+    ok(!chip.classList.contains('snz'), 'and the 💤 is gone');
+    clickOn($(e, '[data-answer=up]'));
+    eq([seen(chip), drawn(chip.querySelector('svg.ic-stand')), drawn(chip.querySelector('.zz'))], ['50 分', true, false], '🧍 again');
+    done();
+  });
+
   // Item 2: every main window with a title bar (U1, U12, U13) has three small icon buttons on it, in the sticker style
   // (round, outlined, a hard shadow): 縮小 (to the mini badge), 設定 (opens 設定) and 關閉 (hides). PANEL keeps 縮小 and 關閉.
   test('layouts DOM: U1, U12 and U13 have 縮小, 設定 and 關閉 on their title bar; 設定 opens 設定', function () {

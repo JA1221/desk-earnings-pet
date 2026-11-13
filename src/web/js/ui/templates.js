@@ -17,6 +17,8 @@ window.QJZ = window.QJZ || {};
 // and tag: the tools; U10's capsule: the full view); [data-show=stand] the time to the next stand-up (while one is
 // asked), cupsStand both that and the cups. 1.1.1 item 6: U1, U3, U5-B and U7 show it compact, 🧍 N 分 ([data-show=standC],
 // [data-b=standMin]; U7's tag line anyS / ctS), as a readout only.
+// 1.1.2 item 7: every countdown chip (the compact one, U10's and U13's) is [data-hold]: a long press on it is
+// 我剛起來動過了 (layouts.js), and during 等一下 it shows 💤 (.zz) instead of 🧍 (class snz).
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
   // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 縮小 (to the mini badge), 設定 and 關閉
@@ -35,10 +37,13 @@ QJZ.templates = (function () {
   function feedBtn(cls) {
     return '<button type="button" class="' + cls + '" data-act="feed" data-feed title="餵食"><span data-b="snack"></span> 餵食</button>';
   }
+  // The countdown chips' icons, 🧍 or 💤 during 等一下, and their tip (1.1.2: the long press).
+  var HOLD_TIP = '下次起來動（長按＝我剛起來動過了）';
+  function standIcons() { return ic('stand') + '<span class="zz" aria-hidden="true">💤</span>'; }
   // U1 (A_U1_3): cups, tomatoes, and the 番茄鐘 pill that is always there.
-  // 1.1.1 item 6: the next stand-up, compact (🧍 N 分); it only shows.
+  // 1.1.1 item 6: the next stand-up, compact (🧍 N 分); it only shows (1.1.2: and takes a long press).
   function standC(cls) {
-    return '<span class="' + cls + '" data-show="standC" title="下次起來動">' + ic('stand') + '<span class="n" data-b="standMin"></span></span>';
+    return '<span class="' + cls + '" data-show="standC" data-hold title="' + HOLD_TIP + '">' + standIcons() + '<span class="n" data-b="standMin"></span></span>';
   }
   function mpills() {
     return '<div class="mpills">' +
@@ -153,7 +158,7 @@ QJZ.templates = (function () {
               '<span data-b="cupsLong"></span></button>' +
             '<button type="button" class="ichip" data-act="pomo" title="番茄鐘">' + ic('tom') +
               '<span data-show="tomatoes" data-b="tomatoes"></span><span class="go" data-b="pomoGlyph"></span></button>' +
-            '<span class="ichip" data-show="stand">' + ic('stand') + '<span data-b="standIn"></span></span></span></span>' +
+            '<span class="ichip" data-show="stand" data-hold title="' + HOLD_TIP + '">' + standIcons() + '<span data-b="standIn"></span></span></span></span>' +
         '<span class="iv iv-r" data-prompt-call hidden></span></div>' +
         '<div class="fx" data-fx data-fxwin></div></div>';
     },
@@ -185,7 +190,8 @@ QJZ.templates = (function () {
         '<div class="tslots"><span class="tsl" data-tslots></span><span data-b="tslotText"></span></div>' +
         '<div class="pbtns"><button type="button" class="stop" data-act="pomo">■ 停止</button></div>' +
         '<div class="pline"><span class="pp" data-show="cups" data-cups>' + ic('drop') + '<span data-b="cupsLong"></span></span>' +
-          '<span class="dt" data-show="cupsStand">・</span><span class="pp" data-show="stand">' + ic('stand') + '<span data-b="standLine"></span></span></div>' +
+          '<span class="dt" data-show="cupsStand">・</span><span class="pp" data-show="stand" data-hold title="' + HOLD_TIP + '">' + standIcons() +
+            '<span data-b="standLine"></span></span></div>' +
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
     PANEL: function () {

@@ -85,6 +85,12 @@ window.QJZ = window.QJZ || {};
 // 1.1.1 item 7: while a full-screen window is on the pet window's monitor (QJZ.care.state.here: the host has stepped
 // the window behind it) nothing is said at all: no speech bubble, banner, chatter, event or milestone line, drank line,
 // confetti, coin or jingle (hushed). Nothing is replayed afterwards; chatter starts again 7–15 s later.
+// 1.1.2 item 7: the countdown chips ([data-hold]: U1, U3, U5-B, U7, U10 expanded, U13) take a long press: held HOLD_MS
+// (by the app's clock) and released on the chip, it is 我剛起來動過了 (care.stoodUp; the menu's stoodUp is the same, in
+// care). A ring fills around the chip while it is held (health.css, only then); a short press, or one that slides off,
+// does nothing, and a press there never drags the window, pokes the pet or toggles the mask. The pet says 收到！ (standup
+// source 'manual'); after 等一下 it says 「好，5 分鐘後再叫你～」 (care's snooze), and the chips show 💤 N 分 until the
+// snooze ends (class snz).
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
@@ -122,6 +128,7 @@ QJZ.layouts = (function () {
   var SNACK = { cat: '🐟', hamster: '🌻' };
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
   var DBL_MS = 600;   // a double press's second press comes within this (Windows' double-click time is 500 ms by default)
+  var HOLD_MS = 1200; // 我剛起來動過了: how long the countdown chip is held (health.css's ring fills over the same time)
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
@@ -231,7 +238,8 @@ QJZ.layouts = (function () {
     // held: its own reminder asks, or one asked for (現在提醒我一次) waits and the timer reads 0 (final review M-4): no
     // number to show. The compact one then only hides and keeps its room, so its tag or row does not reflow just for
     // that (M-2); lunch, 下班 and a focus still take it away.
-    var held = base !== null && (asks === 'both' || asks === 'sit' || asks === 'water' || !!cs.forced);
+    // (a test reminder put off with 等一下 counts down to the snooze's end, as any)
+    var held = base !== null && (asks === 'both' || asks === 'sit' || asks === 'water' || (!!cs.forced && !cs.snoozed));
     var stand = base !== null && !held ? base : null;
     var nth = phase === 'focus' && on && cs.nth > 0 ? '第 ' + cs.nth + ' 顆' : '';
     var frac = phase ? P.fraction(p, sec) : 0, left = 1 - frac;
@@ -240,6 +248,7 @@ QJZ.layouts = (function () {
       phase: phase,
       cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
       showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
+      snoozed: base !== null && !!cs.snoozed,   // 等一下 runs: the countdown to its end, with 💤 (1.1.2)
       showStandC: stand !== null && phase !== 'focus', standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
@@ -353,7 +362,7 @@ QJZ.layouts = (function () {
   var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
   var answerRun = false; // the run of presses under way (a click, its double, …) began on a prompt's answer button
   var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
-  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0 };
+  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var capRaf = 0;        // the frame asked for while U10's capsule grows or shrinks (capTick)
   var offs = [];
@@ -402,6 +411,7 @@ QJZ.layouts = (function () {
     v.prings = all(el, '[data-pring]');
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
+    v.holds = all(el, '[data-hold]');
     var p = el.querySelector('[data-pet]');
     if (p) v.pet = { el: p, view: p.getAttribute('data-pet') };
     v.bubble = el.querySelector('[data-bubble]');
@@ -544,6 +554,10 @@ QJZ.layouts = (function () {
       for (i = 0; i < view.rings.length; i++) view.rings[i].style.setProperty('--p', p);
     }
     for (i = 0; i < view.prings.length; i++) QJZ.ring.update(view.prings[i], m.ring);
+    if (view.cache.snz !== m.snoozed) {
+      view.cache.snz = m.snoozed;
+      for (i = 0; i < view.holds.length; i++) view.holds[i].classList.toggle('snz', m.snoozed);
+    }
     renderGauges(m);
   }
   // The 1.1 layouts' rings ([data-gauge]): --p, hot while the prompt that shows asks for it, rest while the pomodoro ones
@@ -1005,6 +1019,7 @@ QJZ.layouts = (function () {
   function show(name) {
     if (ALL.indexOf(name) < 0 || !root || !ready()) return false;
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
+    holdEnd(false);
     stopSay();
     unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
@@ -1357,19 +1372,44 @@ QJZ.layouts = (function () {
     }
     petTick(now);
   }
-  // standup {count, source}: only 起來了 ('up') plays here; 喝了 ('drink') sips through drank, a break or a lock is quiet.
+  // standup {count, source}: 起來了 ('up') and 我剛起來動過了 ('manual', 1.1.2: 收到！) play here; 喝了 ('drink') sips
+  // through drank, a break is quiet.
   function onStandup(ev) {
-    if (!ev || ev.source !== 'up' || !brain || !view || !ready()) return;
+    if (!ev || (ev.source !== 'up' && ev.source !== 'manual') || !brain || !view || !ready()) return;
     var now = app().nowMs();
     brain.show('petted', now, QJZ.behavior.PET_MS);
-    say(line('standOk'));
+    say(ev.source === 'manual' ? '收到！' : line('standOk'));
     petTick(now);
+  }
+  // snooze {minutes}: 等一下 put a reminder off (1.1.2 item 7).
+  function onSnooze(ev) {
+    if (!ev || !(ev.minutes > 0) || !view || !ready()) return;
+    say('好，' + ev.minutes + ' 分鐘後再叫你～');
+  }
+
+  // ---- 我剛起來動過了: a long press on the countdown (1.1.2 item 7) ----
+  var hold = null;   // {el, at} while the primary button is held on a [data-hold] chip
+  function holdStart(el) {
+    holdEnd(false);
+    hold = { el: el, at: app().nowMs() };
+    el.classList.add('holding');
+    timers.hold = setTimeout(function () { timers.hold = 0; if (hold && hold.el === el) el.classList.add('charged'); }, HOLD_MS);
+  }
+  // fire: released on the chip; it counts when it was held long enough
+  function holdEnd(fire) {
+    var h = hold;
+    clearTimeout(timers.hold);
+    timers.hold = 0;
+    hold = null;
+    if (!h) return;
+    h.el.classList.remove('holding', 'charged');
+    if (fire && ready() && app().nowMs() - h.at >= HOLD_MS && QJZ.care) QJZ.care.stoodUp();
   }
 
   // ---- pointer ----
   function inRoot(t) { return root && t && t.nodeType === 1 && root.contains(t); }
-  // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar).
-  function isButton(t) { return !!t.closest('[data-act],button,input,select,textarea,a,label,[data-nodrag]'); }
+  // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar). [data-hold]: the countdown's long press.
+  function isButton(t) { return !!t.closest('[data-act],button,input,select,textarea,a,label,[data-nodrag],[data-hold]'); }
   function onDown(e) {
     drag = null;
     if (e.button !== 0) return;
@@ -1380,11 +1420,14 @@ QJZ.layouts = (function () {
     else if (answerRun) return;
     // a title-bar button takes no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide the window again
     if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
+    var hc = e.target && e.target.closest ? e.target.closest('[data-hold]') : null;
+    if (hc && inRoot(hc)) { e.preventDefault(); holdStart(hc); return; }   // no drag, no text selection, no focus
     if (!inRoot(e.target) || isButton(e.target)) return;
     drag = { x: e.screenX, y: e.screenY };
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
   }
   function onMove(e) {
+    if (hold && (!(e.buttons & 1) || !hold.el.contains(e.target))) holdEnd(false);   // slid off, or released elsewhere
     if (dragging && !(e.buttons & 1)) { endDrag(); return; }   // the button is up: no dragEnd is coming
     if (!drag) return;
     if (!(e.buttons & 1)) { drag = null; return; }
@@ -1412,8 +1455,9 @@ QJZ.layouts = (function () {
       if (view && ready()) petTick(app().nowMs());
     }
   }
-  function onUp() {
+  function onUp(e) {
     drag = null;
+    if (hold) holdEnd(!!(e && e.target && hold.el.contains(e.target)));
     if (dragging) endDrag();
   }
   function onContext(e) {
@@ -1431,6 +1475,7 @@ QJZ.layouts = (function () {
       if (a.classList.contains('tb') && document.activeElement === a) a.blur();   // (however it got the focus: M-5)
       return;
     }
+    if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     if (isPetPart(e.target)) poke(e);
   }
@@ -1582,7 +1627,7 @@ QJZ.layouts = (function () {
       A.on('refresh', onRefresh));
     if (QJZ.care) {
       offs.push(QJZ.care.on('change', onCare), QJZ.care.on('prompt', onPrompt), QJZ.care.on('cue', onCue),
-        QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup));
+        QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup), QJZ.care.on('snooze', onSnooze));
     }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
       bridge.on('pointer', onPointer)].forEach(function (off) {
@@ -1629,7 +1674,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null;
+    answerRun = false; held = null; hold = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
@@ -1644,7 +1689,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS, CAP_MS: CAP_MS, hoverOutMs: hoverOutMs,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,

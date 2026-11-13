@@ -63,6 +63,21 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .mtop .st{display:inline-flex;align-items:center;gap:2px}
 .u5b .mtop .st svg.ic{width:14px;height:14px}
 
+/* ---------- 1.1.2 item 7: every countdown chip takes a long press, 我剛起來動過了 (layouts.js HOLD_MS); 💤 during 等一下 ----------
+   While it is held a ring fills around the chip over 1.2 s (the only time it runs; it does not loop), and full it waits for
+   the release. A plain chip otherwise. */
+@property --hold{syntax:'<number>';inherits:false;initial-value:0}
+.lay [data-hold]{position:relative;cursor:pointer}
+.lay [data-hold] .zz{display:none;font-size:.95em;line-height:1;font-family:"Segoe UI Emoji","Apple Color Emoji",var(--font)}
+.lay [data-hold].snz .zz{display:inline-block}
+.lay [data-hold].snz svg.ic-stand{display:none}
+.lay [data-hold]::after{content:"";position:absolute;inset:-4px;border-radius:99px;padding:2.5px;pointer-events:none;visibility:hidden;
+  background:conic-gradient(#1E9E5A calc(var(--hold)*1%),rgba(61,44,36,.18) 0);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.lay [data-hold].holding::after{visibility:visible;animation:qjz-hold 1.2s linear 1 forwards}
+@keyframes qjz-hold{from{--hold:0}to{--hold:100}}
+.lay [data-hold].charged{background:#C4F3D7}
+
 /* ---------- U7 (A_U7): one more line on the tag ---------- */
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
 .u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
