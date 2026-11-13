@@ -177,6 +177,18 @@ public class PetWindow : Form
         ApplySize();
     }
 
+    // SetContentSize, and in the same step (one SetWindowPos) the window goes where place puts a window of the new size
+    // (physical px), so no frame shows the new size at the old spot (1.1.2: a layout switch that is pushed in, or leaves
+    // U10). A landing on a monitor with another DPI is resized by WM_DPICHANGED from the new CSS size.
+    public void SetContentSizeAt(int cssWidth, int cssHeight, double dpr, Func<Size, Point> place)
+    {
+        this.cssWidth = cssWidth;
+        this.cssHeight = cssHeight;
+        if (dpr > 0) scale = dpr;
+        Size size = PetGeometry.WindowSize(cssWidth, cssHeight, Scale());
+        Bounds = new Rectangle(place(size), size);
+    }
+
     // The page lays itself out at cssWidth x cssHeight in the window as it is (an in-place panel, 1.1.2): remembered
     // like SetContentSize (a DPI change resizes from it), but the window keeps its size exactly, even where that CSS size
     // would round to another one.

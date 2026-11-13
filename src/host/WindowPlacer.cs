@@ -116,22 +116,20 @@ public class WindowPlacer
         return Decide(saved, null, size, areas, primaryWorkArea, out hostChosen);
     }
 
-    // Moves window (already at layout's size) to the anchor (every layout but U10). With no anchor yet, one is set first
-    // (SeedAnchor, written at once): layout's own saved spot from 1.1.1 with ownSpotSize, the physical size its saved CSS
-    // size has now (null: unknown); else current, the window's top-left once a layout has shown; else the first-ever spot.
-    // A landing on a monitor with another DPI resizes the window (WM_DPICHANGED): it is placed again at its new size.
-    public void PlaceAtAnchor(Control window, string layout, Size? ownSpotSize, Point? current)
+    // Where layout's window of size goes: the anchor (every layout but U10, AtAnchor). With no anchor yet, one is set
+    // first (SeedAnchor, written at once): layout's own saved spot from 1.1.1 with ownSpotSize, the physical size its
+    // saved CSS size has now (null: unknown); else current, the window's top-left once a layout has shown; else the
+    // first-ever spot.
+    public Rectangle AnchorRect(string layout, Size size, Size? ownSpotSize, Point? current)
     {
         Rectangle[] areas = WorkAreas();
         if (!anchor.HasValue)
         {
             Point saved;
             Point? spot = positions.TryGet(layout, out saved) ? saved : (Point?)null;
-            SetAnchor(SeedAnchor(spot, ownSpotSize, current, window.Size, areas, Screen.PrimaryScreen.WorkingArea));
+            SetAnchor(SeedAnchor(spot, ownSpotSize, current, size, areas, Screen.PrimaryScreen.WorkingArea));
         }
-        window.Bounds = AtAnchor(anchor.Value, anchorSize, window.Size, areas);
-        Rectangle again = AtAnchor(anchor.Value, anchorSize, window.Size, areas);
-        if (again != window.Bounds) window.Bounds = again;
+        return AtAnchor(anchor.Value, anchorSize, size, areas);
     }
 
     // U10 only, and only when the safety net shows it before the page reported a layout: its last dock spot, kept on
@@ -205,17 +203,6 @@ public class WindowPlacer
         anchorSize = r.Size;
         positions.SetAnchor(r.Location, r.Size);
         files.Save(files.Window, positions.ToJson());
-    }
-
-    // Moves window (already at the panel's size) beside the window it came from (PanelFrom), or to the first-ever
-    // spot without one. A landing that changed the DPI is fitted again.
-    public void PlacePanel(Control window, Rectangle? from)
-    {
-        Rectangle[] areas = WorkAreas();
-        window.Bounds = PanelBounds(from, window.Size, areas, Screen.PrimaryScreen.WorkingArea);
-        Rectangle now = window.Bounds;
-        Rectangle fit = Refit(now, true, areas);
-        if (fit != now) window.Bounds = fit;
     }
 
     // A panel of size opens at from's top-left, moved fully inside the work area nearest from's centre (the monitor
