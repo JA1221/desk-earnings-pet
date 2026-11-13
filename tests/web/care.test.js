@@ -888,6 +888,23 @@
     done();
   });
 
+  test('care: 現在提醒我一次 with no minute sat leaves 「已經坐 N 分鐘囉」 out of the bubble', function () {
+    var e = mk(at(9, 0));
+    go(e, at(9, 0, 3));   // (the 3 s after the window showed)
+    C.remindNow();   // 3 s into work
+    eq([C.state.prompt.kind, C.view().sub], ['both', '今天 0/8 杯']);
+    done();
+
+    e = mk(at(9, 0), S(SIT));
+    go(e, at(9, 10));
+    C.remindNow();
+    C.answer('up');
+    go(e, at(9, 10, 30));
+    C.remindNow();   // half a minute after the timer restarted
+    eq([C.state.prompt.kind, C.view().sub], ['sit', ''], '起來動 alone: no sub at all');
+    done();
+  });
+
   test('care: 現在提醒我一次 does nothing when nothing would be asked', function () {
     var e = mk(at(9, 0), S({ asked: true, sit: { on: false }, water: { on: false } }));
     var m = mark(e);

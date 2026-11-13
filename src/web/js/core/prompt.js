@@ -83,8 +83,10 @@ QJZ.prompt = (function () {
     } else if (p.kind === 'breakEnd') title = '休息結束～要開始下一顆嗎？';
     else {
       var n = LINES[p.kind].length; title = LINES[p.kind][(((v.turn | 0) % n) + n) % n];
-      if (p.kind === 'both') sub = '已經坐 ' + v.min + ' 分鐘囉・今天 ' + v.cups + '/' + v.cupGoal + ' 杯';
-      else if (p.kind === 'sit') sub = '已經坐 ' + v.min + ' 分鐘囉';
+      // no minute sat (a reminder asked for right after one, 1.1.1): 「已經坐 0 分鐘囉」 is left out
+      var sat = v.min > 0 ? '已經坐 ' + v.min + ' 分鐘囉' : '';
+      if (p.kind === 'both') sub = (sat ? sat + '・' : '') + '今天 ' + v.cups + '/' + v.cupGoal + ' 杯';
+      else if (p.kind === 'sit') sub = sat;
       else sub = '今天 ' + v.cups + ' 杯，目標 ' + v.cupGoal + ' 杯';
     }
     return { kind: p.kind, icon: ICONS[p.kind], title: title, sub: sub, waterLine: waterLine, buttons: buttons };

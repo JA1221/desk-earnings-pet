@@ -88,4 +88,12 @@ test('prompt: a forced reminder shows outside work time; hidden, full screen, th
   x = st(st(P.initial(), at(12, 30), { ask: 'both', forced: true, blocked: true }).q, at(12, 31), { ask: 'both', forced: true, working: false });
   eq(ty(x), []); eq(ty(st(x.q, at(12, 31, 3), { ask: 'both', forced: true, working: false })), ['show:both'], '3 s after the gate opens');
 });
+// 1.1.1 review: a reminder asked for right after one (現在提醒我一次) can come with no minute sat; then the bubble leaves
+// 「已經坐 N 分鐘囉」 out instead of saying 「已經坐 0 分鐘囉」.
+test('prompt: no 「已經坐 N 分鐘囉」 when no minute has been sat', function () {
+  eq(P.view({ kind: 'both' }, { min: 0, cups: 3, cupGoal: 8, turn: 0 }).sub, '今天 3/8 杯');
+  eq(P.view({ kind: 'sit' }, { min: 0, turn: 0 }).sub, '', '起來動 alone: no sub at all');
+  eq(P.view({ kind: 'water' }, { min: 0, cups: 3, cupGoal: 8, turn: 0 }).sub, '今天 3 杯，目標 8 杯', 'water never said it');
+  eq(P.view({ kind: 'sit' }, { min: 1, turn: 0 }).sub, '已經坐 1 分鐘囉', 'one minute is said');
+});
 })();
