@@ -91,6 +91,21 @@ public static class ShowRescue
         return layout == "U7" || layout == "M3" || layout == "U10";
     }
 
+    // Review §4a: the panels the user opens from the tray or the menu (設定, 紀錄, and 調整起算時間, which is 設定 at 起算).
+    // One of them comes in front of a full-screen window on the pet's monitor and takes the keyboard like any panel the
+    // user asked for; a panel the page opens by itself (a question) does not.
+    public static bool UserPanel(string action)
+    {
+        return action == "settings" || action == "history" || action == "adjust";
+    }
+
+    // Whether the window steps back behind a full-screen window: one is on its monitor (here), and the panel the user
+    // asked for is not showing (userPanel). Once that panel closes, it steps back again.
+    public static bool StepsBack(bool here, bool userPanel)
+    {
+        return here && !userPanel;
+    }
+
     // Whether the window is topmost: the layout's own 永遠在最上層, or raised while a prompt bubble shows (raise {on},
     // spec 5.1). The tray's check mark shows layoutTopmost only. steppedBack (1.1.1 item 7): a full-screen window is in
     // front on the pet window's monitor, so the window steps back behind it, prompt or not; the full-screen window wins.

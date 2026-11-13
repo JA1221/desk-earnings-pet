@@ -30,8 +30,10 @@ using Microsoft.Web.WebView2.Core;
 //   change; the page holds its reminders while on. here (1.1.1): the pet window's monitor is full screen (PowerPoint's
 //   slide show on the projector counts while the presenter view has the keyboard). Then the window steps back: topmost
 //   off (ApplyTopmost) and below that full-screen window in the z-order, never activated and never moved, and no raise
-//   (a prompt's, a show's) may lift it above that window; the page shows no bubbles at all. When it ends the page gets
-//   fullscreen {on:false} and the window its topmost back. Only another monitor full screen is {on:true, here:false}:
+//   (a prompt's, a show's) may lift it above that window; the page shows no bubbles at all. The one exception (review
+//   §4a): a panel the user opens from the tray or the menu then (設定, 紀錄, 調整起算時間) comes in front and takes the
+//   keyboard; once it closes, the window steps back again. When full screen ends the page gets fullscreen {on:false}
+//   and the window its topmost back. Only another monitor full screen is {on:true, here:false}:
 //   the window stays as it is.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
 //   activation if the user sees it, and back to the layout's own 永遠在最上層 afterwards (ApplyTopmost). It never
@@ -105,7 +107,9 @@ public class AppHost
     bool exitRecorded;           // this run's end is in session.json
     DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
     bool promptRaised;           // the page's raise {on}: a prompt bubble shows, so the window is topmost (ApplyTopmost)
-    bool steppedBack;            // a full-screen window is in front on the window's monitor (Presentation.Here): never topmost
+    bool steppedBack;            // stepped back behind a full-screen window on its monitor (ShowRescue.StepsBack): never topmost
+    bool userPanel;              // the panel the user opened from the menu shows in front of that full-screen window (review §4a)
+    DateTime panelAskedUntil = DateTime.MinValue;   // UTC; a PANEL setLayout before then is the one the user asked for
     Size layoutCss;              // the page size (CSS px) of the last setLayout
     string capsuleDock = "top";  // U10's dock: the page's setLayout dock, or where a drop snapped it
     Rectangle? growFrom;         // a same-layout grow pushed the window in from this rect to growTo; size changes while
@@ -186,6 +190,7 @@ public class AppHost
         startLayout = settings.StartLayout;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
         presentation.Changed += OnFullscreenChanged;
+        presentation.WindowChanged += delegate { if (steppedBack) StepBehind(); };   // another full-screen window in front here
         presentation.Start();   // after PrePlace: the window's monitor is the start layout's
         window.CreateHidden();   // capture guard + hotkey (OnHandleCreated), then the page loads while hidden
         Application.Run(context);
@@ -416,6 +421,14 @@ public class AppHost
         bool changed = name != layout;
         bool shownBefore = layout != null || rescued;   // a layout was placed before this one (PanelFrom)
         layout = name;
+        // Review §4a: the panel the user just asked for from the menu comes in front of a full-screen window on this
+        // monitor; any other layout (that panel closed) steps back again.
+        if (name != WindowPlacer.PanelLayout) userPanel = false;
+        else if (DateTime.UtcNow < panelAskedUntil)
+        {
+            panelAskedUntil = DateTime.MinValue;
+            userPanel = presentation.Here;
+        }
         if (name == "U10") capsuleDock = CapsuleDock.Parse(Bridge.Str(d, "dock"));
         window.NoActivate = ShowRescue.NoActivateLayout(name);
         Size css = new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)));
@@ -444,6 +457,7 @@ public class AppHost
                 if (!pushed) placer.RememberSize(name, css);
             }
             presentation.Poll();   // another monitor: is a full-screen window in front there?
+            UpdateStepBack();
             ApplyTopmost();
         }
         else if (!window.Moving)   // a new size mid-drag (another DPI) is left to the drop (OnMoveEnded)
@@ -451,6 +465,7 @@ public class AppHost
             if (name == "U10") DockCapsule(before);
             else if (window.Size != before.Size) FitAfterResize(before);
         }
+        UpdateStepBack();   // a panel the user asked for replaced another panel (no layout change)
         UpdateTray();
         ApplyVisibility();   // the first setLayout shows the window
         if (DateTime.UtcNow < activateUntil && ShownToUser())
@@ -725,13 +740,21 @@ public class AppHost
         if (ErrorLog.Tracing)
             ErrorLog.Trace("fullscreen on=" + presentation.On + " here=" + presentation.Here + " monitor=" +
                 (presentation.Monitor.HasValue ? presentation.Monitor.Value.ToString() : "none") + " window=" + presentation.Window);
-        if (presentation.Here != steppedBack)
-        {
-            steppedBack = presentation.Here;
-            if (steppedBack) StepBehind();   // first: from the topmost band straight to below it, never above it in between
-            ApplyTopmost();
-        }
+        if (!presentation.Here) userPanel = false;   // the full screen the user's panel came in front of is over
+        UpdateStepBack();
         Send("fullscreen", FullscreenPayload());
+    }
+
+    // Steps back or comes forward when ShowRescue.StepsBack changed: behind the full-screen window first (from the topmost
+    // band straight to below it, never above it in between), then topmost off; or the topmost it had before.
+    void UpdateStepBack()
+    {
+        bool back = ShowRescue.StepsBack(presentation.Here, userPanel);
+        if (back == steppedBack) return;
+        steppedBack = back;
+        if (ErrorLog.Tracing) ErrorLog.Trace("stepped back=" + back + (userPanel ? " (the user's panel is in front)" : ""));
+        if (back) StepBehind();
+        ApplyTopmost();
     }
 
     object FullscreenPayload()
@@ -772,6 +795,7 @@ public class AppHost
             // its setLayout arrives, if it is an activating one.
             ShowAndRaise(ShowRescue.MenuActivatesNow(action));
             activateUntil = DateTime.UtcNow.AddMilliseconds(MenuActivateMs);
+            if (ShowRescue.UserPanel(action)) panelAskedUntil = activateUntil;   // in front of full screen too (review §4a)
         }
         Send("menu", new { action = action });
     }

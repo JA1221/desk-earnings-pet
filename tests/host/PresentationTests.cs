@@ -94,7 +94,7 @@ public static class PresentationTests
         Assert.Eq(max.Hwnd, Presentation.CoveringWindow(new List<Presentation.TopWindow> { max }, Projector), "a borderless window maximized over the monitor");
         max.Framed = true;
         Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(new List<Presentation.TopWindow> { max }, Projector),
-            "a maximized window with a title bar on a monitor without a taskbar is not full screen");
+            "a maximized window with a frame (a title bar or just a sizing frame) on a monitor without a taskbar is not full screen");
         Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(new List<Presentation.TopWindow>(), Projector), "no windows");
         Assert.Eq(IntPtr.Zero, Presentation.CoveringWindow(null, Projector), "nothing known");
     }
@@ -134,7 +134,8 @@ public static class PresentationTests
         Assert.True(s.On && s.Here, "the pet's monitor counts even when the monitor list is missing");
     }
 
-    // The flips over a fake z-order: Changed once per change of on or here.
+    // The flips over a fake z-order: Changed once per change of on or here; WindowChanged when another window covers the
+    // pet's monitor while here stays true (review Minor 1: the pet must step behind that one too).
     public static void Test_HereFollowsTheZOrder()
     {
         List<Presentation.TopWindow> z = new List<Presentation.TopWindow>();
@@ -143,10 +144,16 @@ public static class PresentationTests
         using (var p = new Presentation(delegate { return 5; }, delegate { return z; }, delegate { return Monitors; }, delegate { return pet; }))
         {
             p.Changed += delegate { changes.Add(p.On + "/" + p.Here); };
+            p.WindowChanged += delegate { changes.Add("window " + p.Window); };
             p.Poll();
             z = new List<Presentation.TopWindow> { W(Slides, Display1) };
             p.Poll();
             Assert.True(p.On && p.Here && p.Window == Slides, "full screen on the pet's monitor");
+            p.Poll();
+            IntPtr video = new IntPtr(0x61);
+            z = new List<Presentation.TopWindow> { W(video, Display1) };   // the slide show closed over a full-screen video
+            p.Poll();
+            Assert.True(p.On && p.Here && p.Window == video, "still here, behind another window");
             p.Poll();
             pet = Laptop;
             p.Poll();
@@ -154,8 +161,21 @@ public static class PresentationTests
             z = new List<Presentation.TopWindow>();
             p.Poll();
             Assert.True(!p.On && !p.Here && !p.Monitor.HasValue, "over");
-            Assert.Eq("True/True,True/False,False/False", string.Join(",", changes.ToArray()), "one Changed per flip");
+            Assert.Eq("True/True,window " + video + ",True/False,False/False", string.Join(",", changes.ToArray()),
+                "one Changed per flip, one WindowChanged per new covering window while here");
         }
+    }
+
+    // The desktop and the shell cover a monitor without being full screen (review Minor 6): the desktop, the taskbars,
+    // Start / Search / the action centre, Alt+Tab and Task View (Windows 10 and 11).
+    public static void Test_ShellClasses()
+    {
+        foreach (string c in new[] { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow",
+            "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "TaskSwitcherWnd", "ForegroundStaging" })
+            Assert.True(Presentation.ShellClass(c), c + " is the shell");
+        foreach (string c in new[] { "screenClass", "Chrome_WidgetWin_1", "ApplicationFrameWindow", "WindowsForms10.Window.8.app.0.1",
+            "progman", "", null })
+            Assert.True(!Presentation.ShellClass(c), (c ?? "null") + " is not");
     }
 
     // The window events that can change what is in front (hooked with WINEVENT_OUTOFCONTEXT, own process skipped): only

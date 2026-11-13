@@ -8,10 +8,12 @@ using System.Windows.Forms;
 // - A monitor is full screen when the first window in z-order (from the top) that overlaps any part of it covers the
 //   whole monitor rect (not the work area), whether or not it is the foreground window (CoveringWindow). Skipped on the
 //   way down: this app's own windows, the desktop and the shell, cloaked, invisible, minimized and zero-size windows,
-//   tool windows (WS_EX_TOOLWINDOW) and click-through overlays. A maximized window with a title bar does not count: on a
-//   monitor without a taskbar it covers the monitor too. Bounds are the visible frame, so a maximized window's invisible
-//   borders never reach into the next monitor. PowerPoint with Presenter View: the slide show covers the projector
-//   while the presenter view is the foreground window on the laptop.
+//   tool windows (WS_EX_TOOLWINDOW) and click-through overlays. A maximized window with a frame does not count, be it a
+//   title bar (WS_DLGFRAME) or only a sizing frame (WS_THICKFRAME): on a monitor without a taskbar it covers the monitor
+//   too. (So a WPF-style WindowStyle=None + Maximized full screen, which keeps WS_THICKFRAME, is missed.) Bounds are the
+//   visible frame, so a maximized window's invisible borders never reach into the next monitor. PowerPoint with
+//   Presenter View: the slide show covers the projector while the presenter view is the foreground window on the
+//   laptop.
 // - On (the page holds its reminders): Windows reports a fullscreen app or presentation mode
 //   (SHQueryUserNotificationState, no permission needed), or any monitor is full screen. A projector or a meeting-room
 //   screen is outside the capture guard's protection.
@@ -20,7 +22,9 @@ using System.Windows.Forms;
 //   monitor that matters: the pet's when here, else the first full-screen one (null for QUNS alone).
 // Checked every 2 s on the UI thread, 150 ms after a top-level window of another process comes to the foreground,
 // shows, hides, moves or sizes, is minimized or restored, or is cloaked (WinEvent hooks, out of context), and whenever
-// the host asks (Poll). Changed fires only when on or here flips.
+// the host asks (Poll). Changed fires only when on or here flips; WindowChanged when another window covers the pet's
+// monitor while here stays true (a slide show closed over a full-screen video, the pet moved to another full-screen
+// monitor), so the host can step behind that one too.
 public class Presentation : IDisposable
 {
     const int PollMs = 2000;
@@ -90,6 +94,9 @@ public class Presentation : IDisposable
     }
 
     public event Action Changed;
+
+    // While here: another window covers the pet's monitor now (Window).
+    public event Action WindowChanged;
 
     // Something is full screen (false until a poll says otherwise): the page holds its reminders.
     public bool On { get; private set; }
@@ -260,9 +267,15 @@ public class Presentation : IDisposable
     {
         bool busy = IsBusy(query());
         State s = Decide(busy, zOrder != null ? zOrder() : null, monitors != null ? monitors() : null, petMonitor != null ? petMonitor() : null);
+        IntPtr was = Window;
         Monitor = s.Monitor;
         Window = s.Window;
-        if (s.On == On && s.Here == Here) return;
+        if (s.On == On && s.Here == Here)
+        {
+            Action w = WindowChanged;
+            if (s.Here && s.Window != was && w != null) w();
+            return;
+        }
         On = s.On;
         Here = s.Here;
         Action h = Changed;

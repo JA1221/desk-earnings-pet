@@ -102,6 +102,27 @@ public static class ShowRescueTests
         Assert.True(!ShowRescue.HotkeyHides(true, false, false, true, false), "covered, nothing full screen: raise");
     }
 
+    // Review §4a: a panel the user opens from the tray or the menu (設定, 紀錄, 調整起算時間, which is 設定 at 起算) comes in
+    // front of a full-screen window on the pet's monitor and takes the keyboard; nothing else the menu does beats it.
+    public static void Test_PanelsTheUserOpensBeatFullScreen()
+    {
+        foreach (string a in new[] { "settings", "history", "adjust" })
+            Assert.True(ShowRescue.UserPanel(a), a + " is a panel the user asked for");
+        foreach (string a in new[] { "toggleVisible", "layout:U1", "mini", "feed", "start", "end", "topmost", "drink", "undrink", "pomodoro",
+            "capsule:top", "quit", null })
+            Assert.True(!ShowRescue.UserPanel(a), (a ?? "null") + " is not");
+    }
+
+    // Stepped back: full screen on the pet's monitor, unless the panel the user asked for shows (then it is in front, and
+    // the step-back applies again once it closes).
+    public static void Test_StepsBack()
+    {
+        Assert.True(ShowRescue.StepsBack(true, false), "full screen here: steps back");
+        Assert.True(!ShowRescue.StepsBack(true, true), "the user's panel: in front");
+        Assert.True(!ShowRescue.StepsBack(false, false), "nothing full screen here");
+        Assert.True(!ShowRescue.StepsBack(false, true), "nothing full screen here, panel or not");
+    }
+
     // R-F3: tray and menu actions show and raise the window (the user wants to see the result); 隱藏/顯示 toggles,
     // 結束 quits, and 永遠在最上層 only changes the z-order band.
     public static void Test_MenuActionsThatShowTheWindow()
