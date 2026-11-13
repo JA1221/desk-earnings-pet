@@ -887,6 +887,51 @@
     done();
   });
 
+  // 1.1.1 item 5: 「現在提醒我一次」 in the 休息提醒 card asks for a real reminder now (QJZ.care.remindNow). 設定 is open
+  // and holds it (Ruling C1), so it shows 3 s after the panel closes, as the hint says. Nothing to ask: off, with a hint.
+  test('panels: 現在提醒我一次 asks for a reminder; it shows 3 s after 設定 closes; off, with a hint, when nothing would be asked', function () {
+    var on = { salary: READY.salary, onboarded: true, health: { asked: true, sit: { on: true }, water: { on: true } } };
+    var e = mk(at(12, 10, 0), { care: true, settings: on });
+    e.bridge.emit({ type: 'visibility', visible: true });
+    e.menu('settings');
+    $(e, '[data-tab=health]').click();
+    var btn = $(e, '[data-remind]');
+    ok(visible(btn), 'shown');
+    eq(btn.closest('.card').querySelector('.ttl').textContent, '休息提醒', 'in the 休息提醒 card');
+    eq([btn.tagName, btn.textContent, btn.disabled], ['BUTTON', '現在提醒我一次', false]);
+    eq(text(e, '[data-o=remindHint]'), '關掉設定後就會跳出來。');
+    btn.click();
+    eq(QJZ.care.state.r.forced, true, 'asked for');
+    eq(QJZ.care.state.prompt, null, '設定 holds it');
+    $(e, '[data-act=back]').click();
+    eq(QJZ.layouts.current(), 'U1', '完成');
+    e.tick(at(12, 10, 0, 2));
+    eq(QJZ.care.state.prompt, null);
+    e.tick(at(12, 10, 0, 3));
+    eq(QJZ.care.state.prompt && QJZ.care.state.prompt.kind, 'both', '3 s after 設定 closed: what the switches ask');
+    ok($(e, '.u1').classList.contains('prompting'), 'the bubble');
+    done();
+
+    var f = mk(at(12, 10, 0), { care: true, settings: { salary: READY.salary, onboarded: true, health: { asked: true } } });
+    f.menu('settings');
+    $(f, '[data-tab=health]').click();
+    btn = $(f, '[data-remind]');
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '起來動和喝水都關著，打開一個才能試。'], 'both switches off');
+    btn.click();
+    eq(QJZ.care.state.r.forced, false, 'and it does nothing');
+    $(f, '[data-tgl=water]').click();
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [false, '關掉設定後就會跳出來。'], 'one switch on');
+    QJZ.care.setCups(8);
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '今天的水已經喝滿了，喝水提醒明天再來。'], 'water only and the goal reached');
+    done();
+
+    var g = mk(at(12, 10, 0), { care: true, settings: READY });   // a 1.0 user who has not answered
+    g.menu('settings');
+    $(g, '[data-tab=health]').click();
+    eq($(g, '[data-remind]').disabled, true, 'not answered yet: off');
+    done();
+  });
+
   test('panels: five tabs in order; the 版型 card in 畫面 has exactly 相容模式 and 省電模式; 動力加成 is unchanged', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');

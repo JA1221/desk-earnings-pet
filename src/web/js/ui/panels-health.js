@@ -2,7 +2,8 @@ window.QJZ = window.QJZ || {};
 // 設定 → 健康 (spec §4.6 D 方案 1 as simplified by §4.9 #6 #7, §5.4), onboarding step 3 and the one-time reminder question
 // after the 1.0 upgrade (§4.6, §5.5), drawn with QJZ.panels.kit inside panels.js's PANEL (c: the mounted panel).
 //   section() / update(c)  the 健康 tab: the 休息提醒 card (起來動 and 喝水 switches, 每隔 N 分鐘, 一天幾杯 N 杯 and the
-//       automatic 起來動目標), the 番茄鐘 card (專心 N 分鐘) and 進階, closed at first (短休息, 長休息, 每幾顆番茄長休息一次
+//       automatic 起來動目標, and 1.1.1's 「現在提醒我一次」: QJZ.care.remindNow, off with a hint when nothing would be
+//       asked; 設定 holds the reminder (Ruling C1), so its hint says it comes once the panel closes), the 番茄鐘 card (專心 N 分鐘) and 進階, closed at first (短休息, 長休息, 每幾顆番茄長休息一次
 //       with the automatic 番茄每日目標, 今天已喝). The numbers step by QJZ.settings.HEALTH_RANGES and stop at its ends;
 //       今天已喝 corrects today's cups (QJZ.care.setCups), never below 0. A switch shows what runs (both off until the
 //       reminder question is answered, QJZ.reminders.ask); pressing one answers it: both are saved as they show.
@@ -24,6 +25,8 @@ QJZ.panelsHealth = (function () {
   };
   var CUPS = ['今天已喝', '杯'];
   var BTN = { drink: 'drink', up: 'ok' };   // the preview's buttons, coloured as QJZ.promptView colours them
+  // 「現在提醒我一次」's hint: it can be pressed; both switches off (or not answered yet); water only and the goal reached.
+  var REMIND = { ok: '關掉設定後就會跳出來。', off: '起來動和喝水都關著，打開一個才能試。', full: '今天的水已經喝滿了，喝水提醒明天再來。' };
 
   function icon(name) { return QJZ.icons.svg(name); }
   function valueAt(health, path) { return path.split('.').reduce(function (o, k) { return o[k]; }, health); }
@@ -48,6 +51,7 @@ QJZ.panelsHealth = (function () {
         K.line(K.row('喝水', K.tgl('water', '喝水')) + K.hint('寵物會捧著水杯提醒你喝水。')) +
         K.line(num('every') + K.hint('按「等一下」會晚一點再提醒；番茄鐘的休息也算一次起身。') + K.hint('', 'standGoal')) +
         K.line(num('water.goal') + K.hint('喝滿目標寵物會很開心。')) +
+        K.line('<button type="button" class="btn sm remind" data-remind>現在提醒我一次</button>' + K.hint('', 'remindHint'), ' data-o="remindLine"') +
       '</div><div class="card">' +
         K.line(K.row('<span class="ttl">' + icon('tom') + '番茄鐘</span>', '<span class="aside">從右鍵或 🍅 按鈕開始</span>')) +
         K.line(num('pomodoro.focus') + K.hint('專心時寵物戴上耳機、不聊天，提醒會等到休息時再說。')) +
@@ -63,6 +67,9 @@ QJZ.panelsHealth = (function () {
     showNum(c, 'cups', cups(), 0, Infinity);
     K.out(c, 'standGoal', '起來動目標：每天 ' + QJZ.settings.standGoal(s) + ' 次（工時 ÷ 間隔，自動算）');
     K.out(c, 'roundGoal', '每天目標就是一輪：' + QJZ.settings.tomatoGoal(s) + ' 顆。');
+    var a = QJZ.reminders.ask(h, cups()), can = a.sit || a.water, rb = K.q(c, '[data-remind]');
+    if (rb && rb.disabled === can) rb.disabled = !can;
+    K.out(c, 'remindHint', can ? REMIND.ok : h.asked && h.water.on && !h.sit.on ? REMIND.full : REMIND.off);
   }
   // A stepper's number; its − and ＋ are off at the ends.
   function showNum(c, key, v, min, max) {
@@ -155,6 +162,8 @@ QJZ.panelsHealth = (function () {
 
   // ================= clicks =================
   function click(c, t) {
+    var rn = t.closest('[data-remind]');
+    if (rn) { if (!rn.disabled && QJZ.care) QJZ.care.remindNow(); return true; }
     var ck = t.closest('[data-ck]');
     if (ck) { tick(c, ck); return true; }
     var tg = t.closest('[data-tgl="sit"],[data-tgl="water"]');
