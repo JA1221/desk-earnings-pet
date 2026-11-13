@@ -75,6 +75,9 @@ window.QJZ = window.QJZ || {};
 // a pomodoro its countdown; only the capsule takes clicks, and it shows no odometer (it changes at most once a second).
 // U12's rings and U13's big ring are [data-gauge]s (--p, hot for the prompt that asks for them, rest in a break), U13's
 // tomato slots [data-tslots]. None of them has a speech bubble: their lines are banners, and they never chatter.
+// 1.1.1 item 7: while a full-screen window is on the pet window's monitor (QJZ.care.state.here: the host has stepped
+// the window behind it) nothing is said at all: no speech bubble, banner, chatter, event or milestone line, drank line,
+// confetti, coin or jingle (hushed). Nothing is replayed afterwards; chatter starts again 7–15 s later.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
@@ -353,6 +356,8 @@ QJZ.layouts = (function () {
   function careState() { return QJZ.care ? QJZ.care.state : null; }
   // A prompt bubble shows (QJZ.care decides; it is set before its prompt event goes out).
   function prompting() { var cs = careState(); return !!(cs && cs.ready && cs.prompt); }
+  // A full-screen window is on the pet's monitor (fullscreen here): nothing is said (1.1.1 item 7).
+  function hushed() { var cs = careState(); return !!(cs && cs.ready && cs.here); }
   // A pomodoro focus runs: the pet keeps quiet.
   function focusing() { var cs = careState(); return !!(cs && cs.ready && cs.p && cs.p.phase === 'focus'); }
   function send(type, payload) { if (bridge) bridge.send(type, payload); }
@@ -577,7 +582,7 @@ QJZ.layouts = (function () {
   // A new base state: a line about it, and the jingle when 可以下班 happens while the user is looking.
   function onPetChange(ch) {
     if (ch.from === null) return;
-    if (ch.to === 'celebrate' && !ch.quiet && QJZ.sound) QJZ.sound.jingle();
+    if (ch.to === 'celebrate' && !ch.quiet && !hushed() && QJZ.sound) QJZ.sound.jingle();
     petSay(ch.to, null, 0, RANK.event);
   }
 
@@ -608,7 +613,7 @@ QJZ.layouts = (function () {
   // user's or another module's bubble, never while a prompt shows or a focus runs; chatter only when none shows. The
   // line is picked only when it will be said.
   function petSay(state, extra, ms, rank) {
-    if (!view) return false;
+    if (!view || hushed()) return false;
     if (rank < RANK.user && (!view.bubble || bubbleRank >= RANK.user || (rank === RANK.chat && bubbleRank) || prompting() || focusing())) return false;
     return say(line(state, extra), ms, rank);
   }
@@ -618,7 +623,7 @@ QJZ.layouts = (function () {
     var gap = lastTick !== null && (ms - lastTick > GAP_MS || ms < lastTick);
     lastTick = ms;
     if (!view || !view.bubble || bubbleRank || dragging) return;
-    if (prompting() || focusing()) { chatAt = null; return; }
+    if (prompting() || focusing() || hushed()) { chatAt = null; return; }
     if (chatAt === null || gap) { chatAt = nextChat(ms); return; }
     if (ms < chatAt) return;
     chatAt = null;
@@ -1053,7 +1058,7 @@ QJZ.layouts = (function () {
   // bubble at a time). Never interactive (no hit rect).
   // rank (layouts-internal): RANK of the line; other modules' lines rank with the user's own actions.
   function say(text, ms, rank) {
-    if (!view || !text) return false;
+    if (!view || !text || hushed()) return false;
     var v = view, b = v.bubble;
     if (!b || prompting()) { if (QJZ.fx) QJZ.fx.banner(v.fxWin, text); return true; }
     stopSay();
@@ -1157,7 +1162,7 @@ QJZ.layouts = (function () {
       if (!bubbleRank) petSay('missed', { gained: ev.gained || 1 }, 0, RANK.event);
       return;
     }
-    var hush = focusing();
+    var hush = focusing() || hushed();
     if (QJZ.fx && view.fxWin && !hush) {
       var c = petCenter(view.fxWin);
       QJZ.fx.confetti(view.fxWin, c.x, c.y);
@@ -1270,6 +1275,7 @@ QJZ.layouts = (function () {
   // next second. Its countdowns do not fire this; they follow onSecond.
   function onCare() {
     if (!view || !ready()) return;
+    if (hushed() && bubbleRank) hideSay();   // full screen here: what was being said goes too
     if (prompting()) {   // a cup logged elsewhere while it shows: its 「今天 N/8 杯」 (Review Focus #5)
       var v = QJZ.care.view();
       if (v && JSON.stringify(v) !== drawnView) drawView(v);

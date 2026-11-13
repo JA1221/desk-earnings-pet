@@ -2186,4 +2186,42 @@
     ok(!svg(f).classList.contains('rest') && running(f) > 0, '可以下班 still celebrates');
     done();
   });
+  // ---------- 1.1.1 ----------
+  // Item 7: fullscreen {on, here}. here: the full-screen window is on the pet window's monitor and the host has stepped
+  // the window behind it, so nothing is said at all (a speech bubble, a banner, chatter, an event or milestone line, the
+  // drank line), and no jingle or coin. Nothing is replayed after it; chatter starts again 7–15 s later.
+  test('layouts DOM: full screen on the pet\'s monitor says nothing at all; another monitor does; nothing is replayed', function () {
+    sounds(function (n) {
+      var e = shown(mk(at(12, 10, 3), { care: true })), b = $(e, '[data-bubble]');   // no reminder: nothing else asks
+      QJZ.layouts.say('吱！');
+      ok(b.classList.contains('show'), 'a bubble shows');
+      e.bridge.emit({ type: 'fullscreen', on: true, here: true });
+      ok(!b.classList.contains('show'), 'and goes at once');
+      eq(QJZ.layouts.say('吱！'), false, 'a line from anyone is not said');
+      C.drink();
+      eq(C.state.health.cups, 1, 'a cup from the tray still counts');
+      e.tick(at(12, 10, 3, 22));
+      eq(QJZ.app.state.snacks, 3, 'a milestone still counts');
+      steps(e, at(12, 10, 3, 23), at(12, 10, 3, 59));
+      ok(!b.classList.contains('show'), 'no drank line, milestone line or chatter');
+      eq(e.root.querySelectorAll('.banner, .confetti').length, 0, 'no banner, no confetti');
+      eq(n.coin, 0, 'no coin');
+      e.bridge.emit({ type: 'fullscreen', on: false });
+      steps(e, at(12, 10, 4, 0), at(12, 10, 4, 5));
+      ok(!b.classList.contains('show') && !e.root.querySelector('.banner'), 'nothing replayed');
+      var talked = false;
+      for (var t = at(12, 10, 4, 6); t <= at(12, 10, 4, 22); t += 1000) { e.tick(t); talked = talked || b.classList.contains('show'); }
+      ok(talked, 'chatter again, 7–15 s after');
+      e.bridge.emit({ type: 'fullscreen', on: true, here: false });
+      eq(QJZ.layouts.say('吱！'), true, 'a full-screen window on another monitor: lines are said');
+      e.bridge.emit({ type: 'fullscreen', on: true, here: true });
+      e.clock.ms = at(12, 18, 0, 5);   // 可以下班 at 18:00
+      QJZ.app.tickNow();
+      eq(petState(e), 'celebrate', '可以下班');
+      eq(n.jingle, 0, 'without its jingle');
+      e.menu('layout:U5B');
+      eq(QJZ.layouts.say('吱！'), false);
+      eq(e.root.querySelectorAll('.banner').length, 0, 'U5-B: no banner either');
+    });
+  });
 })();
