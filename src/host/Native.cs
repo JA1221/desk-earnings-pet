@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 internal static class Native
 {
     public const int GWL_EXSTYLE = -20;
+    public const int GWL_STYLE = -16;
+    public const int WS_THICKFRAME = 0x00040000;
+    public const int WS_DLGFRAME = 0x00400000;
     public const int WS_EX_TOPMOST = 0x00000008;
     public const int WS_EX_TRANSPARENT = 0x00000020;
     public const int WS_EX_LAYERED = 0x00080000;
@@ -146,6 +149,18 @@ internal static class Native
 
     [DllImport("user32.dll")]
     public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsZoomed(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetShellWindow();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDesktopWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder className, int maxCount);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();

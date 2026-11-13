@@ -16,12 +16,17 @@ public static class PauseGateTests
     }
 
     // While a prompt bubble shows, the window is raised above everything (spec 5.1); afterwards the layout's own
-    // 永遠在最上層 applies again.
+    // 永遠在最上層 applies again. 1.1.1: while a full-screen window is in front on the pet's monitor the window steps
+    // back (never topmost, prompt or not), and comes back as it was when that ends.
     public static void Test_EffectiveTopmost()
     {
-        Assert.True(!ShowRescue.EffectiveTopmost(false, false), "layout not topmost, no prompt: not topmost");
-        Assert.True(ShowRescue.EffectiveTopmost(false, true), "a prompt raises a non-topmost layout");
-        Assert.True(ShowRescue.EffectiveTopmost(true, false), "a topmost layout stays topmost");
+        Assert.True(!ShowRescue.EffectiveTopmost(false, false, false), "layout not topmost, no prompt: not topmost");
+        Assert.True(ShowRescue.EffectiveTopmost(false, true, false), "a prompt raises a non-topmost layout");
+        Assert.True(ShowRescue.EffectiveTopmost(true, false, false), "a topmost layout stays topmost");
+        Assert.True(ShowRescue.EffectiveTopmost(true, true, false), "both");
+        Assert.True(!ShowRescue.EffectiveTopmost(true, false, true), "full screen here: a topmost layout steps back");
+        Assert.True(!ShowRescue.EffectiveTopmost(false, true, true), "full screen here wins over a prompt's raise");
+        Assert.True(!ShowRescue.EffectiveTopmost(true, true, true), "and over both");
     }
 
     public static void Test_HiddenAndLockedCombine()
@@ -75,16 +80,26 @@ public static class ShowRescueTests
     // R-F3: the hotkey hides only a window the user sees on top; a covered window comes to the front instead.
     public static void Test_HotkeyHidesOnlyWhatIsSeenOnTop()
     {
-        // (shownToUser, foreground, topmost, covered)
-        Assert.True(!ShowRescue.HotkeyHides(false, false, false, false), "hidden (or still starting): show");
-        Assert.True(!ShowRescue.HotkeyHides(false, false, true, false), "hidden topmost layout: show");
-        Assert.True(ShowRescue.HotkeyHides(true, true, false, false), "visible and foreground: hide");
-        Assert.True(ShowRescue.HotkeyHides(true, true, false, true), "foreground wins over anything above it");
-        Assert.True(ShowRescue.HotkeyHides(true, false, true, false), "visible topmost layout: hide");
-        Assert.True(ShowRescue.HotkeyHides(true, false, true, true), "a topmost layout hides even under another topmost window");
-        Assert.True(!ShowRescue.HotkeyHides(true, false, false, true), "U1 behind Excel: show and raise, not hide");
-        Assert.True(ShowRescue.HotkeyHides(true, false, false, false),
+        // (shownToUser, foreground, topmost, covered, steppedBack)
+        Assert.True(!ShowRescue.HotkeyHides(false, false, false, false, false), "hidden (or still starting): show");
+        Assert.True(!ShowRescue.HotkeyHides(false, false, true, false, false), "hidden topmost layout: show");
+        Assert.True(ShowRescue.HotkeyHides(true, true, false, false, false), "visible and foreground: hide");
+        Assert.True(ShowRescue.HotkeyHides(true, true, false, true, false), "foreground wins over anything above it");
+        Assert.True(ShowRescue.HotkeyHides(true, false, true, false, false), "visible topmost layout: hide");
+        Assert.True(ShowRescue.HotkeyHides(true, false, true, true, false), "a topmost layout hides even under another topmost window");
+        Assert.True(!ShowRescue.HotkeyHides(true, false, false, true, false), "U1 behind Excel: show and raise, not hide");
+        Assert.True(ShowRescue.HotkeyHides(true, false, false, false, false),
             "nothing covers it (U7/M3 with topmost off never become foreground; U1 after a raise): hide");
+    }
+
+    // 1.1.1: stepped back behind a full-screen window on its monitor, the window is where it belongs, and it may not be
+    // raised above that window: the hotkey hides it (it never pops up over a slide show).
+    public static void Test_HotkeyHidesAWindowSteppedBackForFullScreen()
+    {
+        // (shownToUser, foreground, topmost, covered, steppedBack)
+        Assert.True(ShowRescue.HotkeyHides(true, false, false, true, true), "covered by the full-screen window: hide");
+        Assert.True(!ShowRescue.HotkeyHides(false, false, false, true, true), "hidden: show (behind the full-screen window)");
+        Assert.True(!ShowRescue.HotkeyHides(true, false, false, true, false), "covered, nothing full screen: raise");
     }
 
     // R-F3: tray and menu actions show and raise the window (the user wants to see the result); 隱藏/顯示 toggles,

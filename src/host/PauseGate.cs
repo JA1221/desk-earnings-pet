@@ -61,9 +61,11 @@ public static class ShowRescue
     // foreground window, a topmost layout, or not covered by another app's window. A hidden or covered window is
     // shown and raised instead, so the hotkey never "hides" a window the user could not see (U1 behind Excel).
     // covered matters for the windows that are never foreground: U7/M3 with topmost off, U1 after a raise.
-    public static bool HotkeyHides(bool shownToUser, bool foreground, bool topmost, bool covered)
+    // steppedBack (1.1.1): the window stepped back behind a full-screen window on its monitor, which nothing may raise
+    // it above; it is where it belongs, so a shown one is hidden.
+    public static bool HotkeyHides(bool shownToUser, bool foreground, bool topmost, bool covered, bool steppedBack)
     {
-        return shownToUser && (foreground || topmost || !covered);
+        return shownToUser && (foreground || topmost || !covered || steppedBack);
     }
 
     // Tray and menu actions the user wants to see the result of: they show and raise the window (and give it the
@@ -90,10 +92,11 @@ public static class ShowRescue
     }
 
     // Whether the window is topmost: the layout's own 永遠在最上層, or raised while a prompt bubble shows (raise {on},
-    // spec 5.1). The tray's check mark shows layoutTopmost only.
-    public static bool EffectiveTopmost(bool layoutTopmost, bool raised)
+    // spec 5.1). The tray's check mark shows layoutTopmost only. steppedBack (1.1.1 item 7): a full-screen window is in
+    // front on the pet window's monitor, so the window steps back behind it, prompt or not; the full-screen window wins.
+    public static bool EffectiveTopmost(bool layoutTopmost, bool raised, bool steppedBack)
     {
-        return layoutTopmost || raised;
+        return !steppedBack && (layoutTopmost || raised);
     }
 }
 

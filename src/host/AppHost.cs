@@ -25,14 +25,20 @@ using Microsoft.Web.WebView2.Core;
 //   (WindowPlacer.PanelBounds, 1.1.1); a drag of it is not saved. A start that opens with a panel opens it beside
 //   the hidden window, which PrePlace put at the start layout's saved spot and size, so the first thing shown is on
 //   the start layout's monitor (it used PANEL's own saved spot, which could be on another monitor).
-// - fullscreen {on}: Windows reports a fullscreen app or presentation mode (Presentation), after every init and on
-//   each change; the page holds its reminders meanwhile.
+// - fullscreen {on, here}: something runs full screen (Presentation: Windows reports a fullscreen app or presentation
+//   mode, or the foreground window covers its whole monitor), sent after every init and on each change; the page
+//   holds its reminders while on. here (1.1.1): that full-screen window is on the pet window's monitor. Then the window
+//   steps back: topmost off (ApplyTopmost) and below that window in the z-order, never activated and never moved, and
+//   no raise (a prompt's, a show's) may lift it above that window; the page shows no bubbles at all. When it ends the
+//   page gets fullscreen {on:false} and the window its topmost back. A full-screen window on another monitor is
+//   {on:true, here:false}: the window stays as it is.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
 //   activation if the user sees it, and back to the layout's own 永遠在最上層 afterwards (ApplyTopmost). It never
 //   shows a hidden window and never takes the keyboard.
-// - Every show raises the window to the top of its band without activating it. Shows and panels the user asked
-//   for from the tray or the menu also take the keyboard in the activating layouts (U1/U3/U5B/PANEL). The hotkey
-//   hides only a window the user sees on top (ShowRescue.HotkeyHides); a covered one is raised instead.
+// - Every show raises the window to the top of its band without activating it (stepped back for full screen: kept
+//   behind that window). Shows and panels the user asked for from the tray or the menu also take the keyboard in the
+//   activating layouts (U1/U3/U5B/PANEL). The hotkey hides only a window the user sees on top
+//   (ShowRescue.HotkeyHides); a covered one is raised instead, but one stepped back for full screen is hidden.
 // - While the window is hidden or the session is locked the page gets visibility {visible:false} and the hit
 //   poll stops; showing / unlocking reverses both.
 // - Alt+F4 hides the window. Any close from outside (WM_CLOSE, Windows ending the session) shuts the app down.
@@ -66,7 +72,7 @@ public class AppHost
     readonly Bridge bridge;
     readonly AutoStart autoStart = new AutoStart();
     readonly PauseGate gate = new PauseGate();
-    readonly Presentation presentation = new Presentation(Presentation.Query);
+    readonly Presentation presentation;
     readonly ApplicationContext context = new ApplicationContext();
     readonly System.Windows.Forms.Timer quitTimer = new System.Windows.Forms.Timer();
     readonly MenuEscape menuEscape;   // Esc for the menu while it cannot get the keyboard (no-activate layouts)
@@ -98,6 +104,7 @@ public class AppHost
     bool exitRecorded;           // this run's end is in session.json
     DateTime activateUntil = DateTime.MinValue;   // UTC; a setLayout before then takes the keyboard (tray/menu action)
     bool promptRaised;           // the page's raise {on}: a prompt bubble shows, so the window is topmost (ApplyTopmost)
+    bool steppedBack;            // a full-screen window is in front on the window's monitor (Presentation.Here): never topmost
     Size layoutCss;              // the page size (CSS px) of the last setLayout
     string capsuleDock = "top";  // U10's dock: the page's setLayout dock, or where a drop snapped it
     Rectangle? growFrom;         // a same-layout grow pushed the window in from this rect to growTo; size changes while
@@ -129,6 +136,7 @@ public class AppHost
             delegate { tray.CloseInnermost(); });
         window.CloseRequested += delegate { wantVisible = false; ApplyVisibility(); };   // Alt+F4: hide; 結束 quits
         window.FormClosing += OnClosing;
+        presentation = new Presentation(Presentation.Query, Presentation.ProbeForeground, PetMonitor);
 
         quitTimer.Interval = QuitWaitMs;
         quitTimer.Tick += delegate { Quit(); };
@@ -174,11 +182,10 @@ public class AppHost
         session = new SessionWatcher();
         session.Activity += OnSession;
         SingleInstance.Listen(OnSecondInstance);
-        presentation.Changed += delegate(bool on) { Send("fullscreen", new { on = on }); };
-        presentation.Start();
-
         startLayout = settings.StartLayout;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
+        presentation.Changed += OnFullscreenChanged;
+        presentation.Start();   // after PrePlace: the window's monitor is the start layout's
         window.CreateHidden();   // capture guard + hotkey (OnHandleCreated), then the page loads while hidden
         Application.Run(context);
     }
@@ -291,7 +298,7 @@ public class AppHost
         ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued
         Send("visibility", new { visible = gate.Running });
-        Send("fullscreen", new { on = presentation.Busy });
+        Send("fullscreen", FullscreenPayload());
         if (hotkeyFailure != null) Send("hotkeyFailed", hotkeyFailure);
         foreach (string file in files.Unreadable) Send("storageError", new { file = file, reason = "unreadable" });
     }
@@ -358,7 +365,7 @@ public class AppHost
                     bool? on = Bridge.Bool(d, "on");
                     if (on == null) break;
                     SetPromptRaised(on.Value);
-                    if (on.Value && ShownToUser()) window.RaiseWithoutActivation();   // never shows or activates
+                    if (on.Value) Raise(false);   // never shows or activates; never above a full-screen window here
                     break;
                 }
             case "setAutostart":
@@ -435,6 +442,7 @@ public class AppHost
                 // pushes it in again; a saved size of the new size would make the saved spot look like a chosen overhang.
                 if (!pushed) placer.RememberSize(name, css);
             }
+            presentation.Poll();   // another monitor: is a full-screen window in front there?
             ApplyTopmost();
         }
         else if (!window.Moving)   // a new size mid-drag (another DPI) is left to the drop (OnMoveEnded)
@@ -509,6 +517,12 @@ public class AppHost
 
     void OnMoveEnded()
     {
+        try { EndMove(); }
+        finally { presentation.Poll(); }   // dropped on another monitor: is a full-screen window in front there?
+    }
+
+    void EndMove()
+    {
         if (layout == "U10") { SnapCapsule(); return; }
         // U7 hangs from its scruff tip while dragged, so a drop can leave the seated pet below the work area (over or
         // under the taskbar): lift it until the desk is inside the work area of the monitor the cursor is on.
@@ -544,20 +558,23 @@ public class AppHost
     }
 
     // The hide hotkey: hides only a window the user sees on top; a hidden or covered one is shown and raised (without
-    // taking the keyboard from the user's app).
+    // taking the keyboard from the user's app). Stepped back behind a full-screen window, a shown one is hidden: it may
+    // not be raised above that window.
     void OnHotkey()
     {
+        presentation.Poll();
         bool shown = ShownToUser();
         bool foreground = shown && Native.GetForegroundWindow() == window.Handle;
         bool top = window.TopMostEnabled;
-        bool covered = shown && !foreground && !top && CoverCheck.IsCovered(window.Handle);
-        if (ShowRescue.HotkeyHides(shown, foreground, top, covered)) { wantVisible = false; ApplyVisibility(); }
+        bool covered = shown && !foreground && !top && !steppedBack && CoverCheck.IsCovered(window.Handle);
+        if (ShowRescue.HotkeyHides(shown, foreground, top, covered, steppedBack)) { wantVisible = false; ApplyVisibility(); }
         else ShowAndRaise(false);
     }
 
     void ShowAndRaise(bool activate)
     {
         if (quitting) return;
+        presentation.Poll();   // the user's own action: what is in front now, not up to 2 s ago
         wantVisible = true;
         ApplyVisibility();   // raises it if it was hidden
         Raise(activate);
@@ -565,10 +582,12 @@ public class AppHost
 
     // To the top of its band (topmost or not) without activating; activate: also the foreground window, unless the
     // layout never takes focus (U7, M3, U10). Windows allows that right after the user's own input to this app (tray,
-    // menu) or a second start's AllowSetForegroundWindow; when it refuses, the raise still holds.
+    // menu) or a second start's AllowSetForegroundWindow; when it refuses, the raise still holds. Stepped back for a
+    // full-screen window on its monitor: kept below that window instead, and never activated (full screen wins).
     void Raise(bool activate)
     {
         if (!ShownToUser()) return;
+        if (steppedBack) { StepBehind(); return; }
         window.RaiseWithoutActivation();
         if (activate && !window.NoActivate) Native.SetForegroundWindow(window.Handle);
     }
@@ -578,11 +597,13 @@ public class AppHost
         switch (ShowRescue.Visibility(wantVisible, layout != null, rescued, quitting, window.Visible, ShownToUser()))
         {
             case VisibilityAction.Show:
+                if (steppedBack) StepBehind();   // behind the full-screen window before it shows, not a frame later
                 window.Show();   // never activates (PetWindow.ShowWithoutActivation) and keeps the old z-order place
                 Raise(false);
                 break;
             case VisibilityAction.Hide: window.Hide(); break;
             case VisibilityAction.ForceShow:   // WinForms says shown, Windows disagrees (or minimized)
+                if (steppedBack) StepBehind();
                 if (window.IsHandleCreated) Native.ShowWindow(window.Handle, Native.SW_SHOWNOACTIVATE);
                 Raise(false);
                 break;
@@ -685,10 +706,49 @@ public class AppHost
         return topmost.TryGetValue(layout ?? startLayout, out on) && on;
     }
 
-    // Every topmost change goes through here: the layout's own setting, or raised while a prompt shows.
+    // Every topmost change goes through here: the layout's own setting, or raised while a prompt shows; never while
+    // stepped back for a full-screen window on the window's monitor.
     void ApplyTopmost()
     {
-        window.TopMostEnabled = ShowRescue.EffectiveTopmost(LayoutTopmost(), promptRaised);
+        window.TopMostEnabled = ShowRescue.EffectiveTopmost(LayoutTopmost(), promptRaised, steppedBack);
+    }
+
+    // ---- full screen ----
+
+    // Something went full screen or stopped, or the full-screen window and the pet window met on one monitor or parted
+    // (Presentation). Here: the window steps back, topmost off and below the full-screen window, without being
+    // activated or moved; when that ends it comes back as it was (ApplyTopmost: the layout's topmost, a prompt's
+    // raise). The page gets fullscreen {on, here}, or {on:false}.
+    void OnFullscreenChanged()
+    {
+        if (ErrorLog.Tracing)
+            ErrorLog.Trace("fullscreen on=" + presentation.On + " here=" + presentation.Here + " monitor=" +
+                (presentation.Monitor.HasValue ? presentation.Monitor.Value.ToString() : "none") + " window=" + presentation.Window);
+        if (presentation.Here != steppedBack)
+        {
+            steppedBack = presentation.Here;
+            ApplyTopmost();
+            if (steppedBack) StepBehind();
+        }
+        Send("fullscreen", FullscreenPayload());
+    }
+
+    object FullscreenPayload()
+    {
+        return presentation.On ? (object)new { on = true, here = presentation.Here } : new { on = false };
+    }
+
+    // Below the full-screen window in the z-order, if the window is above it (its place among the other windows is
+    // kept otherwise). Hidden or shown; never activates or moves it. Call with topmost already off (ApplyTopmost).
+    void StepBehind()
+    {
+        if (window.IsHandleCreated) CoverCheck.KeepBelow(window.Handle, presentation.Window);
+    }
+
+    // The monitor the pet window is on, by its rect (the hidden window PrePlace placed counts too).
+    Rectangle? PetMonitor()
+    {
+        return Screen.FromRectangle(window.Bounds).Bounds;
     }
 
     void SetPromptRaised(bool on)

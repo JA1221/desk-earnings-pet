@@ -62,6 +62,29 @@ public static class CoverCheck
         return w;
     }
 
+    // Whether other is above hwnd in the z-order (walking up from hwnd, at most MaxWalk windows).
+    public static bool IsAbove(IntPtr hwnd, IntPtr other)
+    {
+        if (hwnd == IntPtr.Zero || other == IntPtr.Zero) return false;
+        IntPtr h = hwnd;
+        for (int i = 0; i < MaxWalk; i++)
+        {
+            h = Native.GetWindow(h, Native.GW_HWNDPREV);
+            if (h == IntPtr.Zero) return false;
+            if (h == other) return true;
+        }
+        return false;
+    }
+
+    // Puts hwnd right below other in the z-order unless it is already below it (then its place among the other
+    // windows is kept); never activates, moves or sizes it. True when it moved hwnd. Call with hwnd out of the topmost
+    // band: placed below a topmost window it would join that band.
+    public static bool KeepBelow(IntPtr hwnd, IntPtr other)
+    {
+        if (hwnd == IntPtr.Zero || other == IntPtr.Zero || IsAbove(hwnd, other)) return false;
+        return Native.SetWindowPos(hwnd, other, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+    }
+
     // The frame the user sees (without the invisible resize borders of Windows 10/11), else the window rect.
     static Rectangle FrameBounds(IntPtr h)
     {
