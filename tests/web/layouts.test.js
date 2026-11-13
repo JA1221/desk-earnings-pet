@@ -1773,7 +1773,7 @@
     e.tick(at(12, 9, 49, 59));
     var win = sizeOf(e);
     eq(last(e.sent, 'setLayout').layout, 'U10');
-    ok(win[0] >= 440 && win[0] <= 560 && win[1] >= 100 && win[1] <= 130, 'the widest state\'s footprint: ' + win);
+    ok(win[0] >= 440 && win[0] <= 560 && win[1] >= 140 && win[1] <= 160, 'the window: the widest state and its banner lane (1.1.1); the widest state\'s footprint: ' + win);
     function check(state, w, h) {
       var lay = $(e, '.u10'), isl = $(e, '.isl'), box = lay.getBoundingClientRect(), r = isl.getBoundingClientRect();
       eq(sizeOf(e), win, state + ': the same window');
@@ -2369,4 +2369,128 @@
       done();
     });
   });
+
+  // Item 1: bubble tails and banners (the user: 「箭頭部分重疊到框」). A tail is a turned square with two borders (the V);
+  // only its outer half is drawn (clip-path), with its centre on the inner edge of the bubble's border, so its white
+  // covers the border where it joins and nothing of it reaches inside the bubble; its base sits on a straight part of the
+  // border, clear of the rounded corners. side: where the tail is: 'bottom', 'left' (near the bottom), 'leftTop'.
+  function tailCheck(el, side, what) {
+    var t = getComputedStyle(el, '::after'), b = getComputedStyle(el), sz = parseFloat(t.width), half = sz * Math.SQRT1_2;
+    function r(v) { return parseFloat(v) || 0; }
+    eq(t.clipPath.replace(/\s+/g, '').split('0px').join('0%'), 'polygon(100%0%,100%100%,0%100%)', what + ': only the outer half');
+    eq([t.boxSizing, t.height], ['border-box', t.width], what + ': a square of its own size');
+    eq(t.backgroundClip, 'padding-box', what + ': its white stops inside its borders (no light seam on them)');
+    var m = new DOMMatrix(t.transform), deg = Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI);
+    if (side === 'bottom') {
+      eq(deg, 45, what + ': points down');
+      near(r(t.bottom), -sz / 2, 0.01, what + ': centred on the inner edge of the bottom border');
+      var c = r(t.left) + sz / 2, bl = r(b.borderBottomLeftRadius) - r(b.borderLeftWidth), br = r(b.borderBottomRightRadius) - r(b.borderRightWidth);
+      ok(c - half >= bl - 0.5 && c + half <= el.clientWidth - br + 0.5, what + ': on the straight bottom ' + [c - half, c + half, bl, el.clientWidth - br]);
+      return;
+    }
+    eq(deg, 135, what + ': points left');
+    near(r(t.left), -sz / 2, 0.01, what + ': centred on the inner edge of the left border');
+    // near: the inner radius of the corner the tail is near, far: of the other one; c: the centre's distance from the
+    // near end. 1.2 px of slack at the far end: a one-line bubble, where that curve has bent by under 0.1 px.
+    var top = side === 'leftTop', near0 = top ? r(b.borderTopLeftRadius) - r(b.borderTopWidth) : r(b.borderBottomLeftRadius) - r(b.borderBottomWidth);
+    var far = top ? r(b.borderBottomLeftRadius) - r(b.borderBottomWidth) : r(b.borderTopLeftRadius) - r(b.borderTopWidth);
+    var c2 = (top ? r(t.top) : r(t.bottom)) + sz / 2;
+    ok(c2 - half >= near0 - 0.5 && c2 + half <= el.clientHeight - far + 1.2, what + ': on the straight left side ' +
+      [c2 - half, c2 + half, near0, el.clientHeight - far]);
+  }
+  test('layouts DOM: every tail stops at its bubble\'s border and sits on a straight part of it (prompts and speech)', function () {
+    var TAIL = { U1: 'bottom', U3: 'bottom', U7: 'left', M3: 'left', U12: 'left' };
+    Object.keys(TAIL).forEach(function (name) {
+      ['both', 'sit', 'breakEnd'].forEach(function (kind) {
+        var e = shown(mk(at(12, 10, 0), { first: name, care: true, settings: { health: BOTH } }));
+        C._dev({ prompt: kind });
+        tailCheck($(e, '[data-prompt] .rbub'), TAIL[name], name + ' ' + kind);
+        done();
+      });
+    });
+    [['U1', 'left'], ['U7', 'left'], ['U3', 'leftTop']].forEach(function (x) {
+      ['吱！', MID, LONG].forEach(function (line) {
+        var e = mk(at(12, 10, 0), { first: x[0] }), b = speak(e, line);
+        ok(b.classList.contains('side'), x[0] + ': beside the head');
+        tailCheck(b, x[1], x[0] + ' speech ' + line.length);
+        b.classList.remove('side');
+        tailCheck(b, 'bottom', x[0] + ' speech without a pet');
+        done();
+      });
+    });
+  });
+
+  var BANNER = ['好喝～今天第 4 杯了，繼續保持喔！', '還沒有零食耶～再賺 NT$ 100.00 就有了！再加油一下下吧～'];
+  var ASK = { both: BOTH, sit: { asked: true, sit: { on: true }, water: { on: false } }, water: { asked: true, sit: { on: false }, water: { on: true } },
+    break: BOTH, breakEnd: BOTH, none: { asked: true } };
+  // The banner said last, held where it rests (its pop-in and fade-out are only the first and last 15 %).
+  function bannerBox(e) {
+    var all = e.root.querySelectorAll('.banner'), b = all[all.length - 1];
+    b.getAnimations().forEach(function (a) { a.pause(); a.currentTime = 1000; });
+    return b.getBoundingClientRect();
+  }
+  function union(list) {
+    var r = null;
+    list.forEach(function (n) {
+      if (!n || !drawn(n)) return;
+      var q = n.getBoundingClientRect();
+      r = r ? { left: Math.min(r.left, q.left), top: Math.min(r.top, q.top), right: Math.max(r.right, q.right), bottom: Math.max(r.bottom, q.bottom) } :
+        { left: q.left, top: q.top, right: q.right, bottom: q.bottom };
+    });
+    return r;
+  }
+  function promptBox(e, name) {
+    if (name === 'U5B') return union([$(e, '.pline')].concat(Array.prototype.slice.call(e.root.querySelectorAll('.pline > *'))));
+    if (name === 'U13') return union([$(e, '.bigring')]);
+    return union([$(e, '[data-prompt] .rbub'), $(e, '[data-prompt] .rb-ic')]);
+  }
+  function rect4(r) { return JSON.stringify([r.left, r.top, r.right, r.bottom].map(Math.round)); }
+  test('layouts DOM: a banner stays inside its window, under the title bar and clear of the prompt, in every layout', function () {
+    ['U1', 'U3', 'U5B', 'U7', 'M3', 'U12', 'U13'].forEach(function (name) {
+      ['none', 'both', 'sit', 'water', 'break', 'breakEnd'].forEach(function (kind) {
+        if (kind === 'none' && /^(U1|U3|U7)$/.test(name)) return;   // they say it in the speech bubble
+        var e = shown(mk(at(12, 10, 0), { first: name, care: true, settings: { health: ASK[kind] }, rec: today(3, 2, 1) }));
+        if (kind !== 'none') C._dev({ prompt: kind, water: kind === 'break' });
+        eq(!!C.state.prompt, kind !== 'none', name + ' ' + kind + ': the prompt');
+        BANNER.forEach(function (text, i) {
+          QJZ.layouts.say(text);
+          var r = bannerBox(e), sl = last(e.sent, 'setLayout'), at2 = name + ' ' + kind + ' ' + i + ': ';
+          ok(r.left >= 0 && r.top >= 0 && r.right <= sl.width - 4 && r.bottom <= sl.height - 4, at2 + 'inside the window ' + rect4(r) +
+            ' in ' + sl.width + 'x' + sl.height);
+          var win = $(e, '.win');
+          if (win) {
+            var w = win.getBoundingClientRect(), bar = $(e, '.bar');
+            ok(r.left >= w.left + 3 && r.right <= w.right - 3 && r.bottom <= w.bottom - 3, at2 + 'inside the card, not cut by its edge ' + rect4(r));
+            if (bar) ok(r.top >= bar.getBoundingClientRect().bottom + 2, at2 + 'under the title bar and its buttons ' + rect4(r));
+          }
+          var p = kind === 'none' ? null : promptBox(e, name);
+          if (p) ok(apart(r, p), at2 + 'clear of the prompt ' + rect4(r) + ' / ' + rect4(p));
+        });
+        done();
+      });
+    });
+  });
+
+  // The other overlaps the screenshots showed: U7's bubble and its icon on the money tag, M3's icon on the tomato
+  // sticker, and U5-B's call cut short (its last characters on a hidden third line) and against the card's top border.
+  test('layouts DOM: a prompt touches nothing else: U7 clear of the money tag, M3 of its stickers, U5-B whole and inside its card', function () {
+    ['both', 'sit', 'water', 'break', 'breakEnd'].forEach(function (kind) {
+      var e = shown(mk(at(12, 17, 0), { first: 'U7', care: true, settings: { health: ASK[kind] }, rec: today(3, 2, 1) }));
+      C._dev({ prompt: kind, water: kind === 'break' });
+      ok(apart(promptBox(e, 'U7'), $(e, '.mtag').getBoundingClientRect()), 'U7 ' + kind + ': clear of the money tag ' +
+        rect4(promptBox(e, 'U7')) + ' / ' + rect4($(e, '.mtag').getBoundingClientRect()));
+      e.menu('mini');
+      var p = promptBox(e, 'M3');
+      Array.prototype.forEach.call(e.root.querySelectorAll('.m3 .mb'), function (s) {
+        if (drawn(s)) ok(apart(p, s.getBoundingClientRect()), 'M3 ' + kind + ': clear of the sticker ' + rect4(p) + ' / ' + rect4(s.getBoundingClientRect()));
+      });
+      e.menu('layout:U5B');
+      var ct = $(e, '.u5b .pline .ct'), call = $(e, '.u5b .pline .call'), card = $(e, '.u5b').getBoundingClientRect();
+      ok(ct.scrollHeight <= ct.clientHeight + 1, 'U5-B ' + kind + ': the whole title shows ' + ct.scrollHeight + ' > ' + ct.clientHeight);
+      ok(call.getBoundingClientRect().top >= card.top + 5, 'U5-B ' + kind + ': inside its card, clear of its border ' +
+        call.getBoundingClientRect().top + ' / ' + card.top);
+      done();
+    });
+  });
+
 })();

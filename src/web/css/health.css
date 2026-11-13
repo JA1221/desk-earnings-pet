@@ -137,11 +137,14 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .rb-ic.w{background:#CDEBFF}
 .rb-ic.r{background:#C4F3D7}
 .rb-ic.t{background:#FFE1DA}
-.rbub::after{content:"";position:absolute;width:14px;height:14px;background:#fff;border:3px solid var(--line);border-top:0;border-left:0}
-/* the tail: down at the pet (U1, U3), or back left at it (U7, M3), near the bubble's foot */
-.rbub.t-bl::after{left:24px;bottom:-9px;transform:rotate(45deg)}
+/* the tail: down at the pet (U1, U3), or back left at it (U7, M3, U12), near the bubble's foot. As the speech bubble's
+   (base.css, 1.1.1): only the outer half of the turned square, centred on the inner edge of the border, so nothing of it
+   reaches inside the bubble, and its base on a straight part of the border. */
+.rbub::after{content:"";position:absolute;box-sizing:border-box;width:17px;height:17px;background:#fff;background-clip:padding-box;border:0 solid var(--line);
+  border-right-width:3px;border-bottom-width:3px;clip-path:polygon(100% 0,100% 100%,0 100%)}
+.rbub.t-bl::after{left:24px;bottom:-8.5px;transform:rotate(45deg)}
 .rbub.t-l{transform-origin:0 75%}
-.rbub.t-l::after{left:-9px;bottom:20px;transform:rotate(135deg)}
+.rbub.t-l::after{left:-8.5px;bottom:20px;transform:rotate(135deg)}
 /* M3: the small one */
 .rbub.sm{width:178px;padding:9px 9px 10px 12px;border-radius:16px}
 .rbub.sm .rb-t{font-size:14px;line-height:1.35}
@@ -156,14 +159,15 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u1 .pslot{right:10px;top:50px}
 .u3 .pslot{left:56%;top:54px}
 /* U7 (B_U7_s/w, Ruling: on the right, where the speech bubble goes): the window grows right while it shows (the host
-   keeps it inside the screen). From the pet's foot, so the tail stays at its head when the tag gets its line. */
-.u7.prompting{width:420px;padding-right:202px}
-.u7 .pslot{left:200px;bottom:84px}
+   keeps it inside the screen). From the pet's foot, so the tail stays at its head when the tag gets its line. 1.1.1: far
+   enough right that neither the bubble nor its icon touches the money tag. */
+.u7.prompting{width:446px;padding-right:228px}
+.u7 .pslot{left:226px;bottom:84px}
 /* M3 (B_M3_s/w): the ring knocks (promptview), the small bubble right of it; the badge grows right by 194px, its
    content box (min-width 168 - 8 of padding) left as it was, so nothing in it moves */
 .m3 .ring{transform-origin:50% 90%}
 .m3.prompting{padding-right:198px;min-width:362px}
-.m3.prompting .mb.r{right:197px}
+.m3.prompting .mb.r{right:204px}   /* clear of the bubble's icon (1.1.1) */
 .m3 .pslot{right:8px;top:14px}
 
 /* U5-B (C_U5_b): no room for a bubble; the top line's text becomes the title, a pill that wobbles, the small buttons
@@ -181,7 +185,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u5b .call svg.ic{width:15px;height:15px}
 .u5b .call .ct{min-width:0;max-height:2.4em;overflow:hidden}
 .u5b .pline .rb-btns{margin:0;gap:4px;flex:none}
-.lay.u5b .pline .rb-btns button{flex:none;font-size:11.5px;padding:1px 7px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}
+.lay.u5b .pline .rb-btns button{flex:none;font-size:11.5px;padding:1px 6px;border-width:2px;box-shadow:1.5px 1.5px 0 var(--line)}
 
 /* =========== the 1.1 layouts (spec §4.5; G_U10_*, G_U12_*, G_U13_*), ported from the mockup's .isl, .dash, .gauge3,
    .pomo1 and .bigring. Nothing loops (§5.9): the rings and the capsule change at most once a second (layouts.js on
@@ -196,7 +200,7 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
    One fixed window, the footprint of the widest view (the call with three buttons); layouts.js sends it as it is, with
    no hard-shadow room. The capsule sits on the window's edge at its dock and grows away from it: down from the top, up
    from the bottom, from a corner inwards, from the centre both ways (spec §5.7). Only the capsule is a hit rect. */
-.u10{position:relative;width:540px;height:112px;display:flex;align-items:flex-start;justify-content:center;font-family:var(--font)}
+.u10{position:relative;width:540px;height:152px;display:flex;align-items:flex-start;justify-content:center;font-family:var(--font)}
 .u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight){align-items:flex-end;padding-bottom:5px}   /* its 5px shadow under it */
 .u10.d-bottomLeft{justify-content:flex-start}
 .u10.d-bottomRight{justify-content:flex-end}
@@ -240,9 +244,13 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
   color:#FFF8EC;box-shadow:none}
 .lay.u10 .isl .rb-btns .ok{background:#FFC857;border-color:#FFC857;color:var(--text)}
 .lay.u10 .isl .rb-btns .drink{background:#9AD0FF;border-color:#9AD0FF;color:var(--text)}
-/* a line said to the user (a banner) shows beside the capsule, not over it */
-.u10 .fx .banner{top:48px}
-.u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight) .fx .banner{top:auto;bottom:52px}
+/* A line said to the user (a banner) goes in its own lane past the capsule's farthest reach (expanded, or the call):
+   the window is 40 px deeper for it (1.1.1 item 1), so it never covers the capsule, whatever the capsule does meanwhile.
+   Under the capsule docked at the top, over it docked at the bottom; level with the capsule's corner side. */
+.u10 .fx .banner{top:auto;bottom:4px;font-size:14px;padding:4px 14px}
+.u10:is(.d-bottomLeft,.d-bottomCenter,.d-bottomRight) .fx .banner{top:4px;bottom:auto}
+.u10.d-bottomLeft .fx .banner{left:2px;translate:50% 0}
+.u10.d-bottomRight .fx .banner{left:auto;right:6px;translate:50% 0}
 
 /* ---------- the rings (U12, G_U12_*): the day's count against its goal; --p and hot come from layouts.js ---------- */
 .gauge3{--p:0;--c:var(--water);--rs:3px 3px 0 var(--line);--glow:rgba(30,158,90,.55);display:flex;flex-direction:column;align-items:center;gap:6px;

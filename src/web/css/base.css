@@ -59,17 +59,28 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .bubble{position:absolute;left:57%;top:4%;max-width:41%;font-size:11.5px;line-height:1.45;padding:6px 9px;opacity:0;transform:translateY(6px) scale(.9);transition:opacity .25s,transform .35s cubic-bezier(.2,1.4,.4,1);transform-origin:0 100%;pointer-events:none;
   background:#fff;border:2.5px solid var(--sline);border-radius:14px;box-shadow:2px 2px 0 var(--sline);font-weight:700;font-family:var(--font);color:var(--text);z-index:3}
 .bubble.show{opacity:1;transform:none}
-.bubble::after{content:"";position:absolute;left:10px;bottom:-8px;width:11px;height:11px;background:#fff;border-right:2.5px solid var(--sline);border-bottom:2.5px solid var(--sline);transform:rotate(45deg) skew(10deg,10deg)}
+/* The tail (1.1.1): a turned square with two borders, the V, of which only the outer half is drawn (clip-path), its
+   centre on the inner edge of the bubble's border: its white covers the border where it joins, nothing of it reaches
+   inside the bubble, and its base sits on a straight part of the border. Its own size (border-box), so a border snapped
+   to whole device pixels never moves it; its white stops inside its borders (no light seam along their outer edge). Down
+   from the bottom here; .side turns it left. */
+.bubble::after{content:"";position:absolute;box-sizing:border-box;left:14px;bottom:-5.5px;width:11px;height:11px;background:#fff;background-clip:padding-box;
+  border:0 solid var(--sline);border-right-width:2.5px;border-bottom-width:2.5px;transform:rotate(45deg);clip-path:polygon(100% 0,100% 100%,0 100%)}
 /* beside the pet's head (layouts.js anchorBubble): --tx / --ty is where the tail ends, just right of the face, in px
    of the bubble's box. The bubble grows upwards from there as the text types in, at most --bw wide (and never past the
    box's right edge), lines balanced; the tail on its left points back down at the face. */
 .bubble.side{left:calc(var(--tx) + 8px);top:auto;bottom:calc(100% - var(--ty) - 17px);width:max-content;
-  max-width:min(var(--bw,118px),calc(100% - var(--tx) - 12px));padding:6px 7px;text-wrap:balance;overflow-wrap:anywhere}
-.bubble.side::after{left:-6.5px;bottom:8px;width:12px;height:10px;border-right:0;border-left:2.5px solid var(--sline);transform:rotate(36deg) skew(-14deg,-4deg)}
+  max-width:min(var(--bw,118px),calc(100% - var(--tx) - 12px));padding:6px 7px;text-wrap:balance;overflow-wrap:anywhere;border-radius:14px 14px 14px 4px}
+/* on its left side just above the small corner, pointing back at the face (its tip lands about 3 px right of and 4 px
+   below --tx / --ty) */
+.bubble.side::after{left:-5.5px;bottom:4.5px;transform:rotate(135deg)}
 .heart{position:absolute;font-size:17px;pointer-events:none;color:var(--heart);text-shadow:-1.5px -1.5px 0 var(--sline),1.5px -1.5px 0 var(--sline),-1.5px 1.5px 0 var(--sline),1.5px 1.5px 0 var(--sline);z-index:4}
 .snack{position:absolute;font-size:22px;pointer-events:none;z-index:5}
 .confetti{position:absolute;width:8px;height:12px;border:2px solid var(--line);border-radius:2px;pointer-events:none;z-index:6}
-.banner{position:absolute;left:50%;top:14%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;z-index:7;
+/* A line said where there is no bubble. As wide as its text, but never wider than its window (it wraps, balanced):
+   never cut by the window's edge. layouts.css puts it where it covers no prompt, title bar or capsule. */
+.banner{position:absolute;left:50%;top:14%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 16px);text-align:center;
+  text-wrap:balance;pointer-events:none;z-index:7;line-height:1.3;
   background:var(--bar);border:3px solid var(--line);border-radius:99px;box-shadow:3px 3px 0 var(--shadow);padding:6px 18px;font-weight:800;font-size:16px;color:var(--text)}
 
 /* odometer */
