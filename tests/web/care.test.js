@@ -388,6 +388,36 @@
     done();
   });
 
+  // Final review m-1: while hidden the app catches up only every 60 s, care steps on its 10 s heartbeat, so the app's
+  // today can lag the clock by up to a minute after 04:00.
+  test('care: a break that starts just after 04:00 while hidden keeps its stand-up on the new day', function () {
+    var e = mk(day(12, 9, 0));
+    vis(e, false, day(12, 18, 0));
+    e.clock.ms = day(13, 3, 35, 30);
+    A.refresh();   // the menu opens (menuOpening) ...
+    menu(e, 'pomodoro');   // ... and 開始番茄鐘: a focus to 04:00:30
+    eq([C.state.p.phase, C.state.p.day], ['focus', '2026-11-12']);
+    e.clock.ms = day(13, 3, 59, 50);
+    A.refresh();   // the hidden page's minute refresh, just before 04:00
+    var m = mark(e);
+    beat(e, day(13, 4, 0, 40));   // the heartbeat after the focus ended; the app's refresh is 10 s away
+    eq(QJZ.health.of(A.state.history.days['2026-11-13']).standups, 1, 'the break\'s stand-up, on 11-13');
+    eq(A.state.history.days['2026-11-12'].health.tomatoes, 1, 'the tomato on the day it started');
+    eq(A.state.today.day, '2026-11-13', 'the app\'s day caught up first');
+    eq(h(), [0, 0, 1]);
+    eq(events(e, m, 'standup'), [{ count: 1, source: 'break' }]);
+    ok(sends(e, m, 'saveHistory').some(function (p) {
+      var r = JSON.parse(p.text).days['2026-11-13'];
+      return !!r && !!r.health && r.health.standups === 1;
+    }), 'saved');
+    e.clock.ms = day(13, 4, 0, 50);
+    A.refresh();
+    beat(e, day(13, 4, 1, 0));
+    eq(h(), [0, 0, 1], 'once');
+    eq(C.state.r.day, '2026-11-13');
+    done();
+  });
+
   test('care: the 04:00 rollover closes yesterday\'s bubble and restarts the timer', function () {
     var e = mk(day(11, 20, 30), S(BOTH, { startMode: 'manual' }));
     A.startWork();

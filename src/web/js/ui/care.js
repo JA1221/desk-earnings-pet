@@ -7,6 +7,8 @@ window.QJZ = window.QJZ || {};
 // the page is hidden or locked (the app tick is paused then). It also steps on the app's refresh, which the host's
 // menuOpening asks for, so the menu opens with the healthMenu of now (cups, 停止番茄鐘) even on a hidden page.
 // Each step, in order:
+//  0. after 04:00 the app's day is rolled over if it has not been yet (QJZ.app.refresh; hidden, it refreshes once a
+//     minute);
 //  1. a new day restarts the timer;
 //  2. the pomodoro walks every phase that has ended: a tomato on the day it started; a break start is a stand-up on its
 //     own day and restarts the timer, after the timer was brought up to the break's start, so a reminder that came due
@@ -143,6 +145,10 @@ QJZ.care = (function () {
     stepping = true;
     try {
       batch(function () {
+        // Hidden, the app catches up only once a minute (its refresh) and this steps every 10 s, so after 04:00 the
+        // app's today can still be yesterday: roll it over first, so nothing below goes to a day it does not have yet
+        // (final review m-1). Its refresh event finds this step running and does not step again.
+        if (QJZ.time.dayKey(now) > today().day) QJZ.app.refresh();
         var s = settings(), rec = today();
         followClock(now);
         followDay(rec, now);
