@@ -64,7 +64,9 @@
 健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒（<code>?sit=on</code> 打開起來動提醒），
 <code>?pomo=focus|break|breakOver</code> 番茄鐘正在專心（還剩 13 分）/ 休息 / 休息結束（番茄鐘存在 localStorage，要清掉加 <code>?fresh=1</code>），
 <code>?prompt=both|sit|water|break|breakEnd</code> 馬上冒出那個提醒泡泡（both / sit / water 會照著打開提醒開關，加 <code>?turn=0~4</code> 選第幾句；break 加 <code>?water=on</code> 多一行「順便喝口水吧～」）。<br>
-U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（存進設定，像右鍵選單的「膠囊位置」），<code>?hover=1</code> 滑鼠停在膠囊上（展開）。</p>
+U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（存進設定，像右鍵選單的「膠囊位置」），<code>?hover=1</code> 滑鼠停在膠囊上（展開）。<br>
+1.1.2：<code>?mask=1</code> 金額遮成 ***、<code>?pin=1</code> 這個版型釘選在最上層、<code>?plus=1</code> 讓「+0.xx」停在半路（截圖用）、
+<code>?answer=drink|up|later</code> 泡泡出來後按那顆按鈕、<code>?press=1</code> 長按倒數小牌（圈圈停在一半）、<code>?stood=1</code> 右鍵「我剛起來動過了」。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
@@ -308,6 +310,46 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
         document.getAnimations().forEach(function (a) { if (a.id === 'qjz-cap') a.finish(); });
         setInterval(function () { rest('mousemove'); }, 1000);
       }, 50);
+    });
+  }
+  // 1.1.2 (screenshots): ?mask=1 the money mask, ?pin=1 the shown layout pinned on top, ?plus=1 the newest "+0.xx"
+  // stopped where it is fully drawn (older ones go), ?answer=id that button on the bubble once it shows, ?press=1 the
+  // countdown chip held (its ring stopped half way), ?stood=1 the menu's 我剛起來動過了.
+  if (devQ.get('mask') === '1' || devQ.get('pin') === '1') {
+    var offMask = QJZ.app.on('change', function () {
+      offMask();
+      setTimeout(function () {
+        if (devQ.get('mask') === '1') QJZ.app.saveSettings({ privacy: { maskMoney: true } });
+        if (devQ.get('pin') === '1') {
+          var tp = {}; tp[QJZ.layouts.current()] = true;
+          QJZ.app.saveSettings({ layout: { topmost: tp } });
+        }
+      }, 0);
+    });
+  }
+  if (devQ.get('plus') === '1') {
+    var realPlus = QJZ.fx.plus;
+    QJZ.fx.plus = function (el, text) {
+      if (text === '+1') return realPlus.apply(this, arguments);
+      Array.prototype.forEach.call(document.querySelectorAll('#root [data-plus] > .plus'), function (p) { p.remove(); });
+      realPlus.apply(this, arguments);
+      var p = el.lastElementChild;
+      if (p && p.getAnimations) p.getAnimations().forEach(function (a) { a.pause(); a.currentTime = 420; });
+    };
+  }
+  if (devQ.get('answer') || devQ.get('press') === '1' || devQ.get('stood') === '1') {
+    var offAct = QJZ.app.on('change', function () {
+      offAct();
+      setTimeout(function () {
+        var id = devQ.get('answer');
+        if (id && QJZ.care.state.prompt) QJZ.care.answer(id);
+        if (devQ.get('stood') === '1') QJZ.bridge._dispatch({ type: 'menu', action: 'stoodUp' });
+        var chip = Array.prototype.filter.call(document.querySelectorAll('#root [data-hold]'), function (n) { return n.getClientRects().length > 0; })[0];
+        if (devQ.get('press') === '1' && chip) {
+          chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, buttons: 1, detail: 1 }));
+          document.getAnimations().forEach(function (a) { if (a.animationName === 'qjz-hold') { a.pause(); a.currentTime = 700; } });
+        }
+      }, 200);
     });
   }
   QJZ.care.start();
