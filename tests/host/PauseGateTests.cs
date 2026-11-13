@@ -146,6 +146,20 @@ public static class ShowRescueTests
             Assert.True(!ShowRescue.MenuActivatesNow(a), (a ?? "null") + " does not");
     }
 
+    // 1.1.2 item 5: the layout whose 永遠在最上層 counts now. A panel's is the layout it came from, as the page's
+    // topmostFor and toggleTopmost have it, so the title bar's pin (setTopmost), the menu's check and settings.json all
+    // name one layout, also once a settings save replaced the host's copy (which has no PANEL entry).
+    public static void Test_TopmostLayout()
+    {
+        Assert.Eq("U1", ShowRescue.TopmostLayout("U1", "U7"), "a layout: its own");
+        Assert.Eq("U13", ShowRescue.TopmostLayout("PANEL", "U13"), "a panel: the layout it came from");
+        Assert.Eq("M3", ShowRescue.TopmostLayout("PANEL", "M3"), "from the mini badge");
+        Assert.Eq("PANEL", ShowRescue.TopmostLayout("PANEL", null), "nothing before it: its own");
+        var topmost = HostSettings.Parse("{\"layout\":{\"topmost\":{\"U12\":true}}}").TopmostByLayout();
+        Assert.True(topmost[ShowRescue.TopmostLayout("PANEL", "U12")], "settings in U12's window, U12 pinned: the check stays after a save");
+        Assert.True(!topmost.ContainsKey("PANEL"), "the saved settings have no PANEL entry to look up");
+    }
+
     public static void Test_StartLayoutNoActivate()
     {
         Assert.True(ShowRescue.NoActivateLayout("U7"), "U7");

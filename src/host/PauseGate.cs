@@ -106,6 +106,13 @@ public static class ShowRescue
         return here && !userPanel;
     }
 
+    // The layout whose 永遠在最上層 counts now (1.1.2 item 5): a panel's is the layout it came from (from), as the page's
+    // topmostFor and toggleTopmost have it, so the title bar's pin, the menu's check and settings.json name one layout.
+    public static string TopmostLayout(string layout, string from)
+    {
+        return layout == "PANEL" && from != null ? from : layout;
+    }
+
     // Whether the window is topmost: the layout's own 永遠在最上層, or raised while a prompt bubble shows (raise {on},
     // spec 5.1). The tray's check mark shows layoutTopmost only. steppedBack (1.1.1 item 7): a full-screen window is in
     // front on the pet window's monitor, so the window steps back behind it, prompt or not; the full-screen window wins.

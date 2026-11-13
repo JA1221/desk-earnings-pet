@@ -43,6 +43,11 @@ using Microsoft.Web.WebView2.Core;
 //   keyboard; once it closes, the window steps back again. When full screen ends the page gets fullscreen {on:false}
 //   and the window its topmost back. Only another monitor full screen is {on:true, here:false}:
 //   the window stays as it is.
+// - setTopmost {on} (after every layout change, from the menu's 永遠在最上層, and 1.1.2's pin in the title bar): the
+//   current layout's 永遠在最上層, for a panel the layout it came from's (ShowRescue.TopmostLayout, as the page has it),
+//   applied at once (ApplyTopmost) and shown as the menu's check. The page saves it in settings.json; a saved change
+//   whose setTopmost has not come yet is applied too. The menu's item goes through the page (menu {action:'topmost'}),
+//   so the page always knows the state: nothing is sent back.
 // - raise {on} from the page (a prompt bubble shows / is gone): the window is topmost while it is on, raised without
 //   activation if the user sees it, and back to the layout's own 永遠在最上層 afterwards (ApplyTopmost). It never
 //   shows a hidden window and never takes the keyboard.
@@ -102,6 +107,7 @@ public class AppHost
     SessionWatcher session;
     int navigation;              // bumps on every navigation, so a slow init for an old page is dropped
     string layout;               // layout of the last setLayout; null before the first
+    string fromLayout;           // the last layout that is not a panel: a panel's 永遠在最上層 is its (TopmostLayout)
     bool wantVisible = true;     // the user's show/hide choice (hotkey, tray, menu, hide {})
     bool captureGuard = true;
     string hotkey;               // the registered combo; null when none is registered
@@ -344,7 +350,14 @@ public class AppHost
                     string text = Bridge.Str(d, "text");
                     if (text == null) break;
                     files.Save(files.Settings, text);
+                    bool wasTopmost = LayoutTopmost();
                     topmost = HostSettings.Parse(text).TopmostByLayout();   // the page's own copy of layout.topmost
+                    if (LayoutTopmost() != wasTopmost)
+                    {
+                        // a pin the page saved without its setTopmost (yet): the window and the menu's check follow
+                        ApplyTopmost();
+                        UpdateTray();
+                    }
                     break;
                 }
             case "saveHistory":
@@ -370,13 +383,13 @@ public class AppHost
                     tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0));
                     break;
                 }
-            case "setTopmost":
+            case "setTopmost":   // after every layout change, and from the menu's 永遠在最上層 or the title bar's pin (1.1.2)
                 {
                     bool? on = Bridge.Bool(d, "on");
                     if (on == null) break;
-                    if (layout != null) topmost[layout] = on.Value;
+                    if (layout != null) topmost[TopmostLayout()] = on.Value;   // the page saves it in settings.json
                     ApplyTopmost();
-                    UpdateTray();
+                    UpdateTray();   // the menu's check follows
                     break;
                 }
             case "raise":
@@ -435,6 +448,7 @@ public class AppHost
         bool changed = name != layout;
         bool shownBefore = layout != null || rescued;   // a layout was placed before this one (PanelFrom)
         layout = name;
+        if (name != WindowPlacer.PanelLayout) fromLayout = name;
         // Review §4a: the panel the user just asked for from the menu comes in front of a full-screen window on this
         // monitor; any other layout (that panel closed) steps back again.
         if (name != WindowPlacer.PanelLayout) userPanel = false;
@@ -727,11 +741,16 @@ public class AppHost
     // ---- topmost ----
 
     // The user's 永遠在最上層 for the current layout (the start layout before the page's first setLayout: what the
-    // safety net shows).
+    // safety net shows); for a panel, the layout it came from's.
     bool LayoutTopmost()
     {
         bool on;
-        return topmost.TryGetValue(layout ?? startLayout, out on) && on;
+        return topmost.TryGetValue(TopmostLayout(), out on) && on;
+    }
+
+    string TopmostLayout()
+    {
+        return ShowRescue.TopmostLayout(layout ?? startLayout, fromLayout ?? startLayout);
     }
 
     // Every topmost change goes through here: the layout's own setting, or raised while a prompt shows; never while
