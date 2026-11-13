@@ -67,7 +67,9 @@ window.QJZ = window.QJZ || {};
 // 喝了 already sips, Ruling M9). While a prompt shows the speech bubble is hidden and says nothing (chatter and pet
 // events wait; the user's own lines become banners). During a focus (§4.3 「不講話、不打擾」, §5.2) the pet keeps
 // quiet: no chatter, no event lines, a milestone only hops (no confetti, coin or line), and a poke gets 「專心中～」
-// once per focus and nothing else.
+// once per focus and nothing else. A double press on an answer answers once: its second press does nothing (no M3
+// expand, no act, poke or drag under it), and for DBL_MS the window keeps its size and the button's spot stays a hit
+// rect, so that press never reaches the window underneath (final review m-3).
 // 1.1 layouts (Task 12, spec §4.5, §5.7; G_U10_*, G_U12_*, G_U13_*). U10 is one fixed window whose capsule sits at its
 // dock (class d-<dock>) and expands while the pointer is on it ([data-hover], as U7's tools); a prompt makes it the call,
 // a pomodoro its countdown; only the capsule takes clicks, and it shows no odometer (it changes at most once a second).
@@ -109,6 +111,7 @@ QJZ.layouts = (function () {
   var STATUS = { working: '上班中', lunch: '午休中', done: '可以下班', ended: '已下班', before: '還沒上班', off: '休假日' };
   var SNACK = { cat: '🐟', hamster: '🌻' };
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
+  var DBL_MS = 600;   // a double press's second press comes within this (Windows' double-click time is 500 ms by default)
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
@@ -325,12 +328,14 @@ QJZ.layouts = (function () {
   var root = null, bridge = null, first = null, session = null, resumeAt = null;
   var cur = null, panelKind = 'settings', panelFrom = null, shown = false;
   var view = null;
-  var sent = { size: '', hits: '', menu: '' };
+  var sent = { size: '', hits: '', menu: '', dims: null };   // dims: the last setLayout's {width, height}
   var drag = null;       // {x, y} while the primary button is down on a draggable spot
   var dragging = false;  // dragStart sent, and neither dragEnd nor the button going up seen yet
   var dragged = false;   // this press turned into a drag (its click, if any, is not a poke)
   var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
-  var timers = { say: 0, type: 0, hover: 0, idle: 0 };
+  var answerRun = false; // the run of presses under way (a click, its double, …) began on a prompt's answer button
+  var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
+  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var offs = [];
   var docBound = false;
@@ -931,14 +936,21 @@ QJZ.layouts = (function () {
   }
   // Sends setLayout when the size (or DPR, or U10's dock) changed and hitRects when the rects changed or setLayout went
   // out. force: send both anyway (layout switch, DPR change, U10's capsuleDock); forceHits: hitRects anyway (resize).
-  // U10's setLayout always carries its dock (the host would take a missing one for the top).
+  // U10's setLayout always carries its dock (the host would take a missing one for the top). Just after an answer
+  // (holdSpot) the size is at least the one sent before it, and the answered button's spot stays a hit rect.
   function sync(force, forceHits) {
     if (!view) return;
     var dpr = window.devicePixelRatio || 1, dock = view.name === 'U10' ? dockOf() : null;
-    var size = measure(), sk = view.name + ' ' + size.width + 'x' + size.height + '@' + dpr + (dock ? ' ' + dock : '');
-    var rects = hitRects(), hk = JSON.stringify(rects) + '@' + dpr;
+    var size = measure(), rects = hitRects();
+    if (held) {
+      size = { width: Math.max(size.width, held.width), height: Math.max(size.height, held.height) };
+      rects.push(held.rect);
+    }
+    var sk = view.name + ' ' + size.width + 'x' + size.height + '@' + dpr + (dock ? ' ' + dock : '');
+    var hk = JSON.stringify(rects) + '@' + dpr;
     if (force || sk !== sent.size) {
       sent.size = sk;
+      sent.dims = { width: size.width, height: size.height };
       var msg = { layout: view.name, width: size.width, height: size.height, dpr: dpr };
       if (dock) msg.dock = dock;
       send('setLayout', msg);
@@ -964,6 +976,7 @@ QJZ.layouts = (function () {
     if (ALL.indexOf(name) < 0 || !root || !ready()) return false;
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     stopSay();
+    unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
     cur = name;
     view = build(name);
@@ -1331,6 +1344,9 @@ QJZ.layouts = (function () {
     if (e.button !== 0) return;
     if (dragging) endDrag();   // a new press: whatever drag there was is over
     dragged = false;
+    // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
+    if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
+    else if (answerRun) return;
     if (!inRoot(e.target) || isButton(e.target)) return;
     drag = { x: e.screenX, y: e.screenY };
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
@@ -1373,18 +1389,47 @@ QJZ.layouts = (function () {
   }
   function onClick(e) {
     if (!view || !inRoot(e.target)) return;
+    if (answerRun && e.detail > 1) return;   // the second click of a double press on an answer (answer)
     var ans = e.target.closest('[data-answer]');
-    if (ans) { if (QJZ.care) QJZ.care.answer(ans.getAttribute('data-answer')); return; }   // a stale one does nothing
+    if (ans) { answer(ans, e.detail > 0); return; }
     var a = e.target.closest('[data-act]');
     if (a) { act(a.getAttribute('data-act')); return; }
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     if (isPetPart(e.target)) poke(e);
   }
+  // An answer button (final review m-3). The bubble goes at once, so the second press of a double click lands on
+  // whatever was under the button: that press, its click and its dblclick do nothing (answerRun: onDown, onClick,
+  // onDbl). And it must stay ours: U7 and M3 shrink back and U10's capsule folds, so for DBL_MS the window keeps its
+  // size and the button's spot stays a hit rect (holdSpot, sync); else the second press goes to the window underneath.
+  // Held before care answers, so the setLayout and hitRects of the bubble going already carry it; only for a press
+  // (pressed: the click has a detail, a keyboard or scripted click has none and no second press). A stale answer does
+  // nothing and holds nothing.
+  function answer(btn, pressed) {
+    if (!QJZ.care) return;
+    if (pressed) holdSpot(outer(boxOf(btn)));
+    if (!QJZ.care.answer(btn.getAttribute('data-answer'))) unhold(true);
+  }
+  function holdSpot(rect) {
+    var d = sent.dims || { width: 0, height: 0 };
+    held = { rect: rect, width: d.width, height: d.height };
+    clearTimeout(timers.held);
+    timers.held = setTimeout(function () { timers.held = 0; unhold(true); }, DBL_MS);
+  }
+  // resync: send the size and rects without the hold now (a layout switch sends its own).
+  function unhold(resync) {
+    clearTimeout(timers.held);
+    timers.held = 0;
+    if (!held) return;
+    held = null;
+    if (resync) sync(false);
+  }
   // The animal's own painted shape (compose's .pa, not a .prop it holds): what a click pets.
   function isPetPart(t) {
     return !!(t && t.closest && t.closest('[data-pet] .pa') && !t.closest('.prop'));
   }
+  // A double click on the badge expands M3, unless its run of presses began on an answer button (answer).
   function onDbl(e) {
+    if (answerRun) return;
     if (cur === 'M3' && inRoot(e.target)) show(backTarget(app().state.settings));
   }
   // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
@@ -1488,7 +1533,8 @@ QJZ.layouts = (function () {
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
-    panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '' };
+    panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
+    answerRun = false; held = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
@@ -1503,6 +1549,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
+      DBL_MS: DBL_MS,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,

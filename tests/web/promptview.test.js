@@ -641,6 +641,72 @@
     done();
   });
 
+  // ---------- a double press on an answer (final review m-3) ----------
+  // The first click answers and the bubble goes at once; the second press lands where the button was. It must do
+  // nothing (no second count, no expand, no act or poke under it, no drag), and it must stay ours: the window keeps
+  // its size and a hit rect there for a moment, so in U7, M3 and U10 (which shrink or fold back) it does not reach the
+  // window underneath. Then the window lets go.
+  test('promptView: a double press on an answer counts once, and its second press does nothing and stays ours', function () {
+    var DBL = L.util.DBL_MS;
+    ok(DBL >= 500, 'longer than Windows\' double-click time: ' + DBL);
+    ['M3', 'U7', 'U10', 'U5B', 'U1', 'U13'].forEach(function (name) {
+      var e = mk(at(9, 0), { first: name });
+      e.tick(at(9, 49, 59));
+      var calm = last(e.sent, 'setLayout');
+      e.tick(at(9, 50));
+      var grown = last(e.sent, 'setLayout'), btn = $(e, '[data-answer=up]'), r = box(btn);
+      var x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var calls = [], spied = [[QJZ.app, 'pet'], [QJZ.app, 'annoy'], [QJZ.app, 'feed'], [QJZ.care, 'drink'], [QJZ.care, 'toggleFocus'],
+        [QJZ.care, 'answer']].map(function (s) {
+        var f = s[0][s[1]];
+        s[0][s[1]] = function () { calls.push(s[1]); return f.apply(this, arguments); };
+        return [s[0], s[1], f];
+      });
+      var st = window.setTimeout, held = [];
+      window.setTimeout = function (fn, ms) { if (ms === DBL) { held.push(fn); return 0; } return st.apply(window, arguments); };
+      try {
+        mouse(btn, 'mousedown', x, y, { detail: 1 });
+        mouse(btn, 'mouseup', x, y, { detail: 1, buttons: 0 });
+        mouse(btn, 'click', x, y, { detail: 1, buttons: 0 });
+        eq([calls, C.state.health.standups, C.state.prompt], [['answer'], 1, null], name + ': the first click answers');
+        eq(held.length, 1, name + ': one hold');
+        eq([last(e.sent, 'setLayout').width, last(e.sent, 'setLayout').height], [grown.width, grown.height], name + ': the size it had');
+        ok(inHits(e, r), name + ': the spot is still a hit rect');
+        // the second press, on what is there now (index.html's #root is the whole page: the root when nothing else)
+        var under = document.elementFromPoint(x, y);
+        if (!under || !e.root.contains(under)) under = e.root;
+        var sends = e.sent.length;
+        mouse(under, 'mousedown', x, y, { detail: 2 });
+        mouse(document.documentElement, 'mousemove', x + 9, y);   // a shaky hand (the drag code listens on the document)
+        mouse(under, 'mouseup', x + 9, y, { detail: 2, buttons: 0 });
+        mouse(under, 'click', x + 9, y, { detail: 2, buttons: 0 });
+        mouse(under, 'dblclick', x + 9, y, { detail: 2, buttons: 0 });
+        var what = String(under.getAttribute('class') || under.id || under.tagName);
+        eq(calls, ['answer'], name + ': the second press does nothing (on ' + what + ')');
+        eq(QJZ.layouts.current(), name, name + ': not expanded, no panel');
+        eq(C.state.health.standups, 1, name + ': counted once');
+        eq(e.sent.slice(sends).map(function (s) { return s.type; }).filter(function (t) { return t !== 'hitRects'; }), [],
+          name + ': nothing to the host (no drag, no menu, no new size)');
+        held[0]();   // DBL_MS later
+        eq([last(e.sent, 'setLayout').width, last(e.sent, 'setLayout').height], [calm.width, calm.height], name + ': then the size without the bubble');
+        if (name === 'M3' || name === 'U7' || name === 'U10') ok(!inHits(e, r), name + ': and the spot clicks through again');
+      } finally {
+        window.setTimeout = st;
+        spied.forEach(function (s) { s[0][s[1]] = s[2]; });
+        done();
+      }
+    });
+    // a plain double click on the badge still expands M3
+    var e = mk(at(9, 0), { first: 'M3' }), ring = $(e, '.m3 .ring'), rr = box(ring);
+    mouse(ring, 'mousedown', rr.left + 20, rr.top + 20, { detail: 1 });
+    mouse(ring, 'click', rr.left + 20, rr.top + 20, { detail: 1, buttons: 0 });
+    mouse(ring, 'mousedown', rr.left + 20, rr.top + 20, { detail: 2 });
+    mouse(ring, 'click', rr.left + 20, rr.top + 20, { detail: 2, buttons: 0 });
+    mouse(ring, 'dblclick', rr.left + 20, rr.top + 20, { detail: 2, buttons: 0 });
+    eq(QJZ.layouts.current(), 'U1', 'M3 expands on a plain double click');
+    done();
+  });
+
   // ---------- typesetting (final review I-1) ----------
   // The lines of el as drawn: each character's box (a Range), a new line wherever one sits lower than the last by more
   // than half the font size. Characters that draw nothing (a space at a line end) are left out.
