@@ -358,13 +358,20 @@ public static class WindowPlacerTests
         return WindowPlacer.MoveFor(Bridge.Str(d, "layout"), WindowPlacer.InPlaceAsked(d));
     }
 
-    // A drag in any layout but U10 moves the anchor (a panel's too: it is the same window); U10 snaps to a dock instead.
+    // A drag in any layout but U10 moves the anchor; U10 snaps to a dock instead. A panel shown in place (設定 / 紀錄 in the
+    // window of U1, U12 or U13) is that window, so its drag moves the anchor too; a panel beside its window (from U3,
+    // U5-B, U7, M3 or U10) does not, or closing it would make the pet jump to where the panel was dragged.
     public static void Test_DragMovesTheAnchor()
     {
-        foreach (string l in new[] { "U1", "U3", "U5B", "U7", "M3", "U12", "U13", "PANEL" })
-            Assert.True(WindowPlacer.DragMovesAnchor(l), l + " moves the anchor");
-        Assert.True(!WindowPlacer.DragMovesAnchor("U10"), "U10 snaps to a dock");
-        Assert.True(!WindowPlacer.DragMovesAnchor(null), "no layout yet");
+        foreach (string l in new[] { "U1", "U3", "U5B", "U7", "M3", "U12", "U13" })
+        {
+            Assert.True(WindowPlacer.DragMovesAnchor(l, false), l + " moves the anchor");
+            Assert.True(WindowPlacer.DragMovesAnchor(l, true), l + " moves it whatever a panel's flag says");
+        }
+        Assert.True(WindowPlacer.DragMovesAnchor("PANEL", true), "a panel in place: the window itself");
+        Assert.True(!WindowPlacer.DragMovesAnchor("PANEL", false), "a panel beside its window: the anchor stays");
+        Assert.True(!WindowPlacer.DragMovesAnchor("U10", false), "U10 snaps to a dock");
+        Assert.True(!WindowPlacer.DragMovesAnchor(null, false), "no layout yet");
     }
 
     // The anchor's entry is not a layout's: a layout of that name (never sent by the page) may not overwrite it.

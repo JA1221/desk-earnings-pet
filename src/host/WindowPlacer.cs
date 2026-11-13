@@ -9,8 +9,8 @@ using System.Windows.Forms;
 // and stays there when it fits; only when it does not fit is it pushed inside the work area of the monitor the anchor
 // was set on, and that push is never saved (Ruling C5), so the next layout that fits is back at the anchor (AtAnchor).
 // The window the anchor was set with comes back exactly, an overhang the user chose included (ScreenFit.Clamp, as 1.1.1
-// kept a saved spot). A drop in any layout but U10 moves the anchor (DragMovesAnchor; a panel's too: it is the same
-// window). U10 docks on the monitor the window is on (AppHost.DockCapsule); its last dock spot is kept as its own entry
+// kept a saved spot). A drop in any layout but U10 moves the anchor (DragMovesAnchor), a panel's only when it is shown in
+// place (it is that window); a panel beside its window does not. U10 docks on the monitor the window is on (AppHost.DockCapsule); its last dock spot is kept as its own entry
 // for the next start in U10. The layouts' own entries (1.1.1) are still written on a drop and stay readable for a
 // downgrade, but only the upgrade reads them: with no anchor in window.json, the first layout placed takes its own saved
 // spot as the anchor (SeedAnchor), so a start in the layout the user left shows exactly where 1.1.1 showed it.
@@ -194,10 +194,13 @@ public class WindowPlacer
         return Bridge.Bool(setLayout, "inPlace") == true;
     }
 
-    // Whether the user's drop of layout moves the anchor: in every layout but U10, which snaps to a dock instead. A
-    // panel's drop does too (it is the same window, and the layout it closes to comes back where it was dropped).
-    public static bool DragMovesAnchor(string layout)
+    // Whether the user's drop of layout moves the anchor: in every layout but U10, which snaps to a dock instead. A panel's
+    // drop does only when it is shown in place (inPlacePanel: 設定 / 紀錄 in the window of U1, U12 or U13, which it is, so
+    // that layout comes back where it was dropped); a panel beside its window (from U3, U5-B, U7, M3 or U10) leaves the
+    // anchor, or closing it would make the pet jump to where the panel was dragged.
+    public static bool DragMovesAnchor(string layout, bool inPlacePanel)
     {
+        if (layout == PanelLayout) return inPlacePanel;
         return layout != null && layout != CapsuleLayout;
     }
 

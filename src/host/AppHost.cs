@@ -18,8 +18,8 @@ using Microsoft.Web.WebView2.Core;
 //   page also gets the current state: visibility, fullscreen, a hotkey failure, unreadable files (storageError).
 // - U7, M3 and U10 never take focus when clicked; the other layouts activate normally (keyboard input).
 // - 1.1.2 item 1: every layout but U10 opens with its top-left at the one shared anchor, pushed inside the work area
-//   only when it does not fit there (WindowPlacer.AtAnchor); a user's drop in any of them (a panel's too) moves the
-//   anchor. A spot the window is pushed to is never saved (Ruling C5), only one the user drags it to. With no anchor in
+//   only when it does not fit there (WindowPlacer.AtAnchor); a user's drop in any of them moves the anchor, a panel's
+//   only when it is shown in place (a panel beside its window leaves it). A spot the window is pushed to is never saved (Ruling C5), only one the user drags it to. With no anchor in
 //   window.json (the first 1.1.2 start), the start layout's own 1.1.1 spot becomes it, so that start shows exactly
 //   where it did. U10's capsule sits at its dock (setLayout dock) on the work area of the monitor the window is on, and
 //   a drop snaps it to the nearest dock of the monitor it landed on (CapsuleDock; the page learns it from capsuleDock);
@@ -110,6 +110,7 @@ public class AppHost
     int navigation;              // bumps on every navigation, so a slow init for an old page is dropped
     string layout;               // layout of the last setLayout; null before the first
     string fromLayout;           // the last layout that is not a panel: a panel's 永遠在最上層 is its (TopmostLayout)
+    bool panelInPlace;           // the panel showing was opened in place (setLayout inPlace): its drop moves the anchor
     bool wantVisible = true;     // the user's show/hide choice (hotkey, tray, menu, hide {})
     bool captureGuard = true;
     string hotkey;               // the registered combo; null when none is registered
@@ -460,6 +461,7 @@ public class AppHost
         bool shownBefore = layout != null || rescued;   // a layout was placed before this one (PanelFrom)
         layout = name;
         if (name != WindowPlacer.PanelLayout) fromLayout = name;
+        if (changed) panelInPlace = move == LayoutMove.InPlace;   // a panel stays in place or beside until it closes
         // Review §4a: the panel the user just asked for from the menu comes in front of a full-screen window on this
         // monitor; any other layout (that panel closed) steps back again.
         if (name != WindowPlacer.PanelLayout) userPanel = false;
@@ -587,7 +589,7 @@ public class AppHost
             Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
-        if (WindowPlacer.DragMovesAnchor(layout)) placer.SetAnchor(window.Bounds);   // 1.1.2: the spot of every layout but U10
+        if (WindowPlacer.DragMovesAnchor(layout, panelInPlace)) placer.SetAnchor(window.Bounds);   // 1.1.2: not U10, not a panel beside
         if (layout != WindowPlacer.PanelLayout)
         {
             // The layout's own 1.1.1 entry, no longer read for placement: kept up to date for a downgrade.
