@@ -75,7 +75,7 @@ public static class ShowRescue
     public static bool MenuShows(string action)
     {
         return action != null && action != "toggleVisible" && action != "quit" && action != "topmost"
-            && action != "drink" && action != "undrink" && action != "stoodUp" && action != "pomodoro";
+            && action != "mask" && action != "drink" && action != "undrink" && action != "stoodUp" && action != "pomodoro";
     }
 
     // Of those, the ones whose result shows in the current layout, which then takes the keyboard at once (if it is

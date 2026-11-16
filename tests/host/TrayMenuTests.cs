@@ -27,13 +27,35 @@ public static class TrayMenuTests
         return string.Join("|", labels.ToArray());
     }
 
-    // Simplification #2 (spec 4.9): by how often each is used. The top group is 記一杯水 (with the cups), 開始番茄鐘,
-    // then 1.0's 餵食; then the work item (開始上班 / 下班 / 繼續上班) with 調整起算時間; 版型 ▶, 紀錄, 設定; 隱藏, 結束.
-    public static void Test_HealthItemsLeadTheMenu()
+    // 1.1.3 item 4: four groups with a separator between them. 健康, 上班, 畫面 (版型 ▶, 隱藏金額, 隱藏視窗), 其他.
+    public static void Test_MenuIsGroupedInFour()
     {
         using (var t = new TrayMenu())
         {
-            Assert.Eq("記一杯水|少記一杯|我剛起來動過了|開始番茄鐘|餵食|開始上班|調整起算時間|版型|紀錄|設定|隱藏|結束", ItemLabels(t.Menu.Items), "top level");
+            Assert.Eq("記一杯水|少記一杯|我剛起來動過了|開始番茄鐘|-|開始上班|調整起算時間|餵食|-|版型|隱藏金額|隱藏視窗|-|紀錄|設定|結束",
+                Labels(t.Menu.Items), "groups");
+            Assert.Eq("記一杯水|開始番茄鐘|開始上班|調整起算時間|餵食|版型|隱藏金額|隱藏視窗|紀錄|設定|結束", Shown(t, 99), "nothing reported yet");
+        }
+    }
+
+    // 隱藏金額: sends mask, is checked while the page reports masked, and (host) never shows or activates the window.
+    public static void Test_MaskItem()
+    {
+        using (var t = new TrayMenu())
+        {
+            ToolStripMenuItem m = Item(t, "mask");
+            Assert.Eq("隱藏金額", m.Text, "label");
+            Assert.True(!m.Checked, "not masked yet");
+            t.SetMasked(true);
+            Assert.True(m.Checked, "checked while masked");
+            t.SetMasked(false);
+            Assert.True(!m.Checked, "unchecked");
+            var got = new List<string>();
+            t.ItemClicked += got.Add;
+            m.PerformClick();
+            Assert.Eq("mask", string.Join(",", got.ToArray()), "its action id");
+            Assert.True(!ShowRescue.MenuShows("mask"), "never un-hides the window");
+            Assert.True(!ShowRescue.MenuActivatesNow("mask"), "never activates it");
         }
     }
 
@@ -43,7 +65,7 @@ public static class TrayMenuTests
         using (var t = new TrayMenu())
         {
             ToolStripItemCollection items = Item(t, "layouts").DropDownItems;
-            Assert.Eq("U1 經典直式|U3 遊戲畫面|U5-B 橫向極簡|U7 桌面寵物|U10 頂端小膠囊|U12 健康儀表板|U13 番茄鐘優先|-|縮成迷你|-|永遠在最上層|膠囊位置",
+            Assert.Eq("1 經典直式|2 遊戲畫面|3 健康儀表板|4 番茄鐘優先|-|5 橫向極簡|6 頂端小膠囊|7 迷你浮窗|-|8 桌面寵物|-|縮成迷你|-|永遠在最上層|膠囊位置",
                 Labels(items), "版型 submenu");
             ToolStripMenuItem capsule = Item(t, "capsule");
             Assert.True(object.ReferenceEquals(capsule, items[items.Count - 1]), "膠囊位置 is the last item");
@@ -68,7 +90,7 @@ public static class TrayMenuTests
 
     public static void Test_EachItemSendsItsActionId()
     {
-        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "mini", "topmost", "feed", "adjust",
+        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "mini", "topmost", "feed", "adjust", "mask",
                          "settings", "history", "toggleVisible", "quit",
                          "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink", "undrink", "stoodUp",
                          "capsule:top", "capsule:bottomLeft", "capsule:bottomCenter", "capsule:bottomRight" };
@@ -215,7 +237,7 @@ public static class TrayMenuTests
             Assert.True(s.Available, "起來動 on: shown");
             Assert.Eq("記一杯水|少記一杯|我剛起來動過了|開始番茄鐘", Shown(t, 4), "after 少記一杯");
             t.SetHealth(null, "idle", 0, true);
-            Assert.Eq("記一杯水|我剛起來動過了|開始番茄鐘|餵食", Shown(t, 4), "少記一杯 hidden: right after 記一杯水");
+            Assert.Eq("記一杯水|我剛起來動過了|開始番茄鐘|開始上班", Shown(t, 4), "少記一杯 hidden: right after 記一杯水");
             var got = new List<string>();
             t.ItemClicked += got.Add;
             s.PerformClick();
@@ -257,12 +279,12 @@ public static class TrayMenuTests
             Assert.True(!Item(t, "layout:U1").Checked, "other layouts unchecked");
             Assert.True(!Item(t, "mini").Checked, "not the mini badge");
             Assert.True(Item(t, "topmost").Checked, "topmost checked");
-            Assert.Eq("隱藏", Item(t, "toggleVisible").Text, "visible -> 隱藏");
+            Assert.Eq("隱藏視窗", Item(t, "toggleVisible").Text, "visible -> 隱藏視窗");
             t.SetState("M3", false, false);
             Assert.True(!Item(t, "layout:U7").Checked, "mini is not a main layout");
             Assert.True(Item(t, "mini").Checked, "縮成迷你 is checked while the mini badge shows");
             Assert.True(!Item(t, "topmost").Checked, "topmost unchecked");
-            Assert.Eq("顯示", Item(t, "toggleVisible").Text, "hidden -> 顯示");
+            Assert.Eq("顯示視窗", Item(t, "toggleVisible").Text, "hidden -> 顯示視窗");
             t.SetState(null, false, false);
             Assert.True(!Item(t, "mini").Checked && !Item(t, "layout:U1").Checked, "no layout yet");
         }

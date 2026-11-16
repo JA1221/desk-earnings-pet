@@ -11,11 +11,15 @@ using System.Windows.Forms;
 // page's contextMenu message. Every item raises ItemClicked with its action id (layout:U1|U3|U5B|U7|U10|U12|U13,
 // mini, drink, undrink, stoodUp, pomodoro, feed, start, adjust, end, topmost, capsule:top|bottomLeft|bottomCenter|
 // bottomRight, settings, history, toggleVisible, quit); the host decides what each does.
-// Ordered by how often each is used (simplification #2, spec 4.9):
-//   記一杯水 3/8, 少記一杯, 我剛起來動過了, 開始番茄鐘, 餵食 ×N  |  開始上班 / 下班 / 繼續上班, 調整起算時間  |  版型 ▶, 紀錄, 設定  |
-//   隱藏 / 顯示, 結束
-//   版型 ▶: U1 U3 U5-B U7 U10 U12 U13  |  縮成迷你  |  永遠在最上層 (for the current layout), 膠囊位置 ▶ (U10 only)
+// 1.1.3 groups (a separator between them):
+//   健康: 記一杯水 3/8, 少記一杯, 我剛起來動過了, 開始番茄鐘  |  上班: 開始上班 / 下班 / 繼續上班, 調整起算時間, 餵食 ×N  |
+//   畫面: 版型 ▶, 隱藏金額, 隱藏視窗 / 顯示視窗  |  其他: 紀錄, 設定, 結束
+//   版型 ▶: 1 經典直式 (U1), 2 遊戲畫面 (U3), 3 健康儀表板 (U12), 4 番茄鐘優先 (U13)  |  5 橫向極簡 (U5B), 6 頂端小膠囊 (U10),
+//   7 迷你浮窗 (layout:M3, which the host sends the page as mini)  |  8 桌面寵物 (U7)  |  縮成迷你  |  永遠在最上層 (for the
+//   current layout), 膠囊位置 ▶ (U10 only)
 //   膠囊位置 ▶: 上方正中間, 左下, 中下, 右下 (the current dock checked)
+// 隱藏金額 (1.1.3, mask) sends menu {action:'mask'}: the page toggles the amount mask, like a click on the amount. It is
+// checked while the page's menuState says masked:true (SetMasked). It never shows or activates the window.
 // The work item follows the status the page reports (SetWork): 開始上班 (start) before work, 下班 (end) while the
 // day runs, 繼續上班 (start: the page continues an ended day) after 下班. 餵食 shows the snack count (SetSnacks).
 // 記一杯水 shows the cups and 開始番茄鐘 reads 停止番茄鐘（還剩 N 分） while a focus or a break runs (SetHealth; the
@@ -63,14 +67,15 @@ public class TrayMenu : IDisposable
         ToolStripProfessionalRenderer renderer = new A1Renderer();
         menu.Renderer = renderer;
         menu.ShowImageMargin = true;   // room for the check marks
+        // 健康
         drink = Add(menu.Items, "記一杯水", "drink");
         undrink = Add(menu.Items, "少記一杯", "undrink");
         undrink.Available = false;   // only while today has a cup (SetHealth)
         stoodUp = Add(menu.Items, "我剛起來動過了", "stoodUp");
         stoodUp.Available = false;   // only while the 起來動 reminder is on (SetHealth)
         pomodoro = Add(menu.Items, "開始番茄鐘", "pomodoro");
-        feed = Add(menu.Items, "餵食", "feed");
         menu.Items.Add(new ToolStripSeparator());
+        // 上班
         work = new ToolStripMenuItem("開始上班");
         work.Name = "work";
         work.Click += delegate
@@ -80,17 +85,22 @@ public class TrayMenu : IDisposable
         };
         menu.Items.Add(work);
         Add(menu.Items, "調整起算時間", "adjust");
+        feed = Add(menu.Items, "餵食", "feed");
         menu.Items.Add(new ToolStripSeparator());
+        // 畫面
         layouts = new ToolStripMenuItem("版型");
         layouts.Name = "layouts";
         layouts.DropDown.Renderer = renderer;
-        Add(layouts.DropDownItems, "U1 經典直式", "layout:U1");
-        Add(layouts.DropDownItems, "U3 遊戲畫面", "layout:U3");
-        Add(layouts.DropDownItems, "U5-B 橫向極簡", "layout:U5B");
-        Add(layouts.DropDownItems, "U7 桌面寵物", "layout:U7");
-        Add(layouts.DropDownItems, "U10 頂端小膠囊", "layout:U10");
-        Add(layouts.DropDownItems, "U12 健康儀表板", "layout:U12");
-        Add(layouts.DropDownItems, "U13 番茄鐘優先", "layout:U13");
+        Add(layouts.DropDownItems, "1 經典直式", "layout:U1");
+        Add(layouts.DropDownItems, "2 遊戲畫面", "layout:U3");
+        Add(layouts.DropDownItems, "3 健康儀表板", "layout:U12");
+        Add(layouts.DropDownItems, "4 番茄鐘優先", "layout:U13");
+        layouts.DropDownItems.Add(new ToolStripSeparator());
+        Add(layouts.DropDownItems, "5 橫向極簡", "layout:U5B");
+        Add(layouts.DropDownItems, "6 頂端小膠囊", "layout:U10");
+        Add(layouts.DropDownItems, "7 迷你浮窗", "layout:M3");
+        layouts.DropDownItems.Add(new ToolStripSeparator());
+        Add(layouts.DropDownItems, "8 桌面寵物", "layout:U7");
         layouts.DropDownItems.Add(new ToolStripSeparator());
         Add(layouts.DropDownItems, "縮成迷你", "mini");
         layouts.DropDownItems.Add(new ToolStripSeparator());
@@ -105,10 +115,12 @@ public class TrayMenu : IDisposable
         capsule.Available = false;   // U10 only (SetState)
         layouts.DropDownItems.Add(capsule);
         menu.Items.Add(layouts);
+        Add(menu.Items, "隱藏金額", "mask");
+        Add(menu.Items, "隱藏視窗", "toggleVisible");
+        menu.Items.Add(new ToolStripSeparator());
+        // 其他
         Add(menu.Items, "紀錄", "history");
         Add(menu.Items, "設定", "settings");
-        menu.Items.Add(new ToolStripSeparator());
-        Add(menu.Items, "隱藏", "toggleVisible");
         Add(menu.Items, "結束", "quit");
         SetFontScale(1f);
         menu.Opening += OnOpening;
@@ -177,8 +189,9 @@ public class TrayMenu : IDisposable
             if (m != null && m.Name.StartsWith("layout:")) m.Checked = layout != null && m.Name == "layout:" + layout;
         }
         Item("mini").Checked = layout == "M3";
+        Item("layout:M3").Checked = layout == "M3";
         Item("topmost").Checked = topmost;
-        Item("toggleVisible").Text = visible ? "隱藏" : "顯示";
+        Item("toggleVisible").Text = visible ? "隱藏視窗" : "顯示視窗";
         capsule.Available = layout == "U10";
         foreach (ToolStripItem i in capsule.DropDownItems)
         {
@@ -230,6 +243,13 @@ public class TrayMenu : IDisposable
         if (status == "working") { text = "下班"; workAction = "end"; }
         else if (status == "ended") text = "繼續上班";
         if (work.Text != text) work.Text = text;
+    }
+
+    // The page's menuState masked (1.1.3): 隱藏金額 is checked while the amounts are hidden.
+    public void SetMasked(bool masked)
+    {
+        ToolStripMenuItem m = Item("mask");
+        if (m.Checked != masked) m.Checked = masked;
     }
 
     // The snacks there are to feed (menuState snacks), shown right of 餵食 as ×N; below 0: unknown, no count. 餵食 stays

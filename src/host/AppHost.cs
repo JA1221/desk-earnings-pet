@@ -65,6 +65,8 @@ using Microsoft.Web.WebView2.Core;
 // - Every end (結束, a close from outside, Windows ending the session) records the time in session.json
 //   (ExitStamp); the next start hands it to the page as init lastExitMs, with the .bak texts (init backups) and
 //   whether the window had to go opaque (init forceOpaque).
+// menuState {work, snacks, masked} (page -> host, 1.1.3): masked = the amounts are hidden; TrayMenu checks 隱藏金額 with it.
+// The mask menu action goes to the page as menu {action:'mask'} and never shows or activates the window.
 // Host-only menu actions: toggleVisible (a hidden page cannot show itself) and quit (sent to the page as
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs). Every other
 // TrayMenu id goes to the page as menu {action}. The quick actions drink (記一杯水), undrink (少記一杯, 1.1.1: the page
@@ -384,6 +386,7 @@ public class AppHost
                 {
                     double snacks = Bridge.Num(d, "snacks", -1);
                     tray.SetWork(Bridge.Str(d, "work"));
+                    tray.SetMasked(Bridge.Bool(d, "masked") == true);   // 1.1.3: 隱藏金額 is checked while the amounts are masked
                     tray.SetSnacks(snacks >= 0 && snacks <= 99999 ? (int)Math.Floor(snacks) : -1);
                     break;
                 }
@@ -836,6 +839,11 @@ public class AppHost
     {
         if (action == "toggleVisible") { ToggleVisible(); return; }
         if (action == "quit") { BeginQuit(); return; }
+        if (action == "layout:M3")   // 版型 ▶ 7 迷你浮窗: the page's own id for M3 is mini (a toggle), so only from another layout
+        {
+            if (layout == "M3") return;
+            action = "mini";
+        }
         if (ShowRescue.MenuShows(action))
         {
             // The user wants to see the result: shown and raised now, with the keyboard if the current layout takes
