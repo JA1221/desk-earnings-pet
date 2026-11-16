@@ -59,13 +59,13 @@ public static class TrayMenuTests
         }
     }
 
-    // 版型 ▶: the layouts, 縮成迷你, 永遠在最上層, and last 膠囊位置 ▶, which only U10 shows (spec 4.9 #2, 5.7).
+    // 版型 ▶: the layouts, 永遠在最上層, and last 膠囊位置 ▶, which only U10 shows (spec 4.9 #2, 5.7).
     public static void Test_LayoutSubmenu()
     {
         using (var t = new TrayMenu())
         {
             ToolStripItemCollection items = Item(t, "layouts").DropDownItems;
-            Assert.Eq("1 經典直式|2 遊戲畫面|3 健康儀表板|4 番茄鐘優先|-|5 橫向極簡|6 頂端小膠囊|7 迷你浮窗|-|8 桌面寵物|-|縮成迷你|-|永遠在最上層|膠囊位置",
+            Assert.Eq("1 經典直式|2 遊戲畫面|3 健康儀表板|4 番茄鐘優先|-|5 橫向極簡|6 頂端小膠囊|7 迷你浮窗|-|8 桌面寵物|-|永遠在最上層|膠囊位置",
                 Labels(items), "版型 submenu");
             ToolStripMenuItem capsule = Item(t, "capsule");
             Assert.True(object.ReferenceEquals(capsule, items[items.Count - 1]), "膠囊位置 is the last item");
@@ -90,7 +90,7 @@ public static class TrayMenuTests
 
     public static void Test_EachItemSendsItsActionId()
     {
-        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "mini", "topmost", "feed", "adjust", "mask",
+        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "topmost", "feed", "adjust", "mask",
                          "settings", "history", "toggleVisible", "quit",
                          "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink", "undrink", "stoodUp",
                          "capsule:top", "capsule:bottomLeft", "capsule:bottomCenter", "capsule:bottomRight" };
@@ -277,16 +277,16 @@ public static class TrayMenuTests
             t.SetState("U7", true, true);
             Assert.True(Item(t, "layout:U7").Checked, "current layout checked");
             Assert.True(!Item(t, "layout:U1").Checked, "other layouts unchecked");
-            Assert.True(!Item(t, "mini").Checked, "not the mini badge");
+            Assert.True(!Item(t, "layout:M3").Checked, "not the mini badge");
             Assert.True(Item(t, "topmost").Checked, "topmost checked");
             Assert.Eq("隱藏視窗", Item(t, "toggleVisible").Text, "visible -> 隱藏視窗");
             t.SetState("M3", false, false);
             Assert.True(!Item(t, "layout:U7").Checked, "mini is not a main layout");
-            Assert.True(Item(t, "mini").Checked, "縮成迷你 is checked while the mini badge shows");
+            Assert.True(Item(t, "layout:M3").Checked, "7 迷你浮窗 is checked while the mini badge shows");
             Assert.True(!Item(t, "topmost").Checked, "topmost unchecked");
             Assert.Eq("顯示視窗", Item(t, "toggleVisible").Text, "hidden -> 顯示視窗");
             t.SetState(null, false, false);
-            Assert.True(!Item(t, "mini").Checked && !Item(t, "layout:U1").Checked, "no layout yet");
+            Assert.True(!Item(t, "layout:M3").Checked && !Item(t, "layout:U1").Checked, "no layout yet");
         }
     }
 

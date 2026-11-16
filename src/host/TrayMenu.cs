@@ -15,7 +15,7 @@ using System.Windows.Forms;
 //   健康: 記一杯水 3/8, 少記一杯, 我剛起來動過了, 開始番茄鐘  |  上班: 開始上班 / 下班 / 繼續上班, 調整起算時間, 餵食 ×N  |
 //   畫面: 版型 ▶, 隱藏金額, 隱藏視窗 / 顯示視窗  |  其他: 紀錄, 設定, 結束
 //   版型 ▶: 1 經典直式 (U1), 2 遊戲畫面 (U3), 3 健康儀表板 (U12), 4 番茄鐘優先 (U13)  |  5 橫向極簡 (U5B), 6 頂端小膠囊 (U10),
-//   7 迷你浮窗 (layout:M3, which the host sends the page as mini)  |  8 桌面寵物 (U7)  |  縮成迷你  |  永遠在最上層 (for the
+//   7 迷你浮窗 (layout:M3, which the host sends the page as mini)  |  8 桌面寵物 (U7)  |  永遠在最上層 (for the
 //   current layout), 膠囊位置 ▶ (U10 only)
 //   膠囊位置 ▶: 上方正中間, 左下, 中下, 右下 (the current dock checked)
 // 隱藏金額 (1.1.3, mask) sends menu {action:'mask'}: the page toggles the amount mask, like a click on the amount. It is
@@ -28,7 +28,7 @@ using System.Windows.Forms;
 // (SetHealth's cups, CupsToday). 我剛起來動過了 (1.1.2, stoodUp: the page counts a stand-up, restarts the sit timer and
 // the pet says 「收到！」) shows only while the 起來動 reminder is on (SetHealth's sitOn); it comes right after 少記一杯, so
 // right after 記一杯水 while 少記一杯 is hidden.
-// 縮成迷你 is checked in M3; clicking it there goes back to the main layout (the page toggles).
+// 7 迷你浮窗 is checked in M3 (1.1.3: there is no separate 縮成迷你 item); leaving M3 is picking another layout.
 // The tray icon (tooltip 錢進中) is a coin drawn at runtime; double-clicking it raises IconDoubleClick.
 public class TrayMenu : IDisposable
 {
@@ -101,8 +101,6 @@ public class TrayMenu : IDisposable
         Add(layouts.DropDownItems, "7 迷你浮窗", "layout:M3");
         layouts.DropDownItems.Add(new ToolStripSeparator());
         Add(layouts.DropDownItems, "8 桌面寵物", "layout:U7");
-        layouts.DropDownItems.Add(new ToolStripSeparator());
-        Add(layouts.DropDownItems, "縮成迷你", "mini");
         layouts.DropDownItems.Add(new ToolStripSeparator());
         Add(layouts.DropDownItems, "永遠在最上層", "topmost");
         capsule = new ToolStripMenuItem("膠囊位置");
@@ -178,7 +176,7 @@ public class TrayMenu : IDisposable
         finally { showingAt = false; }
     }
 
-    // Check marks and the show/hide label: layout = current layout (a main layout's item, or 縮成迷你 for M3),
+    // Check marks and the show/hide label: layout = current layout (a main layout's item, M3 is 7 迷你浮窗),
     // topmost = window is topmost, visible = window is shown (item reads 隱藏) or hidden (顯示), dock = U10's dock
     // (膠囊位置 shows in U10 only, with that dock checked).
     public void SetState(string layout, bool topmost, bool visible, string dock = null)
@@ -188,7 +186,6 @@ public class TrayMenu : IDisposable
             ToolStripMenuItem m = i as ToolStripMenuItem;
             if (m != null && m.Name.StartsWith("layout:")) m.Checked = layout != null && m.Name == "layout:" + layout;
         }
-        Item("mini").Checked = layout == "M3";
         Item("layout:M3").Checked = layout == "M3";
         Item("topmost").Checked = topmost;
         Item("toggleVisible").Text = visible ? "隱藏視窗" : "顯示視窗";
