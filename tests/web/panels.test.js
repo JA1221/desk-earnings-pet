@@ -1000,6 +1000,48 @@
     done();
   });
 
+  // 1.1.4 item 2: the pet section fits its window: in every layout's 設定 (in its window: 1 2 3 4; beside it: 5 6 7 8) and in
+  // onboarding, every skin (its avatar, the ring round the one picked, its ✓ and its name) stays inside its card, nothing
+  // scrolls sideways, and all ten are there.
+  function petFits(e, where, scope) {
+    var cards = $$(e, scope + ' .card').filter(function (c) { return c.querySelector('[data-skin]'); });
+    eq(cards.length, 1, where + ': the picker card');
+    var cr = cards[0].getBoundingClientRect(), cs = getComputedStyle(cards[0]);
+    var L = cr.left + parseFloat(cs.borderLeftWidth), R = cr.right - parseFloat(cs.borderRightWidth);
+    var skins = $$(e, scope + ' [data-skin]');
+    eq(skins.length, 10, where + ': all ten skins');
+    skins.forEach(function (b) {
+      var av = b.querySelector('.av').getBoundingClientRect(), nm = b.querySelector('small').getBoundingClientRect(), br = b.getBoundingClientRect();
+      var id = b.getAttribute('data-skin');
+      ok(av.width >= 36, where + ' ' + id + ': the avatar stays big enough to see: ' + av.width);
+      ok(av.left - 5 >= L && av.right + 5 <= R, where + ' ' + id + ': its avatar and the picked ring inside the card ' + JSON.stringify([av.left, av.right, L, R]));
+      ok(nm.left >= L && nm.right <= R && nm.left >= br.left - 1 && nm.right <= br.right + 1, where + ' ' + id + ': its name inside it ' +
+        JSON.stringify([nm.left, nm.right, br.left, br.right]));
+      ok(br.right + 2 <= R, where + ' ' + id + ': its ✓ inside the card');
+    });
+    var sc = $(e, '.pscroll');
+    if (sc) ok(sc.scrollWidth <= sc.clientWidth, where + ': nothing scrolls sideways ' + sc.scrollWidth + ' > ' + sc.clientWidth);
+    var win = $(e, '.win.panel').getBoundingClientRect();
+    ok(cr.right <= win.right, where + ': the card inside the window');
+  }
+  test('panels DOM: 1.1.4 item 2: the pet picker fits in every layout\'s 設定 and in onboarding', function () {
+    ['U1', 'U3', 'U12', 'U13', 'U5B', 'U10', 'M3', 'U7'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name });
+      e.menu('settings');
+      $(e, '[data-tab=pet]').click();
+      $$(e, '[data-skin="cat:p4"]')[0].click();   // the picked one has the ring and the ✓
+      petFits(e, name + ' 設定', '[data-sec=pet]');
+      done();
+    });
+    var o = mk(at(12, 10, 0), { settings: null });
+    type($(o, '[data-f=amount]'), '50,000');
+    $(o, '[data-pa=next]').click();
+    ok(visible($(o, '[data-step="2"]')), 'onboarding: the pet step');
+    $$(o, '[data-step="2"] [data-skin="cat:p4"]')[0].click();
+    petFits(o, 'onboarding', '[data-step="2"]');
+    done();
+  });
+
   test('panels DOM: 寵物, 版型 and 動力加成 (in 寵物 and 畫面)', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
