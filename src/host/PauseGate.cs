@@ -69,13 +69,21 @@ public static class ShowRescue
     }
 
     // Tray and menu actions the user wants to see the result of: they show and raise the window (and give it the
-    // keyboard in an activating layout). 隱藏/顯示 toggles on its own; 結束 quits; 永遠在最上層 changes only the band;
-    // the quick actions 記一杯水 (drink), 少記一杯 (undrink), 我剛起來動過了 (stoodUp, 1.1.2) and 開始／停止番茄鐘 (pomodoro)
-    // never un-hide the window.
+    // keyboard in an activating layout). 隱藏視窗/顯示視窗 toggles on its own; 結束 quits; 永遠在最上層 changes only the
+    // band; the quick actions 記一杯水 (drink) and 開始／停止番茄鐘 (pomodoro) never un-hide the window.
     public static bool MenuShows(string action)
     {
         return action != null && action != "toggleVisible" && action != "quit" && action != "topmost"
-            && action != "mask" && action != "drink" && action != "undrink" && action != "stoodUp" && action != "pomodoro";
+            && action != "drink" && action != "pomodoro";
+    }
+
+    // What a menu item sends the page (null: nothing). 版型 ▶ 7 迷你浮窗 (layout:M3) is the page's mini, which is a toggle,
+    // so in M3 it sends nothing: there it only shows and raises the window (MenuShows), as picking the current layout does
+    // anywhere else (1.1.3 review M-1). Every other id goes as it is.
+    public static string PageAction(string action, string layout)
+    {
+        if (action != "layout:M3") return action;
+        return layout == "M3" ? null : "mini";
     }
 
     // Of those, the ones whose result shows in the current layout, which then takes the keyboard at once (if it is

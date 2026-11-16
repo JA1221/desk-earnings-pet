@@ -8,26 +8,22 @@ using System.Globalization;
 using System.Windows.Forms;
 
 // The app's one menu, in A1 colours: the tray icon shows it on right click, and the host shows it for the
-// page's contextMenu message. Every item raises ItemClicked with its action id (layout:U1|U3|U5B|U7|U10|U12|U13,
-// mini, drink, undrink, stoodUp, pomodoro, feed, start, adjust, end, topmost, capsule:top|bottomLeft|bottomCenter|
-// bottomRight, settings, history, toggleVisible, quit); the host decides what each does.
+// page's contextMenu message. Every item raises ItemClicked with its action id (layout:U1|U3|U5B|U7|U10|U12|U13|M3,
+// drink, pomodoro, feed, start, adjust, end, topmost, capsule:top|bottomLeft|bottomCenter|bottomRight, settings, history,
+// toggleVisible, quit); the host decides what each does (ShowRescue.PageAction: layout:M3 goes to the page as mini).
 // 1.1.3 groups (a separator between them):
-//   健康: 記一杯水 3/8, 少記一杯, 我剛起來動過了, 開始番茄鐘  |  上班: 開始上班 / 下班 / 繼續上班, 調整起算時間, 餵食 ×N  |
-//   畫面: 版型 ▶, 隱藏金額, 隱藏視窗 / 顯示視窗  |  其他: 紀錄, 設定, 結束
+//   健康: 記一杯水 3/8, 開始番茄鐘  |  上班: 開始上班 / 下班 / 繼續上班, 調整起算時間, 餵食 ×N  |
+//   畫面: 版型 ▶, 隱藏視窗 / 顯示視窗  |  其他: 紀錄, 設定, 結束
+//   The user's ruling (1.1.3 A2, 「這種很直覺的不用做在選單」): no 隱藏金額, 少記一杯 or 我剛起來動過了 here (a click on
+//   the amount, a long press on a water button or on the 🧍 do them). 記一杯水 stays: U7 and M3 have no water button.
 //   版型 ▶: 1 經典直式 (U1), 2 遊戲畫面 (U3), 3 健康儀表板 (U12), 4 番茄鐘優先 (U13)  |  5 橫向極簡 (U5B), 6 頂端小膠囊 (U10),
 //   7 迷你浮窗 (layout:M3, which the host sends the page as mini)  |  8 桌面寵物 (U7)  |  永遠在最上層 (for the
 //   current layout), 膠囊位置 ▶ (U10 only)
 //   膠囊位置 ▶: 上方正中間, 左下, 中下, 右下 (the current dock checked)
-// 隱藏金額 (1.1.3, mask) sends menu {action:'mask'}: the page toggles the amount mask, like a click on the amount. It is
-// checked while the page's menuState says masked:true (SetMasked). It never shows or activates the window.
 // The work item follows the status the page reports (SetWork): 開始上班 (start) before work, 下班 (end) while the
 // day runs, 繼續上班 (start: the page continues an ended day) after 下班. 餵食 shows the snack count (SetSnacks).
 // 記一杯水 shows the cups and 開始番茄鐘 reads 停止番茄鐘（還剩 N 分） while a focus or a break runs (SetHealth; the
 // label is worked out again each time the menu opens); either way it sends pomodoro and the page toggles.
-// 少記一杯 (1.1.1, undrink: the page takes one cup off today, never below 0) shows only while today's cups are above 0
-// (SetHealth's cups, CupsToday). 我剛起來動過了 (1.1.2, stoodUp: the page counts a stand-up, restarts the sit timer and
-// the pet says 「收到！」) shows only while the 起來動 reminder is on (SetHealth's sitOn); it comes right after 少記一杯, so
-// right after 記一杯水 while 少記一杯 is hidden.
 // 7 迷你浮窗 is checked in M3 (1.1.3: there is no separate 縮成迷你 item); leaving M3 is picking another layout.
 // The tray icon (tooltip 錢進中) is a coin drawn at runtime; double-clicking it raises IconDoubleClick.
 public class TrayMenu : IDisposable
@@ -47,8 +43,6 @@ public class TrayMenu : IDisposable
     readonly ToolStripMenuItem work;
     readonly ToolStripMenuItem feed;
     readonly ToolStripMenuItem drink;
-    readonly ToolStripMenuItem undrink;
-    readonly ToolStripMenuItem stoodUp;
     readonly ToolStripMenuItem pomodoro;
     string workAction = "start";   // what the work item sends now
     string pomodoroPhase;          // healthMenu pomodoro.phase; null until the page reports
@@ -69,10 +63,6 @@ public class TrayMenu : IDisposable
         menu.ShowImageMargin = true;   // room for the check marks
         // 健康
         drink = Add(menu.Items, "記一杯水", "drink");
-        undrink = Add(menu.Items, "少記一杯", "undrink");
-        undrink.Available = false;   // only while today has a cup (SetHealth)
-        stoodUp = Add(menu.Items, "我剛起來動過了", "stoodUp");
-        stoodUp.Available = false;   // only while the 起來動 reminder is on (SetHealth)
         pomodoro = Add(menu.Items, "開始番茄鐘", "pomodoro");
         menu.Items.Add(new ToolStripSeparator());
         // 上班
@@ -113,7 +103,6 @@ public class TrayMenu : IDisposable
         capsule.Available = false;   // U10 only (SetState)
         layouts.DropDownItems.Add(capsule);
         menu.Items.Add(layouts);
-        Add(menu.Items, "隱藏金額", "mask");
         Add(menu.Items, "隱藏視窗", "toggleVisible");
         menu.Items.Add(new ToolStripSeparator());
         // 其他
@@ -177,7 +166,7 @@ public class TrayMenu : IDisposable
     }
 
     // Check marks and the show/hide label: layout = current layout (a main layout's item, M3 is 7 迷你浮窗),
-    // topmost = window is topmost, visible = window is shown (item reads 隱藏) or hidden (顯示), dock = U10's dock
+    // topmost = window is topmost, visible = window is shown (item reads 隱藏視窗) or hidden (顯示視窗), dock = U10's dock
     // (膠囊位置 shows in U10 only, with that dock checked).
     public void SetState(string layout, bool topmost, bool visible, string dock = null)
     {
@@ -199,27 +188,14 @@ public class TrayMenu : IDisposable
 
     // The page's healthMenu: cups = today's cups as the page shows them ("3/8"), or null when it hides them (spec 4.9
     // #8: the 喝水 reminder is off and today has no cup); phase and endsMs = the pomodoro (idle / focus / break /
-    // breakOver, and when a focus or break ends, epoch ms); sitOn (1.1.2) = the 起來動 reminder is on. 少記一杯 shows while
-    // today has a cup, 我剛起來動過了 while sitOn.
-    public void SetHealth(string cups, string phase, double endsMs, bool sitOn = false)
+    // breakOver, and when a focus or break ends, epoch ms).
+    public void SetHealth(string cups, string phase, double endsMs)
     {
         string text = string.IsNullOrEmpty(cups) ? null : cups;
         if (drink.ShortcutKeyDisplayString != text) drink.ShortcutKeyDisplayString = text;
-        bool any = CupsToday(cups) > 0;
-        if (undrink.Available != any) undrink.Available = any;
-        if (stoodUp.Available != sitOn) stoodUp.Available = sitOn;
         pomodoroPhase = phase;
         pomodoroEndsMs = endsMs;
         UpdatePomodoroLabel();
-    }
-
-    // Today's cups from healthMenu's cups ("3/8": the whole number before the slash); 0 for null or anything else.
-    public static int CupsToday(string cups)
-    {
-        if (string.IsNullOrEmpty(cups)) return 0;
-        int slash = cups.IndexOf('/');
-        int n;
-        return int.TryParse(slash >= 0 ? cups.Substring(0, slash) : cups, NumberStyles.None, CultureInfo.InvariantCulture, out n) ? n : 0;
     }
 
     // 停止番茄鐘（還剩 N 分） while a focus or a break runs (N whole minutes rounded up, at least 1), else 開始番茄鐘.
@@ -240,13 +216,6 @@ public class TrayMenu : IDisposable
         if (status == "working") { text = "下班"; workAction = "end"; }
         else if (status == "ended") text = "繼續上班";
         if (work.Text != text) work.Text = text;
-    }
-
-    // The page's menuState masked (1.1.3): 隱藏金額 is checked while the amounts are hidden.
-    public void SetMasked(bool masked)
-    {
-        ToolStripMenuItem m = Item("mask");
-        if (m.Checked != masked) m.Checked = masked;
     }
 
     // The snacks there are to feed (menuState snacks), shown right of 餵食 as ×N; below 0: unknown, no count. 餵食 stays

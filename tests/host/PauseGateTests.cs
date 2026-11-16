@@ -108,7 +108,7 @@ public static class ShowRescueTests
     {
         foreach (string a in new[] { "settings", "history", "adjust" })
             Assert.True(ShowRescue.UserPanel(a), a + " is a panel the user asked for");
-        foreach (string a in new[] { "toggleVisible", "layout:U1", "mini", "feed", "start", "end", "topmost", "drink", "undrink", "stoodUp",
+        foreach (string a in new[] { "toggleVisible", "layout:U1", "layout:M3", "mini", "feed", "start", "end", "topmost", "drink",
             "pomodoro", "capsule:top", "quit", null })
             Assert.True(!ShowRescue.UserPanel(a), (a ?? "null") + " is not");
     }
@@ -127,11 +127,11 @@ public static class ShowRescueTests
     // 結束 quits, and 永遠在最上層 only changes the z-order band.
     public static void Test_MenuActionsThatShowTheWindow()
     {
-        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "feed", "start", "adjust", "end", "settings", "history",
+        foreach (string a in new[] { "layout:U1", "layout:U7", "layout:M3", "mini", "feed", "start", "adjust", "end", "settings", "history",
             "layout:U10", "capsule:top", "capsule:bottomRight" })
             Assert.True(ShowRescue.MenuShows(a), a + " shows and raises");
-        // quick actions (記一杯水, 少記一杯, 我剛起來動過了, 開始番茄鐘) never un-hide the window
-        foreach (string a in new[] { "toggleVisible", "quit", "topmost", "drink", "undrink", "stoodUp", "pomodoro", null })
+        // quick actions (記一杯水, 開始番茄鐘) never un-hide the window
+        foreach (string a in new[] { "toggleVisible", "quit", "topmost", "drink", "pomodoro", null })
             Assert.True(!ShowRescue.MenuShows(a), (a ?? "null") + " does not");
     }
 
@@ -141,9 +141,25 @@ public static class ShowRescueTests
     {
         foreach (string a in new[] { "feed", "start", "adjust", "end", "settings", "history" })
             Assert.True(ShowRescue.MenuActivatesNow(a), a + " activates now");
-        foreach (string a in new[] { "layout:U1", "layout:U7", "mini", "toggleVisible", "quit", "topmost", null,
-            "capsule:top", "capsule:bottomRight", "drink", "undrink", "stoodUp", "pomodoro" })
+        foreach (string a in new[] { "layout:U1", "layout:U7", "layout:M3", "mini", "toggleVisible", "quit", "topmost", null,
+            "capsule:top", "capsule:bottomRight", "drink", "pomodoro" })
             Assert.True(!ShowRescue.MenuActivatesNow(a), (a ?? "null") + " does not");
+    }
+
+    // 1.1.3 (review M-1, M-7): what a menu item sends the page. 版型 ▶ 7 迷你浮窗 (layout:M3) is the page's mini, a toggle,
+    // so in M3 it sends nothing: there it only shows and raises the window (MenuShows), as picking the current layout does
+    // anywhere else. Every other id goes as it is.
+    public static void Test_PageAction()
+    {
+        Assert.Eq("mini", ShowRescue.PageAction("layout:M3", "U1"), "7 迷你浮窗 from U1");
+        Assert.Eq("mini", ShowRescue.PageAction("layout:M3", "U10"), "from U10");
+        Assert.Eq("mini", ShowRescue.PageAction("layout:M3", "PANEL"), "from a panel");
+        Assert.Eq("mini", ShowRescue.PageAction("layout:M3", null), "before any layout");
+        Assert.True(ShowRescue.PageAction("layout:M3", "M3") == null, "in M3: nothing for the page (it would toggle back)");
+        Assert.True(ShowRescue.MenuShows("layout:M3"), "and the window shows and raises, hidden or not");
+        foreach (string a in new[] { "layout:U1", "layout:U10", "drink", "pomodoro", "feed", "settings", "capsule:top" })
+            Assert.Eq(a, ShowRescue.PageAction(a, "M3"), a + " as it is");
+        Assert.True(ShowRescue.PageAction(null, "U1") == null, "null");
     }
 
     // 1.1.2 item 5: the layout whose 永遠在最上層 counts now. A panel's is the layout it came from, as the page's

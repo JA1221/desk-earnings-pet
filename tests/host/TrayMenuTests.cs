@@ -27,35 +27,18 @@ public static class TrayMenuTests
         return string.Join("|", labels.ToArray());
     }
 
-    // 1.1.3 item 4: four groups with a separator between them. 健康, 上班, 畫面 (版型 ▶, 隱藏金額, 隱藏視窗), 其他.
+    // 1.1.3 item 4: four groups with a separator between them. 健康, 上班, 畫面 (版型 ▶, 隱藏視窗), 其他. The user's ruling
+    // (1.1.3 A2, 「這種很直覺的不用做在選單」): no 隱藏金額, 少記一杯 or 我剛起來動過了 (a click on the amount, a long press
+    // on a water button or on the 🧍 do them); 記一杯水 stays, since U7 and M3 have no water button.
     public static void Test_MenuIsGroupedInFour()
     {
         using (var t = new TrayMenu())
         {
-            Assert.Eq("記一杯水|少記一杯|我剛起來動過了|開始番茄鐘|-|開始上班|調整起算時間|餵食|-|版型|隱藏金額|隱藏視窗|-|紀錄|設定|結束",
-                Labels(t.Menu.Items), "groups");
-            Assert.Eq("記一杯水|開始番茄鐘|開始上班|調整起算時間|餵食|版型|隱藏金額|隱藏視窗|紀錄|設定|結束", Shown(t, 99), "nothing reported yet");
-        }
-    }
-
-    // 隱藏金額: sends mask, is checked while the page reports masked, and (host) never shows or activates the window.
-    public static void Test_MaskItem()
-    {
-        using (var t = new TrayMenu())
-        {
-            ToolStripMenuItem m = Item(t, "mask");
-            Assert.Eq("隱藏金額", m.Text, "label");
-            Assert.True(!m.Checked, "not masked yet");
-            t.SetMasked(true);
-            Assert.True(m.Checked, "checked while masked");
-            t.SetMasked(false);
-            Assert.True(!m.Checked, "unchecked");
-            var got = new List<string>();
-            t.ItemClicked += got.Add;
-            m.PerformClick();
-            Assert.Eq("mask", string.Join(",", got.ToArray()), "its action id");
-            Assert.True(!ShowRescue.MenuShows("mask"), "never un-hides the window");
-            Assert.True(!ShowRescue.MenuActivatesNow("mask"), "never activates it");
+            Assert.Eq("記一杯水|開始番茄鐘|-|開始上班|調整起算時間|餵食|-|版型|隱藏視窗|-|紀錄|設定|結束", Labels(t.Menu.Items), "groups");
+            t.SetHealth("3/8", "focus", 0);
+            Assert.Eq("記一杯水|停止番茄鐘（還剩 1 分）|開始上班|調整起算時間|餵食|版型|隱藏視窗|紀錄|設定|結束", Shown(t, 99), "with cups today, all shown");
+            foreach (string gone in new[] { "mask", "undrink", "stoodUp" })
+                Assert.Eq(0, t.Menu.Items.Find(gone, true).Length, "no " + gone + " item");
         }
     }
 
@@ -90,13 +73,12 @@ public static class TrayMenuTests
 
     public static void Test_EachItemSendsItsActionId()
     {
-        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "topmost", "feed", "adjust", "mask",
+        string[] ids = { "layout:U1", "layout:U3", "layout:U5B", "layout:U7", "layout:M3", "topmost", "feed", "adjust",
                          "settings", "history", "toggleVisible", "quit",
-                         "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink", "undrink", "stoodUp",
+                         "layout:U10", "layout:U12", "layout:U13", "pomodoro", "drink",
                          "capsule:top", "capsule:bottomLeft", "capsule:bottomCenter", "capsule:bottomRight" };
         using (var t = new TrayMenu())
         {
-            t.SetHealth("1/8", "idle", 0, true);   // 少記一杯 shows only with a cup today, 我剛起來動過了 with 起來動 on
             var got = new List<string>();
             t.ItemClicked += got.Add;
             foreach (string id in ids) Item(t, id).PerformClick();
@@ -196,59 +178,6 @@ public static class TrayMenuTests
         }
     }
 
-    // 1.1.1: 少記一杯 sits right under 記一杯水 and shows only while today's cups (healthMenu cups, "N/goal") are above 0;
-    // the page takes one cup off (undrink), never below 0.
-    public static void Test_UndrinkShowsOnlyWithACupToday()
-    {
-        using (var t = new TrayMenu())
-        {
-            ToolStripMenuItem u = Item(t, "undrink");
-            Assert.Eq("少記一杯", u.Text, "label");
-            Assert.Eq(t.Menu.Items.IndexOf(Item(t, "drink")) + 1, t.Menu.Items.IndexOf(u), "directly under 記一杯水");
-            Assert.True(!u.Available, "nothing reported yet: hidden");
-            t.SetHealth("3/8", "idle", 0);
-            Assert.True(u.Available, "3 cups: shown");
-            Assert.True(string.IsNullOrEmpty(u.ShortcutKeyDisplayString), "no count of its own");
-            var got = new List<string>();
-            t.ItemClicked += got.Add;
-            u.PerformClick();
-            Assert.Eq("undrink", string.Join(",", got.ToArray()), "its action id");
-            t.SetHealth("0/8", "idle", 0);
-            Assert.True(!u.Available, "0 cups: hidden");
-            t.SetHealth("1/8", "focus", 0);
-            Assert.True(u.Available, "1 cup: shown");
-            t.SetHealth(null, "idle", 0);
-            Assert.True(!u.Available, "cups hidden by the page (water off, none today): hidden");
-        }
-    }
-
-    // 1.1.2 item 7a: 我剛起來動過了 (stoodUp: the page counts a stand-up, restarts the sit timer and the pet says 「收到！」)
-    // sits right after 少記一杯, so right after 記一杯水 while 少記一杯 is hidden, and shows only while the 起來動 reminder is
-    // on (healthMenu sitOn).
-    public static void Test_StoodUpShowsOnlyWhileTheSitReminderIsOn()
-    {
-        using (var t = new TrayMenu())
-        {
-            ToolStripMenuItem s = Item(t, "stoodUp");
-            Assert.Eq("我剛起來動過了", s.Text, "label");
-            Assert.Eq(t.Menu.Items.IndexOf(Item(t, "undrink")) + 1, t.Menu.Items.IndexOf(s), "right after 少記一杯");
-            Assert.True(!s.Available, "nothing reported yet: hidden");
-            t.SetHealth("3/8", "idle", 0, true);
-            Assert.True(s.Available, "起來動 on: shown");
-            Assert.Eq("記一杯水|少記一杯|我剛起來動過了|開始番茄鐘", Shown(t, 4), "after 少記一杯");
-            t.SetHealth(null, "idle", 0, true);
-            Assert.Eq("記一杯水|我剛起來動過了|開始番茄鐘|開始上班", Shown(t, 4), "少記一杯 hidden: right after 記一杯水");
-            var got = new List<string>();
-            t.ItemClicked += got.Add;
-            s.PerformClick();
-            Assert.Eq("stoodUp", string.Join(",", got.ToArray()), "its action id");
-            t.SetHealth("3/8", "focus", 0, false);
-            Assert.True(!s.Available, "起來動 off: hidden");
-            t.SetHealth("3/8", "idle", 0);
-            Assert.True(!s.Available, "a page that does not say: hidden");
-        }
-    }
-
     // The first n items the menu shows (Available), by label.
     static string Shown(TrayMenu t, int n)
     {
@@ -256,18 +185,6 @@ public static class TrayMenuTests
         foreach (ToolStripItem i in t.Menu.Items)
             if (i.Available && !(i is ToolStripSeparator) && labels.Count < n) labels.Add(i.Text);
         return string.Join("|", labels.ToArray());
-    }
-
-    public static void Test_CupsToday()
-    {
-        Assert.Eq(3, TrayMenu.CupsToday("3/8"), "3/8");
-        Assert.Eq(0, TrayMenu.CupsToday("0/8"), "0/8");
-        Assert.Eq(12, TrayMenu.CupsToday("12/8"), "over the goal");
-        Assert.Eq(0, TrayMenu.CupsToday(null), "null");
-        Assert.Eq(0, TrayMenu.CupsToday(""), "empty");
-        Assert.Eq(0, TrayMenu.CupsToday("x/8"), "garbage");
-        Assert.Eq(0, TrayMenu.CupsToday("-2/8"), "negative");
-        Assert.Eq(0, TrayMenu.CupsToday("99999999999/8"), "absurd");
     }
 
     public static void Test_StateShowsChecksAndToggleLabel()

@@ -29,7 +29,7 @@ using Microsoft.Web.WebView2.Core;
 //   (WindowPlacer.PanelBounds, 1.1.1), at the size the page asks for. A start that opens with a panel opens it beside
 //   the hidden window, which PrePlace put where the start layout shows, so the first thing shown is on the start
 //   layout's monitor. setLayout {layout:'PANEL', inPlace:true, width, height, dpr} (1.1.2 item 3: 設定 / 紀錄 opened
-//   from U1, U12 or U13, which the page shows in that same window; width / height are the window's CSS size): the
+//   from U1, U3 (1.1.3), U12 or U13, which the page shows in that same window; width / height are the window's CSS size): the
 //   window keeps its spot and its size exactly, not moved, not resized (PetWindow.KeepSize). Closing the panel goes
 //   back to the layout it came from at the anchor. A panel the user opens from the tray or the menu still comes in
 //   front of a full-screen window (below), in place or not.
@@ -65,14 +65,13 @@ using Microsoft.Web.WebView2.Core;
 // - Every end (結束, a close from outside, Windows ending the session) records the time in session.json
 //   (ExitStamp); the next start hands it to the page as init lastExitMs, with the .bak texts (init backups) and
 //   whether the window had to go opaque (init forceOpaque).
-// menuState {work, snacks, masked} (page -> host, 1.1.3): masked = the amounts are hidden; TrayMenu checks 隱藏金額 with it.
-// The mask menu action goes to the page as menu {action:'mask'} and never shows or activates the window.
+// menuState {work, snacks} (page -> host): the work item and the snack count. healthMenu {cups, pomodoro:{phase, endsMs}}:
+// 記一杯水's cups and 開始 / 停止番茄鐘. (1.1.3 A2: the menu lost 隱藏金額, 少記一杯 and 我剛起來動過了, and with them the
+// page's mask / undrink / stoodUp actions, menuState's masked and healthMenu's sitOn.)
 // Host-only menu actions: toggleVisible (a hidden page cannot show itself) and quit (sent to the page as
 // menu {action:'quit'} so it can save and answer quit {}; the host exits anyway after QuitWaitMs). Every other
-// TrayMenu id goes to the page as menu {action}. The quick actions drink (記一杯水), undrink (少記一杯, 1.1.1: the page
-// takes one cup off today, never below 0), stoodUp (我剛起來動過了, 1.1.2: the page counts a stand-up, restarts the sit
-// timer and the pet says 「收到！」) and pomodoro do not show a hidden window (ShowRescue.MenuShows); 少記一杯 is in the
-// menu only while healthMenu's cups say today has a cup, 我剛起來動過了 only while healthMenu's sitOn is true.
+// TrayMenu id goes to the page as menu {action} (ShowRescue.PageAction: layout:M3 as mini, and nothing in M3). The quick
+// actions drink (記一杯水) and pomodoro do not show a hidden window (ShowRescue.MenuShows).
 public class AppHost
 {
     public const string Version = "1.1.3";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
@@ -386,16 +385,14 @@ public class AppHost
                 {
                     double snacks = Bridge.Num(d, "snacks", -1);
                     tray.SetWork(Bridge.Str(d, "work"));
-                    tray.SetMasked(Bridge.Bool(d, "masked") == true);   // 1.1.3: 隱藏金額 is checked while the amounts are masked
                     tray.SetSnacks(snacks >= 0 && snacks <= 99999 ? (int)Math.Floor(snacks) : -1);
                     break;
                 }
-            case "healthMenu":   // 記一杯水's cups, 少記一杯 (cups > 0), 我剛起來動過了 (sitOn, 1.1.2) and 開始 / 停止番茄鐘 follow the page
+            case "healthMenu":   // 記一杯水's cups and 開始 / 停止番茄鐘 follow the page
                 {
                     object p;
                     Dictionary<string, object> pomodoro = d.TryGetValue("pomodoro", out p) ? p as Dictionary<string, object> : null;
-                    tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0),
-                        Bridge.Bool(d, "sitOn") == true);
+                    tray.SetHealth(Bridge.Str(d, "cups"), Bridge.Str(pomodoro, "phase"), Bridge.Num(pomodoro, "endsMs", 0));
                     break;
                 }
             case "setTopmost":   // after every layout change, and from the menu's 永遠在最上層 or the title bar's pin (1.1.2)
@@ -839,11 +836,7 @@ public class AppHost
     {
         if (action == "toggleVisible") { ToggleVisible(); return; }
         if (action == "quit") { BeginQuit(); return; }
-        if (action == "layout:M3")   // 版型 ▶ 7 迷你浮窗: the page's own id for M3 is mini (a toggle), so only from another layout
-        {
-            if (layout == "M3") return;
-            action = "mini";
-        }
+        string toPage = ShowRescue.PageAction(action, layout);   // 7 迷你浮窗 is the page's mini, and nothing in M3 (review M-1)
         if (ShowRescue.MenuShows(action))
         {
             // The user wants to see the result: shown and raised now, with the keyboard if the current layout takes
@@ -853,7 +846,7 @@ public class AppHost
             activateUntil = DateTime.UtcNow.AddMilliseconds(MenuActivateMs);
             if (ShowRescue.UserPanel(action)) panelAskedUntil = activateUntil;   // in front of full screen too (review §4a)
         }
-        Send("menu", new { action = action });
+        if (toPage != null) Send("menu", new { action = toPage });
     }
 
     // The menu needs the foreground to close on an outside click (the same as the tray icon does); in the

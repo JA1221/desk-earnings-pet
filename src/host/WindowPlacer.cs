@@ -195,8 +195,8 @@ public class WindowPlacer
     }
 
     // Whether the user's drop of layout moves the anchor: in every layout but U10, which snaps to a dock instead. A panel's
-    // drop does only when it is shown in place (inPlacePanel: 設定 / 紀錄 in the window of U1, U12 or U13, which it is, so
-    // that layout comes back where it was dropped); a panel beside its window (from U3, U5-B, U7, M3 or U10) leaves the
+    // drop does only when it is shown in place (inPlacePanel: 設定 / 紀錄 in the window of U1, U3, U12 or U13, which it is,
+    // so that layout comes back where it was dropped); a panel beside its window (from U5-B, U7, M3 or U10) leaves the
     // anchor, or closing it would make the pet jump to where the panel was dragged.
     public static bool DragMovesAnchor(string layout, bool inPlacePanel)
     {
