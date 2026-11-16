@@ -1700,13 +1700,15 @@
     done();
   });
 
-  test('layouts: U7 tag line and M3 stickers have no data-act', function () {
+  // (1.1.4 item 7: U7's cups are its water button now, below; its tomatoes still only show)
+  test('layouts: U7 tag line\'s tomatoes and M3 stickers have no data-act', function () {
     var e = mk(at(12, 10, 0), { first: 'U7', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) });
     var line = $(e, '.u7 .mtag .hline');
     eq(shownText([line]), ['3/8・×3']);
-    eq([line.querySelectorAll('[data-act]').length, line.closest('[data-act]')], [0, null], 'display only (§5.3)');
-    clickOn(line);
-    eq(C.state.health.cups, 3, 'a click logs nothing');
+    eq(Array.prototype.map.call(line.querySelectorAll('[data-act]'), function (n) { return n.getAttribute('data-act'); }), ['drink'], 'only the cups act (1.1.4 item 7)');
+    eq(line.closest('[data-act]'), null);
+    clickOn(line.querySelector('.hpart:not([data-act])'));
+    eq(C.state.health.cups, 3, 'a click on the tomatoes logs nothing');
     e.menu('mini');
     var mb = e.root.querySelectorAll('.m3 .mb');
     eq(shownText(mb), ['3/8', '×3']);
@@ -1721,6 +1723,31 @@
       var r = n.getBoundingClientRect();
       ok(r.top < ring.top + 30 && r.left >= 0 && r.right <= badge.right, 'on the ring\'s top corners, inside the badge');
     });
+    done();
+  });
+
+  // 1.1.4 item 7: U7's water (the 💧 N/8 on its money tag) takes a tap and a long press as every water button does: a tap is a
+  // cup, a long press (blue ring) takes one off, never below 0. Root cause of the bug: it was a readout inside the money
+  // tag ([data-mask]) with no data-act, so a tap toggled the money mask and a long press held nothing.
+  test('layouts DOM: 1.1.4 item 7: U7\'s water: a tap logs a cup (not the mask), a long press takes one off', function () {
+    var e = shown(mk(at(12, 10, 0), { first: 'U7', care: true, settings: { health: WATER_ON }, rec: counts(1, 0) }));
+    function w() { return $(e, '.u7 .hline [data-cups]'); }
+    ok(w() && drawn(w()), 'the water on the tag');
+    eq(w().getAttribute('data-act'), 'drink', 'a water button');
+    tap(e, w());
+    eq([C.state.health.cups, QJZ.app.state.settings.privacy.maskMoney], [2, false], 'a tap is a cup, and the money stays shown');
+    var r = w().getBoundingClientRect();
+    mouse(w(), 'mousedown', r.left + 4, r.top + r.height / 2, { detail: 1 });
+    ok(w().classList.contains('holding') && w().classList.contains('h-water'), 'the blue ring');
+    mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    longPress(e, w());
+    eq([C.state.health.cups, QJZ.app.state.settings.privacy.maskMoney], [1, false], 'a long press takes one off');
+    longPress(e, w());
+    longPress(e, w());
+    eq(C.state.health.cups, 0, 'never below 0');
+    eq(of(e.sent, 'dragStart').length, 0, 'never a drag');
+    clickOn($(e, '.u7 .mtag [data-odo]'));
+    eq(QJZ.app.state.settings.privacy.maskMoney, true, 'the amount still masks');
     done();
   });
 

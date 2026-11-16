@@ -7,7 +7,7 @@ window.QJZ = window.QJZ || {};
 // 1.1 (spec §4.4, the A picks; §4.3 the countdown ring): [data-show=cups|tomatoes|both|any] is hidden (and keeps no
 // space) unless the model shows the cups / the tomatoes / both / either (§4.9 #8, decided by QJZ.care); [data-pring]
 // is the countdown ring (QJZ.ring) around the pet. data-act drink logs a cup, pomo starts or stops the pomodoro. The
-// U7 tag line and the M3 stickers only show (§5.3): no data-act. [data-cups] is where a logged cup pops 「+1」.
+// M3 stickers and U7's tomatoes only show (§5.3): no data-act (1.1.4 item 7: U7's 💧 is a water button). [data-cups] is where a logged cup pops 「+1」.
 // The prompt (Task 11, QJZ.promptView): [data-prompt] holds the reminder / pomodoro bubble (U1, U3, U7, M3, U12), U5-B's
 // [data-prompt-line] the same in its top line, U10's [data-prompt-call] on the capsule, U13's [data-prompt-ring] inside
 // the big ring; all are empty and hidden until a prompt shows.
@@ -92,9 +92,12 @@ QJZ.templates = (function () {
       '<button type="button" class="tom-btn"' + POMO + '>' + ic('tom') +
         '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button></div>';
   }
-  // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows.
+  // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows. 1.1.4 item 7:
+  // its 💧 is a water button like every other (a tap a cup, a long press one off): it was a readout, and a tap on it fell
+  // through to the money tag's mask.
   function hline() {
-    return '<div class="hline" data-show="anyS"><span class="hpart" data-show="cups" data-cups>' + ic('drop') + '<span class="n" data-b="cups"></span></span>' +
+    return '<div class="hline" data-show="anyS"><button type="button" class="hpart wat" data-show="cups"' + DRINK + '>' + ic('drop') +
+      '<span class="n" data-b="cups"></span></button>' +
       '<span class="dt" data-show="both">・</span><span class="hpart" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span>' +
       '<span class="dt" data-show="ctS">・</span>' + standC('hpart') + '</div>';
   }
