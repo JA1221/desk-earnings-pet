@@ -1017,12 +1017,23 @@
       ok(av.left - 5 >= L && av.right + 5 <= R, where + ' ' + id + ': its avatar and the picked ring inside the card ' + JSON.stringify([av.left, av.right, L, R]));
       ok(nm.left >= L && nm.right <= R && nm.left >= br.left - 1 && nm.right <= br.right + 1, where + ' ' + id + ': its name inside it ' +
         JSON.stringify([nm.left, nm.right, br.left, br.right]));
-      ok(br.right + 2 <= R, where + ' ' + id + ': its ✓ inside the card');
+      ok(br.right + 2 <= R, where + ' ' + id + ': its cell inside the card');
+      ok(br.width >= 44, where + ' ' + id + ': a column as wide as a four-character name: ' + br.width);
+      ok(nm.width <= br.width, where + ' ' + id + ': the name never reaches into the gap');
+      if (b.classList.contains('on')) {   // the ✓ on the avatar's corner (review M-4), inside the card
+        var ck = getComputedStyle(b.querySelector('.avw'), '::after'), w = b.querySelector('.avw').getBoundingClientRect();
+        eq(ck.content, '"✓"', where + ': the ✓');
+        ok(Math.abs(w.width - av.width) < 0.5 && Math.abs(w.left - av.left) < 0.5, where + ': on the avatar');
+        ok(w.right - parseFloat(ck.right) <= R && w.top + parseFloat(ck.top) >= cr.top, where + ': the ✓ inside the card');
+      }
     });
     var sc = $(e, '.pscroll');
     if (sc) ok(sc.scrollWidth <= sc.clientWidth, where + ': nothing scrolls sideways ' + sc.scrollWidth + ' > ' + sc.clientWidth);
     var win = $(e, '.win.panel').getBoundingClientRect();
     ok(cr.right <= win.right, where + ': the card inside the window');
+    // the user's note: in a wide panel the five are not spread across the card (no gap much wider than the narrow ones')
+    var avs = skins.slice(0, 5).map(function (b) { return b.querySelector('.av').getBoundingClientRect(); });
+    for (var i = 1; i < 5; i++) ok(avs[i].left - avs[i - 1].right <= 14, where + ': the avatars sit close together: ' + (avs[i].left - avs[i - 1].right));
   }
   test('panels DOM: 1.1.4 item 2: the pet picker fits in every layout\'s 設定 and in onboarding', function () {
     ['U1', 'U3', 'U12', 'U13', 'U5B', 'U10', 'M3', 'U7'].forEach(function (name) {

@@ -135,15 +135,17 @@
 /* pets */
 .panel .kind + .kind{margin-top:8px}
 .panel .kind{padding:9px 0 2px}
-/* 1.1.4 item 2: five to a row, as wide as the card allows: 54 px avatars in the 400 px panel, smaller ones in a narrower
-   window (設定 in U13's 300 px), and a row wraps before a name would no longer fit; never wider than the card */
-.panel .skins{display:grid;grid-template-columns:repeat(auto-fit,minmax(40px,1fr));gap:7px 5px;margin-top:6px}
-.panel .skin{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0}
-.panel .skin .av{width:100%;max-width:54px;height:auto;aspect-ratio:1;box-shadow:2px 2px 0 var(--shadow)}
+/* 1.1.4 item 2: five to a row, never wider than the card: columns of 44–64 px from the card's start (54 px avatars and
+   their usual spacing in the 400 px panel, not spread across it), narrower in a narrow window (設定 in U13's 300 px,
+   U1's 340 px: smaller avatars); a column is never narrower than a four-character name. The ✓ sits on the avatar. */
+.panel .skins{display:grid;grid-template-columns:repeat(5,minmax(44px,64px));justify-content:start;gap:7px 0;margin-top:6px}
+.panel .skin{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0 2px}
+.panel .skin .avw{position:relative;display:block;width:100%;max-width:54px}
+.panel .skin .av{display:block;width:100%;height:auto;aspect-ratio:1;box-shadow:2px 2px 0 var(--shadow)}
 .panel .skin small{font-size:10.5px;font-weight:700;color:var(--sub);white-space:nowrap;letter-spacing:-.02em}
 .panel .skin.on .av{background:var(--bar);outline:3px solid var(--money);outline-offset:2px}
 .panel .skin.on small{color:var(--text)}
-.panel .skin.on::after{content:"✓";position:absolute;top:-6px;right:-2px;width:19px;height:19px;border-radius:50%;background:var(--ok);border:2px solid var(--line);
+.panel .skin.on .avw::after{content:"✓";position:absolute;top:-6px;right:-7px;width:19px;height:19px;border-radius:50%;background:var(--ok);border:2px solid var(--line);
   font-size:11px;font-weight:800;display:grid;place-items:center;line-height:1}
 
 /* ---------- onboarding ---------- */

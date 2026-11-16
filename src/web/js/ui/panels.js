@@ -316,7 +316,7 @@ QJZ.panels = (function () {
       h += '<div class="kind"><span class="lbl">' + k[1] + '</span><div class="skins">';
       skinList(k[0]).forEach(function (d) {
         h += '<button type="button" class="skin" data-skin="' + esc(d.id) + '" title="' + esc(d.name) + '" aria-pressed="false">' +
-          '<span class="av">' + avatar(d.id) + '</span><small>' + esc(d.name.replace(/[鼠貓]$/, '')) + '</small></button>';
+          '<span class="avw"><span class="av">' + avatar(d.id) + '</span></span><small>' + esc(d.name.replace(/[鼠貓]$/, '')) + '</small></button>';
       });
       h += '</div></div>';
     });
