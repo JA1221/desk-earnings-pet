@@ -3407,11 +3407,15 @@
     Object.keys(an).forEach(function (k) { an[k].pause(); an[k].currentTime = ms; });
     return [+getComputedStyle(el, '::after').opacity, +getComputedStyle(el, '::before').opacity];
   }
-  test('layouts DOM: 1.1.4 item 1: a tap never shows the ring: it shows only after 0.25 s held, and is full at HOLD_MS', function () {
+  // fn(e, el, tag) for every long-press control of every layout while it is held (its ring on), idle and during a focus
+  // (the 番茄鐘's), with the counts showing (cups 3/8, tomatoes ×2); -> the tags seen
+  var HOLD_KINDS = ['U1 drink', 'U1 stand', 'U1 (focus) pomo', 'U3 drink', 'U3 stand', 'U3 (focus) pomo', 'U5B drink', 'U5B stand', 'U5B (focus) pomo',
+    'U7 drink', 'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo'];
+  function eachHold(fn) {
     var seenKinds = {};
     ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'].forEach(function (name) {
       [false, true].forEach(function (phase) {
-        var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH } }));
+        var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
         e.tick(at(12, 9, 18));
         if (phase) C.toggleFocus();
         if (name === 'U10') hoverOn($(e, '.isl'));
@@ -3419,8 +3423,19 @@
         holdControls(e).forEach(function (el) {
           var r = el.getBoundingClientRect(), tag = name + (phase ? ' (focus) ' : ' ') + (el.closest('[data-act]') ? el.closest('[data-act]').getAttribute('data-act') : 'stand');
           mouse(el, 'mousedown', r.left + Math.min(6, r.width / 2), r.top + r.height / 2, { detail: 1 });
-          if (!el.classList.contains('holding')) return;   // (idle, a 番茄鐘 takes no long press)
-          seenKinds[tag] = 1;
+          if (el.classList.contains('holding')) {   // (idle, a 番茄鐘 takes no long press)
+            seenKinds[tag] = 1;
+            fn(e, el, tag);
+          }
+          mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+        });
+        done();
+      });
+    });
+    return seenKinds;
+  }
+  test('layouts DOM: 1.1.4 item 1: a tap never shows the ring: it shows only after 0.25 s held, and is full at HOLD_MS', function () {
+    var seenKinds = eachHold(function (e, el, tag) {
           var an = pseudoAnims(el);
           ok(an['::after'] && an['::before'], tag + ': the ring and its glow');
           eq(an['::after'].effect.getComputedTiming().endTime, U.HOLD_MS, tag + ': the ring is full at HOLD_MS, as before');
@@ -3428,15 +3443,56 @@
           eq(seenAt(el, RING_SHOW_MS - 10), [0, 0], tag + ': nothing for a tap (0.24 s)');
           var later = seenAt(el, RING_SHOW_MS + 150);
           ok(later[0] > 0.9 && later[1] > 0.9, tag + ': held on, it shows: ' + later);
-          mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
-        });
-        done();
+    });
+    HOLD_KINDS.forEach(function (k) { ok(seenKinds[k], k + ': checked (' + Object.keys(seenKinds).join(', ') + ')'); });
+  });
+
+  // 1.1.4 item 5: a ring never covers information. While a control is held, its ring's band (from its own edge out to the
+  // ring's outer edge) touches no text, icon or badge around it: the numbers, the labels, the ×N and ＋ / ▶ badges, the
+  // countdowns, the cup counts. A badge on the control's own corner may sit where the band goes, but it is drawn over it.
+  function ringOuter(el) {
+    var r = el.getBoundingClientRect(), a = getComputedStyle(el, '::after');
+    return { left: r.left + parseFloat(a.left), top: r.top + parseFloat(a.top), right: r.right - parseFloat(a.right), bottom: r.bottom - parseFloat(a.bottom) };
+  }
+  function overlap(a, b) { return a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5; }
+  // what reads on screen in scope, as rects: each text run (its glyphs' line box), each icon, the amount
+  function infoRects(scope) {
+    var out = [], range = document.createRange();
+    function off(n) {
+      var x = n.nodeType === 1 ? n : n.parentElement;
+      return !x || x.closest('[data-pet],.fx,.pring,.odo,.msk,.tip,[hidden]') || !drawn(x) || getComputedStyle(x).visibility === 'hidden' ||
+        +getComputedStyle(x).opacity === 0;
+    }
+    var w = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT), t;
+    while ((t = w.nextNode())) {
+      if (!t.nodeValue.trim() || off(t)) continue;
+      range.selectNodeContents(t);
+      Array.prototype.forEach.call(range.getClientRects(), function (r) { if (r.width > 0) out.push({ r: r, n: t.parentElement, what: t.nodeValue.trim() }); });
+    }
+    Array.prototype.forEach.call(scope.querySelectorAll('svg.ic,.mslot'), function (n) {
+      if (!off(n) || n.matches('.mslot') && drawn(n)) out.push({ r: n.getBoundingClientRect(), n: n, what: n.getAttribute('class') });
+    });
+    return out;
+  }
+  test('layouts DOM: 1.1.4 item 5: a held ring never covers a number, label, badge, countdown or cup count, in any layout', function () {
+    var bad = [];
+    var seenKinds = eachHold(function (e, el, tag) {
+      var ring = ringOuter(el), own = el.getBoundingClientRect(), ctl = el.closest('[data-act],[data-hold]') || el;
+      infoRects($(e, '.lay')).forEach(function (x) {
+        if (!overlap(ring, x.r)) return;
+        var inside = x.r.left >= own.left - 0.5 && x.r.right <= own.right + 0.5 && x.r.top >= own.top - 0.5 && x.r.bottom <= own.bottom + 0.5;
+        if (inside) return;   // its own label, inside the ring
+        var badge = x.n.closest('.cnt,.play');
+        if (badge && ctl.contains(badge)) {   // a badge on its own corner: over the ring
+          if (!(+getComputedStyle(badge).zIndex > 0)) bad.push(tag + ': its badge 「' + x.what + '」 under the ring');
+          return;
+        }
+        bad.push(tag + ': covers 「' + x.what + '」 ' + JSON.stringify([x.r.left, x.r.top, x.r.right, x.r.bottom].map(Math.round)) +
+          ' (ring ' + JSON.stringify([ring.left, ring.top, ring.right, ring.bottom].map(Math.round)) + ')');
       });
     });
-    ['U1 drink', 'U1 stand', 'U1 (focus) pomo', 'U3 drink', 'U3 stand', 'U3 (focus) pomo', 'U5B drink', 'U5B stand', 'U5B (focus) pomo',
-      'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo'].forEach(function (k) {
-      ok(seenKinds[k], k + ': checked (' + Object.keys(seenKinds).join(', ') + ')');
-    });
+    eq(bad, [], 'every ring clear of what reads around it');
+    HOLD_KINDS.forEach(function (k) { ok(seenKinds[k], k + ': checked'); });
   });
 
   // Item 1: U1's row holds three fixed buttons, water (left), the 🧍 countdown (centre) and the pomodoro (right), always there

@@ -88,12 +88,12 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay .holding{--hc:#22C55E;--hg:rgba(34,197,94,.65);--hbg:#A6E8BF;z-index:5}
 .lay .holding.h-water{--hc:#2E9BFF;--hg:rgba(46,155,255,.65);--hbg:#A9D6FF}
 .lay .holding.h-pomo{--hc:#FF4A33;--hg:rgba(255,74,51,.6);--hbg:#FF9F88}
-.lay .holding::after{content:"";position:absolute;inset:-6px;border-radius:99px;padding:4px;pointer-events:none;
+.lay .holding::after{content:"";position:absolute;inset:-2px;border-radius:99px;padding:4px;pointer-events:none;
   background:conic-gradient(var(--hc) calc(var(--hold)*1%),rgba(61,44,36,.2) 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
   animation:qjz-hold 1.2s linear 1 forwards}
-.lay .holding::before{content:"";position:absolute;inset:-6px;border-radius:99px;pointer-events:none;   /* the glow (1.1.3 B2: no outline) */
-  box-shadow:0 0 10px 3px var(--hg);animation:qjz-hold-in .15s ease-out .25s 1 both}
+.lay .holding::before{content:"";position:absolute;inset:-2px;border-radius:99px;pointer-events:none;   /* the glow (1.1.3 B2: no outline) */
+  box-shadow:0 0 7px 2px var(--hg);animation:qjz-hold-in .15s ease-out .25s 1 both}
 @keyframes qjz-hold{0%,20.8%{--hold:0;opacity:0}25%{opacity:1}100%{--hold:100;opacity:1}}
 @keyframes qjz-hold-in{from{opacity:0}to{opacity:1}}
 .lay .holding.charged{background:var(--hbg)}
@@ -102,6 +102,14 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay:is(.p-foc,.p-brk) .holding.charged.charged,.u13 .bigring .br-go .go.holding.charged,
 .u10 .isl .iv-x .ichip.holding.charged.charged.charged{background:var(--hbg)}
 .lay .cnt{z-index:2}   /* a ×N badge stays over the ring (review M-4) */
+/* 1.1.4 item 5: a ring never covers what is around it. Its 4 px band lies on the control's own edge (2 px in, over its
+   border, 2 px out), so it stays off the captions under U3's buttons, U12's labels, U13's countdown over ■ 停止, the next
+   chip in U10; its glow is softer. The ＋ / ▶ / ■ badges on U3's and U5-B's buttons are drawn over it, as the ×N ones. The
+   bare countdowns in a line of text (U5-B's top line, U7's tag line, U13's bottom line) have nothing at their edge to
+   cover: theirs goes just outside them, clear of the text and the ・ beside them. */
+.tom-btn .play{z-index:2}
+.lay :is(.u5b .mtop .st,.u7 .hline [data-hold],.pomo1 .pline .pp).holding::after,
+.lay :is(.u5b .mtop .st,.u7 .hline [data-hold],.pomo1 .pline .pp).holding::before{inset:-4px}
 .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 /* 「長按停止」 (1.1.3 item 2c): a tap on a pomodoro button while a phase runs; layouts.js places it and lets it go */
 .lay .tip{position:absolute;left:0;top:0;z-index:8;pointer-events:none;white-space:nowrap;background:var(--line);color:#FFF8EC;border-radius:99px;
@@ -112,7 +120,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
 .u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
 /* 1.1.4 item 7: its 💧 is a water button, in the water buttons' pastel blue */
-.u7 .hline button.hpart{font:inherit;color:inherit;line-height:inherit;border:0;margin:0 -3px;padding:0 3px;border-radius:99px;background:#DDF0FF;cursor:pointer}   /* (its pill reaches into the gaps: the tag keeps its width) */
+.u7 .hline button.hpart{font:inherit;color:inherit;line-height:inherit;border:0;margin:0 -2px;padding:0 2px;border-radius:99px;background:#DDF0FF;cursor:pointer}   /* (its pill reaches into the gaps: the tag keeps its width) */
 .u7 .hline button.hpart:active{transform:translate(1px,1px)}
 .u7 .hline svg.ic{width:14px;height:14px}
 .u7 .hline .dt{color:var(--sub)}
