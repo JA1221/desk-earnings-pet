@@ -12,7 +12,10 @@
     eq(U.hms(3725.9), '01:02:05');
     eq(U.hms(-5), '00:00:00');
     eq(U.hms(8 * 3600), '08:00:00');
-    eq(U.hm(9000), '02:30');
+    eq(U.hm, undefined, '1.1.4 item 4: no HH:MM countdown left');
+    eq(U.left(3724.2), '01:02:05', 'the time left counts up to the next whole second');
+    eq(U.left(0.4), '00:00:01', 'never 00:00:00 while some is left');
+    eq(U.left(0), '00:00:00');
   });
 
   test('layouts: status key and text for every status', function () {
@@ -68,12 +71,16 @@
     eq(U.rateText({ mode: 'monthly', amount: 50000, divisor: 22 }, 50000 / 22 / 8 / 3600), '每秒 +NT$ 0.079');
     eq(U.rateText({ mode: 'hourly', amount: 183.5, divisor: 22 }, 183.5 / 3600), '每秒 +NT$ 0.051');
     eq(U.rateText({ mode: 'monthly', amount: 0, divisor: 22 }, 0), '還沒設定薪資（右鍵 → 設定）');
-    eq(U.remainPhrase('working', 3600 * 2 + 59), '還有 02:01 下班', 'rounded up to the next minute');
-    eq(U.remainPhrase('working', 30), '還有 00:01 下班');
-    eq(U.remainPhrase('working', 3600 * 2), '還有 02:00 下班');
+    // 1.1.4 item 4: HH:MM:SS, counted up to the next whole second: 可以下班 comes exactly at the end, never 00:00:00 before it
+    eq(U.remainPhrase('working', 3600 * 2 + 13 * 60 + 5), '還有 02:13:05 下班');
+    eq(U.remainPhrase('working', 30), '還有 00:00:30 下班');
+    eq(U.remainPhrase('working', 0.3), '還有 00:00:01 下班');
+    eq(U.remainPhrase('working', 3600 * 2), '還有 02:00:00 下班');
+    eq(U.remainPhrase('lunch', 3725.5), '還有 01:02:06 下班');
     eq(U.remainPhrase('done', 0), '可以下班囉！');
     eq(U.m3Sub('working', 3725), '上班中 · 還有 01:02:05');
     eq(U.m3Sub('lunch', 3725), '午休中 · 還有 01:02:05');
+    eq(U.m3Sub('working', 0.5), '上班中 · 還有 00:00:01', 'never 00:00:00 while working');
     eq(U.m3Sub('done', 0), '可以下班');
     eq(U.m3Sub('off', 28800), '休假日');
     eq(U.heartsText(4), '♥♥♥♥♡');
@@ -295,6 +302,25 @@
     eq($(f, '[data-pet]'), h, 'the holder node stays');
     ok(h.firstElementChild !== svg1 && h.firstElementChild.classList.contains('st-lunchSleep'), 'the SVG is swapped on a state change: ' + petState(f));
     done();
+  });
+
+  // 1.1.4 item 4: every 下班 countdown reads HH:MM:SS and changes every second, in every layout; at 17:59:59.4 it still
+  // reads 00:00:01 (never 00:00:00 while working), and 可以下班 comes at 18:00:00 exactly.
+  test('layouts DOM: 1.1.4 item 4: every 下班 countdown is HH:MM:SS, every second, in every layout', function () {
+    var where = { U1: '[data-b=remain]', U3: '[data-b=remain]', U5B: '[data-b=remainPhrase]', U10: '.iv-x [data-b=remainPhrase]',
+      U12: '[data-b=remainPhrase]', U13: '[data-b=remainPhrase]', M3: '[data-b=m3sub]' };
+    Object.keys(where).forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name });
+      e.tick(at(12, 14, 46, 54));
+      ok(text(e, where[name]).indexOf('03:13:06') >= 0, name + ': ' + text(e, where[name]));
+      e.tick(at(12, 14, 46, 55));
+      ok(text(e, where[name]).indexOf('03:13:05') >= 0, name + ': a second later ' + text(e, where[name]));
+      e.tick(new Date(2026, 10, 12, 17, 59, 59, 400).getTime());
+      ok(text(e, where[name]).indexOf('00:00:01') >= 0, name + ': the last second ' + text(e, where[name]));
+      e.tick(at(12, 18, 0, 0));
+      eq(text(e, name === 'M3' ? '[data-b=m3sub]' : '[data-b=status]'), '可以下班', name + ': 可以下班 at the end, exactly');
+      done();
+    });
   });
 
   test('layouts DOM: second ticks update text from the wall clock', function () {

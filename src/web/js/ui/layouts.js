@@ -183,9 +183,9 @@ QJZ.layouts = (function () {
     sec = Math.max(0, Math.floor(sec || 0));
     return pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec % 3600 / 60)) + ':' + pad(sec % 60);
   }
-  // hh:mm of a remaining duration, counted UP to the next whole minute: with whole-minute start and end times, 17:36:30
-  // reads 還有 00:01, and 可以下班 comes exactly at 17:37:00 (never 還有 00:00 while the status is still working).
-  function hm(sec) { return hms(Math.ceil(Math.max(0, sec || 0) / 60) * 60).slice(0, 5); }
+  // The time left until 下班 (1.1.4 item 4: HH:MM:SS everywhere, every second), counted UP to the next whole second:
+  // 17:36:59.4 reads 00:00:01, and 可以下班 comes exactly at 17:37:00 (never 00:00:00 while the status is still working).
+  function left(sec) { return hms(Math.ceil(Math.max(0, sec || 0))); }
   function clockText(ms) {
     var d = new Date(ms);
     return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
@@ -238,10 +238,10 @@ QJZ.layouts = (function () {
     if (key === 'ended') return '今天辛苦了！';
     if (key === 'off') return '今天休假';
     if (key === 'before') return '還沒開始上班';
-    return '還有 ' + hm(sec) + ' 下班';
+    return '還有 ' + left(sec) + ' 下班';
   }
   function m3Sub(key, sec) {
-    return key === 'working' || key === 'lunch' ? STATUS[key] + ' · 還有 ' + hms(sec) : STATUS[key];
+    return key === 'working' || key === 'lunch' ? STATUS[key] + ' · 還有 ' + left(sec) : STATUS[key];
   }
   function heartsText(n) {
     var s = '';
@@ -346,7 +346,7 @@ QJZ.layouts = (function () {
       clock: clock, hm: clock.slice(0, 5),
       money: masked ? '***' : money(snap.earned), moneyWhole: 'NT$ ' + (masked ? '***' : money(snap.earned).slice(0, -3)),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
-      remain: hms(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
+      remain: left(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
       m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
       itemLabel: it ? '可以買' + it.name : '',
       item: itemText(it, snap.earned, masked),
@@ -1893,7 +1893,7 @@ QJZ.layouts = (function () {
     _brain: function () { return brain; },   // tests only (Ruling R3, like _reset and _bands): the pet's Brain
     MAIN: MAIN, ALL: ALL, NAMES: NAMES, GROUPS: GROUPS,
     util: {
-      hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
+      hms: hms, left: left, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,

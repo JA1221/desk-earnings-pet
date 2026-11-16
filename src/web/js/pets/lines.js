@@ -8,8 +8,8 @@ window.QJZ = window.QJZ || {};
 // Besides the pet's states, 1.1 events (spec §5.1-5.3): drank (a cup logged; the pet sips), waterGoal (the cup that
 // reaches the goal), standOk (起來了), focusPoke (a poke during a focus, exactly 「專心中～」).
 // Templates: '{x}' placeholders, and an optional leading [tag] that limits when a line can come up.
-//   {name} pet name   {s} 喵 / 吱   {food} 小魚乾 / 瓜子   {n} minutes to lunch (1..60)   {m} minutes to the end (1..30)
-//   {left} time to the end (over 30 minutes)   {item} what today's money buys ("兩杯珍奶", " 3 個便當")
+//   {name} pet name   {s} 喵 / 吱   {food} 小魚乾 / 瓜子   {n} minutes to lunch (1..60)   {m} time to the end (HH:MM:SS, the last 30 minutes)
+//   {left} time to the end (HH:MM:SS, over 30 minutes)   {item} what today's money buys ("兩杯珍奶", " 3 個便當")
 //   {money} today's money (from NT$100)   {step} the milestone amount   {k} / {gain} snacks ('一', '兩', ' 3 ') / NT$
 //   earned while hidden   {goal} the cups a day
 //   [pre] a work day   [off] a day off   [am] before 11:00   [pm] 13:00–17:00   [eve] from 17:00
@@ -68,8 +68,8 @@ QJZ.lines = (function () {
     ],
     sprint: [
       '最後衝刺{s}！',
-      '再 {m} 分鐘就下班了！',
-      '倒數 {m} 分鐘，撐住{s}！',
+      '再 {m} 就下班了！',
+      '倒數 {m}，撐住{s}！',
       '收尾收尾～包包可以先整理了{s}！',
       '快下班了，手速加快{s}！',
       '終點就在眼前了{s}！',
@@ -200,9 +200,10 @@ QJZ.lines = (function () {
     return '份';
   }
   function count(n) { return n === 1 ? '一' : n === 2 ? '兩' : ' ' + n + ' '; }
+  // The time left until 下班 as HH:MM:SS (1.1.4 item 4, as on screen), up to the next whole second.
   function clock(min) {
-    var t = Math.ceil(min), h = Math.floor(t / 60), m = t % 60;
-    return h > 0 ? h + ' 小時' + (m ? ' ' + m + ' 分' : '') : m + ' 分鐘';
+    var t = Math.ceil(Math.round(min * 60 * 1000) / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (x < 10 ? '0' : '') + x;
   }
   function itemText(c, probe) {
     var items = Array.isArray(c.items) ? c.items : DEFAULT_ITEMS, ok = [];
@@ -226,8 +227,7 @@ QJZ.lines = (function () {
       case 's': return SOUND[kind];
       case 'food': return FOOD[kind];
       case 'n': return c.minutesToLunch > 0 ? String(Math.ceil(c.minutesToLunch)) : null;
-      case 'm': return c.minutesToEnd > 0 ? String(Math.ceil(c.minutesToEnd)) : null;
-      case 'left': return c.minutesToEnd > 0 ? clock(c.minutesToEnd) : null;
+      case 'm': case 'left': return c.minutesToEnd > 0 ? clock(c.minutesToEnd) : null;
       case 'item': return c.earned > 0 ? itemText(c, probe) : null;
       case 'money': return c.earned >= 100 ? amount(Math.floor(c.earned)) : null;
       case 'step': return c.step > 0 ? amount(c.step) : null;

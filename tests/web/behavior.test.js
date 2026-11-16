@@ -579,11 +579,12 @@
     }
     ok(some('typing', { kind: 'cat', minutesToLunch: 15 }, /^再 15 分鐘就午休了！$/) > 0, 'lunch countdown');
     eq(some('typing', { kind: 'cat', minutesToLunch: 200 }, /午休/), 0, 'not hours ahead');
-    ok(some('sprint', { kind: 'cat', minutesToEnd: 12 }, /^再 12 分鐘就下班了！$/) > 0, 'end countdown');
+    ok(some('sprint', { kind: 'cat', minutesToEnd: 12 }, /^再 00:12:00 就下班了！$/) > 0, 'end countdown (1.1.4 item 4: HH:MM:SS)');
+    ok(some('sprint', { kind: 'cat', minutesToEnd: 12.01 }, /^倒數 00:12:01，撐住喵！$/) > 0, 'up to the next whole second');
     ok(some('typing', { kind: 'hamster', earned: 300 }, /^已經賺到.*(珍奶|便當|拿鐵)了！$/) > 0, 'money in items');
     ok(some('typing', { kind: 'hamster', earned: 130 }, /已經賺到兩杯珍奶了！/) > 0, 'two cups');
     eq(some('typing', { kind: 'hamster', earned: 20 }, /已經賺到|NT\$/), 0, 'nothing to brag about yet');
-    ok(some('typing', { kind: 'hamster', minutesToEnd: 125 }, /2 小時 5 分/) > 0, 'time left');
+    ok(some('typing', { kind: 'hamster', minutesToEnd: 125 }, /距離下班還有 02:05:00，/) > 0, 'time left (1.1.4 item 4: HH:MM:SS)');
     ok(some('idle', { kind: 'cat', off: true }, /休假|放鬆|耍廢/) > 0, 'day off');
     eq(some('idle', { kind: 'cat', off: true }, /上班|開工/), 0, 'no work talk on a day off');
     ok(some('hop', { kind: 'cat', step: 100 }, /NT\$ 100/) > 0, 'milestone amount');
