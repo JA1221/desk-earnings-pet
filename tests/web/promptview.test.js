@@ -512,7 +512,7 @@
       answer(e, 'drink');
       eq([C.state.health.cups, C.state.health.standups], [1, 0], '1.1.2: the both bubble\'s 喝了 is the cup only');
       eq(buttons($(e, '[data-prompt]')), ['up 起來了', 'later 等一下'], 'and the bubble stays, now 起來動 alone');
-      eq($(e, '.u1 [data-act=drink] [data-b=cupsLong]').textContent, '1/8 杯');
+      eq($(e, '.u1 [data-act=drink] [data-b=cupsBtn]').textContent, '1/8 杯');
       var plus = $$(e, '.u1 [data-act=drink] .plus');
       eq(plus.map(function (p) { return p.textContent; }), ['+1'], 'the pill pops +1');
       eq(brain().state, 'sip');

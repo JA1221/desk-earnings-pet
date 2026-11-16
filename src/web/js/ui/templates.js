@@ -23,6 +23,12 @@ window.QJZ = window.QJZ || {};
 // the chips' column as wide as its widest), and U13's is the big ring itself, 開始專心 or 停止 on the same spot.
 // 1.1.2 item 7: every countdown chip (the compact one, U10's and U13's) is [data-hold]: a long press on it is
 // 我剛起來動過了 (layouts.js), and during 等一下 it shows 💤 (.zz) instead of 🧍 (class snz).
+// 1.1.3: the water buttons ([data-act=drink]) and the pomodoro buttons ([data-act=pomo]) take a long press too (layouts.js:
+// water −1, the pomodoro stopped); [data-holdring] is where a button's ring goes when it is not the button itself (U12's
+// rings, U13's ■ 停止). Item 1: U1's row is three fixed buttons, water, the 🧍 countdown and the pomodoro, always there
+// (a count not shown leaves 喝水 / --, [data-nil] dims the --); U10's chips the same three in that order. Items 8 and 9:
+// U3's and U5-B's water button is the same round button as their pomodoro one, always there, its badge on the same
+// corner. Item 6: U12's 番茄 ring is a pomodoro button, and its pet stands on a stage (.dfoot) with its line beside it.
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
   // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 縮小 (to the mini badge), 設定 and 關閉
@@ -38,7 +44,9 @@ QJZ.templates = (function () {
       tb('hide', 'tbClose', '關閉') + '</div></div>';
   }
   // The title of each layout with a title bar; PANEL in its window (1.1.2 item 3) keeps the one it was opened from.
+  // 1.1.3 item 9: U3 has no title bar, and its panel in its window gets one, 錢進中, as U1's.
   var TITLES = { U1: '錢進中', U12: '錢進中 · 健康', U13: '錢進中 · 番茄鐘' };
+  var INPLACE_TITLES = { U1: TITLES.U1, U3: '錢進中', U12: TITLES.U12, U13: TITLES.U13 };
   var BAR = bar(TITLES.U1);
   // [data-plus] (1.1.2 item 6): the amount itself, where the "+0.xx" goes up from (QJZ.fx.plus). [data-mask] (item 10):
   // a click there masks the money (.msk, *** in the odometer's place while the layout is .masked).
@@ -49,35 +57,40 @@ QJZ.templates = (function () {
   function feedBtn(cls) {
     return '<button type="button" class="' + cls + '" data-act="feed" data-feed title="餵食"><span data-b="snack"></span> 餵食</button>';
   }
-  // The countdown chips' icons, 🧍 or 💤 during 等一下, and their tip (1.1.2: the long press).
-  var HOLD_TIP = '下次起來動（長按＝我剛起來動過了）';
+  // The countdown chips' icons, 🧍 or 💤 during 等一下, and their tip (1.1.2: the long press); the water and pomodoro
+  // buttons' tips (1.1.3: their long press).
+  var HOLD_TIP = '下次起來動（長按＝我剛起來動過了）', WATER_TIP = '記一杯水（長按＝少記一杯）', POMO_TIP = '番茄鐘（長按＝停止）';
+  var DRINK = ' data-act="drink" data-cups title="' + WATER_TIP + '"', POMO = ' data-act="pomo" title="' + POMO_TIP + '"';
   function standIcons() { return ic('stand') + '<span class="zz" aria-hidden="true">💤</span>'; }
-  // U1 (A_U1_3): cups, tomatoes, and the 番茄鐘 pill that is always there.
   // 1.1.1 item 6: the next stand-up, compact (🧍 N 分); it only shows (1.1.2: and takes a long press).
   function standC(cls) {
     return '<span class="' + cls + '" data-show="standC" data-hold title="' + HOLD_TIP + '">' + standIcons() + '<span class="n" data-b="standMin"></span></span>';
   }
+  // U1 (1.1.3 item 1): three fixed buttons of one width, water, the 🧍 countdown and the 番茄鐘 (its tomatoes a badge on its
+  // corner), always there; 喝水 / -- while their count does not show.
   function mpills() {
-    return '<div class="mpills"><span class="mps l">' +
-      '<button type="button" class="mp" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') + '<span class="n" data-b="cupsLong"></span></button></span>' +
-      '<button type="button" class="mp go" data-act="pomo" data-b="pomoBtn" title="番茄鐘"></button><span class="mps r">' +
-      '<span class="mp" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span></span></div>';
+    return '<div class="mpills">' +
+      '<button type="button" class="mp wat"' + DRINK + '>' + ic('drop') + '<span class="n" data-b="cupsBtn"></span></button>' +
+      '<span class="mp st" data-hold data-nil="standC" title="' + HOLD_TIP + '">' + standIcons() + '<span class="n" data-b="standSlot"></span></span>' +
+      '<button type="button" class="mp go"' + POMO + '><span data-b="pomoBtn"></span><span class="cnt" data-show="tomatoes" data-b="tomatoes"></span></button></div>';
   }
-  // U3 (A_U3_2, with the user's change: no bottle): the water button beside the tomato button, the same style, each
-  // with its count under it. The tomato button is always there; its count and the water slot follow the rule.
+  // U3 (A_U3_2, with the user's change: no bottle): the water button beside the tomato button, the same round button
+  // with its badge on the same corner (＋, ▶ / ■), each with its count under it in the same caption (1.1.3 item 9). Both
+  // are always there; the counts follow the rule, their lines kept.
+  function waterBtn() { return '<button type="button" class="tom-btn wat"' + DRINK + '>' + ic('drop'); }
   function tomslots() {
     return '<div class="tomslots">' +
-      '<div class="tomslot" data-show="cups"><button type="button" class="tom-btn wat" data-act="drink" data-cups title="記一杯水">' + ic('drop') +
-        '</button><span class="n" data-b="cups"></span></div>' +
-      '<div class="tomslot"><button type="button" class="tom-btn" data-act="pomo" title="番茄鐘">' + ic('tom') +
+      '<div class="tomslot">' + waterBtn() + '<span class="play" aria-hidden="true">＋</span></button>' +
+        '<span class="cap"><span class="n" data-show="cups" data-b="cups"></span></span></div>' +
+      '<div class="tomslot"><button type="button" class="tom-btn"' + POMO + '>' + ic('tom') +
         '<span class="play" data-b="pomoGlyph"></span></button><span class="cap"><span class="n" data-show="tomatoes" data-b="tomatoes"></span></span></div></div>';
   }
-  // U5-B (A_U5_2): a right column, the big tomato button (its count on it) and the cups under it.
+  // U5-B (A_U5_2; 1.1.3 item 8): a right column of two round buttons, water above the tomato (the order of U1's row), each
+  // with its count as a badge on its corner, both always there.
   function rcol() {
-    return '<div class="rcol"><button type="button" class="tom-btn" data-act="pomo" title="番茄鐘">' + ic('tom') +
-        '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button>' +
-      '<span class="cap"><button type="button" class="lbl2" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') +
-        '<span class="n" data-b="cups"></span></button></span></div>';
+    return '<div class="rcol">' + waterBtn() + '<span class="cnt" data-show="cups" data-b="cups"></span><span class="play" aria-hidden="true">＋</span></button>' +
+      '<button type="button" class="tom-btn"' + POMO + '>' + ic('tom') +
+        '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button></div>';
   }
   // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows.
   function hline() {
@@ -93,15 +106,16 @@ QJZ.templates = (function () {
   function pring() { return QJZ.ring.markup(); }
   var PSLOT = '<div class="pslot" data-prompt hidden></div>';
   // U12 (G_U12_*): the three rings, each the day's count against its goal with the count in it and its label under it.
-  // The water ring logs a cup (§5.3); the tomato ring counts the pomodoro down while one runs (§5.2); the stand-up label
-  // turns 「該起來了！」 while the reminder asks for it.
+  // The water ring logs a cup (§5.3); the tomato ring counts the pomodoro down while one runs (§5.2) and is a pomodoro
+  // button (1.1.3 item 6: a tap starts one, a long press stops it); the stand-up label turns 「該起來了！」 while the
+  // reminder asks for it. A long press's ring goes round the ring itself ([data-holdring]).
   function gauges() {
     return '<div class="rings">' +
-      '<button type="button" class="gauge3" data-gauge="cups" data-act="drink" data-cups title="記一杯水"><span class="rg">' + ic('drop') +
+      '<button type="button" class="gauge3" data-gauge="cups"' + DRINK + '><span class="rg" data-holdring>' + ic('drop') +
         '<b data-b="cups"></b></span><span class="gl">喝水（杯）</span></button>' +
-      '<div class="gauge3" data-gauge="tom"><span class="rg"><span class="g-day">' + ic('tom') + '<b data-b="tomNum"></b></span>' +
+      '<button type="button" class="gauge3" data-gauge="tom"' + POMO + '><span class="rg" data-holdring><span class="g-day">' + ic('tom') + '<b data-b="tomNum"></b></span>' +
         '<span class="g-run"><small data-b="phaseShort"></small><b data-b="mmss"></b><small data-b="nth"></small></span></span>' +
-        '<span class="gl" data-b="tomLabel"></span></div>' +
+        '<span class="gl" data-b="tomLabel"></span></button>' +
       '<div class="gauge3" data-gauge="stand"><span class="rg" data-hold="gauge" title="起來動（長按＝我剛起來動過了）">' + ic('stand') +
         '<b data-b="standups"></b></span>' +
         '<span class="gl" data-b="standLabel"></span></div></div>';
@@ -109,7 +123,7 @@ QJZ.templates = (function () {
   var TEMPLATES = {
     U1: function () {
       return '<div class="win u1 lay" data-hit>' + BAR + '<div class="body">' +
-        '<div class="row-top"><div class="clock" data-b="clock"></div>' + standC('mp st') + PILL + '</div>' +
+        '<div class="row-top"><div class="clock" data-b="clock"></div>' + PILL + '</div>' +
         '<div class="scene-wrap"><div class="scene" data-pet="scene"></div>' + pring() + '<div class="fx" data-fx><div class="bubble" data-bubble></div></div></div>' +
         '<div class="money-box"><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate" data-b="rate"></div>' + mpills() + '</div>' +
         '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
@@ -123,7 +137,7 @@ QJZ.templates = (function () {
     U3: function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' + pring() +
         '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + standC('pill st') + feedBtn('pill feed') +
-          '<button type="button" class="pill gear" data-act="settings" title="設定">⚙</button></div>' +
+          '<button type="button" class="pill gear" data-act="settings" title="設定" aria-label="設定">' + ic('tbGear') + '</button></div>' +
         '<div class="side" data-bubble-clear><div class="pill alt" data-alt><span data-b="card"></span>' +
           '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
         '<div class="hud-bottom money-box"><div class="coin">$</div>' + MONEY +
@@ -145,8 +159,8 @@ QJZ.templates = (function () {
       return '<div class="u7 lay"><div class="dpet" data-hover>' + pring() +
         '<div class="mtag money-box" data-hit' + MASK + '>' + MONEY + '<div class="thin"><div class="fill" data-fill></div></div>' + hline() + '</div>' +
         '<div class="po" data-pet="petonly" data-hit="pet"></div>' +
-        '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定">⚙</button>' +
-          '<button type="button" data-act="hide" title="隱藏">✕</button></div>' +
+        '<div class="tools" data-hit data-hit-if=".hover .tools"><button type="button" data-act="settings" title="設定" aria-label="設定">' + ic('tbGear') + '</button>' +
+          '<button type="button" class="hide" data-act="hide" title="隱藏視窗" aria-label="隱藏視窗">' + ic('tbClose') + '</button></div>' +
         '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     M3: function () {
@@ -156,7 +170,8 @@ QJZ.templates = (function () {
     },
     // U10 (G_U10_*): one fixed window, the dark capsule on its edge at the dock (layouts.js: class d-<dock>). Its views:
     // collapsed (whole dollars, the cups and tomatoes by the rule), a pomodoro's countdown, the full view while the
-    // pointer is on it (2 decimals, the cups, the 番茄鐘 button, the next stand-up) and the call while a prompt shows.
+    // pointer is on it (2 decimals; 1.1.3 item 7: the water, 🧍 and 番茄鐘 chips, U1's row in a column, always there and
+    // all as wide) and the call while a prompt shows.
     // Only the capsule takes clicks. No odometer: the capsule changes at most once a second.
     U10: function () {
       return '<div class="u10 lay"><div class="isl" data-hit data-hover><div class="av" data-pet="avatar"></div>' +
@@ -168,23 +183,23 @@ QJZ.templates = (function () {
         '<span class="iv iv-x"><span class="icol"><span class="isub"><i class="gd"></i><span data-b="status"></span> · ' +
             '<span data-b="remainPhrase"></span></span><span class="im"' + MASK + '>NT$ <span data-b="money"></span></span>' +
             '<span class="ibar"><i data-fill></i></span></span>' +
-          '<span class="icol chips"><button type="button" class="ichip" data-act="pomo" title="番茄鐘">' + ic('tom') +
-              '<span class="go" data-b="pomoGlyph"></span><span data-show="tomatoes" data-b="tomatoes"></span></button>' +
-            '<button type="button" class="ichip" data-act="drink" data-show="cups" data-cups title="記一杯水">' + ic('drop') +
-              '<span data-b="cupsLong"></span></button>' +
-            '<span class="ichip" data-show="stand" data-hold title="' + HOLD_TIP + '">' + standIcons() + '<span data-b="standIn"></span></span></span></span>' +
+          '<span class="icol chips"><button type="button" class="ichip"' + DRINK + '>' + ic('drop') + '<span data-b="cupsBtn"></span></button>' +
+            '<span class="ichip" data-hold data-nil="stand" title="' + HOLD_TIP + '">' + standIcons() + '<span data-b="standSlotX"></span></span>' +
+            '<button type="button" class="ichip"' + POMO + '>' + ic('tom') +
+              '<span class="go" data-b="pomoGlyph"></span><span data-show="tomatoes" data-b="tomatoes"></span></button></span></span>' +
         '<span class="iv iv-r" data-prompt-call hidden></span></div>' +
         '<div class="fx" data-fx data-fxwin></div></div>';
     },
-    // U12 健康儀表板 (G_U12_*): the money and the 下班 countdown, the three rings, the pet saying when the next stand-up
-    // is; a prompt is the small bubble beside the pet (it takes the line's place) and its ring glows.
+    // U12 健康儀表板 (G_U12_*): the money and the 下班 countdown, the three rings, and (1.1.3 item 6) the pet on a stage of
+    // its own under them, saying when the next stand-up is (or what it can); a prompt is the small bubble beside the pet
+    // (it takes the line's place) and its ring glows.
     U12: function () {
       return '<div class="win u12 dash lay" data-hit>' + bar(TITLES.U12) + '<div class="body">' +
         '<div class="dtop">' + PILL + '<span class="dl2" data-b="remainPhrase"></span></div>' +
         '<div class="money-box dmb"><div class="money-label">今天已經賺到</div>' + MONEY +
           '<div class="thin"><div class="fill" data-fill></div></div></div>' +
         gauges() +
-        '<div class="dfoot"><div class="po" data-pet="petonly"></div><div class="say" data-show="stand" data-b="dsay"></div>' + PSLOT + '</div>' +
+        '<div class="dfoot"><div class="po" data-pet="petonly"></div><div class="say" data-b="dsay"></div>' + PSLOT + '</div>' +
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
     // U13 番茄鐘優先 (G_U13_*): the big ring is the one pomodoro button (spec §5.2, 1.1.2 item 4): idle it reads 下一顆 25
@@ -198,9 +213,9 @@ QJZ.templates = (function () {
           MSK + '</span></div>' +
         '<div class="ptop2"><span data-b="remainPhrase"></span><div class="thin"><div class="fill" data-fill></div></div></div>' +
         '<div class="ringwrap"><div class="bigring" data-gauge="pomo">' +
-          '<button type="button" class="br-go" data-act="pomo" title="番茄鐘"><span class="br-idle"><small data-b="nextFocus"></small><b data-b="focusFull"></b></span>' +
+          '<button type="button" class="br-go"' + POMO + '><span class="br-idle"><small data-b="nextFocus"></small><b data-b="focusFull"></b></span>' +
             '<span class="br-run"><small data-b="status"></small><b data-b="mmss"></b><small data-b="nth"></small></span>' +
-            '<span class="go" data-b="pomoGo"></span></button>' +
+            '<span class="go" data-holdring data-b="pomoGo"></span></button>' +
           '<span class="br-rem" data-prompt-ring hidden></span></div>' +
           '<div class="po" data-pet="petonly"></div></div>' +
         '<div class="tslots"><span class="tsl" data-tslots></span><span data-b="tslotText"></span></div>' +
@@ -209,9 +224,9 @@ QJZ.templates = (function () {
             '<span data-b="standLine"></span></span></div>' +
         '</div><div class="fx" data-fx data-fxwin></div></div>';
     },
-    // o.from (1.1.2 item 3): shown in the window of U1, U12 or U13, with that window's title bar (.inplace)
+    // o.from (1.1.2 item 3): shown in the window of U1, U3 (1.1.3), U12 or U13, with that window's title bar (.inplace)
     PANEL: function (o) {
-      var t = o && TITLES.hasOwnProperty(o.from) ? TITLES[o.from] : null;
+      var t = o && INPLACE_TITLES.hasOwnProperty(o.from) ? INPLACE_TITLES[o.from] : null;
       return '<div class="win panel lay' + (t ? ' inplace' : '') + '" data-hit>' + (t ? bar(t) : bar('錢進中', true)) +
         '<div class="pbody" data-panel></div><div class="fx" data-fx data-fxwin></div></div>';
     }

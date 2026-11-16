@@ -369,8 +369,10 @@ QJZ.panels = (function () {
     },
     // No start-layout picker and no topmost switches (simplification #12): the app opens in the layout used last, and
     // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout. Two switches only (1.1 #12): 相容模式 and 省電模式.
+    // 1.1.3 item 3: it names the layout in use as the menu does, 「N 名稱」 (QJZ.layouts.NAMES).
     layout: function () {
-      return hint('下次開啟會用你最後用的版型。要不要永遠在最上層，在右鍵選單的「版型」裡切換（每個版型各自記住）。') +
+      return '<div class="lnow">現在的版型<b data-o="layoutName"></b></div>' +
+        hint('換版型：右鍵選單 →「版型」。下次開啟會用你最後用的版型；要不要永遠在最上層，也在「版型」裡切換（每個版型各自記住）。') +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
           hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
           line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。')) + '</div>';
@@ -639,6 +641,8 @@ QJZ.panels = (function () {
       // 健康
       QJZ.panelsHealth.update(c);
       // 版型
+      var L = QJZ.layouts;
+      out(c, 'layoutName', L && L.NAMES && L.shownLayout ? L.NAMES[L.shownLayout()] || '' : '');
       var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
       tglOn(c, 'opaque', s.display.opaque || forced);
       if (op && op.disabled !== forced) op.disabled = forced;

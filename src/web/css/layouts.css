@@ -59,6 +59,7 @@ html.saver :is(.mtop .dot,.u3 .coin){animation:none}
 .u3 .hud-top{display:flex;gap:8px;align-items:center}
 .u3 .hud-top .feed{margin-left:auto;font-size:13px;padding:4px 12px;gap:4px;border-width:2.5px}
 .u3 .hud-top .gear{width:34px;height:34px;justify-content:center;padding:0;font-size:16px}
+.u3 .hud-top .gear svg{display:block;width:17px;height:17px}   /* the title bar's 設定 icon (1.1.3) */
 /* three columns: the coin, the money over the progress, the water and tomato buttons (1.1, health.css) */
 .u3 .hud-bottom{position:absolute;left:12px;right:12px;bottom:12px;background:var(--bg);border:3px solid var(--line);border-radius:20px;box-shadow:4px 4px 0 var(--shadow);
   padding:10px 14px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;align-items:center}
@@ -115,6 +116,8 @@ html.saver :is(.mtop .dot,.u3 .coin){animation:none}
 .u7 .tools{position:absolute;right:-6px;top:-10px;z-index:3;display:flex;gap:4px;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
 .u7 .dpet.hover .tools{opacity:1;visibility:visible;transition:opacity .2s}
 .u7 .tools button{width:24px;height:24px;border-radius:50%;background:#fff;border:2.5px solid var(--line);display:grid;place-items:center;font-size:12px;padding:0;box-shadow:2px 2px 0 var(--shadow)}
+.u7 .tools button svg{display:block;width:13px;height:13px}   /* the title bar's icons, and its 關閉 pink (1.1.3) */
+.u7 .tools .hide{background:#FF8FA3}
 .u7 .bubble:not(.side){left:14px;top:2px;max-width:200px}
 .u7 .bubble.side{--bw:116px}
 

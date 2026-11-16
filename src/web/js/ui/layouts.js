@@ -107,10 +107,22 @@ window.QJZ = window.QJZ || {};
 // screen rose since the last one, in the cents it shows (floatPlus): never a rate rounded on its own. A second with no
 // visible rise has none; after a gap (hidden, a clock jump), at lunch or after work there is none for the jump.
 // 1.1.2 item 10: the money mask (settings.privacy.maskMoney). A click on the amount ([data-mask]: the amount in U1, U3,
-// U5-B, U12, U13, U7's whole money tag, U10's amounts, M3's tag) turns it on or off (a drag or a poke never does; on
-// M3's tag only DBL_MS later, so its double click expands without the money showing for a moment). While it is on, every main layout is .masked: the odometers show ***,
+// U5-B, U12, U13, U7's whole money tag, U10's amounts, M3's tag) turns it on or off (a drag or a poke never does). While
+// it is on, every main layout is .masked: the odometers show ***,
 // and so do 每秒 +NT$, 本月累計, 可以買 and U10's amounts (the model); no "+0.xx" floats, and the pet says no amount
 // (QJZ.lines' masked). PANEL (設定, 紀錄) is never masked.
+// 1.1.3:
+//   item 2: three long presses, each held HOLD_MS and let go on its control, with a ring in its colour (health.css): the
+//     countdown chips and U12's 起來動 ring (green, 我剛起來動過了, as in 1.1.2), every water button (blue: one cup off,
+//     never below 0, 「−1」 pops on the cups) and every pomodoro button while a focus or a break runs (red: stopped; U13's
+//     only on its ■ 停止). The click that ends a long press does nothing more (swallow); a shorter press is a tap: a cup,
+//     or a start; a tap on a pomodoro button while a phase runs only shows 「長按停止」 for a moment (tip). Idle, a
+//     pomodoro button takes no long press. Those controls keep no keyboard focus.
+//   item 3: NAMES / GROUPS, the layouts' display names 「N 名稱」 in category order (設定's 畫面 shows the one in use).
+//   item 4: menu {action:'mask'} (the menu's 隱藏金額) toggles the mask, as a click on the amount; menuState carries
+//     masked (the setting), sent when it changes and always on menuOpening, for the menu's check mark.
+//   item 5: M3's tag masks at once; only a double click on its round avatar (.ring) expands M3.
+//   item 9: U3's 設定 / 紀錄 / 調整起算時間 open in its own window too (INPLACE).
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];
@@ -153,7 +165,12 @@ QJZ.layouts = (function () {
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
   var REACTIONS = { petted: 1, angry: 1, eat: 1, hop: 1, dangle: 1 };
-  var INPLACE = ['U1', 'U12', 'U13'], INPLACE_KINDS = { settings: 1, history: 1, adjust: 1 };   // (1.1.2 item 3)
+  var INPLACE = ['U1', 'U3', 'U12', 'U13'], INPLACE_KINDS = { settings: 1, history: 1, adjust: 1 };   // (1.1.2 item 3; U3: 1.1.3)
+  // 1.1.3 item 3: the display names, numbered in the order of their categories (the ids and settings keys stay).
+  var GROUPS = [['視窗類', ['U1', 'U3', 'U12', 'U13']], ['小巧類', ['U5B', 'U10', 'M3']], ['桌面類', ['U7']]];
+  var NAMES = { U1: '1 經典直式', U3: '2 遊戲畫面', U12: '3 健康儀表板', U13: '4 番茄鐘優先', U5B: '5 橫向極簡', U10: '6 頂端小膠囊',
+    M3: '7 迷你浮窗', U7: '8 桌面寵物' };
+  var TIP_MS = 1600;  // 「長按停止」 shows this long (tip)
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -236,6 +253,8 @@ QJZ.layouts = (function () {
 
   // ---- 1.1: what QJZ.care adds (spec §4.4, §4.9 #8, §5.2) ----
   var POMO_STATUS = { focus: '專心中', break: '休息中' };
+  // U12's pet line when there is no stand-up to count down to (1.1.3: its stage never stands empty), by the work status
+  var IDLE_SAY = { working: '點番茄，開始專心～', lunch: '午休中～', done: '可以下班囉！', ended: '今天辛苦了！', before: '還沒開始上班', off: '今天休假' };
   // A share as a ring's --p: 0..100, one decimal ('37.5', '75').
   function pct1(n, of) { return String(of > 0 ? Math.round(Math.min(Math.max(n / of, 0), 1) * 1000) / 10 : 0); }
   // cs = QJZ.care.state, key = the work status (statusKey). A missing or not-ready care (Ruling S11) is zero counts, an
@@ -267,12 +286,15 @@ QJZ.layouts = (function () {
     var nth = phase === 'focus' && on && cs.nth > 0 ? '第 ' + cs.nth + ' 顆' : '';
     var frac = phase ? P.fraction(p, sec) : 0, left = 1 - frac;
     var focusMin = hs ? hs.pomodoro.focus : 25;
+    var showCups = !!(on && cs.show && cs.show.cups), showStandC = stand !== null && phase !== 'focus';
     return {
       phase: phase,
       cups: cups, cupsLong: cups + ' 杯', tomatoes: '×' + h.tomatoes,
-      showCups: !!(on && cs.show && cs.show.cups), showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
+      showCups: showCups, showTomatoes: !!(on && cs.show && cs.show.tomatoes), showStand: stand !== null,
       snoozed: base !== null && !!cs.snoozed,   // 等一下 runs: the countdown to its end, with 💤 (1.1.2)
-      showStandC: stand !== null && phase !== 'focus', standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
+      showStandC: showStandC, standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
+      // the buttons that are always there (1.1.3 items 1, 7, 8, 9): 喝水 while the cups do not show, -- for no countdown
+      cupsBtn: showCups ? cups + ' 杯' : '喝水', standSlot: showStandC ? base + ' 分' : '--', standSlotX: stand !== null ? stand + ' 分後' : '--',
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶', pomoGo: phase ? '■ 停止' : '▶ 開始專心',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
@@ -287,7 +309,8 @@ QJZ.layouts = (function () {
       standLabel: asks === 'both' || asks === 'sit' ? '該起來了！' : '起來動（次）',
       phaseShort: phase === 'focus' ? '專心' : phase === 'break' ? '休息' : '',
       phaseNote: phase === 'focus' ? nth : phase === 'break' ? '休息中' : '',
-      dsay: stand === null ? '' : phase === 'focus' ? '專心中～提醒等休息再說' : '再 ' + stand + ' 分鐘起來動～',
+      dsay: stand !== null ? (phase === 'focus' ? '專心中～提醒等休息再說' : '再 ' + stand + ' 分鐘起來動～') :
+        phase === 'focus' ? '專心中～' : phase === 'break' ? '休息一下～' : IDLE_SAY[key] || '',
       standLine: stand === null ? '' : phase === 'focus' ? '提醒等休息再說' : stand + ' 分後起來動',
       nextFocus: '下一顆 ' + focusMin + ' 分鐘', focusFull: focusMin + ':00',
       tslots: { done: Math.min(h.tomatoes, goals.tomatoes), of: goals.tomatoes },
@@ -390,7 +413,7 @@ QJZ.layouts = (function () {
   var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
   var answerRun = false; // the run of presses under way (a click, its double, …) began on a prompt's answer button
   var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
-  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0, mask: 0 };
+  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var capRaf = 0;        // the frame asked for while U10's capsule grows or shrinks (capTick)
   var offs = [];
@@ -440,6 +463,7 @@ QJZ.layouts = (function () {
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
     v.holds = all(el, '[data-hold]:not([data-hold=gauge])');   // the countdowns (U12's 起來動 ring counts, no 💤)
+    v.nils = all(el, '[data-nil]');   // an always-there countdown that reads -- (1.1.3)
     v.pins = all(el, '.bar .tb.pin');
     v.gears = all(el, '.bar .tb.settings');
     var p = el.querySelector('[data-pet]');
@@ -562,10 +586,11 @@ QJZ.layouts = (function () {
   }
   // 「+1」 on the cups the layout shows (a cup logged anywhere: the bubble's 喝了, the menu, the tray, a cups button):
   // the first drawn one (U10 has its cups twice, folded and expanded).
-  function popCup() {
+  // (1.1.3: a long press's 「−1」 the same way)
+  function popCup(text) {
     cupPlus = false;
     var c = all(view.el, '[data-cups]').filter(function (n) { return n.getClientRects().length > 0; })[0];
-    if (c && QJZ.fx) QJZ.fx.plus(c, '+1');
+    if (c && QJZ.fx) QJZ.fx.plus(c, text || '+1');
   }
   // [data-show] by the §4.9 #8 rule, the pomodoro phase (p-foc / p-brk on the layout and the M3 ring), the M3 ring's
   // --p (the day's progress w, or the pomodoro's time left) and the countdown rings.
@@ -588,6 +613,7 @@ QJZ.layouts = (function () {
         n.hidden = !(f && f(m));
         if (k === 'standC') n.style.visibility = m.standCHeld ? 'hidden' : '';   // held: unseen, its room kept (M-2)
       });
+      view.nils.forEach(function (n) { n.classList.toggle('nil', !(n.getAttribute('data-nil') === 'stand' ? m.showStand : m.showStandC)); });
     }
     if (view.cache.phase !== ph) {
       view.cache.phase = ph;
@@ -632,12 +658,13 @@ QJZ.layouts = (function () {
       }
     }
   }
-  // menuState for the host's menu, when the work status or the snack count changed.
-  function sendMenu(m) {
-    var work = WORK[m.key] || 'before', k = work + ' ' + m.snacks;
-    if (sent.menu === k) return;
+  // menuState for the host's menu, when the work status, the snack count or the mask (1.1.3: masked, the menu's 隱藏金額
+  // check) changed; force: anyway (the menu is opening).
+  function sendMenu(m, force) {
+    var work = WORK[m.key] || 'before', masked = !!m.masked, k = work + ' ' + m.snacks + ' ' + masked;
+    if (sent.menu === k && !force) return;
     sent.menu = k;
-    send('menuState', { work: work, snacks: m.snacks });
+    send('menuState', { work: work, snacks: m.snacks, masked: masked });
   }
 
   // ================= the pet's behaviour =================
@@ -1072,7 +1099,6 @@ QJZ.layouts = (function () {
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     if (name !== 'PANEL') inPlace = null;
     holdEnd(false);
-    maskCancel();
     stopSay();
     unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
@@ -1108,6 +1134,8 @@ QJZ.layouts = (function () {
     if (v) QJZ.promptView.render(view.el, view.name, v); else QJZ.promptView.clear(view.el);
   }
   function current() { return cur; }
+  // The layout on screen, a panel's the one it came from (1.1.3: 設定 → 畫面 names it).
+  function shownLayout() { return cur === 'PANEL' ? (panelFrom || startLayout()) : cur; }
   // The first layout, and where a panel shown first (nothing before it) goes back to: opts.first (dev), the layout
   // shown before a reload, else the one used last (lastLayout).
   function startLayout() {
@@ -1309,7 +1337,8 @@ QJZ.layouts = (function () {
     send('setTopmost', { on: on });
   }
 
-  function act(a) {
+  // a: the button's data-act, el: the button (for a tip over it)
+  function act(a, el) {
     switch (a) {
       case 'feed': feed(); break;
       case 'settings':   // in its window, pressed while 設定 shows: pressed again it closes (as 完成)
@@ -1321,7 +1350,10 @@ QJZ.layouts = (function () {
       case 'menu': send('contextMenu', {}); break;
       case 'back': if (panels()) panels().close(); else closePanel(); break;
       case 'drink': if (QJZ.care) QJZ.care.drink(); break;
-      case 'pomo': if (QJZ.care) QJZ.care.toggleFocus(); break;
+      case 'pomo':   // 1.1.3 item 2c: a tap starts; while a phase runs it only says how to stop (a long press does)
+        if (!QJZ.care) break;
+        if (phaseRuns()) tip(el, '長按停止'); else QJZ.care.toggleFocus();
+        break;
       case 'pin': toggleTopmost(); break;
     }
   }
@@ -1340,6 +1372,7 @@ QJZ.layouts = (function () {
       case 'end': endWork(); break;
       case 'adjust': case 'settings': case 'history': openPanel(a); break;
       case 'topmost': toggleTopmost(); break;
+      case 'mask': toggleMask(); break;   // 1.1.3 item 4: 隱藏金額, as a click on the amount
       // toggleVisible is handled by the host; anything else is ignored
     }
   }
@@ -1375,11 +1408,15 @@ QJZ.layouts = (function () {
     var ms = app().nowMs();
     petTick(ms);
     chatter(ms);
-    if (maskDue !== null && ms >= maskDue) maskFire();   // (M3's click on its tag, by the app's clock too)
   }
   // QJZ.app caught up while hidden (or the menu is opening): only the menu needs it now, the rest renders on re-show.
   function onRefresh() {
     if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs(), careState()));
+  }
+  // The host's menu is opening (1.1.3 item 4): menuState goes now whatever changed, so its 隱藏金額 check is right; the app's
+  // refresh (on the same message) sends it again if catching up changed it.
+  function onMenuOpening() {
+    if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs(), careState()), true);
   }
   // QJZ.care changed what it shows (a cup, a tomato, a phase, from a button, the menu or the tray): at once, not at the
   // next second. Its countdowns do not fire this; they follow onSecond.
@@ -1477,23 +1514,67 @@ QJZ.layouts = (function () {
     say('好，' + ev.minutes + ' 分鐘後再叫你～');
   }
 
-  // ---- 我剛起來動過了: a long press on the countdown (1.1.2 item 7) ----
-  var hold = null;   // {el, at} while the primary button is held on a [data-hold] chip
-  function holdStart(el) {
-    holdEnd(false);
-    hold = { el: el, at: app().nowMs() };
-    el.classList.add('holding');
-    timers.hold = setTimeout(function () { timers.hold = 0; if (hold && hold.el === el) el.classList.add('charged'); }, HOLD_MS);
+  // ---- long presses: 我剛起來動過了 (1.1.2 item 7), a cup off and the pomodoro stopped (1.1.3 item 2) ----
+  var hold = null;     // {el, ring, kind, at} while the primary button is held on one: el takes it, ring shows it
+  var swallow = null;  // the control whose long press fired: the click that comes with its release does nothing more
+  // A focus or a break runs (a pomodoro button's long press stops it; idle or 休息結束, a tap starts one).
+  function phaseRuns() { var cs = careState(); return !!(cs && cs.ready && cs.p && (cs.p.phase === 'focus' || cs.p.phase === 'break')); }
+  // What a press on t holds, or null: a countdown ([data-hold]: stand), a water button (water), a pomodoro button while a
+  // phase runs (pomo; U13's ring only on its ■ 停止).
+  function holdTarget(t) {
+    var h = t.closest('[data-hold]');
+    if (h) return { el: h, kind: 'stand' };
+    var a = t.closest('[data-act=drink],[data-act=pomo]');
+    if (!a) return null;
+    if (a.getAttribute('data-act') === 'drink') return { el: a, kind: 'water' };
+    return phaseRuns() && (!a.classList.contains('br-go') || t.closest('.go')) ? { el: a, kind: 'pomo' } : null;
   }
-  // fire: released on the chip; it counts when it was held long enough
+  function holdStart(h) {
+    holdEnd(false);
+    var ring = h.el.querySelector('[data-holdring]') || h.el;
+    hold = { el: h.el, ring: ring, kind: h.kind, at: app().nowMs() };
+    ring.classList.add('holding', 'h-' + h.kind);
+    timers.hold = setTimeout(function () { timers.hold = 0; if (hold && hold.ring === ring) ring.classList.add('charged'); }, HOLD_MS);
+  }
+  // fire: let go on it; it does its part when it was held long enough
   function holdEnd(fire) {
     var h = hold;
     clearTimeout(timers.hold);
     timers.hold = 0;
     hold = null;
     if (!h) return;
-    h.el.classList.remove('holding', 'charged');
-    if (fire && ready() && app().nowMs() - h.at >= HOLD_MS && QJZ.care) QJZ.care.stoodUp();
+    h.ring.classList.remove('holding', 'charged', 'h-' + h.kind);
+    if (!fire || !ready() || app().nowMs() - h.at < HOLD_MS || !QJZ.care) return;
+    if (h.kind === 'stand') { QJZ.care.stoodUp(); return; }
+    swallow = h.el;
+    if (h.kind === 'water') { if (QJZ.care.undrink()) popCup('−1'); }
+    else if (phaseRuns()) QJZ.care.toggleFocus();
+  }
+  // 「長按停止」 (item 2c): a small pill over the button for a moment, inside the window (under the button when there is no
+  // room over it), one at a time, never a hit rect. In U5-B and U10 another control sits right over the button (the water
+  // button, the 🧍 chip): there it goes on the button's left, level with it (U10: on its capsule).
+  var TIP_LEFT = { U5B: 1, U10: 1 };
+  function tip(el, text) {
+    var host = view ? view.fxWin : null;
+    if (!host || !el) return;
+    Array.prototype.forEach.call(host.querySelectorAll('.tip'), function (n) { n.remove(); });
+    var t = document.createElement('span');
+    t.className = 'tip';
+    t.textContent = text;
+    host.appendChild(t);
+    var hr = host.getBoundingClientRect(), r = (el.querySelector('[data-holdring]') || el).getBoundingClientRect();
+    var box = view.name === 'U10' && view.hover ? view.hover.getBoundingClientRect() : view.el.getBoundingClientRect();
+    var w = t.offsetWidth, h = t.offsetHeight;
+    var x = r.left + r.width / 2 - w / 2, y = r.top - h - 5;
+    if (TIP_LEFT[view.name]) { x = r.left - w - 6; y = r.top + r.height / 2 - h / 2; }
+    else if (y < box.top + 4) y = r.bottom + 5;
+    x = Math.max(box.left + 4, Math.min(box.right - w - 4, x));
+    y = Math.max(box.top + 4, Math.min(box.bottom - h - 4, y));
+    t.style.left = Math.round(x - hr.left) + 'px';
+    t.style.top = Math.round(y - hr.top) + 'px';
+    if (!t.animate) { setTimeout(function () { t.remove(); }, TIP_MS); return; }
+    t.animate([{ opacity: 0, transform: 'translateY(3px) scale(.92)' }, { opacity: 1, transform: 'none', offset: 0.1 }, { opacity: 1, offset: 0.82 },
+      { opacity: 0, transform: 'translateY(-3px)' }], { duration: TIP_MS, easing: 'ease-out' }).addEventListener('finish', function () { t.remove(); });
   }
 
   // ---- pointer ----
@@ -1505,13 +1586,16 @@ QJZ.layouts = (function () {
     if (e.button !== 0) return;
     if (dragging) endDrag();   // a new press: whatever drag there was is over
     dragged = false;
+    swallow = null;
     // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
     if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
     else if (answerRun) return;
     // a title-bar button takes no keyboard focus: after 關閉 and a 顯示, Space or Enter must not hide the window again
     if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
-    var hc = e.target && e.target.closest ? e.target.closest('[data-hold]') : null;
-    if (hc && inRoot(hc)) { e.preventDefault(); holdStart(hc); return; }   // no drag, no text selection, no focus
+    // the long-press controls (and a pomodoro button while idle) take no focus either: Space or Enter must not press them
+    if (e.target && e.target.closest && e.target.closest('[data-act=drink],[data-act=pomo]')) e.preventDefault();
+    var ht = e.target && e.target.closest ? holdTarget(e.target) : null;
+    if (ht && inRoot(ht.el)) { e.preventDefault(); holdStart(ht); return; }   // no drag, no text selection, no focus
     if (!inRoot(e.target) || isButton(e.target)) return;
     drag = { x: e.screenX, y: e.screenY };
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
@@ -1556,6 +1640,11 @@ QJZ.layouts = (function () {
   }
   function onClick(e) {
     if (!view || !inRoot(e.target)) return;
+    if (swallow) {   // the click of a long press that fired (1.1.3): it did its part
+      var sw = swallow;
+      swallow = null;
+      if (sw.contains(e.target)) return;
+    }
     if (answerRun && e.detail > 1) return;   // the second click of a double press on an answer (answer)
     var ans = e.target.closest('[data-answer]');
     if (ans) { answer(ans, e.detail > 0); return; }
@@ -1564,16 +1653,16 @@ QJZ.layouts = (function () {
     // lets clicks through it), so the click that brings U13 forward or closes the menu never ends a focus
     if (a && a.classList.contains('br-go') && /\bp-(foc|brk)\b/.test(view.el.className) && !e.target.closest('.go')) return;
     if (a) {
-      act(a.getAttribute('data-act'));
-      if (a.classList.contains('tb') && document.activeElement === a) a.blur();   // (however it got the focus: M-5)
+      act(a.getAttribute('data-act'), a);
+      if (a.matches('.tb,[data-act=drink],[data-act=pomo]') && document.activeElement === a) a.blur();   // (however it got the focus: M-5; 1.1.3)
       return;
     }
     if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     var mk = e.target.closest('[data-mask]');
-    if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses
+    if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses (M3 too, at once: 1.1.3 item 5)
       if (e.detail > 1) return;
-      if (cur === 'M3') maskLater(); else toggleMask();
+      toggleMask();
       return;
     }
     if (isPetPart(e.target)) poke(e);
@@ -1581,20 +1670,6 @@ QJZ.layouts = (function () {
   function toggleMask() {
     if (!ready()) return;
     app().saveSettings({ privacy: { maskMoney: !app().state.settings.privacy.maskMoney } });
-  }
-  // M3 (1.1.2 review I-1): a double click there expands it, so a click on its tag toggles the mask only DBL_MS later; a
-  // double click (onDbl) or any layout change cancels it, so the money never shows for a moment on the way to expanding.
-  var maskDue = null;   // the app-clock time the pending toggle is due
-  function maskLater() {
-    maskDue = app().nowMs() + DBL_MS;
-    clearTimeout(timers.mask);
-    timers.mask = setTimeout(maskFire, DBL_MS);
-  }
-  function maskCancel() { maskDue = null; clearTimeout(timers.mask); timers.mask = 0; }
-  function maskFire() {
-    var due = maskDue !== null && cur === 'M3';
-    maskCancel();
-    if (due) toggleMask();
   }
   // An answer button (final review m-3). The bubble goes at once, so the second press of a double click lands on
   // whatever was under the button: that press, its click and its dblclick do nothing (answerRun: onDown, onClick,
@@ -1626,11 +1701,11 @@ QJZ.layouts = (function () {
   function isPetPart(t) {
     return !!(t && t.closest && t.closest('[data-pet] .pa') && !t.closest('.prop'));
   }
-  // A double click on the badge expands M3, unless its run of presses began on an answer button (answer).
+  // A double click on M3's round avatar expands it (1.1.3 item 5: only there, so its money tag's click is the mask at
+  // once), unless its run of presses began on an answer button (answer).
   function onDbl(e) {
     if (answerRun) return;
-    if (cur !== 'M3' || !inRoot(e.target)) return;
-    maskCancel();   // its first click was not a mask click
+    if (cur !== 'M3' || !inRoot(e.target) || !e.target.closest('.m3 .ring')) return;
     show(backTarget(app().state.settings));
   }
   // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
@@ -1749,7 +1824,7 @@ QJZ.layouts = (function () {
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup), QJZ.care.on('snooze', onSnooze));
     }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
-      bridge.on('pointer', onPointer)].forEach(function (off) {
+      bridge.on('pointer', onPointer), bridge.on('menuOpening', onMenuOpening)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);
@@ -1793,22 +1868,22 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null; inPlace = null; plusCents = plusAt = null; maskDue = null;
+    answerRun = false; held = null; hold = null; swallow = null; inPlace = null; plusCents = plusAt = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
   }
 
   return {
-    show: show, current: current, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
+    show: show, current: current, shownLayout: shownLayout, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     dragging: function () { return dragging; },
     _brain: function () { return brain; },   // tests only (Ruling R3, like _reset and _bands): the pet's Brain
-    MAIN: MAIN, ALL: ALL,
+    MAIN: MAIN, ALL: ALL, NAMES: NAMES, GROUPS: GROUPS,
     util: {
       hms: hms, hm: hm, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, hoverOutMs: hoverOutMs,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,
