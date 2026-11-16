@@ -301,7 +301,8 @@ QJZ.layouts = (function () {
       // the buttons that are always there (1.1.3 items 1, 7, 8, 9): 喝水 while the cups do not show, -- for no countdown
       cupsBtn: showCups ? cups + ' 杯' : '喝水', standSlot: showStandC ? base + ' 分' : '--', standSlotX: stand !== null ? stand + ' 分後' : '--',
       sitOn: sitOn,   // the 起來動 reminder is on: the always-there 🧍 takes its long press (1.1.3 A1)
-      pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶', pomoGo: phase ? '■ 停止' : '▶ 開始專心',
+      // (1.1.3 B1-a: U1's 番茄鐘 has the tomato icon before its label, so no ▶)
+      pomoBtn: phase ? '■ 停止' : '番茄鐘', pomoGlyph: phase ? '■' : '▶', pomoGo: phase ? '■ 停止' : '▶ 開始專心',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
       nth: nth,

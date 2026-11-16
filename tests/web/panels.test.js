@@ -1056,7 +1056,10 @@
     e.menu('settings');
     $(e, '[data-tab=pet]').click();
     eq($(e, '[data-tgl=sound]').getAttribute('aria-checked'), 'false', 'sound is off by default');
+    var volLine = $(e, '[data-f=volume]').closest('.line');
+    ok(volLine.hidden && !volLine.getClientRects().length, '1.1.3 C5: 音量 does not show while 音效 is off');
     $(e, '[data-tgl=sound]').click();
+    ok(!volLine.hidden && volLine.getClientRects().length > 0, '音效 on: 音量 shows');
     eq(QJZ.app.state.settings.sound.enabled, true);
     commit($(e, '[data-f=volume]'), '30');
     eq(QJZ.app.state.settings.sound.volume, 0.3);

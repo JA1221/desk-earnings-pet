@@ -652,7 +652,7 @@ QJZ.panels = (function () {
       tglOn(c, 'sound', s.sound.enabled);
       var vol = q(c, '[data-f=volume]'), pct = Math.round(s.sound.volume * 100);
       if (vol && !focused(vol) && vol.value !== String(pct)) vol.value = String(pct);
-      if (vol) vol.closest('.line').classList.toggle('dim', !s.sound.enabled);
+      if (vol) show(vol.closest('.line'), s.sound.enabled);   // 1.1.3 C5: 音量 only while 音效 is on
       out(c, 'volume', (vol ? vol.value : pct) + '%');
       tglOn(c, 'autostart', s.autostart);
       tglOn(c, 'capture', s.privacy.hideFromCapture);

@@ -31,16 +31,16 @@ window.QJZ = window.QJZ || {};
 // corner. Item 6: U12's 番茄 ring is a pomodoro button, and its pet stands on a stage (.dfoot) with its line beside it.
 QJZ.templates = (function () {
   function ic(name, cls) { return QJZ.icons.svg(name, cls); }
-  // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 縮小 (to the mini badge), 設定 and 關閉
-  // (hide); 1.1.2 item 5: 釘選在最上層 first (pressed, .on and aria-pressed, while the layout is topmost). PANEL (noGear)
-  // has 縮小 and 關閉 only: it is 設定, or a panel of its own.
+  // The title bar (1.1.1 item 2): small round icon buttons in the sticker style, 設定 and 關閉 (hide); 1.1.2 item 5:
+  // 釘選在最上層 first (pressed, .on and aria-pressed, while the layout is topmost). 1.1.3 C2: no 縮小 (the menu's
+  // 7 迷你浮窗 does it). PANEL (noGear) has 關閉 only: it is 設定, or a panel of its own.
   function tb(act, icon, label, toggle) {
     return '<button type="button" class="tb ' + act + '" data-act="' + act + '" title="' + label + '" aria-label="' + label + '"' +
       (toggle ? ' aria-pressed="false"' : '') + '>' + ic(icon) + '</button>';
   }
   function bar(title, noGear) {
     return '<div class="bar"><span class="logo">$</span><span data-b="title">' + title + '</span><div class="tbtns">' +
-      (noGear ? '' : tb('pin', 'tbPin', '釘選在最上層', true)) + tb('mini', 'tbMin', '縮小') + (noGear ? '' : tb('settings', 'tbGear', '設定')) +
+      (noGear ? '' : tb('pin', 'tbPin', '釘選在最上層', true)) + (noGear ? '' : tb('settings', 'tbGear', '設定')) +
       tb('hide', 'tbClose', '關閉') + '</div></div>';
   }
   // The title of each layout with a title bar; PANEL in its window (1.1.2 item 3) keeps the one it was opened from.
@@ -72,7 +72,7 @@ QJZ.templates = (function () {
     return '<div class="mpills">' +
       '<button type="button" class="mp wat"' + DRINK + '>' + ic('drop') + '<span class="n" data-b="cupsBtn"></span></button>' +
       '<span class="mp st" data-hold data-nil="standC" title="' + HOLD_TIP + '">' + standIcons() + '<span class="n" data-b="standSlot"></span></span>' +
-      '<button type="button" class="mp go"' + POMO + '><span data-b="pomoBtn"></span><span class="cnt" data-show="tomatoes" data-b="tomatoes"></span></button></div>';
+      '<button type="button" class="mp go"' + POMO + '>' + ic('tom') + '<span data-b="pomoBtn"></span><span class="cnt" data-show="tomatoes" data-b="tomatoes"></span></button></div>';
   }
   // U3 (A_U3_2, with the user's change: no bottle): the water button beside the tomato button, the same round button
   // with its badge on the same corner (＋, ▶ / ■), each with its count under it in the same caption (1.1.3 item 9). Both

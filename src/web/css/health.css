@@ -41,9 +41,12 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .mp{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:0;font-size:12.5px;font-weight:700;background:#fff;
   border:2px solid var(--line);border-radius:99px;padding:1px 6px;box-shadow:2px 2px 0 var(--line);white-space:nowrap;line-height:1.45;color:var(--text)}
 .mp svg.ic{width:15px;height:15px}
-.mp.wat{background:#EAF6FF}
-.mp.go{background:var(--bar)}
-.lay:is(.p-foc,.p-brk) .mp.go{background:#fff}
+/* 1.1.3 B1-a (the user's pick): one soft pastel family, water blue, 🧍 green, 番茄鐘 tomato (deeper while a phase runs);
+   U10's chips the same */
+.mp.wat,.isl .iv-x .ichip[data-act=drink]{background:#DDF0FF}
+.mp.st,.isl .iv-x .ichip[data-hold]{background:#DDF5E5}
+.mp.go,.isl .iv-x .ichip[data-act=pomo]{background:#FFE1D8}
+.lay:is(.p-foc,.p-brk) .mp.go,.u10:is(.p-foc,.p-brk) .isl .iv-x .ichip[data-act=pomo]{background:#FFC9BA}
 .mp .cnt{right:-10px;top:-11px;height:18px;min-width:20px;font-size:11px;background:#fff}
 .lay .nil .n,.isl .ichip.nil [data-b]{color:var(--sub);opacity:.75}   /* -- : no countdown now */
 .lay [data-hold].inert{opacity:.5;cursor:default}   /* 起來動 off (1.1.3 A1): the 🧍 is a faded --, no long press */
@@ -88,11 +91,14 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
   background:conic-gradient(var(--hc) calc(var(--hold)*1%),rgba(61,44,36,.2) 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
   animation:qjz-hold 1.2s linear 1 forwards}
-.lay .holding::before{content:"";position:absolute;inset:-8px;border-radius:99px;border:2px solid var(--line);pointer-events:none;
+.lay .holding::before{content:"";position:absolute;inset:-6px;border-radius:99px;pointer-events:none;   /* the glow (1.1.3 B2: no outline) */
   box-shadow:0 0 10px 3px var(--hg);animation:qjz-hold-in .15s ease-out 1 both}
 @keyframes qjz-hold{0%{--hold:0;opacity:0}12%{opacity:1}100%{--hold:100;opacity:1}}
 @keyframes qjz-hold-in{from{opacity:0}to{opacity:1}}
 .lay .holding.charged{background:var(--hbg)}
+/* full during a phase: U1's and U13's 番茄鐘 take the tint too (their phase colours outranked it: review M-4) */
+.lay:is(.p-foc,.p-brk) .holding.charged.charged,.u13 .bigring .br-go .go.holding.charged{background:var(--hbg)}
+.lay .cnt{z-index:2}   /* a ×N badge stays over the ring (review M-4) */
 .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 /* 「長按停止」 (1.1.3 item 2c): a tap on a pomodoro button while a phase runs; layouts.js places it and lets it go */
 .lay .tip{position:absolute;left:0;top:0;z-index:8;pointer-events:none;white-space:nowrap;background:var(--line);color:#FFF8EC;border-radius:99px;
@@ -334,23 +340,26 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
 .dash .dmb .money{font-size:30px}
 .dash .dmb .thin{margin-top:6px}
 .dash .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;justify-items:center}
-/* 1.1.3 item 6: the pet's stage, a card as wide as the rings, its floor a warmer band: the pet stands on it at the left,
-   its line beside it, pointing back at it; a prompt's small bubble takes the line's place (the stage is as tall as the
-   bubble, so the window keeps its size) */
-.dash .dfoot{position:relative;display:flex;align-items:center;gap:4px;min-height:122px;margin-top:2px;padding:0 8px 0 6px;border:2.5px solid var(--line);
-  border-radius:20px;box-shadow:3px 3px 0 var(--line);background:#FFF3DF linear-gradient(#FFF3DF 0 76%,#F7DDB4 76% 100%);overflow:visible}
-.dash .dfoot .po{--pw:112px;align-self:flex-end;margin-bottom:2px}
-.dash .say{position:relative;align-self:center;margin:0 0 18px 6px;background:#fff;border:2.5px solid var(--line);border-radius:14px;box-shadow:2px 2px 0 var(--line);
-  padding:7px 12px;font-size:13px;font-weight:700;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+/* 1.1.3 B3-a (the user's pick): the gauges are the star; under them, past a dashed line, a small pet with its one line
+   beside it, pointing back at it. A prompt is a compact bubble in the line's place: its title and buttons, and its water
+   line when it asks water (no icon disc; the sub is what the rings show). The row is as tall as the tallest prompt, so
+   the window keeps its size. */
+.dash .dfoot{position:relative;display:flex;align-items:center;gap:8px;min-height:var(--dfoot-h,96px);padding-top:8px;border-top:2.5px dashed var(--dash)}
+.dash .dfoot .po{--pw:66px;align-self:center}
+.dash .say{position:relative;align-self:center;margin:0 0 0 4px;background:#fff;border:2.5px solid var(--line);border-radius:14px;box-shadow:2px 2px 0 var(--line);
+  padding:6px 11px;font-size:12.5px;font-weight:700;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
 .dash .say:empty{display:none}
 /* its tail on its left, back at the pet's face (base.css .bubble.side's) */
 .dash .say::after{content:"";position:absolute;box-sizing:border-box;left:-6.25px;top:50%;margin-top:-6px;width:12px;height:12px;background:#fff;background-clip:padding-box;
   border:0 solid var(--line);border-right-width:2.5px;border-bottom-width:2.5px;transform:rotate(135deg);clip-path:polygon(100% 0,100% 100%,0 100%)}
 .dash .say::before{content:"";position:absolute;background:#fff;left:-1.25px;top:50%;margin-top:-4px;width:2.25px;height:8px}
 .dash.prompting .say{display:none}
-.dash .pslot{position:relative;margin:0 0 6px 4px;align-self:center}
-.dash .rbub.inl{width:184px}
-.dash .rbub.inl .rb-s{display:none}   /* the rings already say it (G_U12_rem has no sub) */
+.dash .pslot{position:relative;flex:1;min-width:0;margin:0 0 0 4px;align-self:center}
+.dash .rbub.inl{width:auto;padding:6px 8px 7px 11px;border-radius:14px;box-shadow:2px 2px 0 var(--line)}
+.dash .rbub.inl :is(.rb-ic,.rb-s){display:none}   /* the rings already say it (G_U12_rem has no sub) */
+.dash .rbub.inl .rb-t{font-size:13px;line-height:1.3}
+.dash .rbub.inl .rb-w{margin-top:1px}
+.dash .rbub.inl .rb-btns{margin-top:5px}
 
 /* ---------- U13 番茄鐘優先 (G_U13_*) ---------- */
 .win.pomo1{width:300px}

@@ -617,8 +617,8 @@
     mouse(feed, 'mousedown', 10, 10);
     mouse(feed, 'mousemove', 40, 10);
     eq(of(e.sent, 'dragStart').length, 1, 'buttons never drag');
-    mouse($(e, '[data-act=mini]'), 'mousedown', 10, 10);
-    mouse($(e, '[data-act=mini]'), 'mousemove', 40, 10);
+    mouse($(e, '.bar [data-act=settings]'), 'mousedown', 10, 10);
+    mouse($(e, '.bar [data-act=settings]'), 'mousemove', 40, 10);
     eq(of(e.sent, 'dragStart').length, 1, 'nor do the title-bar dots');
     var ev = mouse($(e, '.clock'), 'contextmenu', 5, 5, { button: 2 });
     eq(of(e.sent, 'contextMenu').length, 1);
@@ -630,7 +630,7 @@
     var e = mk(at(12, 10, 0));
     $(e, '[data-act=hide]').click();
     eq(of(e.sent, 'hide').length, 1);
-    $(e, '[data-act=mini]').click();
+    e.menu('mini');   // (1.1.3 C2: no 縮小 on the title bar; the menu's 7 迷你浮窗)
     eq(QJZ.layouts.current(), 'M3');
     e.menu('layout:U5B');
     $(e, '[data-act=menu]').click();
@@ -1560,7 +1560,7 @@
     [undefined, null, { ready: false, show: { cups: true, tomatoes: true }, cupsText: '3/8', p: null, health: { cups: 3, tomatoes: 3 } }].forEach(function (cs, i) {
       var m = U.model(st, at(12, 10, 0), cs);
       eq([m.showCups, m.showTomatoes, m.pomoBtn, m.ring.phase, m.tomatoes, m.nth, m.mmss, m.standIn],
-        [false, false, '▶ 番茄鐘', null, '×0', '', '', ''], 'care ' + i);
+        [false, false, '番茄鐘', null, '×0', '', '', ''], 'care ' + i);
       eq([m.status, m.m3sub], ['上班中', '上班中 · 還有 07:00:00'], 'the 1.0 texts ' + i);
     });
   });
@@ -1576,7 +1576,7 @@
     eq([m.standIn, m.showStand], ['', false], 'water only (1.1.1): the timer runs, but no stand-up is asked');
     C.toggleFocus();   // stop
     m = U.model(QJZ.app.state, at(12, 9, 52, 30), C.state);
-    eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['▶ 番茄鐘', null, '', '上班中', '', '']);
+    eq([m.pomoBtn, m.ring.phase, m.ring.label, m.status, m.nth, m.mmss], ['番茄鐘', null, '', '上班中', '', '']);
     eq([m.showCups, m.showTomatoes], [true, true], 'care decides what shows (Ruling R4): 3 tomatoes today');
     done();
     mk(at(12, 10, 0), { care: true });
@@ -1586,7 +1586,7 @@
 
   test('layouts: unused counts are hidden (§4.9 #8)', function () {
     var e = mk(at(12, 10, 0), { care: true });   // water off, no cup, no tomato, idle
-    eq(shownText(e.root.querySelectorAll('.u1 .mpills > *')), ['喝水', '--', '▶ 番茄鐘'], 'U1 (1.1.3): its three buttons, no count');
+    eq(shownText(e.root.querySelectorAll('.u1 .mpills > *')), ['喝水', '--', '番茄鐘'], 'U1 (1.1.3): its three buttons, no count');
     e.menu('layout:U7');
     eq(drawn($(e, '.u7 .hline')), false, 'U7: no tag line');
     var tag = $(e, '.u7 .mtag').getBoundingClientRect().height;
@@ -1609,7 +1609,7 @@
     var e = mk(at(12, 10, 0), { care: true, settings: { health: WATER_ON } });
     var pills = $(e, '.u1 .money-box .mpills'), rate = $(e, '.u1 [data-b=rate]');
     ok(pills && pills.getBoundingClientRect().top >= rate.getBoundingClientRect().bottom, 'under the 每秒 line');
-    eq(shownText(pills.children), ['0/8 杯', '--', '▶ 番茄鐘'], 'water on: the cups show from the start');
+    eq(shownText(pills.children), ['0/8 杯', '--', '番茄鐘'], 'water on: the cups show from the start');
     ok(pills.querySelector('[data-act=drink] svg.ic-drop') && pills.querySelector('[data-act=pomo]'), 'drink and pomo buttons');
     clickOn($(e, '.u1 [data-act=drink]'));
     eq(C.state.health.cups, 1);
@@ -1624,7 +1624,7 @@
     clickOn($(e, '.u1 [data-act=pomo]'));
     eq(C.state.p.phase, 'focus', '1.1.3: a tap does not stop it');
     longPress(e, $(e, '.u1 [data-act=pomo]'));
-    eq([C.state.p.phase, text(e, '.u1 [data-act=pomo] [data-b=pomoBtn]'), text(e, '[data-b=status]')], ['idle', '▶ 番茄鐘', '上班中'], 'a long press does');
+    eq([C.state.p.phase, text(e, '.u1 [data-act=pomo] [data-b=pomoBtn]'), text(e, '[data-b=status]')], ['idle', '番茄鐘', '上班中'], 'a long press does');
     done();
   });
 
@@ -2321,7 +2321,7 @@
     var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: { asked: true, every: 120, sit: { on: true }, water: { on: true, goal: 12 } } },
       rec: today(10, 12, 0) }));
     C.toggleFocus();
-    C.toggleFocus();   // a stopped focus: ▶ 番茄鐘 again, the tomatoes shown
+    C.toggleFocus();   // a stopped focus: 番茄鐘 again, the tomatoes shown
     e.tick(at(12, 9, 1));
     function box(n) { return n.getBoundingClientRect(); }
     function row(list) {   // one line, side by side, none on another
@@ -2333,7 +2333,7 @@
     }
     e.menu('layout:U1');
     var pills = Array.prototype.filter.call($(e, '.u1 .mpills').children, drawn);
-    eq(pills.map(seen), ['10/12 杯', '119 分', '▶ 番茄鐘×12'], '1.1.3: water, the countdown in the middle, the 番茄鐘');
+    eq(pills.map(seen), ['10/12 杯', '119 分', '番茄鐘×12'], '1.1.3: water, the countdown in the middle, the 番茄鐘');
     row(pills);
     ok(box(pills[0]).left >= box($(e, '.u1 .body')).left + 15 && box(pills[2]).right <= box($(e, '.u1 .body')).right - 15, 'inside the card: ' +
       JSON.stringify(pills.map(function (p) { return Math.round(box(p).width * 10) / 10; })) + ' in ' + box($(e, '.u1 .body')).width);
@@ -2738,14 +2738,15 @@
   });
 
   // Item 2: every main window with a title bar (U1, U12, U13) has three small icon buttons on it, in the sticker style
-  // (round, outlined, a hard shadow): 縮小 (to the mini badge), 設定 (opens 設定) and 關閉 (hides). PANEL keeps 縮小 and 關閉.
-  test('layouts DOM: U1, U12 and U13 have 縮小, 設定 and 關閉 on their title bar; 設定 opens 設定', function () {
+  // (round, outlined, a hard shadow): 設定 (opens 設定) and 關閉 (hides); 1.1.2's 釘選 first; 1.1.3 C2: no 縮小 (the menu's
+  // 7 迷你浮窗 does it). A panel beside its layout has 關閉 only.
+  test('layouts DOM: U1, U12 and U13 have 釘選, 設定 and 關閉 on their title bar; 設定 opens 設定', function () {
     ['U1', 'U12', 'U13'].forEach(function (name) {
       var e = mk(at(12, 10, 0), { first: name, care: true });
       var bar = $(e, '.bar'), bs = Array.prototype.slice.call(bar.querySelectorAll('[data-act]'));
-      eq(bs.map(function (b) { return b.getAttribute('data-act'); }), ['pin', 'mini', 'settings', 'hide'], name + ' (1.1.2: 釘選 first)');
+      eq(bs.map(function (b) { return b.getAttribute('data-act'); }), ['pin', 'settings', 'hide'], name + ' (1.1.2: 釘選 first)');
       eq(bs.map(function (b) { return [b.tagName, b.getAttribute('aria-label'), b.title]; }),
-        [['BUTTON', '釘選在最上層', '釘選在最上層'], ['BUTTON', '縮小', '縮小'], ['BUTTON', '設定', '設定'], ['BUTTON', '關閉', '關閉']], name + ': labelled buttons');
+        [['BUTTON', '釘選在最上層', '釘選在最上層'], ['BUTTON', '設定', '設定'], ['BUTTON', '關閉', '關閉']], name + ': labelled buttons');
       bs.shift();   // (the pin toggles topmost: its own test)
       var br = bar.getBoundingClientRect();
       bs.forEach(function (b) {
@@ -2760,16 +2761,15 @@
       });
       eq(of(e.sent, 'dragStart').length, 0, name + ': they never drag');
       var title = text(e, '[data-b=title]');
-      bs[1].click();
+      bs[0].click();
       eq([QJZ.layouts.current(), text(e, '.ptitle'), text(e, '[data-b=title]')], ['PANEL', '設定', title], name + ': 設定 opens 設定, in its window (1.1.2)');
       eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
-        ['pin', 'mini', 'settings', 'hide'], name + ': its own title bar stays');
+        ['pin', 'settings', 'hide'], name + ': its own title bar stays');
       QJZ.layouts.closePanel();
       eq(QJZ.layouts.current(), name, 'back');
       $(e, '.bar [data-act=hide]').click();
       eq(of(e.sent, 'hide').length, 1, name + ': 關閉 hides');
-      $(e, '.bar [data-act=mini]').click();
-      eq(QJZ.layouts.current(), 'M3', name + ': 縮小 goes to the mini badge');
+      eq($(e, '.bar [data-act=mini]'), null, name + ': no 縮小 (1.1.3 C2)');
       done();
     });
   });
@@ -3132,7 +3132,7 @@
       ok(win.classList.contains('inplace') && win.classList.contains('p-settings'), name);
       eq([text(e, '[data-b=title]'), text(e, '.ptitle')], [title, '設定'], name + ': its own title');
       eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }),
-        ['pin', 'mini', 'settings', 'hide'], name + ': its own buttons');
+        ['pin', 'settings', 'hide'], name + ': its own buttons');
       eq(pressed(), [true, 'true'], name + ': 設定 pressed');
       var sc = $(e, '.pscroll'), sr = sc.getBoundingClientRect();
       ok(sc.scrollHeight > sc.clientHeight && sr.bottom <= r.bottom, name + ': the content scrolls inside it');
@@ -3175,7 +3175,7 @@
       var sl = last(e.sent, 'setLayout');
       eq([sl.layout, 'inPlace' in sl, sl.width], ['PANEL', false, 407], name + ': beside it, at its own size');
       eq(text(e, '[data-b=title]'), '錢進中 · 設定', name);
-      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['mini', 'hide']);
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['hide']);
       done();
     });
   });
@@ -3267,7 +3267,7 @@
     var row = $(e, '.u1 .mpills'), body = $(e, '.u1 .body').getBoundingClientRect(), mid = (body.left + body.right) / 2;
     function items() { return Array.prototype.filter.call(row.children, drawn); }
     eq(items().map(kindOf), ['drink', 'stand', 'pomo'], 'water left, 🧍 centre, 番茄鐘 right');
-    eq(items().map(seen), ['喝水', '--', '▶ 番茄鐘'], 'nothing used: all three are there all the same');
+    eq(items().map(seen), ['喝水', '--', '番茄鐘'], 'nothing used: all three are there all the same');
     eq($(e, '.u1 .row-top [data-hold]'), null, 'the countdown left the top row');
     var at0 = geo(items());
     ok(at0[0][2] === at0[1][2] && at0[1][2] === at0[2][2], 'the same width: ' + JSON.stringify(at0));
@@ -3295,12 +3295,12 @@
         });
       });
       if (s[0] === 'the worst case') {
-        eq(items().map(seen), ['10/12 杯', '118 分', '▶ 番茄鐘×12'], 'the counts, the tomatoes on the 番茄鐘 button');
+        eq(items().map(seen), ['10/12 杯', '118 分', '番茄鐘×12'], 'the counts, the tomatoes on the 番茄鐘 button');
         var cnt = $(e, '.u1 .mpills [data-act=pomo] .cnt').getBoundingClientRect(), pomo = items()[2].getBoundingClientRect();
         ok(cnt.left > pomo.left + pomo.width / 2 && cnt.top < pomo.top && cnt.right <= body.right, 'a badge on its corner');
       }
     });
-    eq(items().map(seen), ['喝水', '118 分', '▶ 番茄鐘'], 'nothing logged again');
+    eq(items().map(seen), ['喝水', '118 分', '番茄鐘'], 'nothing logged again');
     done();
   });
 
@@ -3322,7 +3322,7 @@
     ['water', 'pomo', 'stand'].forEach(function (k) {
       ok(look[k].width >= 4, k + ': a thick ring (1.1.2: 2.5 px): ' + look[k].width);
       eq(look[k].anim, 'qjz-hold', k + ': it fills while held');
-      ok(look[k].outline >= 1.5, k + ': outlined: ' + look[k].outline);
+      eq(look[k].outline, 0, k + ': no dark outline (1.1.3 B2), the glow only');
       ok(look[k].glow && look[k].glow !== 'none', k + ': it glows');
     });
     var w = look.water.color, p = look.pomo.color, s = look.stand.color;
@@ -3487,38 +3487,7 @@
     done();
   });
 
-  // Item 6: U12's pet stands on a stage of its own under the rings (a card as wide as the rings), bigger than 1.1.2's, with
-  // its line beside it; a prompt's small bubble takes the line's place on the stage. Nothing changes the window's size.
-  test('layouts DOM: 1.1.3 item 6: U12: the pet sits on its own stage under the rings, bigger, its line beside it; the window keeps its size', function () {
-    var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH }, rec: today(3, 2, 4) }));
-    e.tick(at(12, 9, 42));
-    function box(sel) { return $(e, sel).getBoundingClientRect(); }
-    var size = sizeOf(e), stage = box('.u12 .dfoot'), body = box('.u12 .body'), rings = box('.u12 .rings'), pet = box('.u12 .dfoot .po');
-    var say = box('.u12 .say');
-    ok(stage.top >= rings.bottom, 'under the rings');
-    ok(stage.width >= body.width - 30, 'as wide as the card');
-    ok(Math.abs(stage.left + stage.right - body.left - body.right) <= 2, 'centred');
-    ok(getComputedStyle($(e, '.u12 .dfoot')).backgroundColor !== 'rgba(0, 0, 0, 0)', 'a stage of its own');
-    ok(pet.width >= 96, 'a bigger pet (1.1.2: 79 px wide): ' + pet.width);
-    ok(pet.left >= stage.left && pet.right <= stage.right && pet.bottom <= stage.bottom + 1, 'on its stage');
-    ok(say.left >= pet.right - 14 && say.right <= stage.right && say.top >= stage.top && say.bottom <= stage.bottom, 'its line beside it');
-    eq(seen($(e, '.u12 .say')), '再 8 分鐘起來動～');
-    var pet0 = geo([$(e, '.u12 .dfoot .po')]);
-    [['a focus', function () { C.toggleFocus(); }], ['stopped', function () { C.toggleFocus(); }],
-      ['the reminder', function () { e.tick(at(12, 9, 49, 59)); e.tick(at(12, 9, 50)); }]].forEach(function (s) {
-      s[1]();
-      eq(sizeOf(e), size, s[0] + ': the same window');
-      eq(geo([$(e, '.u12 .dfoot .po')]), pet0, s[0] + ': the pet stays');
-    });
-    var b = box('.u12 .dfoot [data-prompt] .rbub');
-    ok(b.left >= pet.right - 14 && b.right <= stage.right + 1 && b.top >= stage.top - 1 && b.bottom <= body.bottom, 'the bubble beside the pet, on the stage ' +
-      JSON.stringify([b.left, b.top, b.right, b.bottom, stage.left, stage.top, stage.right, stage.bottom]));
-    Array.prototype.forEach.call(e.root.querySelectorAll('[data-answer]'), function (n) {
-      var r = n.getBoundingClientRect();
-      ok(r.left >= stage.left && r.right <= stage.right && r.bottom <= stage.bottom, n.textContent + ' on the stage');
-    });
-    done();
-  });
+  // (Item 6's first stage, a big pet on a card, gave way to B3-a: its test is further down.)
   // Polish (an empty state): U12's pet always says something, so its stage never stands empty: the next stand-up, else the
   // pomodoro's phase, else a hint at the 番茄 ring while working, else the day's status.
   test('layouts DOM: 1.1.3 polish: U12\'s pet line when there is no stand-up to count down to', function () {
@@ -3626,7 +3595,7 @@
     eq([r.width, r.height], [own.width, own.height], 'the layout\'s box');
     ok(win.classList.contains('inplace'));
     eq(text(e, '[data-b=title]'), '錢進中', 'a title bar of its own');
-    eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['pin', 'mini', 'settings', 'hide']);
+    eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['pin', 'settings', 'hide']);
     ok($(e, '.bar [data-act=settings]').classList.contains('on'), '設定 pressed');
     var sc = $(e, '.pscroll'), tabs = $(e, '.tabs').getBoundingClientRect(), tab = $(e, '[data-tab]').getBoundingClientRect();
     ok(sc.scrollHeight > sc.clientHeight && sc.getBoundingClientRect().bottom <= r.bottom, 'the content scrolls inside it');
@@ -3761,5 +3730,108 @@
       });
       done();
     });
+  });
+  // ================= 1.1.3, the user's picks from the options page =================
+  function bgOf(n) { return getComputedStyle(n).backgroundColor; }
+  // B1-a: U1's row and U10's chips in one soft pastel family (water blue, 🧍 green, 番茄鐘 tomato), each with its icon; the
+  // 番茄鐘 reads 🍅 番茄鐘 (no ▶), deeper while a phase runs.
+  test('layouts DOM: 1.1.3 B1-a: the three buttons are one pastel family, each with its icon (U1, U10)', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH }, rec: today(3, 2, 0) }));
+    e.tick(at(12, 9, 1));
+    var w = $(e, '.u1 .mpills [data-act=drink]'), s = $(e, '.u1 .mpills [data-hold]'), p = $(e, '.u1 .mpills [data-act=pomo]');
+    eq([bgOf(w), bgOf(s), bgOf(p)], ['rgb(221, 240, 255)', 'rgb(221, 245, 229)', 'rgb(255, 225, 216)'], 'U1: blue, green, tomato');
+    ok(w.querySelector('svg.ic-drop') && s.querySelector('svg.ic-stand') && p.querySelector('svg.ic-tom'), 'U1: an icon on each, a tomato on 番茄鐘');
+    eq(text(e, '.u1 [data-act=pomo] [data-b=pomoBtn]'), '番茄鐘');
+    C.toggleFocus();
+    eq([bgOf(p), text(e, '.u1 [data-act=pomo] [data-b=pomoBtn]')], ['rgb(255, 201, 186)', '■ 停止'], 'U1: deeper in a phase');
+    e.menu('layout:U10');
+    hoverOn($(e, '.isl'));
+    eq([bgOf($(e, '.iv-x [data-act=drink]')), bgOf($(e, '.iv-x [data-hold]')), bgOf($(e, '.iv-x [data-act=pomo]'))],
+      ['rgb(221, 240, 255)', 'rgb(221, 245, 229)', 'rgb(255, 201, 186)'], 'U10: the same family');
+    done();
+  });
+
+  // B2 (with review M-4): no dark outline, a 4 px ring and its glow; the ×N badge stays over the ring; full, U1's and
+  // U13's 番茄鐘 take the light tint too during a phase.
+  test('layouts DOM: 1.1.3 B2: a 4 px ring with a glow and no outline; the badge stays over it; the full tint shows on U1 and U13', function () {
+    var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH }, rec: today(3, 2, 0) }));
+    C.toggleFocus();
+    var p = $(e, '.u1 .mpills [data-act=pomo]'), r = p.getBoundingClientRect();
+    mouse(p, 'mousedown', r.left + 6, r.top + 5, { detail: 1 });
+    var look = ringLook(p);
+    eq([look.width, look.outline], [4, 0], 'thickness, no outline');
+    ok(look.glow && look.glow !== 'none', 'the glow');
+    var cnt = p.querySelector('.cnt');
+    ok(parseInt(getComputedStyle(cnt).zIndex, 10) > 0, 'the badge over the ring');
+    var c = cnt.getBoundingClientRect();
+    ok(document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2) === cnt || cnt.contains(document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)),
+      'nothing paints over the badge');
+    p.classList.add('charged');
+    eq(bgOf(p), 'rgb(255, 213, 204)', 'U1: full, the light red tint');
+    mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    e.menu('layout:U13');
+    var go = $(e, '.u13 .br-go .go'), g = go.getBoundingClientRect();
+    mouse(go, 'mousedown', g.left + 6, g.top + 5, { detail: 1 });
+    go.classList.add('charged');
+    eq(bgOf(go), 'rgb(255, 213, 204)', 'U13: full, the light red tint');
+    mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    done();
+  });
+
+  // B3-a: U12's pet is small, at the left of one line under the gauges, and the window is shorter. A prompt is a compact
+  // bubble on that line: its title and its buttons, and the water line when it asks water (so nothing it says is lost but
+  // the sub, which the rings show). The window keeps one size through every prompt there is.
+  test('layouts DOM: 1.1.3 B3-a: U12: a small pet beside one line; shorter; a compact prompt that keeps its water line; one size', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH }, rec: today(3, 2, 4) }));
+    e.tick(at(12, 9, 42));
+    var size = sizeOf(e), pet = $(e, '.u12 .dfoot .po').getBoundingClientRect(), say = $(e, '.u12 .say').getBoundingClientRect();
+    ok(size[1] <= 420, 'shorter than 1.1.3\'s first 442 px: ' + size[1]);
+    ok(pet.width <= 80, 'a small pet: ' + pet.width);
+    ok(say.left >= pet.right - 8 && Math.abs((say.top + say.bottom) / 2 - (pet.top + pet.bottom) / 2) <= 16, 'its line beside it');
+    eq(getComputedStyle($(e, '.u12 .dfoot')).boxShadow, 'none', 'no stage card');
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    var b = $(e, '.u12 [data-prompt] .rbub');
+    ok(b && drawn(b) && !drawn(b.querySelector('.rb-ic')), 'the compact bubble, no icon disc');
+    eq(sizeOf(e), size, 'the reminder: the same size');
+    var win = $(e, '.u12').getBoundingClientRect();
+    function inside(tag) {
+      Array.prototype.forEach.call(e.root.querySelectorAll('.u12 [data-prompt] .rb-t, .u12 [data-prompt] .rb-w, .u12 [data-prompt] button'), function (n) {
+        var r = n.getBoundingClientRect();
+        if (r.width) ok(r.left >= win.left && r.right <= win.right - 3 && r.bottom <= win.bottom - 3, tag + ': ' + n.textContent + ' inside');
+      });
+      ok(e.root.querySelector('.u12 [data-prompt] .rb-t').scrollWidth <= e.root.querySelector('.u12 [data-prompt] .rb-t').clientWidth + 1, tag + ': the title whole');
+    }
+    inside('both');
+    ['both', 'sit', 'water'].forEach(function (kind) {
+      QJZ.prompt.LINES[kind].forEach(function (t, i) {
+        QJZ.promptView.render($(e, '.u12'), 'U12', QJZ.prompt.view({ kind: kind, water: false }, { turn: i, min: 120, cups: 12, cupGoal: 20 }));
+        window.dispatchEvent(new Event('resize'));
+        eq(sizeOf(e), size, kind + ' ' + i + ': the same size');
+        inside(kind + ' ' + i);
+      });
+    });
+    QJZ.promptView.render($(e, '.u12'), 'U12', QJZ.prompt.view({ kind: 'break', water: true }, { breakMin: 15, done: 12, long: true }));
+    window.dispatchEvent(new Event('resize'));
+    var wl = $(e, '.u12 [data-prompt] .rb-w');
+    ok(wl && drawn(wl) && /喝/.test(wl.textContent), 'a break that asks water: its water line shows');
+    eq(sizeOf(e), size, 'the long break with its water line and three buttons: the same size');
+    inside('the long break');
+    done();
+  });
+
+  // C2 (the user's pick): no 縮小 on any title bar (7 迷你浮窗 in the menu does it).
+  test('layouts DOM: 1.1.3 C2: no 縮小 on the title bars', function () {
+    ['U1', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { first: name, care: true });
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['pin', 'settings', 'hide'], name);
+      e.menu('settings');
+      eq(Array.prototype.map.call(e.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['pin', 'settings', 'hide'], name + ': in place');
+      done();
+    });
+    var f = mk(at(12, 10, 0), { first: 'U7', care: true });
+    f.menu('settings');
+    eq(Array.prototype.map.call(f.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['hide'], 'a panel beside its layout');
+    done();
   });
 })();
