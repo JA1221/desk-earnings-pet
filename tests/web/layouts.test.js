@@ -716,7 +716,7 @@
     eq(lastState(), 'before 0', 'a new day: 開始上班, no snacks yet');
     var n = of(e.sent, 'menuState').length;
     e.bridge.emit({ type: 'menuOpening' });
-    eq(of(e.sent, 'menuState').length, n + 1, 'nothing changed: it answers all the same (1.1.3: for the 隱藏金額 check)');
+    eq(of(e.sent, 'menuState').length, n, 'nothing changed: nothing sent');
     done();
   });
 
@@ -2250,7 +2250,7 @@
     e.tick(at(12, 9, 50));
     ok($(e, '.u1').classList.contains('prompting'));
     eq(text(e, '.u1 [data-prompt] .rb-s'), '已經坐 50 分鐘囉・今天 3/8 杯');
-    e.menu('undrink');
+    C.undrink();   // (1.1.3: a long press on a water button; the menu's 少記一杯 is gone)
     eq(shownText(e.root.querySelectorAll('.u1 .mpills [data-cups]')), ['2/8 杯']);
     eq(text(e, '.u1 [data-prompt] .rb-s'), '已經坐 50 分鐘囉・今天 2/8 杯', 'the bubble\'s count');
     eq(e.root.querySelectorAll('[data-cups] .plus').length, 0, 'no 「+1」');
@@ -2697,16 +2697,16 @@
     });
   });
 
-  test('layouts DOM: 我剛起來動過了 from the menu or the chip: the pet says 收到！; 等一下 says when, and the chip shows 💤 N 分', function () {
+  test('layouts DOM: 我剛起來動過了 (care.stoodUp, as the chip\'s long press): the pet says 收到！; 等一下 says when, and the chip shows 💤 N 分', function () {
     var e = shown(mk(at(12, 9, 0), { first: 'U5B', care: true, settings: { health: BOTH } }));
     e.tick(at(12, 9, 18));
-    e.menu('stoodUp');
+    C.stoodUp();
     var b = e.root.querySelectorAll('.banner');
     eq([C.state.health.standups, b.length && b[b.length - 1].textContent], [1, '收到！'], 'U5-B: a banner');
     done();
     e = shown(mk(at(12, 9, 0), { first: 'U1', care: true, settings: { health: BOTH } }));
     e.tick(at(12, 9, 18));
-    e.menu('stoodUp');
+    C.stoodUp();
     eq(QJZ.layouts._brain().state, 'petted', 'U1: the pet is pleased');
     ok($(e, '[data-bubble]').classList.contains('show'), 'and says it in its bubble');
     // 等一下
@@ -3236,6 +3236,7 @@
   // ================= 1.1.3 =================
   // A press held on el for ms (by the app's clock), let go on it, and its click: what a finger does. The clock moves on.
   function press(e, el, ms) {
+    el = ringOf(el);   // (on its ring: U12's label is off it, 1.1.3 A3)
     var r = el.getBoundingClientRect(), x = r.left + Math.min(8, r.width / 2), y = r.top + r.height / 2;
     mouse(el, 'mousedown', x, y, { detail: 1 });
     e.clock.ms += ms;
@@ -3351,12 +3352,12 @@
       press(e, btnIn(e, name, WATER_BTN[name]), 500);
       eq(C.state.health.cups, 3, name + ': a short press is a tap');
       b = btnIn(e, name, WATER_BTN[name]);
-      var r = b.getBoundingClientRect();
-      mouse(b, 'mousedown', r.left + 6, r.top + 6, { detail: 1 });
-      ok(ringOf(b).classList.contains('holding') && ringOf(b).classList.contains('h-water'), name + ': the blue ring');
+      var rb = ringOf(b), r = rb.getBoundingClientRect();
+      mouse(rb, 'mousedown', r.left + 6, r.top + 6, { detail: 1 });
+      ok(rb.classList.contains('holding') && rb.classList.contains('h-water'), name + ': the blue ring');
       e.clock.ms += U.HOLD_MS;
-      mouse(b, 'mouseup', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
-      mouse(b, 'click', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
+      mouse(rb, 'mouseup', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
+      mouse(rb, 'click', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
       eq(C.state.health.cups, 2, name + ': the long press takes one off, and its click logs none');
       ok(!e.root.querySelector('.holding'), name + ': the ring is gone');
       var pops = e.root.querySelectorAll('[data-cups] .plus');
@@ -3404,15 +3405,16 @@
       eq([getComputedStyle($(e, '.tip')).pointerEvents, $(e, '.tip').hasAttribute('data-hit')], ['none', false], name + ': it takes no click');
       tap(e, b);
       eq(e.root.querySelectorAll('.tip').length, 1, name + ': one at a time');
-      r = b.getBoundingClientRect();
-      mouse(b, 'mousedown', r.left + 6, r.top + r.height / 2, { detail: 1 });
+      var rb = ringOf(b);
+      r = rb.getBoundingClientRect();
+      mouse(rb, 'mousedown', r.left + 6, r.top + r.height / 2, { detail: 1 });
       var ring = e.root.querySelector('.holding');
       ok(ring && ring.classList.contains('h-pomo'), name + ': the red ring');
       ok(ring === b || b.contains(ring) || ring.contains(b), name + ': on the button');
       eq(holdAnims().length, 1, name + ': it fills while held');
       e.clock.ms += U.HOLD_MS;
-      mouse(b, 'mouseup', r.left + 6, r.top + r.height / 2, { buttons: 0, detail: 1 });
-      mouse(b, 'click', r.left + 6, r.top + r.height / 2, { buttons: 0, detail: 1 });
+      mouse(rb, 'mouseup', r.left + 6, r.top + r.height / 2, { buttons: 0, detail: 1 });
+      mouse(rb, 'click', r.left + 6, r.top + r.height / 2, { buttons: 0, detail: 1 });
       eq(C.state.p.phase, 'idle', name + ': the long press stops it, and its click starts nothing');
       eq(holdAnims().length, 0, name + ': the ring is gone');
       C._dev({ pomo: 'break' });
@@ -3447,30 +3449,22 @@
     });
   });
 
-  // Item 4: the menu's 隱藏金額 sends menu {action:'mask'}: the same toggle as a click on the amount. menuState carries masked,
-  // sent when it changes, and always when the menu opens (menuOpening), for its check mark.
-  test('layouts DOM: 1.1.3 item 4: the menu\'s 隱藏金額 toggles the mask like a click on the amount; menuState says masked', function () {
-    var e = mk(at(12, 10, 0));
-    eq(last(e.sent, 'menuState'), { work: 'working', snacks: 2, masked: false }, 'with the first layout');
-    e.menu('mask');
-    eq(QJZ.app.state.settings.privacy.maskMoney, true, 'masked');
-    ok($(e, '.u1').classList.contains('masked'), 'at once');
-    eq(last(e.sent, 'menuState').masked, true, 'the check follows');
+  // 1.1.3 A2 (the user's ruling, 「這種很直覺的不用做在選單」): the menu has no 隱藏金額, 少記一杯 or 我剛起來動過了 any more (a
+  // click on the amount, a long press on a water button or on the 🧍 do them), so the page takes no mask, undrink or
+  // stoodUp action; menuState is {work, snacks} again, sent only when they change; healthMenu has no sitOn.
+  test('layouts DOM: 1.1.3 A2: the menu lost 隱藏金額, 少記一杯 and 我剛起來動過了: those actions do nothing; menuState is {work, snacks}', function () {
+    var e = shown(mk(at(12, 10, 0), { care: true, settings: { health: BOTH }, rec: counts(2, 0) }));
+    eq(last(e.sent, 'menuState'), { work: 'working', snacks: 2 }, 'with the first layout');
     var n = of(e.sent, 'menuState').length;
-    e.bridge.emit({ type: 'menuOpening' });
-    eq(of(e.sent, 'menuState').length, n + 1, 'menuOpening always answers');
-    eq(last(e.sent, 'menuState'), { work: 'working', snacks: 2, masked: true });
+    ['mask', 'undrink', 'stoodUp'].forEach(function (a) { e.menu(a); });
+    eq([QJZ.app.state.settings.privacy.maskMoney, C.state.health.cups, C.state.health.standups], [false, 2, 0], 'nothing happens');
     clickOn($(e, '.u1 .money'));
-    eq([QJZ.app.state.settings.privacy.maskMoney, last(e.sent, 'menuState').masked], [false, false], 'a click on the amount: the same setting');
-    e.menu('settings');
-    e.menu('mask');
-    eq([QJZ.app.state.settings.privacy.maskMoney, last(e.sent, 'menuState').masked], [true, true], 'from a panel too');
-    ok(!$(e, '.lay').classList.contains('masked'), 'the panel itself is never masked');
-    QJZ.layouts.closePanel();
-    ok($(e, '.u1').classList.contains('masked'), 'back: masked');
-    e.bridge.emit({ type: 'visibility', visible: false });
-    e.menu('mask');
-    eq([QJZ.app.state.settings.privacy.maskMoney, last(e.sent, 'menuState').masked], [false, false], 'hidden: toggled all the same');
+    eq(QJZ.app.state.settings.privacy.maskMoney, true, 'a click on the amount still masks');
+    eq(of(e.sent, 'menuState').length, n, 'and menuState does not go for it');
+    e.bridge.emit({ type: 'menuOpening' });
+    eq(of(e.sent, 'menuState').length, n, 'nothing changed: nothing sent');
+    ok(of(e.sent, 'healthMenu').length > 0 && of(e.sent, 'healthMenu').every(function (m) { return Object.keys(m.p).sort().join() === 'cups,pomodoro'; }),
+      'healthMenu: {cups, pomodoro}');
     done();
   });
 
@@ -3668,5 +3662,104 @@
     ok($(e, '.u7 .tools [data-act=settings] svg') && $(e, '.u7 .tools [data-act=hide] svg'), 'U7: both icons');
     eq([text(e, '.u7 .tools [data-act=settings]'), text(e, '.u7 .tools [data-act=hide]')], ['', '']);
     done();
+  });
+  // 1.1.3 A1 (review M-2): with the 起來動 reminder off, the always-there 🧍 (U1's middle button, U10's chip) is a faded --
+  // with no tip, and takes no long press. On, it is the countdown again, and -- at lunch still takes the long press.
+  test('layouts DOM: 1.1.3 A1: with 起來動 off the 🧍 is a faded -- and takes no long press (U1, U10)', function () {
+    [['U1', '.u1 .mpills [data-hold]'], ['U10', '.u10 .iv-x [data-hold]']].forEach(function (c) {
+      var e = shown(mk(at(12, 9, 0), { first: c[0], care: true, settings: { health: OFF113 } }));
+      function chip() { if (c[0] === 'U10' && !$(e, '.isl').classList.contains('hover')) hoverOn($(e, '.isl')); return $(e, c[1]); }
+      var n = chip();
+      eq(seen(n), '--', c[0]);
+      ok(n.classList.contains('inert'), c[0] + ': inert');
+      ok(parseFloat(getComputedStyle(n).opacity) <= 0.6, c[0] + ': faded ' + getComputedStyle(n).opacity);
+      eq([n.title, getComputedStyle(n).cursor], ['', 'default'], c[0] + ': no tip, no hand');
+      var r = n.getBoundingClientRect();
+      mouse(n, 'mousedown', r.left + 5, r.top + 5, { detail: 1 });
+      eq(e.root.querySelectorAll('.holding').length, 0, c[0] + ': no ring');
+      mouse(n, 'mouseup', r.left + 5, r.top + 5, { buttons: 0 });
+      longPress(e, n);
+      eq(C.state.health.standups, 0, c[0] + ': a long press counts nothing');
+      eq(of(e.sent, 'dragStart').length, 0, c[0] + ': nor drags');
+      QJZ.app.saveSettings({ health: { sit: { on: true } } });
+      e.tick(at(12, 9, 0, 30));
+      n = chip();
+      ok(!n.classList.contains('inert') && /長按/.test(n.title) && parseFloat(getComputedStyle(n).opacity) === 1, c[0] + ': on: the countdown, with its tip');
+      longPress(e, n);
+      eq(C.state.health.standups, 1, c[0] + ': on: the long press counts');
+      e.tick(at(12, 12, 30));
+      n = chip();
+      eq([seen(n), n.classList.contains('inert')], ['--', false], c[0] + ': at lunch -- but it still takes the long press');
+      done();
+    });
+  });
+
+  // 1.1.3 A3 (review M-3, M-7): a press that slides off a water or 番茄鐘 control before it is let go does nothing: no −1,
+  // no stop, and no tap either (the click the browser then sends to what holds both does nothing). U12's ring label is off
+  // its ring; a press that starts on the label is a tap.
+  test('layouts DOM: 1.1.3 A3: sliding off a water or 番茄鐘 control mid-press does nothing (U12: onto the ring\'s label too)', function () {
+    var CASES = [['U1', '.u1 .mpills [data-act=drink]', '.u1 .mpills', null], ['U1', '.u1 .mpills [data-act=pomo]', '.u1 .mpills', null],
+      ['U3', '.u3 [data-act=drink]', '.u3 .hud-bottom', null], ['U10', '.u10 .iv-x [data-act=pomo]', '.u10 .iv-x .icol', null],
+      ['U12', '.u12 [data-gauge=cups] .rg', '.u12 [data-gauge=cups] .gl', '.u12 [data-gauge=cups]'],
+      ['U12', '.u12 [data-gauge=tom] .rg', '.u12 [data-gauge=tom] .gl', '.u12 [data-gauge=tom]'],
+      ['U13', '.u13 .br-go .go', '.u13 .bigring', null]];
+    CASES.forEach(function (c, i) {
+      var e = shown(mk(at(12, 10, 0), { first: c[0], care: true, settings: { health: WATER_ON }, rec: counts(3, 0) }));
+      var pomo = /pomo|tom|\.go/.test(c[1]), tag = c[0] + ' ' + i + ': ';
+      if (c[0] === 'U10') hoverOn($(e, '.isl'));
+      if (pomo) C.toggleFocus();
+      var from = $(e, c[1]), to = $(e, c[2]), r = from.getBoundingClientRect(), q = to.getBoundingClientRect();
+      mouse(from, 'mousedown', r.left + 6, r.top + r.height / 2, { detail: 1 });
+      ok(e.root.querySelector('.holding'), tag + 'held');
+      e.clock.ms += U.HOLD_MS + 100;
+      mouse(to, 'mousemove', q.left + 3, q.bottom - 3);
+      ok(!e.root.querySelector('.holding'), tag + 'off it, the ring goes');
+      mouse(to, 'mouseup', q.left + 3, q.bottom - 3, { buttons: 0, detail: 1 });
+      mouse($(e, c[3] || c[2]), 'click', q.left + 3, q.bottom - 3, { buttons: 0, detail: 1 });   // (to what holds both)
+      eq([C.state.health.cups, C.state.p.phase], [3, pomo ? 'focus' : 'idle'], tag + 'nothing');
+      eq(e.root.querySelectorAll('.tip').length, 0, tag + 'not even the tip');
+      done();
+    });
+    var f = shown(mk(at(12, 10, 0), { first: 'U12', care: true, settings: { health: WATER_ON }, rec: counts(3, 0) }));
+    var gl = $(f, '.u12 [data-gauge=cups] .gl');
+    mouse(gl, 'mousedown', 3, 3, { detail: 1 });
+    eq(f.root.querySelectorAll('.holding').length, 0, 'U12: a press on the label holds nothing');
+    mouse(gl, 'mouseup', 3, 3, { buttons: 0, detail: 1 });
+    mouse(gl, 'click', 3, 3, { buttons: 0, detail: 1 });
+    eq(C.state.health.cups, 4, 'it is a tap');
+    done();
+  });
+
+  // 1.1.3 A3 (review M-7): Enter or Space on a water or 番茄鐘 button is a tap (the browser sends a click with no press): a
+  // cup, a start, and while a phase runs only the tip. A long press's action (a cup off, a stop) never comes from the
+  // keyboard, and the 🧍 countdown is not a button at all.
+  test('layouts DOM: 1.1.3 A3: Enter / Space on the water and 番茄鐘 buttons is a tap; a long press\'s action never comes from the keyboard', function () {
+    ['U1', 'U3', 'U5B', 'U12'].forEach(function (name) {
+      var e = shown(mk(at(12, 10, 0), { first: name, care: true, settings: { health: BOTH }, rec: counts(3, 0) }));
+      e.tick(at(12, 10, 0, 500));
+      var w = $(e, WATER_BTN[name]), p = $(e, POMO_BTN[name]);
+      eq([w.tagName, p.tagName], ['BUTTON', 'BUTTON'], name + ': buttons, so the keyboard reaches them');
+      function key(b, k) {
+        b.focus();
+        b.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+        b.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true, cancelable: true }));
+        b.click();   // what Enter / Space do on a focused button: a click, with no press (detail 0)
+      }
+      key(w, 'Enter');
+      key(w, ' ');
+      eq(C.state.health.cups, 5, name + ': Enter and Space each log a cup, never take one off');
+      key(p, 'Enter');
+      eq(C.state.p.phase, 'focus', name + ': a start');
+      key(p, ' ');
+      key(p, 'Enter');
+      eq(C.state.p.phase, 'focus', name + ': running, the keyboard never stops it');
+      eq(tips(e), ['長按停止'], name + ': only the tip');
+      eq(e.root.querySelectorAll('.holding').length, 0, name + ': no ring');
+      ok(!e.root.contains(document.activeElement), name + ': no focus kept');
+      Array.prototype.forEach.call(e.root.querySelectorAll('[data-hold]'), function (h) {
+        eq([h.tagName === 'BUTTON', h.tabIndex], [false, -1], name + ': the 🧍 is no button: the keyboard cannot reach it');
+      });
+      done();
+    });
   });
 })();

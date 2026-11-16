@@ -23,8 +23,8 @@ window.QJZ = window.QJZ || {};
 // A clock set back moves the arbiter's times and 等一下 with it, so no bubble waits for the size of the jump.
 //
 // Host messages: visibility {visible} (false until the first one), fullscreen {on, here}, menu {action} ('drink',
-// 'undrink', 'pomodoro', 'stoodUp'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}, sitOn}
-// (sitOn, 1.1.2: the 起來動 reminder is on, for the menu's 我剛起來動過了).
+// 'pomodoro'). To the host: raise {on}, healthMenu {cups, pomodoro:{phase, endsMs}}. (1.1.3 A2: the menu lost 少記一杯 and
+// 我剛起來動過了, so undrink / stoodUp come from the layouts' long presses only, and healthMenu has no sitOn.)
 // 1.1.2 item 9: the session (lock, unlock, suspend, resume) means nothing here any more: a lock is no stand-up and the
 // timer runs on through it (the locked time is sat time). A reminder that comes due meanwhile waits for the window
 // (the host sends visibility false while locked) and shows 3 s after it is back; nothing is said about the lock.
@@ -244,8 +244,7 @@ QJZ.care = (function () {
       state.standIn, state.nth, state.forced, state.snoozed]);
     if (sig !== lastSig) { lastSig = sig; emit('change', state); }
     var menu = { cups: state.show.cups ? state.cupsText : null,
-      pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null },
-      sitOn: R.ask(s.health, h.cups).sit };
+      pomodoro: { phase: p.phase, endsMs: p.phase === 'focus' || p.phase === 'break' ? p.endMs : null } };
     var text = JSON.stringify(menu);
     if (text !== lastMenu) { lastMenu = text; bridge.send('healthMenu', menu); }
   }
@@ -305,9 +304,7 @@ QJZ.care = (function () {
   function onMenu(msg) {
     var a = msg && msg.action;
     if (a === 'drink') drink();
-    else if (a === 'undrink') undrink();
     else if (a === 'pomodoro') toggleFocus();
-    else if (a === 'stoodUp') stoodUp();
   }
 
   // ---- actions ----
@@ -344,7 +341,7 @@ QJZ.care = (function () {
     });
     return true;
   }
-  // 少記一杯 (1.1.1 item 4, the menu's undrink): 今天已喝 −, one cup off today; at 0 nothing (false). Nothing else
+  // 少記一杯 (1.1.1 item 4; 1.1.3: a long press on a water button): 今天已喝 −, one cup off today; at 0 nothing (false). Nothing else
   // changes: not the timer, no stand-up, no line. The bubble's count, the layouts, the calendar and healthMenu follow
   // the change; a bubble that stopped asking water at the goal asks it again on the next step.
   function undrink() {
@@ -368,7 +365,7 @@ QJZ.care = (function () {
     });
     return true;
   }
-  // 「我剛起來動過了」 (1.1.2 item 7: the menu's stoodUp, or a long press on the countdown): a stand-up, and the timer
+  // 「我剛起來動過了」 (1.1.2 item 7: a long press on the countdown; 1.1.3 dropped its menu item): a stand-up, and the timer
   // restarts (as 起來了 does, with or without a bubble; a 等一下 that runs ends with it). A bubble it answers goes first
   // (quietly, on the step), so the pet's 收到 (standup source 'manual') is said in its own bubble, not over the prompt.
   function stoodUp() {

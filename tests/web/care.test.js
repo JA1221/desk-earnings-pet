@@ -641,16 +641,16 @@
 
   test('care: menu pomodoro starts and stops; healthMenu follows only on change', function () {
     var e = mk(at(9, 0));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }], 'sent after init');
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } }], 'sent after init');
     go(e, at(10, 0));
     eq(C.state.prompt.kind, 'both');
     var m = mark(e);
     menu(e, 'pomodoro');
-    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'focus', endsMs: at(10, 25) }, sitOn: true }]);
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'focus', endsMs: at(10, 25) } }]);
     eq(prompts(e, m), ['hide:quiet'], 'a focus sends the open reminder back to its queue at once');
     eq(events(e, m, 'cue'), ['focus']);
     menu(e, 'pomodoro');
-    eq(sends(e, m, 'healthMenu')[1], { cups: '0/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true });
+    eq(sends(e, m, 'healthMenu')[1], { cups: '0/8', pomodoro: { phase: 'idle', endsMs: null } });
     eq(sends(e, m, 'healthMenu').length, 2);
     m = mark(e);
     for (var i = 1; i <= 30; i++) go(e, at(10, 0, i));
@@ -659,7 +659,7 @@
     done();
 
     e = mk(at(9, 0), S(SIT));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: null, pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }]);
+    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu'), [{ cups: null, pomodoro: { phase: 'idle', endsMs: null } }]);
     eq([C.state.show.cups, C.state.cupsText], [false, '0/8']);
     C.drink();
     eq([C.state.show.cups, C.state.cupsText], [true, '1/8'], 'a cup logged today shows the count');
@@ -676,7 +676,7 @@
     e.clock.ms = at(9, 25, 5);
     eq(sends(e, m, 'healthMenu'), [], 'nothing steps while hidden here');
     e.bridge.emit({ type: 'menuOpening' });
-    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'break', endsMs: at(9, 30) }, sitOn: true }], 'the break, at once');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '0/8', pomodoro: { phase: 'break', endsMs: at(9, 30) } }], 'the break, at once');
     eq(h(), [0, 1, 1]);
     e.bridge.emit({ type: 'menuOpening' });
     eq(sends(e, m, 'healthMenu').length, 1, 'only on change');
@@ -814,24 +814,25 @@
   });
 
   // ---------- 1.1.1 ----------
-  // Item 4: 少記一杯 (the host's menu {action:'undrink'}) is 今天已喝 −: one cup off today, never below 0, nothing else.
+  // Item 4: 少記一杯 (1.1.1: the menu's undrink; 1.1.3: a long press on a water button, care.undrink) is 今天已喝 −: one cup
+  // off today, never below 0, nothing else.
   test('care: 少記一杯 takes one cup off today, never below 0, and changes nothing else', function () {
     var e = mk(at(9, 0));
     C.setCups(3);
     go(e, at(9, 20));
     var r = JSON.stringify(C.state.r), m = mark(e);
-    menu(e, 'undrink');
+    C.undrink();
     eq(h(), [2, 0, 0]);
     eq(A.state.history.days['2026-11-12'].health, { cups: 2, cupGoal: 8, tomatoes: 0, standups: 0 }, 'today, as the calendar reads it');
     ok(sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.cups === 2; }), 'saved at once');
-    eq(sends(e, m, 'healthMenu'), [{ cups: '2/8', pomodoro: { phase: 'idle', endsMs: null }, sitOn: true }], 'the menu follows');
+    eq(sends(e, m, 'healthMenu'), [{ cups: '2/8', pomodoro: { phase: 'idle', endsMs: null } }], 'the menu follows');
     eq([events(e, m, 'drank'), events(e, m, 'standup')], [[], []], 'not a cup, not a stand-up');
     eq(JSON.stringify(C.state.r), r, 'the timer is as it was');
-    menu(e, 'undrink');
-    menu(e, 'undrink');
+    C.undrink();
+    C.undrink();
     eq(h(), [0, 0, 0]);
     m = mark(e);
-    menu(e, 'undrink');
+    C.undrink();
     eq(h(), [0, 0, 0], 'never below 0');
     eq([sends(e, m, 'saveHistory'), sends(e, m, 'healthMenu')], [[], []], 'and nothing is written');
     eq(C.undrink(), false);
@@ -849,7 +850,7 @@
     C.setCups(3);
     go(e, at(9, 50));
     eq(C.view().sub, '已經坐 50 分鐘囉・今天 3/8 杯');
-    menu(e, 'undrink');
+    C.undrink();
     eq(C.view().sub, '已經坐 50 分鐘囉・今天 2/8 杯', 'the bubble\'s count');
     done();
 
@@ -858,7 +859,7 @@
     go(e, at(9, 50));
     var m = mark(e);
     eq(C.state.prompt.kind, 'sit', 'at the goal: only 起來動');
-    menu(e, 'undrink');
+    C.undrink();
     go(e, at(9, 50, 1));
     eq(prompts(e, m), ['update:both'], '7/8: water again');
     eq(C.view().sub, '已經坐 50 分鐘囉・今天 7/8 杯');
@@ -1070,7 +1071,7 @@
     go(e, at(9, 10, 1));
     eq(C.state.r.forced, false, 'water only and the goal reached: it ends');
     C.setPanel(false);
-    menu(e, 'undrink');
+    C.undrink();
     m = mark(e);
     walk(e, at(9, 10, 2), at(9, 10, 10), 1000);
     eq(prompts(e, m), [], 'a later 少記一杯 pops nothing up');
@@ -1078,13 +1079,13 @@
   });
 
   // ---------- 1.1.2 ----------
-  // Item 7: 「我剛起來動過了」, from the menu (menu {action:'stoodUp'}) or a long press on the countdown (care.stoodUp):
+  // Item 7: 「我剛起來動過了」, a long press on the countdown (care.stoodUp; 1.1.2's menu item is gone since 1.1.3):
   // a stand-up, the timer restarts, and the pet says 收到 (the layouts, on standup source 'manual').
   test('care: 我剛起來動過了 counts a stand-up and restarts the timer', function () {
     var e = mk(at(9, 0));
     go(e, at(9, 30));
     var m = mark(e);
-    menu(e, 'stoodUp');
+    C.stoodUp();
     eq(h(), [0, 0, 1]);
     eq(events(e, m, 'standup'), [{ count: 1, source: 'manual' }]);
     ok(sends(e, m, 'saveHistory').some(function (p) { return JSON.parse(p.text).days['2026-11-12'].health.standups === 1; }), 'saved at once');
@@ -1117,16 +1118,17 @@
     done();
   });
 
-  // healthMenu.sitOn (for the host's 我剛起來動過了 item): the 起來動 reminder is on.
-  test('care: healthMenu says whether 起來動 is on', function () {
+  // 1.1.3 A2 (「這種很直覺的不用做在選單」): the menu lost 少記一杯 and 我剛起來動過了, so healthMenu is {cups, pomodoro}
+  // again (no sitOn) and the page takes no undrink or stoodUp action; care.undrink and care.stoodUp stay, for the long presses.
+  test('care: healthMenu is {cups, pomodoro}; the menu\'s undrink and stoodUp are gone', function () {
     var e = mk(at(9, 0), S(WATER));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu').pop().sitOn, false);
-    var m = mark(e);
-    A.saveSettings({ health: { sit: { on: true } } });
-    eq(sends(e, m, 'healthMenu').map(function (p) { return p.sitOn; }), [true]);
-    done();
-    e = mk(at(9, 0), S(null));
-    eq(sends(e, { log: 0, sent: 0 }, 'healthMenu').pop().sitOn, false, 'not answered yet: off');
+    C.setCups(2);
+    eq(Object.keys(sends(e, { log: 0, sent: 0 }, 'healthMenu').pop()).sort(), ['cups', 'pomodoro']);
+    menu(e, 'undrink');
+    menu(e, 'stoodUp');
+    eq(h(), [2, 0, 0], 'nothing from the menu');
+    eq([C.undrink(), C.stoodUp()], [true, true], 'the long presses still do them');
+    eq(h(), [1, 0, 1]);
     done();
   });
 

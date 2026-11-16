@@ -13,8 +13,8 @@ window.QJZ = window.QJZ || {};
 //                                           rAF does not run there), again whenever the size or the DPR changes.
 //                                           U10's always carries dock (settings.layout.capsule: top | bottomLeft |
 //                                           bottomCenter | bottomRight), and goes again when it changes.
-//                                           inPlace (1.1.2 item 3): PANEL in the window it was opened from (U1, U12,
-//                                           U13; 設定, 紀錄, 調整起算時間): width / height are that window's own, as
+//                                           inPlace (1.1.2 item 3): PANEL in the window it was opened from (U1, U3,
+//                                           U12, U13; 設定, 紀錄, 調整起算時間): width / height are that window's own, as
 //                                           sent last, and the panel fits itself to them (its content scrolls). Every
 //                                           setLayout of that PANEL carries it; one without it is a panel of its own.
 //   hitRects {rects:[[x,y,w,h],...], dpr}   one rect per visible [data-hit] element; everything else clicks
@@ -98,8 +98,8 @@ window.QJZ = window.QJZ || {};
 // the window behind it) nothing is said at all: no speech bubble, banner, chatter, event or milestone line, drank line,
 // confetti, coin or jingle (hushed). Nothing is replayed afterwards; chatter starts again 7–15 s later.
 // 1.1.2 item 7: the countdown chips ([data-hold]: U1, U3, U5-B, U7, U10 expanded, U13) take a long press: held HOLD_MS
-// (by the app's clock) and released on the chip, it is 我剛起來動過了 (care.stoodUp; the menu's stoodUp is the same, in
-// care). A ring fills around the chip while it is held (health.css, only then); a short press, or one that slides off,
+// (by the app's clock) and released on the chip, it is 我剛起來動過了 (care.stoodUp; 1.1.2's menu item for it is gone
+// since 1.1.3). A ring fills around the chip while it is held (health.css, only then); a short press, or one that slides off,
 // does nothing, and a press there never drags the window, pokes the pet or toggles the mask. The pet says 收到！ (standup
 // source 'manual'); after 等一下 it says 「好，5 分鐘後再叫你～」 (care's snooze), and the chips show 💤 N 分 until the
 // snooze ends (class snz).
@@ -119,8 +119,13 @@ window.QJZ = window.QJZ || {};
 //     or a start; a tap on a pomodoro button while a phase runs only shows 「長按停止」 for a moment (tip). Idle, a
 //     pomodoro button takes no long press. Those controls keep no keyboard focus.
 //   item 3: NAMES / GROUPS, the layouts' display names 「N 名稱」 in category order (設定's 畫面 shows the one in use).
-//   item 4: menu {action:'mask'} (the menu's 隱藏金額) toggles the mask, as a click on the amount; menuState carries
-//     masked (the setting), sent when it changes and always on menuOpening, for the menu's check mark.
+//   A1 (the user's ruling): water, 🧍 and 番茄鐘 are always there (U1's row, U10's chips). With the 起來動 reminder off
+//     the 🧍 is a faded -- (.inert) with no tip, and takes no long press (review M-2); on, it is the countdown, -- when
+//     there is no number (lunch, a focus, ...), still taking the long press.
+//   A2 (the user's ruling, 「這種很直覺的不用做在選單」): the menu has no 隱藏金額, 少記一杯 or 我剛起來動過了, so the page
+//     takes no mask / undrink / stoodUp action and menuState is {work, snacks} again (1.1.2's).
+//   A3: a long press goes by its ring: let go off it (U12: on the ring's label; U13: off ■ 停止) it does nothing, and the
+//     click that comes with that release is no tap either (review M-3).
 //   item 5: M3's tag masks at once; only a double click on its round avatar (.ring) expands M3.
 //   item 9: U3's 設定 / 紀錄 / 調整起算時間 open in its own window too (INPLACE).
 QJZ.layouts = (function () {
@@ -160,7 +165,7 @@ QJZ.layouts = (function () {
   var SNACK = { cat: '🐟', hamster: '🌻' };
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
   var DBL_MS = 600;   // a double press's second press comes within this (Windows' double-click time is 500 ms by default)
-  var HOLD_MS = 1200; // 我剛起來動過了: how long the countdown chip is held (health.css's ring fills over the same time)
+  var HOLD_MS = 1200; // a long press (the 🧍, water −1, the pomodoro's stop): how long it is held (health.css's ring fills as long)
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
@@ -295,6 +300,7 @@ QJZ.layouts = (function () {
       showStandC: showStandC, standCHeld: held && phase !== 'focus', standMin: base === null ? '' : base + ' 分',
       // the buttons that are always there (1.1.3 items 1, 7, 8, 9): 喝水 while the cups do not show, -- for no countdown
       cupsBtn: showCups ? cups + ' 杯' : '喝水', standSlot: showStandC ? base + ' 分' : '--', standSlotX: stand !== null ? stand + ' 分後' : '--',
+      sitOn: sitOn,   // the 起來動 reminder is on: the always-there 🧍 takes its long press (1.1.3 A1)
       pomoBtn: phase ? '■ 停止' : '▶ 番茄鐘', pomoGlyph: phase ? '■' : '▶', pomoGo: phase ? '■ 停止' : '▶ 開始專心',
       ring: { phase: phase, fraction: frac, label: phase ? '還剩 ' + P.minutesLeft(p, sec) + ' 分' : '' },
       mmss: phase ? P.mmss(p, sec) : '',
@@ -615,6 +621,14 @@ QJZ.layouts = (function () {
       });
       view.nils.forEach(function (n) { n.classList.toggle('nil', !(n.getAttribute('data-nil') === 'stand' ? m.showStand : m.showStandC)); });
     }
+    if (view.cache.sitOn !== m.sitOn) {   // 1.1.3 A1: 起來動 off, the always-there 🧍 is inert: faded, no tip, no long press
+      view.cache.sitOn = m.sitOn;
+      view.nils.forEach(function (n) {
+        if (!n.hasAttribute('data-tip')) n.setAttribute('data-tip', n.title);
+        n.classList.toggle('inert', !m.sitOn);
+        n.title = m.sitOn ? n.getAttribute('data-tip') : '';
+      });
+    }
     if (view.cache.phase !== ph) {
       view.cache.phase = ph;
       [view.el].concat(view.rings).forEach(function (n) {
@@ -658,13 +672,12 @@ QJZ.layouts = (function () {
       }
     }
   }
-  // menuState for the host's menu, when the work status, the snack count or the mask (1.1.3: masked, the menu's 隱藏金額
-  // check) changed; force: anyway (the menu is opening).
-  function sendMenu(m, force) {
-    var work = WORK[m.key] || 'before', masked = !!m.masked, k = work + ' ' + m.snacks + ' ' + masked;
-    if (sent.menu === k && !force) return;
+  // menuState for the host's menu, when the work status or the snack count changed.
+  function sendMenu(m) {
+    var work = WORK[m.key] || 'before', k = work + ' ' + m.snacks;
+    if (sent.menu === k) return;
     sent.menu = k;
-    send('menuState', { work: work, snacks: m.snacks, masked: masked });
+    send('menuState', { work: work, snacks: m.snacks });
   }
 
   // ================= the pet's behaviour =================
@@ -1152,7 +1165,7 @@ QJZ.layouts = (function () {
     try { v = session ? session.getItem(SHOWN_KEY) : null; } catch (e) {}
     return isMain(v) || v === 'M3' ? v : null;
   }
-  // From U1, U12 or U13, 設定, 紀錄 and 調整起算時間 take that window as it is (inPlace); a panel already showing keeps
+  // From U1, U3, U12 or U13, 設定, 紀錄 and 調整起算時間 take that window as it is (inPlace); a panel already showing keeps
   // its window whatever it switches to.
   function openPanel(kind) {
     panelKind = panels() && panels().has(kind) ? kind : 'settings';
@@ -1372,7 +1385,6 @@ QJZ.layouts = (function () {
       case 'end': endWork(); break;
       case 'adjust': case 'settings': case 'history': openPanel(a); break;
       case 'topmost': toggleTopmost(); break;
-      case 'mask': toggleMask(); break;   // 1.1.3 item 4: 隱藏金額, as a click on the amount
       // toggleVisible is handled by the host; anything else is ignored
     }
   }
@@ -1412,11 +1424,6 @@ QJZ.layouts = (function () {
   // QJZ.app caught up while hidden (or the menu is opening): only the menu needs it now, the rest renders on re-show.
   function onRefresh() {
     if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs(), careState()));
-  }
-  // The host's menu is opening (1.1.3 item 4): menuState goes now whatever changed, so its 隱藏金額 check is right; the app's
-  // refresh (on the same message) sends it again if catching up changed it.
-  function onMenuOpening() {
-    if (ready() && app().state.snap) sendMenu(model(app().state, app().nowMs(), careState()), true);
   }
   // QJZ.care changed what it shows (a cup, a tomato, a phase, from a button, the menu or the tray): at once, not at the
   // next second. Its countdowns do not fire this; they follow onSecond.
@@ -1519,15 +1526,18 @@ QJZ.layouts = (function () {
   var swallow = null;  // the control whose long press fired: the click that comes with its release does nothing more
   // A focus or a break runs (a pomodoro button's long press stops it; idle or 休息結束, a tap starts one).
   function phaseRuns() { var cs = careState(); return !!(cs && cs.ready && cs.p && (cs.p.phase === 'focus' || cs.p.phase === 'break')); }
-  // What a press on t holds, or null: a countdown ([data-hold]: stand), a water button (water), a pomodoro button while a
-  // phase runs (pomo; U13's ring only on its ■ 停止).
+  // What a press on t holds, or null: a countdown ([data-hold]: stand; not an inert one, 1.1.3 A1), a water button (water),
+  // a pomodoro button while a phase runs (pomo). A button whose ring is a part of it ([data-holdring]: U12's rings, U13's
+  // ■ 停止) holds only a press on that part: one on U12's label is a tap.
   function holdTarget(t) {
     var h = t.closest('[data-hold]');
-    if (h) return { el: h, kind: 'stand' };
+    if (h) return h.classList.contains('inert') ? null : { el: h, kind: 'stand' };
     var a = t.closest('[data-act=drink],[data-act=pomo]');
     if (!a) return null;
+    var ring = a.querySelector('[data-holdring]');
+    if (ring && !ring.contains(t)) return null;
     if (a.getAttribute('data-act') === 'drink') return { el: a, kind: 'water' };
-    return phaseRuns() && (!a.classList.contains('br-go') || t.closest('.go')) ? { el: a, kind: 'pomo' } : null;
+    return phaseRuns() ? { el: a, kind: 'pomo' } : null;
   }
   function holdStart(h) {
     holdEnd(false);
@@ -1544,6 +1554,7 @@ QJZ.layouts = (function () {
     hold = null;
     if (!h) return;
     h.ring.classList.remove('holding', 'charged', 'h-' + h.kind);
+    if (!fire && h.kind !== 'stand') swallow = h.el;   // slid off it or let go elsewhere (review M-3): no tap either
     if (!fire || !ready() || app().nowMs() - h.at < HOLD_MS || !QJZ.care) return;
     if (h.kind === 'stand') { QJZ.care.stoodUp(); return; }
     swallow = h.el;
@@ -1601,7 +1612,7 @@ QJZ.layouts = (function () {
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
   }
   function onMove(e) {
-    if (hold && (!(e.buttons & 1) || !hold.el.contains(e.target))) holdEnd(false);   // slid off, or released elsewhere
+    if (hold && (!(e.buttons & 1) || !hold.ring.contains(e.target))) holdEnd(false);   // slid off its ring, or released elsewhere
     if (dragging && !(e.buttons & 1)) { endDrag(); return; }   // the button is up: no dragEnd is coming
     if (!drag) return;
     if (!(e.buttons & 1)) { drag = null; return; }
@@ -1631,7 +1642,7 @@ QJZ.layouts = (function () {
   }
   function onUp(e) {
     drag = null;
-    if (hold) holdEnd(!!(e && e.target && hold.el.contains(e.target)));
+    if (hold) holdEnd(!!(e && e.target && hold.ring.contains(e.target)));
     if (dragging) endDrag();
   }
   function onContext(e) {
@@ -1824,7 +1835,7 @@ QJZ.layouts = (function () {
         QJZ.care.on('drank', onDrank), QJZ.care.on('standup', onStandup), QJZ.care.on('snooze', onSnooze));
     }
     [bridge.on('menu', onMenu), bridge.on('dragEnd', endDrag), bridge.on('capsuleDock', onCapsuleDock),
-      bridge.on('pointer', onPointer), bridge.on('menuOpening', onMenuOpening)].forEach(function (off) {
+      bridge.on('pointer', onPointer)].forEach(function (off) {
       if (typeof off === 'function') offs.push(off);
     });
     root.addEventListener('click', onClick);
