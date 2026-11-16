@@ -1967,7 +1967,7 @@
   test('layouts DOM: U12: rings from the three goals, always shown; the water ring drinks; the matching ring glows; the bottom line', function () {
     var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH }, rec: today(3, 3, 5) }));
     e.tick(at(12, 9, 42));
-    eq(rings(e), ['cups 37.5 3/8 喝水（杯）', 'tom 75 3 番茄（顆）', 'stand 55.6 5 起來動（次）'], 'goals: 8 cups, 4 tomatoes, 9 stand-ups (8 h / 50 min)');
+    eq(rings(e), ['cups 37.5 3/8 喝水（杯）', 'tom 75 3 番茄（顆）', 'stand 55.6 5 8 分後起來動'], 'goals: 8 cups, 4 tomatoes, 9 stand-ups (8 h / 50 min); 1.1.4 item 3: the time to the next');
     eq(shownText(e.root.querySelectorAll('.u12 .say')), ['再 8 分鐘起來動～']);
     eq(getComputedStyle($(e, '.u12 [data-gauge=cups] .rg')).transitionDuration, '0s', 'no transition on the rings');
     clickOn($(e, '.u12 [data-gauge=cups]'));
@@ -1985,7 +1985,7 @@
     eq(sizeOf(e), size, 'the window keeps its size');
     clickOn($(e, '[data-answer=up]'));
     eq(hots(e), [false, false, false]);
-    eq(rings(e)[2], 'stand 66.7 6 起來動（次）');
+    eq(rings(e)[2], 'stand 66.7 6 50 分後起來動');
     QJZ.app.saveSettings({ health: { water: { on: false } } });
     C._dev({ prompt: 'sit' });
     eq(hots(e), [false, false, true], 'sit: the stand-up ring');
@@ -2013,6 +2013,35 @@
     eq(rings(f), ['cups 0 0/8 喝水（杯）', 'tom 0 0 番茄（顆）', 'stand 0 0 起來動（次）'], 'unused: the rings are still there (§4.9 #8)');
     ok(Array.prototype.every.call(f.root.querySelectorAll('.u12 [data-gauge]'), drawn));
     eq(shownText(f.root.querySelectorAll('.u12 .say')), ['點番茄，開始專心～'], 'nothing asked: no stand-up line (1.1.3: what the 番茄 ring does)');
+    done();
+  });
+
+  // 1.1.4 item 3: U12 shows the time to the next 起來動 as U1 and the others do: under its 起來動 ring, 「N 分後起來動」, the
+  // same N as U1's 🧍; not during a focus (U1's reads -- then), lunch or after work; and nothing of it with 起來動 off.
+  test('layouts DOM: 1.1.4 item 3: U12 shows N 分後起來動 under its 起來動 ring, as U1 shows 🧍 N 分; nothing with 起來動 off', function () {
+    function u1Min(t, health) {
+      var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: health } }));
+      e.tick(t);
+      var n = seen($(e, '.u1 .mpills [data-hold]'));
+      done();
+      return n;
+    }
+    var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH } }));
+    e.tick(at(12, 9, 18));
+    eq(seen($(e, '[data-gauge=stand] .gl')), '32 分後起來動', 'U12');
+    e.tick(at(12, 9, 31));
+    eq(seen($(e, '[data-gauge=stand] .gl')), '19 分後起來動', 'it follows the minutes');
+    C.toggleFocus();
+    eq(seen($(e, '[data-gauge=stand] .gl')), '起來動（次）', 'a focus: no number (its break is the next stand-up)');
+    C.toggleFocus();
+    e.tick(at(12, 12, 20));
+    eq(seen($(e, '[data-gauge=stand] .gl')), '起來動（次）', 'lunch: none');
+    done();
+    eq(u1Min(at(12, 9, 18), BOTH), '32 分', 'U1 says the same: ' + u1Min(at(12, 9, 18), BOTH));
+    var f = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: WATER_ON } }));
+    f.tick(at(12, 9, 18));
+    eq(seen($(f, '[data-gauge=stand] .gl')), '起來動（次）', '起來動 off');
+    ok(!/分後|分鐘起來動/.test(seen($(f, '.u12'))), '起來動 off: nothing says when: ' + seen($(f, '.u12')));
     done();
   });
 

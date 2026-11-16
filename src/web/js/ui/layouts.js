@@ -313,7 +313,8 @@ QJZ.layouts = (function () {
         stand: pct1(h.standups, goals.standups), pomo: pct1(left, 1) },
       hot: { cups: asks === 'both' || asks === 'water', tom: asks === 'break' || asks === 'breakEnd', stand: asks === 'both' || asks === 'sit' },
       tomLabel: phase ? '番茄倒數' : '番茄（顆）',
-      standLabel: asks === 'both' || asks === 'sit' ? '該起來了！' : '起來動（次）',
+      // 1.1.4 item 3: U12's 起來動 ring says when the next one is, as U1's 🧍 does (and only when U1's has a number)
+      standLabel: asks === 'both' || asks === 'sit' ? '該起來了！' : showStandC ? stand + ' 分後起來動' : '起來動（次）',
       phaseShort: phase === 'focus' ? '專心' : phase === 'break' ? '休息' : '',
       phaseNote: phase === 'focus' ? nth : phase === 'break' ? '休息中' : '',
       dsay: stand !== null ? (phase === 'focus' ? '專心中～提醒等休息再說' : '再 ' + stand + ' 分鐘起來動～') :
