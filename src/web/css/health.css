@@ -75,9 +75,10 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 
 /* ---------- the long presses (layouts.js HOLD_MS): every countdown chip, 我剛起來動過了 (1.1.2 item 7), green; every water
    button, one cup off, blue; every pomodoro button while a phase runs, stopped, red (1.1.3 item 2). 💤 during 等一下 ----------
-   While one is held (.holding, on the button or its [data-holdring]) a thick ring in its colour fills around it over 1.2 s,
-   outlined and glowing (1.1.3 item 2a; it fades in, so a quick tap shows next to nothing), the only time it runs: it does
-   not loop. Full (.charged) the button takes the ring's light colour and waits for the release. Nothing otherwise. */
+   While one is held (.holding, on the button or its [data-holdring]) a thick ring in its colour fills around it, glowing
+   (1.1.3 item 2a), the only time it runs: it does not loop. 1.1.4 item 1: a tap never shows it: the ring and its glow stay
+   unseen for the first 0.25 s of the press, then the ring shows and fills, full at 1.2 s (layouts.js HOLD_MS) as before.
+   Full (.charged) the button takes the ring's light colour and waits for the release. Nothing otherwise. */
 @property --hold{syntax:'<number>';inherits:false;initial-value:0}
 .lay [data-hold]{position:relative;cursor:pointer}
 .isl .ichip,.gauge3 .rg{position:relative}
@@ -92,8 +93,8 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
   animation:qjz-hold 1.2s linear 1 forwards}
 .lay .holding::before{content:"";position:absolute;inset:-6px;border-radius:99px;pointer-events:none;   /* the glow (1.1.3 B2: no outline) */
-  box-shadow:0 0 10px 3px var(--hg);animation:qjz-hold-in .15s ease-out 1 both}
-@keyframes qjz-hold{0%{--hold:0;opacity:0}12%{opacity:1}100%{--hold:100;opacity:1}}
+  box-shadow:0 0 10px 3px var(--hg);animation:qjz-hold-in .15s ease-out .25s 1 both}
+@keyframes qjz-hold{0%,20.8%{--hold:0;opacity:0}25%{opacity:1}100%{--hold:100;opacity:1}}
 @keyframes qjz-hold-in{from{opacity:0}to{opacity:1}}
 .lay .holding.charged{background:var(--hbg)}
 /* full during a phase: U1's and U13's 番茄鐘 take the tint too (their phase colours outranked it: review M-4), and so do

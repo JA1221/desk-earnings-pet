@@ -3259,6 +3259,62 @@
     return list.map(function (n) { var r = n.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(function (v) { return Math.round(v * 2) / 2; }); });
   }
 
+  // 1.1.4 item 1: a tap never shows the charge ring. On every long-press control of every layout (water, 🧍, 番茄鐘, the
+  // countdown chips, U12's rings, U13's ■ 停止) the ring and its glow stay unseen for the first 0.25 s of a press; then the ring
+  // shows and fills, full at HOLD_MS as before (the hold itself is unchanged).
+  var RING_SHOW_MS = 250;
+  function holdControls(e) {
+    return Array.prototype.filter.call(e.root.querySelectorAll('[data-hold],[data-act=drink],[data-act=pomo]'), function (n) {
+      return drawn(n) && !n.classList.contains('inert') && !n.closest('[hidden]');
+    }).map(function (n) {
+      if (n.matches('.u13 .br-go')) n = n.querySelector('.go');
+      return ringOf(n);
+    }).filter(function (n, i, l) { return l.indexOf(n) === i; });
+  }
+  function pseudoAnims(el) {
+    var out = {};
+    document.getAnimations().forEach(function (a) {
+      if (a.effect && a.effect.target === el && /^qjz-hold/.test(a.animationName)) out[a.effect.pseudoElement] = a;
+    });
+    return out;
+  }
+  function seenAt(el, ms) {
+    var an = pseudoAnims(el);
+    Object.keys(an).forEach(function (k) { an[k].pause(); an[k].currentTime = ms; });
+    return [+getComputedStyle(el, '::after').opacity, +getComputedStyle(el, '::before').opacity];
+  }
+  test('layouts DOM: 1.1.4 item 1: a tap never shows the ring: it shows only after 0.25 s held, and is full at HOLD_MS', function () {
+    var seenKinds = {};
+    ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'].forEach(function (name) {
+      [false, true].forEach(function (phase) {
+        var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH } }));
+        e.tick(at(12, 9, 18));
+        if (phase) C.toggleFocus();
+        if (name === 'U10') hoverOn($(e, '.isl'));
+        if (name === 'U7') hoverOn($(e, '.u7 [data-hover]'));
+        holdControls(e).forEach(function (el) {
+          var r = el.getBoundingClientRect(), tag = name + (phase ? ' (focus) ' : ' ') + (el.closest('[data-act]') ? el.closest('[data-act]').getAttribute('data-act') : 'stand');
+          mouse(el, 'mousedown', r.left + Math.min(6, r.width / 2), r.top + r.height / 2, { detail: 1 });
+          if (!el.classList.contains('holding')) return;   // (idle, a 番茄鐘 takes no long press)
+          seenKinds[tag] = 1;
+          var an = pseudoAnims(el);
+          ok(an['::after'] && an['::before'], tag + ': the ring and its glow');
+          eq(an['::after'].effect.getComputedTiming().endTime, U.HOLD_MS, tag + ': the ring is full at HOLD_MS, as before');
+          eq(seenAt(el, 0), [0, 0], tag + ': nothing at the press');
+          eq(seenAt(el, RING_SHOW_MS - 10), [0, 0], tag + ': nothing for a tap (0.24 s)');
+          var later = seenAt(el, RING_SHOW_MS + 150);
+          ok(later[0] > 0.9 && later[1] > 0.9, tag + ': held on, it shows: ' + later);
+          mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+        });
+        done();
+      });
+    });
+    ['U1 drink', 'U1 stand', 'U1 (focus) pomo', 'U3 drink', 'U3 stand', 'U3 (focus) pomo', 'U5B drink', 'U5B stand', 'U5B (focus) pomo',
+      'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo'].forEach(function (k) {
+      ok(seenKinds[k], k + ': checked (' + Object.keys(seenKinds).join(', ') + ')');
+    });
+  });
+
   // Item 1: U1's row holds three fixed buttons, water (left), the 🧍 countdown (centre) and the pomodoro (right), always there
   // and the same width, the 🧍 in the middle of the card; counts coming and going never move them. The tomatoes are a badge
   // on the pomodoro button; a count that is not shown leaves 喝水 on the water button and -- on the countdown.
