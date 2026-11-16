@@ -3481,7 +3481,12 @@
       infoRects($(e, '.lay')).forEach(function (x) {
         if (!overlap(ring, x.r)) return;
         var inside = x.r.left >= own.left - 0.5 && x.r.right <= own.right + 0.5 && x.r.top >= own.top - 0.5 && x.r.bottom <= own.bottom + 0.5;
-        if (inside) return;   // its own label, inside the ring
+        if (inside) {   // its own label, inside the ring; on a control with no border, clear of the band's inner edge too (M-1)
+          var pad = parseFloat(getComputedStyle(el, '::after').paddingTop);
+          if (parseFloat(getComputedStyle(el).borderTopWidth) === 0 && !(x.r.left >= ring.left + pad - 0.5 && x.r.right <= ring.right - pad + 0.5 &&
+            x.r.top >= ring.top + pad - 0.5 && x.r.bottom <= ring.bottom - pad + 0.5)) bad.push(tag + ': its band covers its own 「' + x.what + '」');
+          return;
+        }
         var badge = x.n.closest('.cnt,.play');
         if (badge && ctl.contains(badge)) {   // a badge on its own corner: over the ring
           if (!(+getComputedStyle(badge).zIndex > 0)) bad.push(tag + ': its badge 「' + x.what + '」 under the ring');

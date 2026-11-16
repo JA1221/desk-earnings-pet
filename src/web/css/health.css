@@ -106,10 +106,11 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
    border, 2 px out), so it stays off the captions under U3's buttons, U12's labels, U13's countdown over ■ 停止, the next
    chip in U10; its glow is softer. The ＋ / ▶ / ■ badges on U3's and U5-B's buttons are drawn over it, as the ×N ones. The
    bare countdowns in a line of text (U5-B's top line, U7's tag line, U13's bottom line) have nothing at their edge to
-   cover: theirs goes just outside them, clear of the text and the ・ beside them. */
+   cover, nor do U7's 💧 and U10's chips (no border): theirs goes just outside them, clear of their own text, of the text
+   and the ・ beside them and of the next chip (review M-1). */
 .tom-btn .play{z-index:2}
-.lay :is(.u5b .mtop .st,.u7 .hline [data-hold],.pomo1 .pline .pp).holding::after,
-.lay :is(.u5b .mtop .st,.u7 .hline [data-hold],.pomo1 .pline .pp).holding::before{inset:-4px}
+.lay :is(.u5b .mtop .st,.u7 .hline :is([data-hold],[data-act=drink]),.pomo1 .pline .pp,.isl .iv-x .ichip).holding::after,
+.lay :is(.u5b .mtop .st,.u7 .hline :is([data-hold],[data-act=drink]),.pomo1 .pline .pp,.isl .iv-x .ichip).holding::before{inset:-4px}
 .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 /* 「長按停止」 (1.1.3 item 2c): a tap on a pomodoro button while a phase runs; layouts.js places it and lets it go */
 .lay .tip{position:absolute;left:0;top:0;z-index:8;pointer-events:none;white-space:nowrap;background:var(--line);color:#FFF8EC;border-radius:99px;
@@ -120,7 +121,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
 .u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
 /* 1.1.4 item 7: its 💧 is a water button, in the water buttons' pastel blue */
-.u7 .hline button.hpart{font:inherit;color:inherit;line-height:inherit;border:0;margin:0 -2px;padding:0 2px;border-radius:99px;background:#DDF0FF;cursor:pointer}   /* (its pill reaches into the gaps: the tag keeps its width) */
+.u7 .hline button.hpart{font:inherit;color:inherit;line-height:inherit;border:0;margin:0;padding:0 2px;border-radius:99px;background:#DDF0FF;cursor:pointer}   /* (its pill reaches into the gaps: the tag keeps its width) */
 .u7 .hline button.hpart:active{transform:translate(1px,1px)}
 .u7 .hline svg.ic{width:14px;height:14px}
 .u7 .hline .dt{color:var(--sub)}
