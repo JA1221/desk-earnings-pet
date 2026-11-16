@@ -39,11 +39,20 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:2.5px solid var(--line);border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .fx{position:absolute;inset:0;pointer-events:none}
 .money-box,[data-plus]{position:relative}   /* [data-plus]: the amount the "+0.xx" goes up from (1.1.2) */
-/* the money mask (1.1.2): a click on the amount ([data-mask]) shows *** in the odometer's place, on every main layout */
+/* the money mask (1.1.2): a click on the amount ([data-mask]) shows *** in the odometer's place, on every main layout.
+   1.1.4 item 6: masking moves nothing, by even 1 px. The odometer and its *** are in one grid cell (.mslot), each unseen in
+   the other state but keeping its room, so the slot is as big in both; a money text that masks (.mv, layouts.js) keeps an
+   unseen copy of its other state's text (data-ghost) as wide as it, its own text at its start. Tabular digits. */
 [data-mask]{cursor:pointer}
-.lay .msk{display:none}
-.lay.masked [data-odo]{display:none}
-.lay.masked .msk{display:inline-block;position:relative;top:.22em;letter-spacing:.04em}   /* (the * glyphs sit high: on the digits' middle) */
+.lay .mslot{display:inline-grid;vertical-align:baseline}
+.lay .mslot > *{grid-area:1/1;align-self:baseline}
+.lay .msk{visibility:hidden;justify-self:center;position:relative;top:.22em;letter-spacing:.04em}   /* (the * glyphs sit high: on the digits' middle) */
+.lay.masked .mslot > [data-odo]{visibility:hidden}
+.lay.masked .msk{visibility:visible}
+.lay .mv{display:inline-block;white-space:nowrap;text-align:start;font-variant-numeric:tabular-nums}
+.lay .mv::before{content:attr(data-ghost);display:block;height:0;overflow:hidden;visibility:hidden}
+/* 1.1.4 item 4: the 下班 countdowns change every second; with even digits nothing beside them moves each second */
+.lay :is([data-b=remain],[data-b=remainPhrase],[data-b=m3sub]){font-variant-numeric:tabular-nums}
 .money-label{font-size:13px;font-weight:600;color:var(--sub)}
 .money{font-size:42px;font-weight:700;color:var(--money);line-height:1.1;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap;
   text-shadow:-2px -2px 0 var(--line),2px -2px 0 var(--line),-2px 2px 0 var(--line),2px 2px 0 var(--line),0 2px 0 var(--line),2px 0 0 var(--line),-2px 0 0 var(--line),0 -2px 0 var(--line),4px 5px 0 var(--line)}

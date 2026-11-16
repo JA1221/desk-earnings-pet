@@ -1567,12 +1567,14 @@
   function counts(cups, tomatoes) { return { health: { cups: cups, cupGoal: 8, tomatoes: tomatoes, standups: 0 } }; }
   // the element is drawn (not hidden by the §4.9 #8 rule, and it keeps no space when it is)
   function drawn(n) { var r = n ? n.getBoundingClientRect() : null; return !!r && r.width > 0 && r.height > 0; }
-  // the text of each drawn element in list, without what its hidden parts hold, nor the 「+1」 a logged cup pops on it
+  // the text of each drawn element in list, without what its hidden parts hold, nor the 「+1」 a logged cup pops on it (1.1.4
+  // item 6: nor the side of an amount's slot that keeps its room unseen, the odometer while masked, the *** while shown)
+  function unseenSlot(x) { return !!x.parentElement && x.parentElement.classList.contains('mslot') && getComputedStyle(x).visibility === 'hidden'; }
   function seen(n) {
     var out = '';
     (function walk(x) {
       if (x.nodeType === 3) out += x.nodeValue;
-      else if (x.nodeType === 1 && drawn(x) && !x.classList.contains('plus')) for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
+      else if (x.nodeType === 1 && drawn(x) && !x.classList.contains('plus') && !unseenSlot(x)) for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
     })(n);
     return out.replace(/\s+/g, ' ').trim();
   }
@@ -2481,6 +2483,46 @@
       e.tick(at(12, 10, 1, 1));
       eq(out.length, 1, 'the "+0.xx" again');
       done();
+    });
+  });
+
+  // 1.1.4 item 6: masking never moves anything, by even 1 px, in all 8 layouts: every element keeps its box (the amount's
+  // slot too, whatever it shows), from shown to masked and back, and from a start masked to shown. Not compared: what is
+  // inside the masked slots (the odometer's digits, the ***), the pet (it moves on its own) and the effect layers.
+  function boxes(e) {
+    var out = {};
+    Array.prototype.forEach.call(e.root.querySelectorAll('.lay, .lay *'), function (n, i) {
+      if (n.closest('[data-pet],.fx,.plus,.pring') || n.parentElement && n.parentElement.closest('.odo,.msk')) return;
+      var r = n.getBoundingClientRect();
+      out[i + ' ' + n.tagName + '.' + (n.getAttribute('class') || '').replace(' masked', '') + (n.getAttribute('data-b') ? '[' + n.getAttribute('data-b') + ']' : '')] =
+        [r.left, r.top, r.width, r.height].map(function (v) { return Math.round(v * 100) / 100; }).join(',');
+    });
+    return out;
+  }
+  function moved(a, b) {
+    var keys = Object.keys(a).concat(Object.keys(b)).filter(function (k, i, l) { return l.indexOf(k) === i; });
+    return keys.filter(function (k) { return a[k] !== b[k]; }).map(function (k) { return k + ': ' + a[k] + ' -> ' + b[k]; });
+  }
+  function setMask(on) { QJZ.app.saveSettings({ privacy: { maskMoney: on } }); }
+  var MASK_VIEWS = [['U1'], ['U3'], ['U3', 'month'], ['U5B'], ['U7'], ['U10'], ['U10', 'hover'], ['U10', 'focus'], ['U12'], ['U13'], ['M3']];
+  test('layouts DOM: 1.1.4 item 6: masking moves nothing by even 1 px, in every layout, both ways and from a masked start', function () {
+    MASK_VIEWS.forEach(function (v) {
+      [false, true].forEach(function (startMasked) {
+        var tag = v.join(' ') + (startMasked ? ' (started masked)' : '');
+        var e = shown(mk(at(12, 10, 0, 0), { first: v[0], care: true, settings: { health: BOTH, privacy: { maskMoney: startMasked } }, rec: today(3, 2, 1) }));
+        e.tick(at(12, 13, 32, 7) + (v[1] === 'month' ? U.CARD_MS : 0));   // (U3: the other card, 10 s on)
+        if (v[1] === 'focus') C.toggleFocus();
+        if (v[1] === 'hover') hoverOn($(e, '.isl'));
+        eq(QJZ.app.state.settings.privacy.maskMoney, startMasked, tag);
+        eq($(e, '.lay').classList.contains('masked'), startMasked, tag + ': as it started');
+        var a = boxes(e);
+        setMask(!startMasked);
+        eq($(e, '.lay').classList.contains('masked'), !startMasked, tag + ': toggled');
+        eq(moved(a, boxes(e)), [], tag + ': nothing moved');
+        setMask(startMasked);
+        eq(moved(a, boxes(e)), [], tag + ': and back');
+        done();
+      });
     });
   });
 

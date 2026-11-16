@@ -338,26 +338,35 @@ QJZ.layouts = (function () {
     var v = vitals(st, pct);
     var snacks = st.snacks > 0 ? st.snacks : 0;
     var masked = !!(s.privacy && s.privacy.maskMoney);
-    var clock = clockText(ms), month = masked ? '***' : money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
+    var clock = clockText(ms), monthReal = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
     var card = cardAt(s.items, ms);
-    var m = {
+    // the money texts as they read shown or masked (1.1.4 item 6: the other state's is each one's ghost, data-ghost)
+    function moneyTexts(mk) {
+      var month = mk ? '***' : monthReal;
+      return {
+        money: mk ? '***' : money(snap.earned), moneyWhole: 'NT$ ' + (mk ? '***' : money(snap.earned).slice(0, -3)),
+        item: itemText(it, snap.earned, mk), month: month,
+        card: card.month ? '📅 ' + month : itemText(card.item, snap.earned, mk),
+        rate: rateText(s.salary, perSec, mk)
+      };
+    }
+    var m = moneyTexts(masked);
+    m.ghost = moneyTexts(!masked);
+    var more = {
       masked: masked,
       key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
-      money: masked ? '***' : money(snap.earned), moneyWhole: 'NT$ ' + (masked ? '***' : money(snap.earned).slice(0, -3)),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
       remain: left(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
       m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
       itemLabel: it ? '可以買' + it.name : '',
-      item: itemText(it, snap.earned, masked),
-      month: month,
-      card: card.month ? '📅 ' + month : itemText(card.item, snap.earned, masked), cardMonth: card.month,
-      rate: rateText(s.salary, perSec, masked),
+      cardMonth: card.month,
       hearts: heartsText(v.hearts), bolts: v.bolts,
       snacks: snacks, snack: SNACK[kind] + '×' + snacks,
       plus: key === 'working' && perSec > 0   // the amount rises: the "+0.xx" floats (floatPlus)
     };
+    for (var x in more) m[x] = more[x];
     for (var k in hc) if (k !== 'phase') m[k] = hc[k];
     return m;
   }
@@ -471,7 +480,8 @@ QJZ.layouts = (function () {
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
     v.holds = all(el, '[data-hold]:not([data-hold=gauge])');   // the countdowns (U12's 起來動 ring counts, no 💤)
-    v.nils = all(el, '[data-nil]');   // an always-there countdown that reads -- (1.1.3)
+    v.nils = all(el, '[data-nil]');
+    v.ghosts = all(el, '[data-ghost]');   // the money texts that mask (1.1.4 item 6)   // an always-there countdown that reads -- (1.1.3)
     v.pins = all(el, '.bar .tb.pin');
     v.gears = all(el, '.bar .tb.settings');
     var p = el.querySelector('[data-pet]');
@@ -484,6 +494,12 @@ QJZ.layouts = (function () {
     return v;
   }
 
+  // 1.1.4 item 6: a money text that masks keeps room for its other state's text (health.css .mv::before), so the mask
+  // moves nothing. Written only when it changed.
+  function setGhost(n, val) {
+    val = val === undefined ? '' : val;
+    if (n.getAttribute('data-ghost') !== val) n.setAttribute('data-ghost', val);
+  }
   function setText(k, val) {
     if (!view.b[k] || view.cache[k] === val) return;
     view.cache[k] = val;
@@ -534,6 +550,7 @@ QJZ.layouts = (function () {
     if (!view || !ready()) return;
     var st = app().state, m = model(st, app().nowMs(), careState()), i;
     for (var k in view.b) if (Object.prototype.hasOwnProperty.call(view.b, k) && k in m) setText(k, m[k]);
+    for (i = 0; i < view.ghosts.length; i++) setGhost(view.ghosts[i], m.ghost[view.ghosts[i].getAttribute('data-b')]);
     if (view.name === 'PANEL') {
       if (!inPlace) setText('title', '錢進中 · ' + panelTitle(panelKind));   // in its window: that window's title
       if (panels()) panels()._update();
