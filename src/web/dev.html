@@ -66,7 +66,8 @@
 <code>?prompt=both|sit|water|break|breakEnd</code> 馬上冒出那個提醒泡泡（both / sit / water 會照著打開提醒開關，加 <code>?turn=0~4</code> 選第幾句；break 加 <code>?water=on</code> 多一行「順便喝口水吧～」）。<br>
 U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（存進設定，像右鍵選單的「膠囊位置」），<code>?hover=1</code> 滑鼠停在膠囊上（展開）。<br>
 1.1.2：<code>?mask=1</code> 金額遮成 ***、<code>?pin=1</code> 這個版型釘選在最上層、<code>?plus=1</code> 讓「+0.xx」停在半路（截圖用）、
-<code>?answer=drink|up|later</code> 泡泡出來後按那顆按鈕、<code>?press=1</code> 長按倒數小牌（圈圈停在一半）、<code>?stood=1</code> 右鍵「我剛起來動過了」。</p>
+<code>?answer=drink|up|later</code> 泡泡出來後按那顆按鈕、<code>?press=1</code> 長按倒數小牌（圈圈停在一半）、<code>?stood=1</code> 右鍵「我剛起來動過了」。<br>
+1.1.3：<code>?press=water|pomo|stand</code> 長按喝水 / 番茄鐘（要先有 <code>?pomo=focus</code>）/ 起來動，圈圈停在一半；<code>?tip=1</code> 番茄鐘進行中點一下（「長按停止」停在畫面上）。</p>
 <div class="note" id="sent"></div>
 <script>
   // Dev defaults live here, not in QJZ.settings.DEFAULTS (those stay generic).
@@ -337,17 +338,26 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
       if (p && p.getAnimations) p.getAnimations().forEach(function (a) { a.pause(); a.currentTime = 420; });
     };
   }
-  if (devQ.get('answer') || devQ.get('press') === '1' || devQ.get('stood') === '1') {
+  if (devQ.get('answer') || devQ.get('press') || devQ.get('stood') === '1' || devQ.get('tip') === '1') {
     var offAct = QJZ.app.on('change', function () {
       offAct();
       setTimeout(function () {
         var id = devQ.get('answer');
         if (id && QJZ.care.state.prompt) QJZ.care.answer(id);
         if (devQ.get('stood') === '1') QJZ.bridge._dispatch({ type: 'menu', action: 'stoodUp' });
-        var chip = Array.prototype.filter.call(document.querySelectorAll('#root [data-hold]'), function (n) { return n.getClientRects().length > 0; })[0];
-        if (devQ.get('press') === '1' && chip) {
+        // ?press=1|stand the countdown chip, water a water button, pomo a pomodoro button (1.1.3; U13: its ■ 停止)
+        var pk = devQ.get('press'), sel = pk === 'water' ? '[data-act=drink]' : pk === 'pomo' ? '[data-act=pomo]' : '[data-hold]';
+        function firstShown(q) { return Array.prototype.filter.call(document.querySelectorAll('#root ' + q), function (n) { return n.getClientRects().length > 0; })[0]; }
+        var chip = firstShown(sel);
+        if (chip) chip = chip.querySelector('[data-holdring]') || chip;
+        if (pk && chip) {
           chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, buttons: 1, detail: 1 }));
           document.getAnimations().forEach(function (a) { if (a.animationName === 'qjz-hold') { a.pause(); a.currentTime = 700; } });
+        }
+        var pb = devQ.get('tip') === '1' ? firstShown('[data-act=pomo]') : null;
+        if (pb) {   // a tap while a phase runs: 「長按停止」, held where it is fully shown
+          (pb.querySelector('[data-holdring]') || pb).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, detail: 1 }));
+          Array.prototype.forEach.call(document.querySelectorAll('#root .tip'), function (t) { t.getAnimations().forEach(function (a) { a.pause(); a.currentTime = 600; }); });
         }
       }, 200);
     });
