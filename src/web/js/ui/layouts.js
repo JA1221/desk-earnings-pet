@@ -572,7 +572,13 @@ QJZ.layouts = (function () {
       }
     }
     var masked = m.masked && view.name !== 'PANEL';   // 設定 and 紀錄 are opened on purpose: never masked
-    if (view.cache.masked !== masked) { view.cache.masked = masked; view.el.classList.toggle('masked', masked); }
+    if (view.cache.masked !== masked) {
+      view.cache.masked = masked;
+      view.el.classList.toggle('masked', masked);
+      all(view.el, '.mslot > *').forEach(function (n) {   // the side not seen is not read out either (review M-2)
+        if (n.hasAttribute('data-odo') ? masked : !masked) n.setAttribute('aria-hidden', 'true'); else n.removeAttribute('aria-hidden');
+      });
+    }
     if (view.statusKey !== m.key) {
       if (view.statusKey) view.el.classList.remove('s-' + view.statusKey);
       view.el.classList.add('s-' + m.key);
