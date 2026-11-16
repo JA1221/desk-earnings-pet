@@ -84,9 +84,9 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay [data-hold] .zz{display:none;font-size:.95em;line-height:1;font-family:"Segoe UI Emoji","Apple Color Emoji",var(--font)}
 .lay [data-hold].snz .zz{display:inline-block}
 .lay [data-hold].snz svg.ic-stand{display:none}
-.lay .holding{--hc:#22C55E;--hg:rgba(34,197,94,.65);--hbg:#C9F5DA;z-index:5}
-.lay .holding.h-water{--hc:#2E9BFF;--hg:rgba(46,155,255,.65);--hbg:#D2EBFF}
-.lay .holding.h-pomo{--hc:#FF4A33;--hg:rgba(255,74,51,.6);--hbg:#FFD5CC}
+.lay .holding{--hc:#22C55E;--hg:rgba(34,197,94,.65);--hbg:#A6E8BF;z-index:5}
+.lay .holding.h-water{--hc:#2E9BFF;--hg:rgba(46,155,255,.65);--hbg:#A9D6FF}
+.lay .holding.h-pomo{--hc:#FF4A33;--hg:rgba(255,74,51,.6);--hbg:#FF9F88}
 .lay .holding::after{content:"";position:absolute;inset:-6px;border-radius:99px;padding:4px;pointer-events:none;
   background:conic-gradient(var(--hc) calc(var(--hold)*1%),rgba(61,44,36,.2) 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
@@ -96,8 +96,10 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 @keyframes qjz-hold{0%{--hold:0;opacity:0}12%{opacity:1}100%{--hold:100;opacity:1}}
 @keyframes qjz-hold-in{from{opacity:0}to{opacity:1}}
 .lay .holding.charged{background:var(--hbg)}
-/* full during a phase: U1's and U13's 番茄鐘 take the tint too (their phase colours outranked it: review M-4) */
-.lay:is(.p-foc,.p-brk) .holding.charged.charged,.u13 .bigring .br-go .go.holding.charged{background:var(--hbg)}
+/* full during a phase: U1's and U13's 番茄鐘 take the tint too (their phase colours outranked it: review M-4), and so do
+   U10's chips (their B1-a pastels did: review2 I-1). Full is a clearly deeper shade of the B1-a family (review2 M-1). */
+.lay:is(.p-foc,.p-brk) .holding.charged.charged,.u13 .bigring .br-go .go.holding.charged,
+.u10 .isl .iv-x .ichip.holding.charged.charged.charged{background:var(--hbg)}
 .lay .cnt{z-index:2}   /* a ×N badge stays over the ring (review M-4) */
 .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 /* 「長按停止」 (1.1.3 item 2c): a tap on a pomodoro button while a phase runs; layouts.js places it and lets it go */

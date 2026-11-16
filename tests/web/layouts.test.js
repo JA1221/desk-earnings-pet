@@ -3767,14 +3767,28 @@
     ok(document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2) === cnt || cnt.contains(document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)),
       'nothing paints over the badge');
     p.classList.add('charged');
-    eq(bgOf(p), 'rgb(255, 213, 204)', 'U1: full, the light red tint');
+    eq(bgOf(p), 'rgb(255, 159, 136)', 'U1: full, a red clearly deeper than the phase colour');
     mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
     e.menu('layout:U13');
     var go = $(e, '.u13 .br-go .go'), g = go.getBoundingClientRect();
     mouse(go, 'mousedown', g.left + 6, g.top + 5, { detail: 1 });
     go.classList.add('charged');
-    eq(bgOf(go), 'rgb(255, 213, 204)', 'U13: full, the light red tint');
+    eq(bgOf(go), 'rgb(255, 159, 136)', 'U13: full, the deeper red tint');
     mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    // review2 I-1, M-1: U10's chips take it too (the B1-a pastels outranked it), and full reads clearly on every control:
+    // each kind's full colour is far darker than its pastel and than the 番茄鐘's phase colour
+    e.menu('layout:U10');
+    hoverOn($(e, '.isl'));
+    var FULL = { drink: 'rgb(169, 214, 255)', hold: 'rgb(166, 232, 191)', pomo: 'rgb(255, 159, 136)' };
+    function lum(c) { var m = /(\d+), (\d+), (\d+)/.exec(c); return 0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]; }
+    [['drink', '.iv-x [data-act=drink]'], ['hold', '.iv-x [data-hold]'], ['pomo', '.iv-x [data-act=pomo]']].forEach(function (k) {
+      var n = $(e, k[1]), before = bgOf(n), r2 = n.getBoundingClientRect();
+      mouse(n, 'mousedown', r2.left + 6, r2.top + 4, { detail: 1 });
+      n.classList.add('charged');
+      eq(bgOf(n), FULL[k[0]], 'U10 ' + k[0] + ': full, its tint');
+      ok(lum(before) - lum(bgOf(n)) >= 18, 'U10 ' + k[0] + ': clearly deeper than ' + before);
+      mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    });
     done();
   });
 
