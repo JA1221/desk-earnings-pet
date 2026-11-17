@@ -177,7 +177,7 @@ QJZ.panelsHealth = (function () {
   }
 
   // ================= 紀錄 → 健康月曆 (spec §4.7, §5.6): Task 14 =================
-  // A month grid under the income chart (mockup E 方案 3): the bluer, the more cups; the darkest blue with a ✓ is the
+  // A month grid under 統計 (QJZ.panelsStats; 1.0 had the income chart there; mockup E 方案 3): the bluer, the more cups; the darkest blue with a ✓ is the
   // goal; the bottom-right corner is the day's tomatoes. The current month only (1.0's 紀錄 has no month switcher);
   // QJZ.health.calendar takes the month for a later switcher. The cells are drawn only when something changed.
   var WEEK = '日一二三四五六';
