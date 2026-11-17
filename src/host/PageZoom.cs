@@ -7,7 +7,7 @@ using System.Drawing;
 // keeps its CSS sizes. Pure; the page snaps the value the same way (src/web/js/core/settings.js).
 public static class PageZoom
 {
-    public const int Min = 70, Max = 150, Step = 10, Default = 100;   // 70: the user's floor (a stored 50 or 60 reads as 70)
+    public const int Min = 50, Max = 150, Step = 10, Default = 100;
 
     // A JSON number (as JavaScriptSerializer gives it) clamped to Min..Max and put on the nearest step, a half step
     // rounding up (the page's Math.round); anything else is Default.

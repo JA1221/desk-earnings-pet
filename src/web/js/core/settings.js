@@ -43,7 +43,7 @@ QJZ.settings = (function () {
     'every': [5, 120, 5], 'water.goal': [1, 20, 1],   // every: 5–120 since 1.1.1 (it was 20–120)
     'pomodoro.focus': [10, 90, 5], 'pomodoro.short': [1, 30, 1], 'pomodoro.long': [5, 60, 5], 'pomodoro.longEvery': [2, 8, 1]
   };
-  var ZOOM = [70, 150, 10];   // 縮放比例 [min, max, step], % (1.1.5; 70 the user's floor: a stored 50 or 60 reads as 70)
+  var ZOOM = [50, 150, 10];   // 縮放比例 [min, max, step], % (1.1.5)
   var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 'h2', 's4', 's5'] };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }

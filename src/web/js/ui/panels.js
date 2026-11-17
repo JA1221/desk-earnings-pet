@@ -8,7 +8,7 @@ window.QJZ = window.QJZ || {};
 //               disclosure button each, loaded the first time they open), in five tabs (simplification #9, 1.1 #9):
 //               薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效), 健康 (QJZ.panelsHealth), 畫面 (版型, 動力加成),
 //               其他 (開機, 隱私, 關於).
-//               1.1.5: 畫面 has 縮放比例 (zoom, its own section: a select of 70–150 %, the same setting as Ctrl+wheel and
+//               1.1.5: 畫面 has 縮放比例 (zoom, its own section: a select of 50–150 %, the same setting as Ctrl+wheel and
 //               Ctrl+± / Ctrl+0, QJZ.zoomKeys), and 關於 a 檢查更新 button beside the version (app.checkUpdate: the app's one
 //               network request) with its result and, for a new version or none found, a link (app.openUpdate).
 //               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;

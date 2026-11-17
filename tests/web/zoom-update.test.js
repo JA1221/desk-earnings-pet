@@ -7,22 +7,22 @@
   var Z = QJZ.zoomKeys;
 
   // ---------- pure ----------
-  test('zoom: the setting is 70–150 % in 10 % steps, default 100', function () {
+  test('zoom: the setting is 50–150 % in 10 % steps, default 100', function () {
     function z(v) { return QJZ.settings.parse(JSON.stringify({ zoom: v })).settings.zoom; }
     eq(QJZ.settings.DEFAULTS.zoom, 100);
     eq(QJZ.settings.parse(null).settings.zoom, 100, 'missing');
-    eq([z(70), z(150), z(130)], [70, 150, 130]);
-    eq([z(50), z(60), z(64.9), z(10), z(-5), z(400)], [70, 70, 70, 70, 70, 150], 'clamped: a stored 50 or 60 reads as 70');
+    eq([z(50), z(150), z(130)], [50, 150, 130]);
+    eq([z(10), z(-5), z(400)], [50, 50, 150], 'clamped');
     eq([z(74), z(75), z(104.9)], [70, 80, 100], 'snapped to the nearest step, a half step up (as the host does)');
     eq([z('120'), z(true), z(null)], [100, 100, 100], 'not a number');
-    eq(QJZ.settings.ZOOM, [70, 150, 10]);
+    eq(QJZ.settings.ZOOM, [50, 150, 10]);
   });
 
   test('zoom: one step in / out, clamped; reset is 100', function () {
     eq([Z.next(100, 1), Z.next(100, -1), Z.next(100, 0)], [110, 90, 100]);
-    eq([Z.next(150, 1), Z.next(70, -1)], [150, 70], 'clamped');
-    eq([Z.next(140, 1), Z.next(80, -1), Z.next(50, -1)], [150, 70, 70]);
-    eq([Z.next(130, 0), Z.next(70, 0)], [100, 100], 'reset');
+    eq([Z.next(150, 1), Z.next(50, -1)], [150, 50], 'clamped');
+    eq([Z.next(140, 1), Z.next(60, -1)], [150, 50]);
+    eq([Z.next(130, 0), Z.next(50, 0)], [100, 100], 'reset');
     eq(Z.next(105, 1), 120, 'an off-step value snaps first (105 -> 110), then steps');
   });
 
@@ -170,16 +170,16 @@
     }
   });
 
-  test('zoom DOM: at 150 % Ctrl + = stays and only shows the tip; at 70 % Ctrl + - too', function () {
+  test('zoom DOM: at 150 % Ctrl + = stays and only shows the tip; at 50 % Ctrl + - too', function () {
     var e = mk({ zoom: 150 });
     key(document.body, { key: '=', code: 'Equal' });
     eq(QJZ.app.state.settings.zoom, 150);
     eq(of(e.sent, 'setZoom'), [], 'nothing changes');
     eq(tipText(e), '150%', 'the tip says where it is');
     done();
-    e = mk({ zoom: 70 });
+    e = mk({ zoom: 50 });
     key(document.body, { key: '-', code: 'Minus' });
-    eq([QJZ.app.state.settings.zoom, of(e.sent, 'setZoom').length, tipText(e)], [70, 0, '70%']);
+    eq([QJZ.app.state.settings.zoom, of(e.sent, 'setZoom').length, tipText(e)], [50, 0, '50%']);
     done();
   });
 
@@ -211,14 +211,14 @@
     done();
   });
 
-  test('zoom DOM: 設定 → 畫面 has 縮放比例 (70–150 %); a pick changes the same setting; keys move the pick', function () {
+  test('zoom DOM: 設定 → 畫面 has 縮放比例 (50–150 %); a pick changes the same setting; keys move the pick', function () {
     var e = mk();
     e.menu('settings');
     $(e, '[data-tab=display]').click();
     var sel = $(e, 'select[data-f=zoom]');
     ok(visible(sel), 'a select');
     eq(Array.prototype.map.call(sel.options, function (o) { return o.textContent; }),
-      ['70%', '80%', '90%', '100%', '110%', '120%', '130%', '140%', '150%']);
+      ['50%', '60%', '70%', '80%', '90%', '100%', '110%', '120%', '130%', '140%', '150%']);
     eq(sel.value, '100');
     ok($(e, '[data-sec=zoom]').textContent.indexOf('Ctrl') >= 0, 'the hint names the shortcuts');
     sel.value = '130';

@@ -1,7 +1,7 @@
 using System;
 using System.Drawing;
 
-// 1.1.5 item 1: 縮放比例, one global setting (70–150 %, every 10 %), applied as the WebView2 ZoomFactor.
+// 1.1.5 item 1: 縮放比例, one global setting (50–150 %, every 10 %), applied as the WebView2 ZoomFactor.
 public static class PageZoomTests
 {
     public static void Test_ParseSnapsToTheSteps()
@@ -9,15 +9,12 @@ public static class PageZoomTests
         Assert.Eq(100, PageZoom.Parse(null), "missing");
         Assert.Eq(100, PageZoom.Parse("120"), "a string is not a number");
         Assert.Eq(100, PageZoom.Parse(true), "a bool is not a number");
-        Assert.Eq(70, PageZoom.Parse(70), "min");
-        Assert.Eq(70, PageZoom.Parse(50), "a stored 50 (1.1.5 before the floor moved) reads as 70");
-        Assert.Eq(70, PageZoom.Parse(60), "and 60");
+        Assert.Eq(50, PageZoom.Parse(50), "min");
         Assert.Eq(150, PageZoom.Parse(150), "max");
         Assert.Eq(150, PageZoom.Parse(400), "clamped to max");
-        Assert.Eq(70, PageZoom.Parse(10), "clamped to min");
-        Assert.Eq(70, PageZoom.Parse(-30), "negative");
+        Assert.Eq(50, PageZoom.Parse(10), "clamped to min");
+        Assert.Eq(50, PageZoom.Parse(-30), "negative");
         Assert.Eq(70, PageZoom.Parse(74), "nearest step");
-        Assert.Eq(80, PageZoom.Parse(84.9), "nearest step above the floor");
         Assert.Eq(80, PageZoom.Parse(75), "a half step rounds up, as the page's Math.round does");
         Assert.Eq(130, PageZoom.Parse(130.0m), "a decimal from JavaScriptSerializer");
         Assert.Eq(110, PageZoom.Parse(110.4), "a double");
@@ -28,7 +25,7 @@ public static class PageZoomTests
     {
         Rectangle area = new Rectangle(0, 0, 1920, 1040);
         Assert.Eq(1.5, PageZoom.Fit(150, new Size(300, 560), 1.0, area), "560 x 1.5 = 840 fits");
-        Assert.Eq(0.7, PageZoom.Fit(70, new Size(300, 560), 1.0, area), "70 %");
+        Assert.Eq(0.5, PageZoom.Fit(50, new Size(300, 560), 1.0, area), "50 %");
         Assert.Eq(1.0, PageZoom.Fit(100, new Size(300, 560), 1.0, area), "100 %");
         Assert.Eq(1.3, PageZoom.Fit(130, new Size(300, 560), 1.5, new Rectangle(-1080, -445, 1080, 1880)), "on a 150 % monitor");
     }
