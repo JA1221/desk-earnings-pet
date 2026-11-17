@@ -333,12 +333,18 @@ public class AppHost
 
     async void SendInit(int nav)
     {
-        long? probe = null;
+        long? probe = null, leave = null;
         try
         {
             DateTime dayStart = DayStart(DateTime.Now);
+            long? exit = lastExitMs;
             Task<long?> t = Task.Run(delegate { return EventLogProbe.EarliestToday(dayStart); });
-            if (await Task.WhenAny(t, Task.Delay(ProbeWaitMs)) == t) probe = t.Result;
+            // 1.1.5: the last sleep / shutdown after the previous run's end, on its day (the page asks 提早下班 at it)
+            Task<long?> l = Task.Run(delegate { return EventLogProbe.LastLeave(exit, DayStart, EventLogProbe.ReadLeaves); });
+            Task both = Task.WhenAll(t, l);
+            await Task.WhenAny(both, Task.Delay(ProbeWaitMs));   // both bounded by one wait: start-up is not slower
+            if (t.IsCompleted && !t.IsFaulted) probe = t.Result;
+            if (l.IsCompleted && !l.IsFaulted) leave = l.Result;
         }
         catch (Exception ex) { ErrorLog.Write("event log probe", ex); }
         if (nav != navigation || quitting) return;   // the page changed meanwhile
@@ -351,6 +357,7 @@ public class AppHost
             history = files.History.Text,
             backups = new { settings = files.SettingsBackup, history = files.HistoryBackup },   // for a main text that does not parse
             lastExitMs = lastExitMs,   // the previous run's end (null: none recorded)
+            lastLeaveMs = leave,       // 1.1.5: the last sleep / shutdown after it, on its day (null: none found)
             forceOpaque = window.ForceOpaque,
             probeMs = probe,
             nowMs = NowMs(),

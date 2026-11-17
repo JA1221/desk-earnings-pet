@@ -8,7 +8,10 @@ window.QJZ = window.QJZ || {};
 //    unless they carry an off-day marker (kept, closed with earned 0); started ones ask QJZ.day.earlyLeaveQuestion first. Only the most recent
 //    such question is asked (state.pendingQuestion); older ones are closed directly. Until answered the record
 //    stays open. answerEarlyLeave(accept) -> resolveEarlyLeave -> closeDay -> flush save. Before that, init.lastExitMs
-//    (the host's last shutdown / sign-out) counts as a lock of its day's open record (QJZ.day.onExit).
+//    (the host's last shutdown / sign-out) counts as a lock of its day's open record (QJZ.day.onExit). 1.1.5: when the
+//    host found a later sleep or shutdown that day in the System log (init.lastLeaveMs: Kernel-Power 506 / 42, User32
+//    1074, EventLog 6006), that is when the user left: it counts instead (an app quit at 14:45 on a PC left until 17:48
+//    is no early leave).
 //  - Unreadable settings / history text (init.settings / init.history do not parse): backupCorrupt {file} for the
 //    main file first. Then, and also when the main text is missing / empty / whitespace (a power loss), the .bak copy
 //    (init.backups.settings / .history) is used when it has content that parses, else defaults / an empty history.
@@ -198,11 +201,13 @@ QJZ.app = (function () {
     return r;
   }
   // R-F2: the host's last exit counts as a lock of its day's open record, before the record is retired.
-  function applyExit(exitMs, todayKey) {
+  function applyExit(exitMs, todayKey, leaveMs) {
     if (typeof exitMs !== 'number' || !isFinite(exitMs)) return;
     var day = QJZ.time.dayKey(exitMs), rec = state.history.days[day];
     if (day >= todayKey || !rec || rec.earned !== null) return;
-    state.history.days[day] = QJZ.day.onExit(rec, exitMs);
+    // the last leave the host found after the exit, on the same day, is the later and truer time
+    var at = typeof leaveMs === 'number' && isFinite(leaveMs) && leaveMs > exitMs && QJZ.time.dayKey(leaveMs) === day ? leaveMs : exitMs;
+    state.history.days[day] = QJZ.day.onExit(rec, at);
   }
 
   function onInit(msg) {
@@ -228,7 +233,7 @@ QJZ.app = (function () {
       if (Object.prototype.hasOwnProperty.call(state.history.days, dk)) state.history.days[dk] = QJZ.day.normalize(state.history.days[dk]);
     }
     setToday(state.history.days[key] || QJZ.day.empty(key));
-    applyExit(msg.lastExitMs, key);
+    applyExit(msg.lastExitMs, key, msg.lastLeaveMs);
     retireOlder(key);
 
     if (typeof msg.probeMs === 'number' && QJZ.time.dayKey(msg.probeMs) === key) {

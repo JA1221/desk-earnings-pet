@@ -20,7 +20,7 @@
       history: o.history === undefined ? null : o.history,
       probeMs: o.probeMs === undefined ? null : o.probeMs, nowMs: env.clock.ms, version: 't'
     };
-    ['lastExitMs', 'backups', 'forceOpaque'].forEach(function (k) { if (o[k] !== undefined) msg[k] = o[k]; });
+    ['lastExitMs', 'lastLeaveMs', 'backups', 'forceOpaque'].forEach(function (k) { if (o[k] !== undefined) msg[k] = o[k]; });
     env.bridge.emit(msg);
   }
   function hist(recs) {
@@ -384,6 +384,28 @@
     eq(QJZ.app.state.pendingQuestion, null);
     near(QJZ.app.state.history.days['2026-11-11'].earned, 2272.73, 0.001, 'a full day');
     QJZ.app._reset();
+  });
+  // 1.1.5: the host's last leave (a sleep / shutdown in the System log) after the exit, on its day, is when the user left
+  test('app init: a later leave from the event log replaces the exit stamp (11/16: quit at 14:45, left at 17:48: no question)', function () {
+    var e = mk(at(17, 10, 0));   // planned end 17:42 (start 08:42)
+    init(e, { history: hist([rec('2026-11-16', 522, {})]), lastExitMs: at(16, 14, 45), lastLeaveMs: at(16, 17, 48) });
+    eq(QJZ.app.state.pendingQuestion, null, 'after the planned end: no 提早下班？');
+    near(QJZ.app.state.history.days['2026-11-16'].earned, 2272.73, 0.001, 'a full day');
+    QJZ.app._reset();
+    e = mk(at(17, 10, 0));
+    init(e, { history: hist([rec('2026-11-16', 522, {})]), lastExitMs: at(16, 14, 45), lastLeaveMs: at(16, 15, 0) });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-16', lockMs: at(16, 15, 0) }, 'a real early leave: asked at 15:00, not 14:45');
+    QJZ.app._reset();
+    e = mk(at(17, 10, 0));
+    init(e, { history: hist([rec('2026-11-16', 522, {})]), lastExitMs: at(16, 14, 45), lastLeaveMs: null });
+    eq(QJZ.app.state.pendingQuestion, { day: '2026-11-16', lockMs: at(16, 14, 45) }, 'none found: the exit stamp, as before');
+    QJZ.app._reset();
+    [at(16, 14, 0), at(17, 5, 0), '17:48', NaN].forEach(function (x) {   // before the exit, another day, junk
+      e = mk(at(17, 10, 0));
+      init(e, { history: hist([rec('2026-11-16', 522, {})]), lastExitMs: at(16, 14, 45), lastLeaveMs: x });
+      eq(QJZ.app.state.pendingQuestion, { day: '2026-11-16', lockMs: at(16, 14, 45) }, 'not used: ' + x);
+      QJZ.app._reset();
+    });
   });
   test('app init: lastExitMs on another day, before the start, or junk is ignored', function () {
     [at(10, 15, 0), at(11, 8, 0), null, '15:00', NaN].forEach(function (x) {
