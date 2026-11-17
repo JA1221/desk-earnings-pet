@@ -1,0 +1,115 @@
+/* 深色模式 (1.1.5 item 3; settings.display.dark, QJZ.app sets html.dark). Loaded last: everything here is under
+   html.dark, so with it off nothing changes. It does not follow Windows.
+   The light look's tokens get dark values on the root (and on the elements that set their own: the panel, the status
+   colours); the colours written straight into a rule elsewhere (#fff cards, the pastel buttons, the tails of the
+   bubbles, the rings' holes) are overridden one by one below, grouped as in the file they come from.
+   The pets, the room and their props keep their colours. The lines are a warm tan, light enough to edge a window on a
+   dark desktop; the hard shadows and the outline of the money digits near black. Text on every surface here is at
+   least 4.5:1 (WCAG AA): --text 13:1 and --sub 7.9:1 on --bg, both over 5:1 on every tinted button. */
+html.dark{color-scheme:dark;
+  --bg:#2A221D;--card:#382E28;--line:#9C8470;--shadow:#0E0A08;--sline:#9C8470;--text:#F4E9DA;--sub:#CDB49C;--bar:#6B4E1F;
+  --money:#FF9A52;--cur:#FFC857;--st-bg:#1F5A3A;--st-dot:#4ADE80;--plus:#4ADE80;--dash:#4A3D34;--ink:#120D0A;
+  --t-water:#1E3A50;--t-stand:#1E4430;--t-pomo:#4F2A22;--t-pomo2:#6A3328;--t-track:#4A3D34;--t-mute:#6B5A4C}
+html.dark.opaque,html.dark.opaque body{background:var(--bg)}
+
+/* ---------- base.css ---------- */
+html.dark .bar .logo{background:#7A5A22}
+html.dark .bar .tb,html.dark .pill,html.dark .track,html.dark .chip,html.dark .bubble,html.dark .bubble::before{background:var(--card)}
+html.dark .bubble::after{background:var(--card);background-clip:padding-box}
+html.dark .bar .tb.hide,html.dark .u7 .tools .hide{background:#A8475A}
+html.dark .bar .tb.on{background:#9A6A1A}
+/* the money digits keep a dark outline (the lines' tan would glow around them) */
+html.dark .money{text-shadow:-2px -2px 0 var(--ink),2px -2px 0 var(--ink),-2px 2px 0 var(--ink),2px 2px 0 var(--ink),0 2px 0 var(--ink),2px 0 0 var(--ink),-2px 0 0 var(--ink),0 -2px 0 var(--ink),4px 5px 0 var(--ink)}
+html.dark :is(.mmoney,.panel .hist-sum .num){text-shadow:-1.5px -1.5px 0 var(--ink),1.5px -1.5px 0 var(--ink),-1.5px 1.5px 0 var(--ink),1.5px 1.5px 0 var(--ink),2px 3px 0 var(--ink)}
+html.dark .pomo1 .pm{text-shadow:-1.2px -1.2px 0 var(--ink),1.2px -1.2px 0 var(--ink),-1.2px 1.2px 0 var(--ink),1.2px 1.2px 0 var(--ink),1.5px 2px 0 var(--ink)}
+html.dark .heart{text-shadow:-1.5px -1.5px 0 var(--ink),1.5px -1.5px 0 var(--ink),-1.5px 1.5px 0 var(--ink),1.5px 1.5px 0 var(--ink)}
+/* the small icons: their dark outlines turn light (their fills stay); the title-bar glyphs too */
+html.dark svg.ic [stroke="#3D2C24"]{stroke:#EADBC6}
+
+/* ---------- layouts.css ---------- */
+html.dark .s-lunch{--st-bg:#5A4A1A;--st-dot:#FFC857}
+html.dark .s-done{--st-bg:#6A4A1A;--st-dot:#FF9A52}
+html.dark :is(.s-ended,.s-before,.s-off){--st-bg:#3E342D;--st-dot:#B59C84}
+html.dark .thin,html.dark .feed.none,html.dark .u7 .tools button:not(.hide){background:var(--card)}
+html.dark .u3 .alt-dots i{background:var(--t-mute)}
+html.dark .u3 .alt-dots i.on{background:var(--text)}
+html.dark .u3 .coin{color:#3D2C24}
+html.dark .m3 .ring{background:conic-gradient(var(--money) calc(var(--p,0)*1%),var(--card) 0)}
+/* M3's line under the badge: a dark backing of its own, readable over a light or a dark desktop */
+html.dark .m3 .sub{background:rgba(42,34,29,.92)}
+html.dark .m3 .tagm{background:var(--card)}   /* (the orange digits on the dark amber would be under 4.5:1) */
+html.dark .bolt i.off{background:transparent}
+
+/* ---------- health.css ---------- */
+html.dark .lay.p-foc .status{--st-bg:#5A2A22;--st-dot:#FF6B57}
+html.dark .lay.p-brk .status{--st-bg:#1F4058;--st-dot:#5DB2FF}
+html.dark .tom-btn{background:var(--t-pomo)}
+html.dark .tom-btn.wat{background:var(--t-water)}
+html.dark .tom-btn .play,html.dark .mp,html.dark .mp .cnt,html.dark .m3 .mb{background:var(--card)}
+html.dark .tom-btn.wat .play{color:#7CC4FF}
+html.dark .tom-btn.wat .cnt{background:#24496A}
+html.dark :is(.mp.wat,.isl .iv-x .ichip[data-act=drink],.u7 .hline button.hpart){background:var(--t-water)}
+html.dark :is(.mp.st,.isl .iv-x .ichip[data-hold]){background:var(--t-stand)}
+html.dark :is(.mp.go,.isl .iv-x .ichip[data-act=pomo]){background:var(--t-pomo)}
+html.dark :is(.lay:is(.p-foc,.p-brk) .mp.go,.u10:is(.p-foc,.p-brk) .isl .iv-x .ichip[data-act=pomo]){background:var(--t-pomo2)}
+/* the long presses: the ring's track light, the full tint a deep one of its colour */
+html.dark .lay .holding{--hbg:#2F7A4F}
+html.dark .lay .holding.h-water{--hbg:#2C5F8F}
+html.dark .lay .holding.h-pomo{--hbg:#8A3A2C}
+html.dark .lay .holding::after{background:conic-gradient(var(--hc) calc(var(--hold)*1%),rgba(244,233,218,.22) 0)}
+/* full: the tint wins over the dark pastels above, as it wins over the light ones */
+html.dark .lay .holding.charged.charged.charged.charged:not(.rg){background:var(--hbg)}
+html.dark .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),var(--t-track) 0)}
+/* 「長按停止」: a light pill on the dark window (the light look's is dark); U10's sits on the dark capsule's desktop side */
+html.dark .lay .tip{background:#F4E9DA;color:#2A221D;box-shadow:2px 2px 0 rgba(0,0,0,.35)}
+html.dark .u10 .tip{background:#F4E9DA;color:#2A221D}
+html.dark .m3 .ring.p-foc{background:conic-gradient(var(--tom) calc(var(--p,0)*1%),var(--card) 0)}
+html.dark .m3 .ring.p-brk{background:conic-gradient(var(--rest) calc(var(--p,0)*1%),var(--card) 0)}
+html.dark .donut{background:radial-gradient(closest-side,var(--card) 50%,transparent 53%),conic-gradient(var(--c) calc(var(--p)*1%),var(--t-track) 0)}
+html.dark .pring circle[stroke="#FFF8EC"]{stroke:var(--t-track)}
+html.dark .pring circle[stroke="#3D2C24"]{stroke:var(--ink)}
+html.dark .pring .ptime{background:var(--t-pomo)}
+html.dark .pring.rest .ptime{background:var(--t-stand)}
+html.dark [data-cups] > .plus{color:#7CC4FF;text-shadow:-1.5px -1.5px 0 var(--ink),1.5px -1.5px 0 var(--ink),-1.5px 1.5px 0 var(--ink),1.5px 1.5px 0 var(--ink)}
+/* the prompt bubbles */
+html.dark .rbub,html.dark .rbub::before,html.dark .lay .rb-btns button,html.dark .dash .say,html.dark .dash .say::before{background:var(--card)}
+html.dark .rbub::after,html.dark .dash .say::after{background:var(--card);background-clip:padding-box}
+html.dark .lay .rb-btns .ok{background:var(--bar)}
+html.dark .lay .rb-btns .drink{background:#2C5F8F}
+html.dark :is(.rb-ic.w,.u5b .call.w){background:#24496A}
+html.dark :is(.rb-ic.r,.u5b .call.r){background:#24533A}
+html.dark :is(.rb-ic.t,.u5b .call.t){background:#5A3028}
+/* U10: the capsule is dark in both looks; here a faint light edge keeps it apart from a dark desktop, its chips go dark */
+html.dark .isl{background:#241C18;box-shadow:0 0 0 1.5px rgba(244,233,218,.32),0 5px 0 rgba(0,0,0,.35)}
+html.dark .isl .ichip{background:#4A3D34;color:var(--text)}
+html.dark .isl .gd{background:var(--st-dot)}   /* (the status colour is the dark fill here: its dot shows instead) */
+html.dark .lay.u10 .isl .rb-btns :is(.ok,.drink){color:#2A221D}
+/* the rings (U12, U13) */
+html.dark .gauge3 .rg{background:radial-gradient(closest-side,var(--bg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),var(--t-track) 0)}
+html.dark .gauge3[data-gauge=stand].hot .gl{color:#4ADE80}
+html.dark .bigring{background:radial-gradient(closest-side,var(--bg) var(--hole),transparent calc(var(--hole) + 2%)),conic-gradient(var(--c) calc(var(--p)*1%),var(--t-track) 0)}
+html.dark .u13:is(.p-foc,.p-brk) .bigring .br-go .go{background:var(--card)}
+
+/* ---------- panels.css ---------- */
+html.dark .panel{--ok:#3BA56C;--err:#FF7A93;--soft:#4A3D34;--dash:#4A3D34;--warn:#5A2A33}
+html.dark .panel :is(.card,.btn.ghost,.seg,.tabs button,.stepper button,.x,.days button,.stepdots i,.ck,.q-bubble,.q-bubble::before){background:var(--card)}
+html.dark .panel :where(.cc,.calleg i){background:var(--card)}   /* (:where: the calendar's levels keep their blue) */
+html.dark .panel .q-bubble::after{background:var(--card);background-clip:padding-box}
+html.dark .panel .tabs button.on,html.dark .panel .days button.on,html.dark .panel .seg button.on{background:var(--bar)}
+html.dark .panel .stepdots i.on{background:var(--money)}
+html.dark .panel .ck[aria-checked=true]{background:var(--ok)}
+html.dark .panel .btn.go{color:#2A221D}
+html.dark .panel input[type=text]{background:var(--bg)}
+html.dark .panel input[type=text].bad{background:#4A2530}
+html.dark .panel input::placeholder{color:#8E7A69}
+html.dark .panel .hk.cap{background:#4A3B1E}
+html.dark .panel .tgl::after{background:#F4E9DA}
+html.dark .panel .ob-prev{background:#3A2E22}
+html.dark .panel .qb small{color:var(--sub)}
+html.dark .panel pre.lic{color:var(--text)}
+html.dark .panel .pscroll{scrollbar-color:#6B5A4C transparent}
+html.dark .panel .pscroll::-webkit-scrollbar-thumb{background:#6B5A4C}
+html.dark .panel .hist-chart .we{fill:rgba(244,233,218,.05)}
+html.dark .panel .hist-chart .bar{stroke:var(--ink)}
+html.dark .panel .cc.bl{border-color:#5A4A3E;color:#B59C84;background:transparent}
+html.dark .panel .cc.full{background:#2E7FD6}

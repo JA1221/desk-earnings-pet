@@ -14,7 +14,8 @@ window.QJZ = window.QJZ || {};
 //               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;
 //               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
 //               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
-//               shown on and locked while the host forces it, init.forceOpaque) and 省電模式 (display.powerSaver).
+//               shown on and locked while the host forces it, init.forceOpaque) and 省電模式 (display.powerSaver); above
+//               it, in a card of its own, 深色模式 (display.dark, 1.1.5).
 //   history     統計 (1.1.5, QJZ.panelsStats: one bar chart, 週 / 月 and 收入 / 喝水 / 起來動 / 番茄, its 合計 and
 //               平均), the health calendar (QJZ.panelsHealth) and the totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
@@ -350,6 +351,7 @@ QJZ.panels = (function () {
     layout: function () {
       return '<div class="lnow">現在的版型<b data-o="layoutName"></b></div>' +
         hint('換版型：右鍵選單 →「版型」。下次開啟會用你最後用的版型；要不要永遠在最上層，也在「版型」裡切換（每個版型各自記住）。') +
+        '<div class="card">' + line(row('深色模式', tgl('dark', '深色模式')) + hint('視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。')) + '</div>' +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
           hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
           line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。')) + '</div>';
@@ -645,6 +647,7 @@ QJZ.panels = (function () {
       if (op && op.disabled !== forced) op.disabled = forced;
       out(c, 'opaqueNote', forced ? '這台電腦目前無法顯示透明背景，已自動開啟。' : '');
       tglOn(c, 'powerSaver', s.display.powerSaver);
+      tglOn(c, 'dark', s.display.dark);
       // 音效 / 開機 / 隱私
       tglOn(c, 'sound', s.sound.enabled);
       var vol = q(c, '[data-f=volume]'), pct = Math.round(s.sound.volume * 100);
@@ -888,6 +891,7 @@ QJZ.panels = (function () {
     } else if (name === 'opaque') {
       if (!st().forceOpaque) save({ display: { opaque: !s.display.opaque } });
     } else if (name === 'powerSaver') save({ display: { powerSaver: !s.display.powerSaver } });
+    else if (name === 'dark') save({ display: { dark: !s.display.dark } });
     else if (name === 'autostart') app().setAutostart(!s.autostart);
     else if (name === 'capture') app().setCaptureGuard(!s.privacy.hideFromCapture);
   }

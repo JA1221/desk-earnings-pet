@@ -754,7 +754,7 @@
     eq(QJZ.app.state.settings.display.opaque, true);
     eq(t.getAttribute('aria-checked'), 'true');
     ok(root.classList.contains('opaque'));
-    eq(savedSettings(e).display, { opaque: true, powerSaver: false });
+    eq(savedSettings(e).display, { opaque: true, powerSaver: false, dark: false });
     t.click();
     eq(QJZ.app.state.settings.display.opaque, false);
     ok(!root.classList.contains('opaque'));
@@ -919,14 +919,14 @@
     done();
   });
 
-  test('panels: five tabs in order; the 版型 card in 畫面 has exactly 相容模式 and 省電模式; 動力加成 is unchanged', function () {
+  test('panels: five tabs in order; 畫面 has 深色模式, then the 版型 card with exactly 相容模式 and 省電模式; 動力加成 is unchanged', function () {
     var e = mk(at(12, 10, 0));
     e.menu('settings');
     eq($$(e, '[data-tab]').map(function (b) { return b.textContent; }), ['薪水和時間', '寵物', '健康', '畫面', '其他']);
     $(e, '[data-tab=display]').click();
-    eq($$(e, '[data-sec=layout] .card').length, 1, 'one 版型 card');
-    eq($$(e, '[data-sec=layout] .card [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque', 'powerSaver']);
-    eq($$(e, '[data-sec=layout] .card .row .lbl').map(function (l) { return l.textContent; }), ['相容模式（不透明背景）', '省電模式']);
+    eq($$(e, '[data-sec=layout] .card').length, 2, '深色模式, then the 版型 card');
+    eq($$(e, '[data-sec=layout] .card [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['dark', 'opaque', 'powerSaver']);
+    eq($$(e, '[data-sec=layout] .card .row .lbl').map(function (l) { return l.textContent; }), ['深色模式', '相容模式（不透明背景）', '省電模式']);
     eq($$(e, '[data-sec=layout] .card [data-f], [data-sec=layout] .card [data-seg], [data-sec=layout] .card [data-num]').length, 0, 'nothing else');
     eq($(e, '[data-tgl=powerSaver]').closest('.line').querySelector('.hint').textContent, '金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。');
     ok(text(e, '[data-pane=display]').indexOf('膠囊') < 0, 'no capsule position (§4.9 #12)');
@@ -934,7 +934,7 @@
     eq(ps.getAttribute('aria-checked'), 'false', 'off by default');
     ps.click();
     eq([QJZ.app.state.settings.display.powerSaver, ps.getAttribute('aria-checked')], [true, 'true']);
-    eq(savedSettings(e).display, { opaque: false, powerSaver: true });
+    eq(savedSettings(e).display, { opaque: false, powerSaver: true, dark: false });
     ps.click();
     eq(QJZ.app.state.settings.display.powerSaver, false);
     eq(QJZ.app.state.settings.display.opaque, false, '相容模式 untouched');
@@ -1043,10 +1043,10 @@
     eq(QJZ.app.state.settings.pet.names.hamster, '<img src=x onerror=alert(1)>');
     eq($(e, 'img'), null, 'names are never markup');
 
-    // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式 and 1.1's 省電模式
+    // #12: no start-layout picker, no topmost switches (the menu's 版型 ▶ 永遠在最上層), only 相容模式, 1.1's 省電模式 and 1.1.5's 深色模式
     $(e, '[data-tab=display]').click();
     eq([$(e, '[data-seg=layoutStart]'), $(e, '[data-tgl^="top."]')], [null, null]);
-    eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['opaque', 'powerSaver']);
+    eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['dark', 'opaque', 'powerSaver']);
     ok(text(e, '[data-sec=layout]').indexOf('最後用的版型') >= 0 && text(e, '[data-sec=layout]').indexOf('右鍵選單') >= 0, 'says where they went');
 
     $(e, '[data-tab=display]').click();
@@ -1349,4 +1349,105 @@
     ok(text(e, '[data-o=todayStart]').indexOf('08:37') >= 0, text(e, '[data-o=todayStart]'));
     done();
   });
+  // ---------- 1.1.5 item 3: 深色模式 ----------
+  test('panels DOM: 深色模式 in 畫面: off by default, a press saves it and darkens the page at once', function () {
+    var e = mk(at(12, 10, 0));
+    var root = document.documentElement;
+    eq(root.classList.contains('dark'), false, 'off by default');
+    e.menu('settings');
+    $(e, '[data-tab=display]').click();
+    var t = $(e, '[data-tgl=dark]');
+    eq(t.getAttribute('aria-checked'), 'false');
+    eq(t.closest('.line').querySelector('.hint').textContent, '視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。');
+    t.click();
+    eq([QJZ.app.state.settings.display.dark, t.getAttribute('aria-checked'), root.classList.contains('dark')], [true, 'true', true]);
+    eq(savedSettings(e).display, { opaque: false, powerSaver: false, dark: true });
+    t.click();
+    eq([QJZ.app.state.settings.display.dark, root.classList.contains('dark')], [false, false]);
+    t.click();
+    done();
+    eq(root.classList.contains('dark'), false, 'a reset drops html.dark');
+    var s = JSON.parse(JSON.stringify(SET_UP));
+    s.display = { dark: true };
+    mk(at(12, 10, 0), { settings: s });
+    eq(root.classList.contains('dark'), true, 'from settings.json at start');
+    done();
+  });
+
+  // WCAG contrast of two computed colours (rgb / rgba strings; alpha over the colour under it is the caller's job)
+  function rgb(c) { var m = /rgba?\(([^)]+)\)/.exec(c); if (!m) return null; var p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; }
+  function lum(c) {
+    function f(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+  }
+  function over(top, under) { var a = top.a; return { r: top.r * a + under.r * (1 - a), g: top.g * a + under.g * (1 - a), b: top.b * a + under.b * (1 - a), a: 1 }; }
+  // The colour behind el: the solid (or blended) background colours of it and its ancestors, up to the first opaque one;
+  // null when a background image (a gradient, the room) or nothing at all (a transparent window) is behind it.
+  function backdrop(el, stop) {
+    var stack = [];
+    for (var n = el; n && n !== stop.parentNode; n = n.parentElement) {
+      var cs = getComputedStyle(n);
+      if (cs.backgroundImage !== 'none') return null;
+      var c = rgb(cs.backgroundColor);
+      if (c && c.a > 0) { stack.push(c); if (c.a >= 1) break; }
+    }
+    if (!stack.length || stack[stack.length - 1].a < 1) return null;
+    var out = stack.pop();
+    while (stack.length) out = over(stack.pop(), out);
+    return out;
+  }
+  // every shown element with text of its own in box, outside the pet and its room: [text, contrast]
+  function contrasts(box) {
+    var res = [];
+    Array.prototype.forEach.call(box.querySelectorAll('*'), function (el) {
+      if (el.closest('svg:not(.ic), .scene, .po, .av, [data-pet], [aria-hidden=true], .msk')) return;
+      var own = Array.prototype.some.call(el.childNodes, function (t) { return t.nodeType === 3 && t.nodeValue.trim(); });
+      if (!own || !el.getClientRects().length) return;
+      var cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || +cs.opacity < 1 || el.closest('[disabled], .inert, .nil, .done')) return;
+      var bg = backdrop(el, box), fg = rgb(cs.color);
+      if (!bg || !fg) return;
+      var a = lum(over(fg, bg)), b = lum(bg);
+      res.push([el.textContent.trim().slice(0, 16), (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)]);
+    });
+    return res;
+  }
+  function allLegible(e, where) {
+    var list = contrasts(e.root), low = list.filter(function (x) { return x[1] < 4.5; });
+    ok(list.length > 0, where + ': some text checked');
+    eq(low.map(function (x) { return x[0] + ' ' + x[1].toFixed(2); }), [], where + ': every text at least 4.5:1');
+  }
+
+  test('panels DOM: 深色模式: every text on the 8 layouts, 設定 (each tab), 紀錄 and the onboarding is at least 4.5:1', function () {
+    var s = JSON.parse(JSON.stringify(SET_UP));
+    s.display = { dark: true };
+    s.health = { asked: true, water: { on: true }, sit: { on: true } };
+    ['U1', 'U3', 'U5B', 'U7', 'M3', 'U10', 'U12', 'U13'].forEach(function (name) {
+      var e = mk(at(12, 10, 0), { settings: s, first: name, care: true, history: sampleHistory() });
+      ok(document.documentElement.classList.contains('dark'), name);
+      allLegible(e, name);
+      if (name === 'U1' || name === 'U13') {
+        e.menu('settings');
+        ['time', 'pet', 'health', 'display', 'other'].forEach(function (t) { $(e, '[data-tab=' + t + ']').click(); allLegible(e, name + ' 設定 ' + t); });
+        $(e, '[data-act=back]').click();
+        e.menu('history');
+        allLegible(e, name + ' 紀錄');
+        ['cups', 'standups', 'tomatoes'].forEach(function (m) { $(e, '[data-stseg=metric] [data-st=' + m + ']').click(); });
+        $(e, '[data-stseg=period] [data-st=week]').click();
+        allLegible(e, name + ' 紀錄 週');
+      }
+      done();
+    });
+    var o = JSON.parse(JSON.stringify(s));
+    o.onboarded = false;
+    var f = mk(at(12, 10, 0), { settings: o });
+    ok($(f, '.panel.p-onboarding'));
+    allLegible(f, 'onboarding 1');
+    $(f, '[data-pa=next]').click();
+    allLegible(f, 'onboarding 2');
+    $(f, '[data-pa=toHealth]').click();
+    allLegible(f, 'onboarding 3');
+    done();
+  });
+
 })();

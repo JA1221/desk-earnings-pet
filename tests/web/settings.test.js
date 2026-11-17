@@ -29,9 +29,13 @@ test('validateSalary boundaries and odd input', function(){ var v=QJZ.settings.v
   eq(v('.').error,'請輸入數字'); eq(v('5,00').error,'請輸入數字'); eq(v('1 000').error,'請輸入數字'); eq(v('NaN').error,'請輸入數字'); eq(v('Infinity').error,'請輸入數字'); eq(v(null).error,'請輸入薪資'); });
 // 1.1 adds display.powerSaver (省電模式, §5.9) beside it, default off.
 test('display.opaque (相容模式) defaults to false and is sanitised', function(){
-  eq(P(null).settings.display,{opaque:false,powerSaver:false}); eq(P('{"display":{"opaque":true}}').settings.display,{opaque:true,powerSaver:false});
-  eq(P('{"display":{"opaque":"yes"}}').settings.display.opaque,false); eq(P('{"display":5}').settings.display,{opaque:false,powerSaver:false});
-  eq(P('{"display":{"powerSaver":true}}').settings.display,{opaque:false,powerSaver:true}); eq(P('{"display":{"powerSaver":1}}').settings.display.powerSaver,false); });
+  eq(P(null).settings.display,{opaque:false,powerSaver:false,dark:false}); eq(P('{"display":{"opaque":true}}').settings.display,{opaque:true,powerSaver:false,dark:false});
+  eq(P('{"display":{"opaque":"yes"}}').settings.display.opaque,false); eq(P('{"display":5}').settings.display,{opaque:false,powerSaver:false,dark:false});
+  eq(P('{"display":{"powerSaver":true}}').settings.display,{opaque:false,powerSaver:true,dark:false}); eq(P('{"display":{"powerSaver":1}}').settings.display.powerSaver,false); });
+// 1.1.5 item 3: display.dark (深色模式), off by default and for every older file; only a real true turns it on.
+test('display.dark (深色模式) defaults to false and is sanitised', function(){
+  eq(P('{"display":{"dark":true}}').settings.display,{opaque:false,powerSaver:false,dark:true});
+  eq([P('{"display":{"dark":"true"}}').settings.display.dark,P('{"display":{"dark":1}}').settings.display.dark,P('{"display":{"opaque":true}}').settings.display.dark],[false,false,false]); });
 // #12: the app starts in the last used layout: layout.current, or M3 when layout.mini. 1.0's layout.start is kept as
 // it is (unused), and an upgrade changes no value: it only adds layout.mini (false).
 test('layout.mini (left as the mini badge) defaults to false and is sanitised; layout.start is kept', function(){
@@ -48,7 +52,7 @@ test('an old 1.0 settings.json reads back with every value unchanged (only layou
   var s=P(JSON.stringify(old)).settings, want=JSON.parse(JSON.stringify(old));
   want.layout.mini=false;
   want.layout.topmost.U10=true; want.layout.topmost.U12=false; want.layout.topmost.U13=false; want.layout.capsule='top';
-  want.display.powerSaver=false;
+  want.display.powerSaver=false; want.display.dark=false;
   want.health={asked:false,every:50,sit:{on:false},water:{on:false,goal:8},pomodoro:{focus:25,short:5,long:15,longEvery:4}};
   want.privacy.maskMoney=false;
   want.zoom=100;   // 1.1.5 縮放比例

@@ -9,11 +9,14 @@
 <link rel="stylesheet" href="css/layouts.css">
 <link rel="stylesheet" href="css/health.css">
 <link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/dark.css">
 <style>
   html, body { background: #ECE8E1; min-height: 100%; }
   body { padding: 14px; background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0); background-size: 22px 22px; }
   /* ?bg=wall: a desktop-like backdrop (the prototype's U7 wallpaper) to judge the frameless layouts */
   html.wall, html.wall body { background: radial-gradient(circle at 75% 25%, #FFE9B0 0 40px, transparent 41px), linear-gradient(180deg, #9ED8FF 0%, #CDEBFF 55%, #BFE6C4 56%, #9FD6A6 100%) fixed; }
+  /* ?bg=night: a dark desktop (1.1.5, to judge the frameless layouts in 深色模式 and out of it) */
+  html.night, html.night body { background: radial-gradient(circle at 75% 25%, #3A4466 0 40px, transparent 41px), linear-gradient(180deg, #10131C 0%, #1C2233 55%, #18241C 56%, #0F1812 100%) fixed; }
   #root { position: relative; display: inline-block; vertical-align: top; }
   /* U10's window is transparent but for its capsule: its bounds dashed, to see where the dock puts the capsule */
   #root:has(> .u10) { outline: 1.5px dashed rgba(61,44,36,.35); }
@@ -54,7 +57,7 @@
 </div>
 <p class="note">Dev mock：右鍵選單在這裡用上面的按鈕代替（送出 host 的 <code>menu</code> 訊息）。資料存在 localStorage（qjz.settings / qjz.history）。
 網址參數：<code>?now=HH:MM[:SS]</code> 假時間（預設 14:32:07）、<code>?start=HH:MM</code> 今天開工時間、<code>?layout=U1|U3|U5B|U7|M3|U10|U12|U13</code>、
-<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡（沒有泡泡的版型是橫幅；加 <code>?hold=1</code> 讓橫幅停在半路，截圖用）、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
+<code>?pet=cat:p0</code>、<code>?say=文字</code> 對話泡泡（沒有泡泡的版型是橫幅；加 <code>?hold=1</code> 讓橫幅停在半路，截圖用）、<code>?fresh=1</code> 清掉 localStorage、<code>?bg=wall</code> 桌布背景（<code>?bg=night</code> 深色桌布）、<code>?dark=1</code> 深色模式、<code>?hits=1</code> 顯示點擊區、<code>?bar=0</code> 隱藏這些工具。<br>
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust|healthAsk</code>
 （healthAsk：升級後問一次要不要提醒）、<code>?tab=time|pet|health|display|other</code>、<code>?scroll=px</code> 面板往下捲、<code>?disc=adv|guide|lic</code> 點開設定裡那個摺疊區並捲到最下面（adv = 健康 → 進階）、
@@ -76,6 +79,7 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   var devFirstRun = devQ.get('firstrun') === '1';
   if (devQ.get('fresh') === '1' || devFirstRun) { try { localStorage.removeItem('qjz.settings'); localStorage.removeItem('qjz.history'); } catch (e) {} }
   if (devQ.get('bg') === 'wall') document.documentElement.classList.add('wall');
+  if (devQ.get('bg') === 'night') document.documentElement.classList.add('night');
   if (devQ.get('bar') === '0') document.body.classList.add('hidebar');
   // The dev user has answered the reminder question (reminders off); ?panel=healthAsk shows it.
   window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12',
@@ -325,10 +329,12 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   // 1.1.2 (screenshots): ?mask=1 the money mask, ?pin=1 the shown layout pinned on top, ?plus=1 the newest "+0.xx"
   // stopped where it is fully drawn (older ones go), ?answer=id that button on the bubble once it shows, ?press=1 the
   // countdown chip held (its ring stopped half way), ?stood=1 the menu's 我剛起來動過了.
-  if (devQ.get('mask') === '1' || devQ.get('pin') === '1') {
+  // 1.1.5: ?dark=1|0 深色模式 on / off (saved, as the switch in 設定 → 畫面 does)
+  if (devQ.get('mask') === '1' || devQ.get('pin') === '1' || devQ.get('dark')) {
     var offMask = QJZ.app.on('change', function () {
       offMask();
       setTimeout(function () {
+        if (devQ.get('dark')) QJZ.app.saveSettings({ display: { dark: devQ.get('dark') === '1' } });
         if (devQ.get('mask') === '1') QJZ.app.saveSettings({ privacy: { maskMoney: true } });
         if (devQ.get('pin') === '1') {
           var tp = {}; tp[QJZ.layouts.current()] = true;

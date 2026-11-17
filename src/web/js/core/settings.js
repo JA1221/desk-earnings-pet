@@ -23,7 +23,8 @@ QJZ.settings = (function () {
     // maskMoney (1.1.2): the money on the main screens shows *** (a click on the amount toggles it; page-owned)
     privacy: { hideFromCapture: true, hotkey: 'Ctrl+Alt+H', maskMoney: false },
     // opaque: 相容模式, paint the whole window (page-owned; the host has init.forceOpaque). powerSaver: 省電模式 (§5.9).
-    display: { opaque: false, powerSaver: false },
+    // dark: 深色模式 (1.1.5 item 3), html.dark; it does not follow Windows.
+    display: { opaque: false, powerSaver: false, dark: false },
     // §4.9 #6/#7, §5.4: one reminder timer (every minutes) for 起來動 (sit) and 喝水 (water). asked: the user answered
     // the reminder question (onboarding, or the one-time question after the 1.0 upgrade, §5.5); until then neither
     // reminder runs whatever sit.on / water.on say (QJZ.reminders.ask).
@@ -128,6 +129,7 @@ QJZ.settings = (function () {
     var disp = isObj(s.display) ? s.display : {};
     out.display.opaque = bool(disp.opaque, d.display.opaque);
     out.display.powerSaver = bool(disp.powerSaver, d.display.powerSaver);
+    out.display.dark = bool(disp.dark, d.display.dark);
 
     var hs = isObj(s.health) ? s.health : {}, hd = d.health, R = HEALTH_RANGES;
     var sit = isObj(hs.sit) ? hs.sit : {}, water = isObj(hs.water) ? hs.water : {}, pom = isObj(hs.pomodoro) ? hs.pomodoro : {};

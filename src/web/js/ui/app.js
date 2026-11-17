@@ -358,6 +358,7 @@ QJZ.app = (function () {
     var root = document.documentElement;
     root.classList.toggle('opaque', !!(state.settings.display.opaque || state.forceOpaque));
     root.classList.toggle('saver', !!state.settings.display.powerSaver);
+    root.classList.toggle('dark', !!state.settings.display.dark);   // 深色模式 (1.1.5): css/dark.css
     if (tickTimer && tickEvery !== tickMs()) { stopTick(); startTick(); }
   }
 
@@ -541,6 +542,7 @@ QJZ.app = (function () {
     document.documentElement.classList.remove('paused');
     document.documentElement.classList.remove('opaque');
     document.documentElement.classList.remove('saver');
+    document.documentElement.classList.remove('dark');
   }
 
   return {
