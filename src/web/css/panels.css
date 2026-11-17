@@ -19,6 +19,9 @@
 .panel .card{background:#fff;border:2.5px solid var(--line);border-radius:18px;box-shadow:3px 3px 0 var(--shadow);padding:2px 14px}
 .panel .line{padding:9px 0}
 .panel .line + .line{border-top:2px dashed var(--dash)}
+/* 1.1.7 上班方式: a card whose first line is hidden (固定 hides 開始算錢) has no rule above its first shown line */
+.panel .line[hidden]:first-child + .line{border-top:0}
+.panel .line[data-only=fixed] > .row + .row{margin-top:6px}
 .panel .row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:30px}
 .panel .lbl{display:block;font-size:13.5px;font-weight:700;line-height:1.35}
 .panel .row .lbl{flex:1;min-width:0}

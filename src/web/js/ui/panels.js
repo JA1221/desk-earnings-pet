@@ -139,6 +139,17 @@ QJZ.panels = (function () {
     if (QJZ.time.parseHM(b) <= QJZ.time.parseHM(a)) return { ok: false, error: '午休結束要晚於開始' };
     return { ok: true, start: a, end: b };
   }
+  // 固定's 上班 / 下班 (1.1.7): both times, the end after the start, and some work left once lunch is taken out.
+  function checkFixed(start, end, lunch) {
+    var a = normHM(start), b = normHM(end);
+    if (a === null || b === null) return { ok: false, error: '請輸入時間' };
+    if (QJZ.time.parseHM(b) <= QJZ.time.parseHM(a)) return { ok: false, error: '下班要晚於上班' };
+    var h = QJZ.settings.hours({ workMode: 'fixed', fixed: { start: a, end: b }, lunch: lunch, hoursPerDay: 0 });
+    if (!(h > 0)) return { ok: false, error: '扣掉午休就沒有上班時間了' };
+    return { ok: true, start: a, end: b };
+  }
+  // 「8.5」, 「8」, 「7.75」: hours as the panel shows them.
+  function hoursText(h) { return String(Math.round(h * 100) / 100); }
   // Today's start typed as HH:MM on `day` -> {ok, ms}; never in the future or before the 04:00 day boundary.
   function startAt(day, text, nowMs) {
     var t = normHM(text);
@@ -234,7 +245,7 @@ QJZ.panels = (function () {
   function questionModel(q, rec, settings, todayKey) {
     var m = { text: questionText(q, todayKey), lock: hmOf(q.lockMs), planned: null, yes: null, no: null };
     if (rec && isNum(rec.startMs)) {
-      m.planned = hmOf(QJZ.earn.endAtMs(rec.startMs, rec.day, settings.hoursPerDay, settings.lunch));
+      m.planned = hmOf(QJZ.earn.endAtMs(rec.startMs, rec.day, QJZ.settings.hours(settings), settings.lunch));
       m.yes = money(QJZ.history.closeDay(QJZ.day.resolveEarlyLeave(rec, true), settings).earned);
       m.no = money(QJZ.history.closeDay(QJZ.day.resolveEarlyLeave(rec, false), settings).earned);
     }
@@ -314,7 +325,11 @@ QJZ.panels = (function () {
     },
     hours: function () {
       return '<div class="card">' +
-        line(row('每日工時', stepper('', function (d) { return 'data-hstep="' + d + '"'; }, 'hours', '小時', '少半小時', '多半小時'))) +
+        line(row('上班方式', seg('workMode', [['flex', '彈性'], ['fixed', '固定']])) + hint('', 'workModeHint')) +
+        line(row('每日工時', stepper('', function (d) { return 'data-hstep="' + d + '"'; }, 'hours', '小時', '少半小時', '多半小時')), ' data-only="flex"') +
+        line(row('上班', textIn('fixedStart', 'tm', ' inputmode="numeric" maxlength="5" aria-label="上班時間"')) +
+          row('下班', textIn('fixedEnd', 'tm', ' inputmode="numeric" maxlength="5" aria-label="下班時間"')) +
+          err('fixed') + hint('', 'fixedHours'), ' data-only="fixed"') +
         line(row('午休時間', '<span class="times">' + textIn('lunchStart', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休開始"') +
           '<span>–</span>' + textIn('lunchEnd', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休結束"') + '</span>') +
           err('lunch') + hint('午休不算錢，狀態會顯示「午休中」。')) +
@@ -335,7 +350,7 @@ QJZ.panels = (function () {
       var days = '';
       [1, 2, 3, 4, 5, 6, 0].forEach(function (d) { days += '<button type="button" data-wd="' + d + '">' + WD.charAt(d) + '</button>'; });
       return '<div class="card">' +
-        line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint')) +
+        line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint'), ' data-only="flex"') +
         line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始，但可以手動開始上班。')) +
         '</div>';
     },
@@ -426,7 +441,7 @@ QJZ.panels = (function () {
       var s = st().settings;
       c.ob = { step: 1, mode: s.salary.mode, amountText: amountInputText(s.salary.amount), divisor: s.salary.divisor,
         pet: petId(s), names: { cat: s.pet.names.cat, hamster: s.pet.names.hamster } };
-      var rest = '其他設定（每天 ' + s.hoursPerDay + ' 小時、午休 ' + s.lunch.start + '–' + s.lunch.end + '…）都能在設定裡改。';
+      var rest = '其他設定（每天 ' + hoursText(QJZ.settings.hours(s)) + ' 小時、午休 ' + s.lunch.start + '–' + s.lunch.end + '…）都能在設定裡改。';
       c.body.innerHTML = WARN +
         '<div class="ob-step" data-step="1">' +
           '<div class="hero"><span class="av" data-o="heroAv"></span><div><h2 class="ptitle">歡迎使用錢進中！</h2>' +
@@ -611,7 +626,7 @@ QJZ.panels = (function () {
       var a = q(c, '[data-f=amount]');
       if (a) a.placeholder = ob.mode === 'hourly' ? '輸入時薪' : '輸入月薪';
       var r = QJZ.settings.validateSalary(ob.amountText);
-      out(c, 'preview', r.ok ? salaryPreview({ mode: ob.mode, amount: r.value, divisor: ob.divisor }, st().settings.hoursPerDay) :
+      out(c, 'preview', r.ok ? salaryPreview({ mode: ob.mode, amount: r.value, divisor: ob.divisor }, QJZ.settings.hours(st().settings)) :
         '輸入後會顯示日薪和每秒賺多少。');
       skinsOn(c, ob.pet);
     },
@@ -630,12 +645,18 @@ QJZ.panels = (function () {
       show(q(c, '[data-only=monthly]'), s.salary.mode === 'monthly');
       out(c, 'amountLabel', s.salary.mode === 'hourly' ? '時薪金額' : '月薪金額');
       out(c, 'modeNote', c.modeNote || '');
-      out(c, 'preview', salaryPreview(s.salary, s.hoursPerDay) || '還沒設定薪資。');
-      // 工時
+      var hrs = QJZ.settings.hours(s), fixed = s.workMode === 'fixed';
+      out(c, 'preview', salaryPreview(s.salary, hrs) || '還沒設定薪資。');
+      // 工時; 上班方式 (1.1.7): 固定 shows 上班 / 下班 and the hours they make, and hides 每日工時 and 開始算錢
+      segOn(c, 'workMode', s.workMode);
+      qa(c, '[data-only=flex]').forEach(function (n) { show(n, !fixed); });
+      show(q(c, '[data-only=fixed]'), fixed);
+      out(c, 'workModeHint', fixed ? '工作日一開電腦，就從上班時間開始算，晚一點到也一樣；下班時間到就停。' : '');
+      out(c, 'fixedHours', '每天 ' + hoursText(hrs) + ' 小時（自動算）');
       out(c, 'hours', String(s.hoursPerDay));
       var begun = t && isNum(t.startMs);
-      out(c, 'endHint', begun ? '今天 ' + hmOf(t.startMs) + ' 開始，' + hmOf(QJZ.earn.endAtMs(t.startMs, t.day, s.hoursPerDay, s.lunch)) + ' 就可以下班。' :
-        '每天上滿 ' + s.hoursPerDay + ' 小時（午休不算）就可以下班。');
+      out(c, 'endHint', begun ? '今天 ' + hmOf(t.startMs) + ' 開始，' + hmOf(QJZ.earn.endAtMs(t.startMs, t.day, hrs, s.lunch)) + ' 就可以下班。' :
+        fixed ? '工作日 ' + s.fixed.start + ' 開始算，' + s.fixed.end + ' 下班。' : '每天上滿 ' + s.hoursPerDay + ' 小時（午休不算）就可以下班。');
       // 起算
       segOn(c, 'startMode', s.startMode);
       out(c, 'modeHint', s.startMode === 'auto' ? '每天第一次登入或解鎖 Windows 時自動開始。' : '每天要自己按「開始上班」（右鍵選單）。');
@@ -644,7 +665,7 @@ QJZ.panels = (function () {
       var ended = begun && !t.offDay && isNum(t.endMs);
       show(node(c, 'resumeLine'), ended);
       if (ended) out(c, 'endedAt', '今天 ' + hmOf(t.endMs) + ' 已下班');
-      out(c, 'todayStart', begun ? '今天從 ' + hmOf(t.startMs) + ' 開始計算' + (t.adjusted ? '（調整過）' : t.startSource === 'manual' ? '（手動）' : '（自動）') + '。' :
+      out(c, 'todayStart', begun ? '今天從 ' + hmOf(t.startMs) + ' 開始計算' + (t.adjusted ? '（調整過）' : t.startSource === 'manual' ? '（手動）' : t.startSource === 'fixed' ? '（固定）' : '（自動）') + '。' :
         '今天還沒開始。填時間按「套用」，就從那時開始算。');
       // 寵物
       skinsOn(c, petId(s));
@@ -726,6 +747,8 @@ QJZ.panels = (function () {
     set('amount', amountInputText(s.salary.amount));
     set('lunchStart', s.lunch.start);
     set('lunchEnd', s.lunch.end);
+    set('fixedStart', s.fixed.start);
+    set('fixedEnd', s.fixed.end);
     set('startAt', t && isNum(t.startMs) ? hmOf(t.startMs) : hmOf(app().nowMs()));
     set('name.hamster', s.pet.names.hamster);
     set('name.cat', s.pet.names.cat);
@@ -854,7 +877,7 @@ QJZ.panels = (function () {
       if (name === 'mode') {
         var to = v === 'hourly' ? 'hourly' : 'monthly', r0 = QJZ.settings.validateSalary(c.ob.amountText);
         if (to !== c.ob.mode) {
-          var cv = r0.ok ? convertAmount(r0.value, to, c.ob.divisor, st().settings.hoursPerDay) : null;
+          var cv = r0.ok ? convertAmount(r0.value, to, c.ob.divisor, QJZ.settings.hours(st().settings)) : null;
           if (cv !== null) {
             c.ob.amountText = amountInputText(cv);
             var af = q(c, '[data-f=amount]');
@@ -871,7 +894,7 @@ QJZ.panels = (function () {
     if (name === 'mode') {
       var s0 = st().settings, to2 = v === 'hourly' ? 'hourly' : 'monthly';
       if (to2 === s0.salary.mode) return;
-      var cv2 = s0.salary.amount > 0 ? convertAmount(s0.salary.amount, to2, s0.salary.divisor, s0.hoursPerDay) : null;
+      var cv2 = s0.salary.amount > 0 ? convertAmount(s0.salary.amount, to2, s0.salary.divisor, QJZ.settings.hours(s0)) : null;
       save({ salary: cv2 === null ? { mode: to2 } : { mode: to2, amount: cv2 } });
       var af2 = q(c, '[data-f=amount]');
       if (af2) af2.value = amountInputText(st().settings.salary.amount);
@@ -881,6 +904,7 @@ QJZ.panels = (function () {
     }
     else if (name === 'divisor') save({ salary: { divisor: +v } });
     else if (name === 'startMode') save({ startMode: v });
+    else if (name === 'workMode') save({ workMode: v === 'fixed' ? 'fixed' : 'flex' });
   }
   // Opens or closes a disclosure of 關於; its texts load the first time it opens.
   function disclose(c, name) {
@@ -998,6 +1022,15 @@ QJZ.panels = (function () {
           save({ lunch: { start: r.start, end: r.end } });
           q(c, '[data-f=lunchStart]').value = r.start;
           q(c, '[data-f=lunchEnd]').value = r.end;
+        }
+        break;
+      case 'fixedStart': case 'fixedEnd':
+        r = checkFixed(q(c, '[data-f=fixedStart]').value, q(c, '[data-f=fixedEnd]').value, s.lunch);
+        setErr(c, 'fixed', r.ok ? '' : r.error);
+        if (r.ok) {
+          save({ fixed: { start: r.start, end: r.end } });
+          q(c, '[data-f=fixedStart]').value = r.start;
+          q(c, '[data-f=fixedEnd]').value = r.end;
         }
         break;
       case 'name.cat': case 'name.hamster': {
@@ -1140,7 +1173,7 @@ QJZ.panels = (function () {
     },
     util: {
       needsOnboarding: needsOnboarding, initialPanel: initialPanel, onboardingPatch: onboardingPatch, checkAmount: checkAmount,
-      amountInputText: amountInputText, checkItem: checkItem, normHM: normHM, checkLunch: checkLunch, startAt: startAt,
+      amountInputText: amountInputText, checkItem: checkItem, normHM: normHM, checkLunch: checkLunch, checkFixed: checkFixed, hoursText: hoursText, startAt: startAt,
       toggleDay: toggleDay, stepHours: stepHours, comboFromEvent: comboFromEvent, hotkeyText: hotkeyText, storageText: storageText,
       previousMonths: previousMonths, questionText: questionText,
       questionModel: questionModel, salaryPreview: salaryPreview
