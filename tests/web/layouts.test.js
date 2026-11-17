@@ -2559,7 +2559,7 @@
     return keys.filter(function (k) { return a[k] !== b[k]; }).map(function (k) { return k + ': ' + a[k] + ' -> ' + b[k]; });
   }
   function setMask(on) { QJZ.app.saveSettings({ privacy: { maskMoney: on } }); }
-  var MASK_VIEWS = [['U1'], ['U3'], ['U3', 'month'], ['U5B'], ['U7'], ['U10'], ['U10', 'hover'], ['U10', 'focus'], ['U12'], ['U13'], ['M3'], ['U7', 'hover']];
+  var MASK_VIEWS = [['U1'], ['U3'], ['U3', 'month'], ['U5B'], ['U7'], ['U10'], ['U10', 'hover'], ['U10', 'focus'], ['U12'], ['U13'], ['M3'], ['M3', 'hover'], ['U7', 'hover']];
   test('layouts DOM: 1.1.4 item 6: masking moves nothing by even 1 px, in every layout, both ways and from a masked start', function () {
     MASK_VIEWS.forEach(function (v) {
       [false, true].forEach(function (startMasked) {
@@ -2567,7 +2567,7 @@
         var e = shown(mk(at(12, 10, 0, 0), { first: v[0], care: true, settings: { health: BOTH, privacy: { maskMoney: startMasked } }, rec: today(3, 2, 1) }));
         e.tick(at(12, 13, 32, 7) + (v[1] === 'month' ? U.CARD_MS : 0));   // (U3: the other card, 10 s on)
         if (v[1] === 'focus') C.toggleFocus();
-        if (v[1] === 'hover') hoverOn($(e, '[data-hover]'));   // (U10's full view; U7's tools)
+        if (v[1] === 'hover') hoverOn($(e, '[data-hover]'));   // (U10's full view; M3's and U7's ⚙)
         eq(QJZ.app.state.settings.privacy.maskMoney, startMasked, tag);
         eq($(e, '.lay').classList.contains('masked'), startMasked, tag + ': as it started');
         var a = boxes(e);
@@ -4229,4 +4229,113 @@
     done();
   });
   // ================= 1.1.6 =================
+  // Item 2: 設定 on U10 (6 頂端小膠囊) and M3 (7 迷你浮窗) as on U7's tools: a ⚙ hidden normally that shows while the
+  // pointer is on the window (U10: in its full view), a click opens 設定. It covers no text (the money, the countdowns,
+  // the chips), changes nothing in the collapsed look and moves nothing when it shows; its hit rect follows.
+  function boxesIn(scope, skip) {
+    var out = {};
+    Array.prototype.forEach.call(scope.querySelectorAll('*'), function (n, i) {
+      if (skip && (n === skip || skip.contains(n)) || n.closest('[data-pet],.fx,.plus,.pring')) return;
+      var r = n.getBoundingClientRect();
+      out[i + ' ' + n.tagName + '.' + (n.getAttribute('class') || '')] = [r.left, r.top, r.width, r.height].map(function (v) { return Math.round(v * 100) / 100; }).join(',');
+    });
+    return out;
+  }
+  function clearOf(gear, scope, tag) {
+    var g = gear.getBoundingClientRect(), bad = [];
+    infoRects(scope).forEach(function (x) {
+      if (!gear.contains(x.n) && overlap(g, x.r)) bad.push(tag + ': over 「' + x.what + '」');
+    });
+    return bad;
+  }
+  test('layouts DOM: 1.1.6 item 2: U10\'s full view has a ⚙ at every dock: clear of its text, moving nothing; a click opens 設定', function () {
+    var bad = [];
+    QJZ.settings.DOCKS.forEach(function (dock) {
+      [false, true].forEach(function (focus) {
+        var tag = dock + (focus ? ' (focus)' : '');
+        var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH, layout: { capsule: dock } }, rec: today(3, 2, 1) }));
+        e.tick(at(12, 9, 18));
+        if (focus) C.toggleFocus();
+        var isl = $(e, '.isl'), gear = $(e, '.isl [data-act=settings]');
+        ok(gear && !drawn(gear), tag + ': folded, no ⚙ (the collapsed look as it was)');
+        eq([gear.title, gear.getAttribute('aria-label'), gear.querySelectorAll('svg.ic-tbGear').length], ['設定', '設定', 1], tag + ': the ⚙ icon, 設定');
+        hoverOn(isl);
+        ok(drawn(gear), tag + ': it shows in the full view');
+        var g = gear.getBoundingClientRect(), cap = isl.getBoundingClientRect(), av = isl.querySelector('.av').getBoundingClientRect();
+        ok(g.width >= 24 && g.height >= 24, tag + ': 24 px to press');
+        ok(g.left >= cap.left && g.right <= cap.right && g.top >= cap.top && g.bottom <= cap.bottom, tag + ': on the capsule');
+        eq(hitsOf(e), [U.outer(cap)], tag + ': its hit rect is the capsule\'s (no other)');
+        ok(g.left > av.left + av.width / 2 && g.top > av.top + av.height / 2, tag + ': on the avatar\'s lower right');
+        bad = bad.concat(clearOf(gear, isl, tag));
+        Array.prototype.forEach.call(isl.querySelectorAll('.iv-x .icol, .iv-x .ichip, .iv-x .ibar'), function (n) {
+          if (overlap(g, n.getBoundingClientRect())) bad.push(tag + ': over ' + n.className);
+        });
+        var a = boxesIn(isl, gear);
+        gear.style.display = 'none';
+        eq(moved(a, boxesIn(isl, gear)), [], tag + ': it moves nothing (out of the flow)');
+        gear.style.display = '';
+        clickOn(gear);
+        eq([QJZ.layouts.current(), !!$(e, '[data-tab]')], ['PANEL', true], tag + ': a click opens 設定');
+        eq(of(e.sent, 'dragStart').length, 0, tag + ': no drag');
+        done();
+      });
+    });
+    eq(bad, [], 'the ⚙ is clear of every text, chip and bar');
+    var f = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH }, rec: today(3, 0, 0) }));
+    f.tick(at(12, 9, 49, 59));
+    f.tick(at(12, 9, 50));
+    ok($(f, '.u10').classList.contains('prompting'), 'the call');
+    hoverOn($(f, '.isl'));
+    ok(!drawn($(f, '.isl [data-act=settings]')), 'the call has no ⚙: only its answers');
+    done();
+  });
+
+  test('layouts DOM: 1.1.6 item 2: M3 shows a ⚙ while the pointer is on it: its own hit rect then, clear of the ring, the tag and the bubble', function () {
+    var bad = [];
+    [false, true].forEach(function (prompt) {
+      var e = shown(mk(at(12, 9, 0), { first: 'M3', care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+      if (prompt) { e.tick(at(12, 9, 49, 59)); e.tick(at(12, 9, 50)); }
+      var m3 = $(e, '.m3'), gear = $(e, '.m3 [data-act=settings]'), tag = prompt ? 'prompting' : 'M3';
+      eq(m3.classList.contains('prompting'), prompt, tag);
+      ok(gear, tag + ': the ⚙');
+      eq(getComputedStyle(gear).visibility, 'hidden', tag + ': unseen until the pointer comes');
+      var g0 = gear.getBoundingClientRect(), n0 = hitsOf(e).length, a = boxesIn(m3, gear), size = sizeOf(e);
+      ok(!hitsOf(e).some(function (h) { var o = U.outer(g0); return h[0] === o[0] && h[1] === o[1]; }), tag + ': no hit rect while unseen');
+      hoverOn(m3);
+      ok(m3.classList.contains('hover'), tag + ': the pointer on it');
+      eq(getComputedStyle(gear).visibility, 'visible', tag + ': it shows');
+      var g = gear.getBoundingClientRect(), o = U.outer(g);
+      eq(hitsOf(e).length, n0 + 1, tag + ': + its hit rect');
+      ok(hitsOf(e).some(function (h) { return h[0] === o[0] && h[1] === o[1] && h[2] === o[2] && h[3] === o[3]; }), tag + ': its hit rect');
+      eq(moved(a, boxesIn(m3, gear)), [], tag + ': nothing moved');
+      eq(sizeOf(e), size, tag + ': the window keeps its size');
+      ok(g.width >= 24 && g.height >= 24, tag + ': 24 px to press');
+      var b = m3.getBoundingClientRect();
+      ok(g.left >= b.left && g.right <= b.right && g.top >= b.top && g.bottom <= b.bottom, tag + ': inside the badge');
+      var ring = $(e, '.m3 .ring').getBoundingClientRect(), R = ring.width / 2, cx = ring.left + R, cy = ring.top + R;
+      ok(Math.hypot(g.left + g.width / 2 - cx, g.top + g.height / 2 - cy) >= R + g.width / 2, tag + ': off the ring and its arc');
+      ['.tagm', '.sub', '.mb.l', '.mb.r', '.pslot > *'].forEach(function (sel) {
+        var n = $(e, '.m3 ' + sel);
+        if (n && drawn(n) && overlap(g, n.getBoundingClientRect())) bad.push(tag + ': over ' + sel);
+      });
+      bad = bad.concat(clearOf(gear, m3, tag));
+      var ic = $(e, '.m3 .rb-ic');
+      if (ic && overlap(g, ic.getBoundingClientRect())) bad.push(tag + ': over the bubble\'s icon');
+      mouse(gear, 'dblclick', g.left + 5, g.top + 5, { detail: 2, buttons: 0 });
+      eq(QJZ.layouts.current(), 'M3', tag + ': a double click on it is no 展開');
+      if (!prompt) {
+        leave(m3);
+        gear.getAnimations().forEach(function (an) { an.finish(); });   // (its fade)
+        ok(!m3.classList.contains('hover') && getComputedStyle(gear).visibility === 'hidden', 'the pointer gone (0.3 s): it goes');
+        eq(hitsOf(e).length, n0, 'and its hit rect');
+        hoverOn(m3);
+      }
+      clickOn(gear);
+      eq([QJZ.layouts.current(), !!$(e, '[data-tab]')], ['PANEL', true], tag + ': a click opens 設定');
+      eq(of(e.sent, 'dragStart').length, 0, tag + ': no drag');
+      done();
+    });
+    eq(bad, [], 'the ⚙ is clear of everything on M3');
+    eq(U.hoverOutMs('M3'), 300, 'M3\'s ⚙ waits 0.3 s, as U7\'s tools');
+  });
 })();

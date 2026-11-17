@@ -129,6 +129,9 @@ window.QJZ = window.QJZ || {};
 //   item 5: M3's tag masks at once; only a double click on its round avatar (.ring) expands M3.
 //   item 9: U3's 設定 / 紀錄 / 調整起算時間 open in its own window too (INPLACE).
 // 1.1.6:
+//   item 2: U10's full view and M3 (its whole badge is [data-hover]) show a ⚙ while the pointer is on them, as U7's tools:
+//     a click opens 設定 (act settings). U10's sits on its capsule (its hit rect already); M3's is a hit rect of its own
+//     only while it shows (data-hit-if). It covers no text and moves nothing (health.css).
 //   item 3: whatever shows can be pressed: U13's 💧 (under the tomato slots), U7's 🍅 (its tag line) and M3's two stickers
 //     are water / pomodoro buttons like every other ([data-act=drink|pomo]): the same tap, long press, ring and tips.
 QJZ.layouts = (function () {
@@ -520,7 +523,7 @@ QJZ.layouts = (function () {
     v.fx = el.querySelector('[data-fx]') || el.querySelector('[data-fxwin]');
     v.fxWin = el.querySelector('[data-fxwin]') || v.fx;
     v.dpet = el.querySelector('.dpet');
-    v.hover = el.querySelector('[data-hover]');
+    v.hover = el.matches('[data-hover]') ? el : el.querySelector('[data-hover]');   // (M3: the whole badge, 1.1.6 item 2)
     return v;
   }
 
@@ -1813,7 +1816,7 @@ QJZ.layouts = (function () {
     show(backTarget(app().state.settings));
   }
   // [data-hover] gets .hover while the pointer is on it: U7's pet and tag show the ⚙ ✕ tools, U10's capsule its full
-  // view; either way the hit rects follow.
+  // view (with its ⚙, 1.1.6 item 2), M3 its ⚙; either way the hit rects follow.
   function setHover(on) {
     if (!view || !view.hover || view.hover.classList.contains('hover') === on) return;
     var isl = view.name === 'U10' ? view.hover : null, from = isl ? capLook(isl) : null;
@@ -1861,7 +1864,7 @@ QJZ.layouts = (function () {
     if (running && window.requestAnimationFrame) capRaf = window.requestAnimationFrame(capTick);
   }
   // How long after the pointer leaves the expanded part goes: U10's capsule 100 ms (folded about 0.3 s after, with its
-  // CAP_MS), U7's tools 300 ms (time to cross from the pet to them).
+  // CAP_MS), U7's tools and M3's ⚙ 300 ms (time to cross from the pet / the ring to them).
   function hoverOutMs(name) { return name === 'U10' ? 100 : 300; }
   // mouseover and mousemove: entering shows them, moving keeps them (they also go 4 s after the last move, in
   // case the pointer left without a mouseout when the window turned click-through). A move while they show only

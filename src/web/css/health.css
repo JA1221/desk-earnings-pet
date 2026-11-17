@@ -446,3 +446,18 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
 .pomo1 .pline button.pp{font:inherit;color:inherit;line-height:inherit;border:0;margin:0;padding:0 3px;border-radius:99px;background:#DDF0FF;cursor:pointer}
 .pomo1 .pline button.pp:active{transform:translate(1px,1px)}
 .pomo1 .pline svg.ic{width:15px;height:15px}
+
+/* ---------- 1.1.6 item 2: 設定 on U10 and M3 while the pointer is on them (templates.js hoverGear), as U7's tools ---------- */
+.hgear{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer}
+.hgear svg.ic{display:block;width:14px;height:14px}
+/* U10: only in the full view (it is in .iv-x), on the avatar's lower right corner, in the capsule's padding and the gap
+   before the money: no text there, and nothing moves (it is out of the flow) */
+.isl .ug{position:absolute;left:64px;top:calc(50% + 15px);z-index:2;border:0;background:#FFF8EC;box-shadow:0 0 0 2px #3D2C24}
+.isl .ug:active{translate:1px 1px}
+/* M3: off the ring's lower right (clear of the ring, its arc, the tag and the stickers), inside the badge's 168 px; while
+   the bubble shows the content box is left of it, and so is the ⚙ */
+.m3 .mg{position:absolute;left:calc(50% + 54px);top:78px;z-index:3;background:#fff;border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--shadow);
+  opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.m3.hover .mg{opacity:1;visibility:visible;transition:opacity .2s}
+.m3.prompting .mg{left:calc(50% - 43px)}
+.m3 .mg:active{translate:1px 1px}

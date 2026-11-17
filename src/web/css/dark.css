@@ -118,3 +118,6 @@ html.dark .panel .cc.full{background:#2E7FD6}
 /* chunk A's 1.1.5 parts: 縮放比例's list, 檢查更新's links (the 「N%」 tip is a .lay .tip, above) */
 html.dark .panel select.zoom{background:var(--bg)}
 html.dark .panel .linkbtn{color:#FFB27A}
+/* 1.1.6 item 2: the hover ⚙ on U10 (as its chips) and M3 (as U7's tools) */
+html.dark .isl .ug{background:#4A3D34;box-shadow:0 0 0 2px #241C18}
+html.dark .m3 .mg{background:var(--card)}

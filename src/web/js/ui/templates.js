@@ -115,6 +115,13 @@ QJZ.templates = (function () {
     return '<button type="button" class="mb l" data-show="cups"' + DRINK + ' data-hit>' + ic('drop') + '<span data-b="cups"></span></button>' +
       '<button type="button" class="mb r" data-show="tomatoes"' + POMO + ' data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></button>';
   }
+  // 1.1.6 item 2: 設定 on U10 and M3 as on U7's tools: a round ⚙ that shows only while the pointer is on the window
+  // ([data-hover]: U10's full view, M3's whole badge), placed where it covers no text and moves nothing (health.css).
+  // M3's is outside its other hit rects, so it is one of its own while it shows (data-hit-if); U10's is on its capsule.
+  function hoverGear(cls, hit) {
+    return '<button type="button" class="hgear ' + cls + '" data-act="settings"' + (hit ? ' data-hit data-hit-if=".hover .hgear"' : '') +
+      ' title="設定" aria-label="設定">' + ic('tbGear') + '</button>';
+  }
   function pring() { return QJZ.ring.markup(); }
   var PSLOT = '<div class="pslot" data-prompt hidden></div>';
   // U12 (G_U12_*): the three rings, each the day's count against its goal with the count in it and its label under it.
@@ -176,14 +183,14 @@ QJZ.templates = (function () {
         '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
     M3: function () {
-      return '<div class="m3 lay"><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
+      return '<div class="m3 lay" data-hover><div class="ring" data-ring data-hit data-hit-shape="disc"><div class="av" data-pet="avatar"></div></div>' +
         '<div class="tagm" data-hit' + MASK + '><div class="mmoney"><small>NT$</small> ' + ODO + '</div></div>' +
-        '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
+        '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + hoverGear('mg', true) + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     // U10 (G_U10_*): one fixed window, the dark capsule on its edge at the dock (layouts.js: class d-<dock>). Its views:
     // collapsed (whole dollars, the cups and tomatoes by the rule), a pomodoro's countdown, the full view while the
     // pointer is on it (2 decimals; 1.1.3 item 7: the water, 🧍 and 番茄鐘 chips, U1's row in a column, always there and
-    // all as wide) and the call while a prompt shows.
+    // all as wide; 1.1.6 item 2: and a ⚙ on the avatar's corner) and the call while a prompt shows.
     // Only the capsule takes clicks. No odometer: the capsule changes at most once a second.
     U10: function () {
       return '<div class="u10 lay"><div class="isl" data-hit data-hover><div class="av" data-pet="avatar"></div>' +
@@ -192,7 +199,7 @@ QJZ.templates = (function () {
           '<span class="ichip" data-show="tomatoes">' + ic('tom') + '<span data-b="tomNum"></span></span></span>' +
         '<span class="iv iv-f"><span class="donut" data-gauge="pomo"></span><span class="im" data-b="mmss"></span>' +
           '<span class="isub" data-b="phaseNote"></span><span class="im sm mv" data-ghost data-b="moneyWhole"' + MASK + '></span></span>' +
-        '<span class="iv iv-x"><span class="icol"><span class="isub"><i class="gd"></i><span data-b="status"></span> · ' +
+        '<span class="iv iv-x">' + hoverGear('ug') + '<span class="icol"><span class="isub"><i class="gd"></i><span data-b="status"></span> · ' +
             '<span data-b="remainPhrase"></span></span><span class="im"' + MASK + '>NT$ ' + mv('money') + '</span>' +
             '<span class="ibar"><i data-fill></i></span></span>' +
           '<span class="icol chips"><button type="button" class="ichip"' + DRINK + '>' + ic('drop') + '<span data-b="cupsBtn"></span></button>' +
