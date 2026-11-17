@@ -33,7 +33,11 @@ public static class Program
         // quitting, and holds the instance mutex until it ends; wait for it (UpdateInstall.WaitForOldMs at most).
         int oldPid = UpdateInstall.WaitPid(args);
         if (oldPid > 0) UpdateInstall.WaitForExit(oldPid, UpdateInstall.WaitForOldMs);
-        if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
+        bool started = SingleInstance.TryStart();
+        // after an update the old process is quitting, not staying: a slow exit must not leave no app at all, so keep
+        // trying a while longer (30 s) instead of handing over to an instance that is about to end
+        for (int i = 0; !started && oldPid > 0 && i < 60; i++) { Thread.Sleep(500); started = SingleInstance.TryStart(); }
+        if (!started) return 0;   // the running instance shows itself
         UpdateInstall.CleanOld(Application.ExecutablePath);   // the exe an update replaced (best effort, every start)
         if (!Unpack()) return 1;
         return Start(args);
