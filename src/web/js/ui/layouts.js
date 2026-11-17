@@ -1614,8 +1614,9 @@ QJZ.layouts = (function () {
   }
 
   // 1.1.5: the zoom just set (「110%」, QJZ.zoomKeys) as a tip like 「長按停止」's, for ZOOM_TIP_MS: centred at the top of
-  // the window's box (U10's capsule while it is open), over the title bar or the pet's head rather than the money, one at a
-  // time, never a hit rect.
+  // the window's box, over the title bar or the pet's head rather than the money; U10's capsule is all money and buttons,
+  // so there it goes just outside the capsule, below it (above it when docked at the bottom), in the window's clear part.
+  // One at a time, never a hit rect.
   var ZOOM_TIP_MS = 1000;
   function zoomTip(text) {
     var host = view ? view.fxWin || view.el : null;
@@ -1626,9 +1627,10 @@ QJZ.layouts = (function () {
     t.textContent = text;
     host.appendChild(t);
     var hr = host.getBoundingClientRect();
-    var box = view.name === 'U10' && view.hover ? view.hover.getBoundingClientRect() : view.el.getBoundingClientRect();
-    var w = t.offsetWidth, h = t.offsetHeight;
+    var cap = view.name === 'U10' && view.hover, box = (cap ? view.hover : view.el).getBoundingClientRect();
+    var w = t.offsetWidth, h = t.offsetHeight, er = view.el.getBoundingClientRect();
     var x = Math.max(box.left + 2, box.left + (box.width - w) / 2), y = box.top + Math.min(6, Math.max(0, (box.height - h) / 2));
+    if (cap) y = box.bottom + 5 + h <= er.bottom ? box.bottom + 5 : Math.max(er.top, box.top - h - 5);
     t.style.left = Math.round(x - hr.left) + 'px';
     t.style.top = Math.round(y - hr.top) + 'px';
     if (!t.animate) { setTimeout(function () { t.remove(); }, ZOOM_TIP_MS); return; }
