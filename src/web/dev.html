@@ -370,8 +370,10 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   var devZoom = devQ.get('zoom'), devUpd = devQ.get('update');
   if (devUpd) window.QJZ_DEV.update = devUpd;
   if (devZoom || devQ.get('ztip') === '1' || devUpd) {
-    var offZoom = QJZ.app.on('change', function () {
+    var zoomDone = false, offZoom = QJZ.app.on('change', function () {
       offZoom();
+      if (zoomDone) return;   // (a nested change, from another dev seed's save, may call it once more)
+      zoomDone = true;
       if (devZoom && /^\d{2,3}$/.test(devZoom)) QJZ.app.saveSettings({ zoom: +devZoom });
       setTimeout(function () {
         if (devQ.get('ztip') === '1') {

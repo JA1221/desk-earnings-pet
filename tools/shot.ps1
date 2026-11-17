@@ -1,16 +1,19 @@
-# Headless screenshot of a page, for visual checks while the user works on this PC: headless Edge, so no window ever
+﻿# Headless screenshot of a page, for visual checks while the user works on this PC: headless Edge, so no window ever
 # shows, with its own profile build\shots\.edge-profile. Afterwards it stops the msedge processes of that profile and
 # no other (never the user's Edge, never test.ps1's).
 #   .\tools\shot.ps1 -Page "dev.html?layout=U7" -Out build\shots\t7-u7.png [-Size 480,360]
 # -Page  a page under src\web, or a path from the repo root or an absolute one (build\review\...), with an optional
 #        ?query or #hash.
 # -Out   the PNG; a relative path is from the repo root.
-# -Size  the viewport in CSS px as W,H (default 800,600), at device scale 1.
+# -Size  the viewport in CSS px as W,H (default 800,600).
+# -Scale the device scale (default 1): 0.5 / 1.5 draw the page as WebView2 does at 縮放比例 50 % / 150 % on a 100 % monitor
+#        (the PNG is W x Scale by H x Scale px).
 # Exits 1 when no PNG was written.
 param(
     [Parameter(Mandatory = $true)][string]$Page,
     [Parameter(Mandatory = $true)][string]$Out,
-    [string]$Size = '800,600'
+    [string]$Size = '800,600',
+    [double]$Scale = 1
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -54,7 +57,7 @@ function Stop-Mine {
 
 $log = Join-Path ([IO.Path]::GetTempPath()) ('qjz-shot-' + [Guid]::NewGuid().ToString('N') + '.txt')
 $edgeArgs = @('--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--mute-audio', '--hide-scrollbars',
-    "--user-data-dir=`"$profileDir`"", "--window-size=$w,$h", '--force-device-scale-factor=1', "--virtual-time-budget=$BudgetMs",
+    "--user-data-dir=`"$profileDir`"", "--window-size=$w,$h", "--force-device-scale-factor=$([string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0}', $Scale))", "--virtual-time-budget=$BudgetMs",
     "--screenshot=`"$outFile`"", "`"$url`"")
 try {
     $proc = Start-Process -PassThru -FilePath $edge -ArgumentList $edgeArgs -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError ($log + '.err')
