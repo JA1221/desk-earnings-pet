@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Web.Script.Serialization;
 
 // The values in settings.json (written by the page) that the host needs before the page runs: autostart, the hide
-// hotkey, topmost per layout, the capture guard (privacy.hideFromCapture) and the layout the page starts in. Like
-// the page's sanitizer (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the default:
-// autostart on, Ctrl+Alt+H, topmost only for U7, M3 and U10, capture guard on, start layout U1.
+// hotkey, topmost per layout, the capture guard (privacy.hideFromCapture), the layout the page starts in and the zoom
+// (1.1.5). Like the page's sanitizer (src/web/js/core/settings.js), anything missing, invalid or unreadable gives the
+// default: autostart on, Ctrl+Alt+H, topmost only for U7, M3 and U10, capture guard on, start layout U1, zoom 100 %.
 // The start layout is the one used last, as the page picks it (layouts.js lastLayout): M3 when layout.mini is true,
 // else layout.current when it is a main layout, else U1. A 1.0 file has no layout.mini: there a layout.start of M3
 // counts as mini (1.0's 開啟時的版型 = 迷你徽章); 1.0's layout.start is not read otherwise.
@@ -26,10 +26,14 @@ public class HostSettings
         Hotkey = DefaultHotkey;
         CaptureGuard = true;
         StartLayout = "U1";
+        Zoom = PageZoom.Default;
         foreach (string l in Layouts) topmost[l] = l == "U7" || l == "M3" || l == "U10";
     }
 
     public bool Autostart { get; private set; }
+
+    // 1.1.5 縮放比例: settings zoom, a percent (PageZoom.Parse; default 100).
+    public int Zoom { get; private set; }
 
     // privacy.hideFromCapture: keep the window out of screen captures and sharing.
     public bool CaptureGuard { get; private set; }
@@ -73,6 +77,7 @@ public class HostSettings
         if (d == null) return s;
         object v;
         if (d.TryGetValue("autostart", out v) && v is bool) s.Autostart = (bool)v;
+        if (d.TryGetValue("zoom", out v)) s.Zoom = PageZoom.Parse(v);
         Dictionary<string, object> privacy = Child(d, "privacy");
         if (privacy != null && privacy.TryGetValue("hotkey", out v))
         {

@@ -113,4 +113,19 @@ public static class ScreenFitTests
         Assert.Eq(Primary, ScreenFit.NearestArea(new Rectangle(900, 2000, 10, 10), areas), "below primary");
         Assert.Eq(Left, ScreenFit.NearestArea(new Rectangle(-2000, 0, 10, 10), areas), "left of everything");
     }
+
+    // 1.1.5: U7 seated on the taskbar edge (its desk on the work area's bottom) stays there when 縮放比例 resizes it; one
+    // that sits higher keeps its top-left. The desk ends margin px above the window bottom, at the old and the new scale.
+    public static void Test_SettleDeskKeepsU7OnTheTaskbarEdge()
+    {
+        Rectangle area = new Rectangle(0, 0, 1920, 1040);
+        Rectangle seated = new Rectangle(1500, 1040 + 16 - 260, 320, 260);   // desk (16 px above the bottom) on 1040
+        Assert.Eq(new Rectangle(1500, 1040 + 24 - 390, 480, 390), ScreenFit.SettleDesk(seated, 16, new Size(480, 390), 24, area), "150 %: still on the edge");
+        Assert.Eq(new Rectangle(1500, 1040 + 8 - 130, 160, 130), ScreenFit.SettleDesk(seated, 16, new Size(160, 130), 8, area), "50 %: still on the edge");
+        Rectangle nearly = new Rectangle(1500, 1040 + 16 - 260 - 2, 320, 260);
+        Assert.Eq(1040 + 24 - 390, ScreenFit.SettleDesk(nearly, 16, new Size(480, 390), 24, area).Y, "2 px above (rounding) counts as on the edge");
+        Rectangle high = new Rectangle(1500, 300, 320, 260);
+        Assert.Eq(new Rectangle(1500, 300, 480, 390), ScreenFit.SettleDesk(high, 16, new Size(480, 390), 24, area), "higher up: the top-left stays");
+        Assert.Eq(new Rectangle(1500, 0, 480, 1200), ScreenFit.SettleDesk(seated, 16, new Size(480, 1200), 24, area), "never above the area's top");
+    }
 }

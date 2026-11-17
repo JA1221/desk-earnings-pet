@@ -141,4 +141,14 @@ public static class HostSettingsTests
         Assert.Eq("Ctrl+Alt+K", HostSettings.Parse(HostSettings.Effective("", bak)).Hotkey, "settings read from the .bak");
         Assert.True(!HostSettings.Parse(HostSettings.Effective("", bak)).Autostart, "autostart from the .bak");
     }
+
+    // 1.1.5: 縮放比例 (settings zoom, a percent), read at start so the page loads at it (PageZoom.Parse).
+    public static void Test_Zoom()
+    {
+        Assert.Eq(100, HostSettings.Parse(null).Zoom, "default 100 %");
+        Assert.Eq(100, HostSettings.Parse("{}").Zoom, "missing");
+        Assert.Eq(130, HostSettings.Parse("{\"zoom\":130}").Zoom, "set");
+        Assert.Eq(50, HostSettings.Parse("{\"zoom\":20}").Zoom, "clamped");
+        Assert.Eq(100, HostSettings.Parse("{\"zoom\":\"150\"}").Zoom, "a string is not a zoom");
+    }
 }

@@ -34,6 +34,19 @@ public static class ScreenFit
         return new Rectangle(win.X, y, win.Width, win.Height);
     }
 
+    // 1.1.5: U7 resized by 縮放比例 (before: its rect, beforeMargin: its desk's px above the window bottom then). Seated on
+    // the taskbar edge (its desk on area's bottom, within EdgeSlack px), it stays seated: the new window's desk, margin px
+    // above its bottom, goes on area's bottom (never above area's top). Seated higher, it keeps its top-left.
+    public const int EdgeSlack = 2;
+
+    public static Rectangle SettleDesk(Rectangle before, int beforeMargin, Size size, int margin, Rectangle area)
+    {
+        int desk = before.Bottom - beforeMargin;
+        if (Math.Abs(desk - area.Bottom) > EdgeSlack) return new Rectangle(before.Location, size);
+        int y = Math.Max(area.Top, area.Bottom + margin - size.Height);
+        return new Rectangle(before.X, y, size.Width, size.Height);
+    }
+
     // Moves win fully inside area (shrinking a side only when it is larger than the area).
     public static Rectangle MoveInside(Rectangle win, Rectangle area)
     {
