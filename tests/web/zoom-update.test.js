@@ -312,4 +312,85 @@
     eq(text(e, '[data-o=updText]'), '已是最新版（1.1.5）', 'no version given: the app\'s');
     done();
   });
+  // ---------- 1.1.6 一鍵更新 ----------
+  function newer(e, install) {
+    openAbout(e);
+    $(e, '[data-pa=checkUpdate]').click();
+    e.bridge.emit({ type: 'updateResult', kind: 'newer', version: '1.2.0', install: install });
+    QJZ.panels._update();
+  }
+
+  test('update DOM: a newer release the host can install has 更新; pressed: one installUpdate, 下載中 N%, then 正在重新啟動', function () {
+    var e = mk();
+    newer(e, true);
+    var ib = $(e, '[data-pa=installUpdate]'), cb = $(e, '[data-pa=checkUpdate]'), link = $(e, '[data-pa=openUpdate]');
+    eq(text(e, '[data-o=updText]'), '有新版 1.2.0');
+    ok(visible(ib) && !ib.disabled, '更新');
+    eq(ib.textContent, '更新');
+    ok(visible(link) && link.textContent === '前往下載', 'and the link');
+    eq(of(e.sent, 'installUpdate').length, 0, 'nothing downloads before the press');
+    ib.click();
+    eq(of(e.sent, 'installUpdate'), [{}], 'one request, nothing in it');
+    eq(text(e, '[data-o=updText]'), '下載中 0%');
+    ok(ib.disabled && cb.disabled, '更新 and 檢查更新 wait');
+    ib.click();
+    cb.click();
+    eq(of(e.sent, 'installUpdate').length, 1, 'not twice');
+    eq(of(e.sent, 'checkUpdate').length, 1, 'no check while it downloads');
+    e.bridge.emit({ type: 'updateState', phase: 'downloading', percent: 42 });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '下載中 42%');
+    e.bridge.emit({ type: 'updateState', phase: 'downloading', percent: 17 });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '下載中 42%', 'never back');
+    e.bridge.emit({ type: 'updateState', phase: 'restarting', percent: 100 });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '更新完成，正在重新啟動…');
+    ok(ib.disabled && cb.disabled, 'still disabled');
+    ok(!visible(link), 'no link while it restarts');
+    e.bridge.emit({ type: 'updateState', phase: 'failed' });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '更新完成，正在重新啟動…', 'restarting is final');
+    done();
+  });
+
+  test('update DOM: 更新失敗 shows the release link; 更新 goes; 檢查更新 works again', function () {
+    var e = mk();
+    newer(e, true);
+    $(e, '[data-pa=installUpdate]').click();
+    e.bridge.emit({ type: 'updateState', phase: 'downloading', percent: 60 });
+    e.bridge.emit({ type: 'updateState', phase: 'failed', percent: 0 });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '更新失敗');
+    var link = $(e, '[data-pa=openUpdate]');
+    ok(visible(link) && link.textContent === '前往下載', 'the release page');
+    ok(!visible($(e, '[data-pa=installUpdate]')), 'no 更新');
+    ok(!$(e, '[data-pa=checkUpdate]').disabled, '檢查更新 again');
+    $(e, '[data-pa=checkUpdate]').click();
+    eq(of(e.sent, 'checkUpdate').length, 2);
+    e.bridge.emit({ type: 'updateResult', kind: 'newer', version: '1.2.0', install: true });
+    QJZ.panels._update();
+    ok(visible($(e, '[data-pa=installUpdate]')) && !$(e, '[data-pa=installUpdate]').disabled, 'a new answer, a new 更新');
+    done();
+  });
+
+  test('update DOM: no 更新 without install (a dev build, no digest), for latest or unknown, or an odd install', function () {
+    var e = mk();
+    [false, undefined, 'true', 1].forEach(function (inst) {
+      newer(e, inst);
+      eq(text(e, '[data-o=updText]'), '有新版 1.2.0');
+      ok(!visible($(e, '[data-pa=installUpdate]')), 'no 更新: ' + inst);
+      ok(visible($(e, '[data-pa=openUpdate]')), 'the link only');
+      QJZ.app.installUpdate();
+      eq(of(e.sent, 'installUpdate').length, 0, 'nothing sent: ' + inst);
+    });
+    $(e, '[data-pa=checkUpdate]').click();
+    e.bridge.emit({ type: 'updateResult', kind: 'latest', version: '1.1.6', install: true });
+    QJZ.panels._update();
+    ok(!visible($(e, '[data-pa=installUpdate]')), 'latest: none');
+    e.bridge.emit({ type: 'updateState', phase: 'downloading', percent: 5 });
+    QJZ.panels._update();
+    eq(text(e, '[data-o=updText]'), '已是最新版（1.1.6）', 'a state not asked for is ignored');
+    done();
+  });
 })();

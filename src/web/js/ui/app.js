@@ -43,6 +43,9 @@ window.QJZ = window.QJZ || {};
 // 1.1.5 檢查更新: checkUpdate() asks the host (its one network request) and state.update is {busy:true} until its
 // updateResult {kind:'latest'|'newer'|'unknown', version}, then {kind, version} (an odd answer is unknown; latest without a
 // version is the app's own); openUpdate() has the host open that result's page in the default browser.
+// 1.1.6 一鍵更新: updateResult's install (true: the host can put that release in place, release build only) is
+// state.update.install; installUpdate() (newer + install, once) sends installUpdate {} and the host's updateState
+// {phase:'downloading'|'restarting'|'failed', percent} goes to state.update.phase / percent. 檢查更新 waits while it runs.
 // Session: lock / unlock are tracked; a resume while locked is not an arrival (the unlock that follows is).
 // 相容模式: html.opaque (base.css paints the whole page) while settings.display.opaque or init.forceOpaque.
 // 省電模式 (§5.9): while settings.display.powerSaver the tick runs every SAVER_TICK_MS (the money moves 4 times a
@@ -483,7 +486,8 @@ QJZ.app = (function () {
 
   // ---- 1.1.5 檢查更新 ----
   function checkUpdate() {
-    if (!bridge || (state.update && state.update.busy)) return;
+    var u = state.update;
+    if (!bridge || (u && (u.busy || u.phase === 'downloading' || u.phase === 'restarting'))) return;
     state.update = { busy: true };
     bridge.send('checkUpdate', {});
     changed();
@@ -494,7 +498,26 @@ QJZ.app = (function () {
     var v = msg && typeof msg.version === 'string' && /^\d{1,9}\.\d{1,9}\.\d{1,9}$/.test(msg.version) ? msg.version : null;
     if (kind === 'latest' && !v) v = state.version;
     if (kind === 'newer' && !v) kind = 'unknown';
-    state.update = { kind: kind, version: kind === 'unknown' ? null : v };
+    state.update = { kind: kind, version: kind === 'unknown' ? null : v, install: kind === 'newer' && msg.install === true };
+    changed();
+  }
+  // 1.1.6 一鍵更新
+  function installUpdate() {
+    var u = state.update;
+    if (!bridge || !u || u.kind !== 'newer' || !u.install || u.phase) return;
+    u.phase = 'downloading';
+    u.percent = 0;
+    bridge.send('installUpdate', {});
+    changed();
+  }
+  function onUpdateState(msg) {
+    var u = state.update, ph = msg && msg.phase;
+    if (!u || u.kind !== 'newer' || !u.install || !u.phase) return;   // not asked for: ignored
+    if (ph !== 'downloading' && ph !== 'restarting' && ph !== 'failed') return;
+    if (u.phase !== 'downloading') return;   // restarting and failed are final
+    var p = msg && typeof msg.percent === 'number' && isFinite(msg.percent) ? Math.max(0, Math.min(100, Math.floor(msg.percent))) : 0;
+    u.phase = ph;
+    u.percent = ph === 'downloading' ? Math.max(u.percent || 0, p) : ph === 'restarting' ? 100 : u.percent;
     changed();
   }
 
@@ -527,6 +550,7 @@ QJZ.app = (function () {
     bridge.on('hotkeyFailed', onHotkeyFailed);
     bridge.on('storageError', onStorageError);
     bridge.on('updateResult', onUpdateResult);
+    bridge.on('updateState', onUpdateState);
     bridge.on('zoomApplied', function (m) {   // review M-6
       var f = m && typeof m.factor === 'number' && m.factor >= 0.25 && m.factor <= 4 ? m.factor : null;
       if (f !== state.zoomApplied) { state.zoomApplied = f; changed(); }
@@ -560,6 +584,6 @@ QJZ.app = (function () {
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, resumeWork: resumeWork, setOffDay: setOffDay,
     feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, setHealth: setHealth, setPomodoro: setPomodoro, answerEarlyLeave: answerEarlyLeave, quit: quit,
     setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey,
-    setZoom: setZoom, checkUpdate: checkUpdate, openUpdate: openUpdate
+    setZoom: setZoom, checkUpdate: checkUpdate, openUpdate: openUpdate, installUpdate: installUpdate
   };
 })();

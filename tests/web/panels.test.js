@@ -1535,11 +1535,16 @@
         ['time', 'pet', 'health', 'display', 'other'].forEach(function (t) { $(e, '[data-tab=' + t + ']').click(); allLegible(e, name + ' 設定 ' + t); });
         $(e, '[data-tab=display]').click();
         ok($(e, 'select.zoom') && contrasts($(e, '[data-pane=display]')).some(function (x) { return /%/.test(x[0]); }), name + ': the 縮放比例 list is checked');
-        [['latest', '1.1.5'], ['newer', '1.2.0'], ['unknown', null]].forEach(function (u) {   // 檢查更新's three results
+        [['latest', '1.1.6'], ['newer', '1.2.0'], ['unknown', null]].forEach(function (u) {   // 檢查更新's three results
           $(e, '[data-tab=other]').click();
-          e.bridge.emit({ type: 'updateResult', kind: u[0], version: u[1] });
+          e.bridge.emit({ type: 'updateResult', kind: u[0], version: u[1], install: u[0] === 'newer' });
           allLegible(e, name + ' 檢查更新 ' + u[0]);
         });
+        QJZ.app.installUpdate();   // 1.1.6 一鍵更新: 更新 disabled, 下載中, then 更新失敗 and its link
+        e.bridge.emit({ type: 'updateState', phase: 'downloading', percent: 42 });
+        allLegible(e, name + ' 下載中');
+        e.bridge.emit({ type: 'updateState', phase: 'failed' });
+        allLegible(e, name + ' 更新失敗');
         $(e, '[data-act=back]').click();
         e.menu('history');
         allLegible(e, name + ' 紀錄');

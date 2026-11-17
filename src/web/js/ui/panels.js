@@ -11,6 +11,7 @@ window.QJZ = window.QJZ || {};
 //               1.1.5: 畫面 has 縮放比例 (zoom, its own section: a select of 50–150 %, the same setting as Ctrl+wheel and
 //               Ctrl+± / Ctrl+0, QJZ.zoomKeys), and 關於 a 檢查更新 button beside the version (app.checkUpdate: the app's one
 //               network request) with its result and, for a new version or none found, a link (app.openUpdate).
+//               1.1.6: a new version the host can install also gets 更新 (app.installUpdate) and its progress.
 //               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;
 //               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
 //               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
@@ -404,8 +405,9 @@ QJZ.panels = (function () {
       });
       return '<div class="card">' +
         line(row('錢進中', '<span class="ver"><b data-o="version"></b><button type="button" class="btn sm ghost" data-pa="checkUpdate">檢查更新</button></span>') +
-          '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span><button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
-          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。') + hint('平常不連網；按「檢查更新」才會向 GitHub 查一次最新版本，不會送出你的資料。')) +
+          '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span><button type="button" class="btn sm go" data-pa="installUpdate" hidden>更新</button>' +
+          '<button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
+          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。') + hint('平常不連網；按「檢查更新」才會向 GitHub 查一次最新版本，按「更新」才會下載新版，不會送出你的資料。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
           '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
         '</div>' + disclosure('guide', '使用說明', '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') +
@@ -542,17 +544,24 @@ QJZ.panels = (function () {
     var z = st().zoomApplied || (st().settings ? st().settings.zoom / 100 : 1);
     return avail ? Math.max(440, Math.min(TALL, Math.floor(avail / z) - 32)) : TALL;
   }
-  // 1.1.5 檢查更新: the button, then 檢查中… and one of the three results (app.state.update).
+  // 1.1.5 檢查更新: the button, then 檢查中… and one of the three results (app.state.update). 1.1.6 一鍵更新: a newer
+  // result the host can install also has 更新; pressed, 下載中 N% (更新 and 檢查更新 disabled), then 更新完成，正在重新啟動…
+  // or 更新失敗 with the release's link.
   function updateCheckView(c) {
-    var u = st().update, b = q(c, '[data-pa=checkUpdate]'), link = q(c, '[data-pa=openUpdate]');
+    var u = st().update, b = q(c, '[data-pa=checkUpdate]'), link = q(c, '[data-pa=openUpdate]'), ib = q(c, '[data-pa=installUpdate]');
     if (!b) return;
-    var busy = !!(u && u.busy);
-    if (b.disabled !== busy) b.disabled = busy;
+    var busy = !!(u && u.busy), ph = u && u.kind === 'newer' && u.install ? u.phase || '' : '';
+    var held = busy || ph === 'downloading' || ph === 'restarting';
+    if (b.disabled !== held) b.disabled = held;
     show(node(c, 'updLine'), !!u);
+    var canInstall = !!(u && !busy && u.kind === 'newer' && u.install && ph !== 'failed');
+    show(ib, canInstall);
+    if (ib && ib.disabled !== !!ph) ib.disabled = !!ph;
     if (!u) return;
-    out(c, 'updText', busy ? '檢查中…' : u.kind === 'latest' ? '已是最新版（' + (u.version || '') + '）' :
-      u.kind === 'newer' ? '有新版 ' + u.version : '查不到更新資訊');
-    var to = busy || u.kind === 'latest' ? '' : u.kind === 'newer' ? '前往下載' : '開啟發布頁面';
+    out(c, 'updText', busy ? '檢查中…' : ph === 'downloading' ? '下載中 ' + (u.percent || 0) + '%' :
+      ph === 'restarting' ? '更新完成，正在重新啟動…' : ph === 'failed' ? '更新失敗' :
+      u.kind === 'latest' ? '已是最新版（' + (u.version || '') + '）' : u.kind === 'newer' ? '有新版 ' + u.version : '查不到更新資訊');
+    var to = busy || u.kind === 'latest' || ph === 'restarting' ? '' : u.kind === 'newer' ? '前往下載' : '開啟發布頁面';
     show(link, !!to);
     if (link && to && link.textContent !== to) link.textContent = to;
   }
@@ -907,6 +916,7 @@ QJZ.panels = (function () {
     switch (a) {
       case 'checkUpdate': app().checkUpdate(); _update(); break;
       case 'openUpdate': app().openUpdate(); break;
+      case 'installUpdate': app().installUpdate(); _update(); break;
       case 'next':
         c.ob.amountText = q(c, '[data-f=amount]').value;
         if (obAmountCheck(c, true).ok) obStep(c, 2);

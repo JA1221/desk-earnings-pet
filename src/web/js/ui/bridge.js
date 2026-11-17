@@ -45,12 +45,27 @@ QJZ.bridge = (function () {
     if (type === 'saveSettings') lsSet('qjz.settings', msg.text);
     else if (type === 'saveHistory') lsSet('qjz.history', msg.text);
     else if (type === 'checkUpdate') {
-      // 1.1.5: the dev mock never goes online; QJZ_DEV.update ('latest' | 'newer' | 'unknown', default unknown) answers
-      var u = (window.QJZ_DEV || {}).update;
+      // 1.1.5: the dev mock never goes online; QJZ_DEV.update ('latest' | 'newer' | 'unknown', default unknown) answers.
+      // 1.1.6 一鍵更新: 'install' is newer with 更新 (pressed, it counts to 100 % and restarts); 'downloading' (stays at
+      // 42 %), 'restarting' and 'failed' are newer with 更新 too, and pressing it shows that state.
+      var u = (window.QJZ_DEV || {}).update, inst = u === 'install' || u === 'downloading' || u === 'restarting' || u === 'failed';
       setTimeout(function () {
-        dispatch(u === 'latest' ? { type: 'updateResult', kind: 'latest', version: '1.1.5' } :
-          u === 'newer' ? { type: 'updateResult', kind: 'newer', version: '1.2.0' } : { type: 'updateResult', kind: 'unknown', version: null });
+        dispatch(u === 'latest' ? { type: 'updateResult', kind: 'latest', version: '1.1.6' } :
+          u === 'newer' ? { type: 'updateResult', kind: 'newer', version: '1.2.0', install: false } :
+          inst ? { type: 'updateResult', kind: 'newer', version: '1.2.0', install: true } : { type: 'updateResult', kind: 'unknown', version: null });
       }, 300);
+    }
+    else if (type === 'installUpdate') {
+      var w = (window.QJZ_DEV || {}).update;
+      if (w === 'downloading' || w === 'restarting' || w === 'failed') {
+        setTimeout(function () { dispatch({ type: 'updateState', phase: w, percent: w === 'downloading' ? 42 : w === 'restarting' ? 100 : 0 }); }, 100);
+      } else {
+        var pct = 0, iv = setInterval(function () {
+          pct += 10;
+          dispatch(pct < 100 ? { type: 'updateState', phase: 'downloading', percent: pct } : { type: 'updateState', phase: 'restarting', percent: 100 });
+          if (pct >= 100) clearInterval(iv);
+        }, 200);
+      }
     }
   }
 
