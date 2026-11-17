@@ -1242,6 +1242,28 @@
     done();
   });
 
+  // review I-2: a tick moves today's bar in place; the chart is not drawn again, so a tooltip held on a bar stays
+  test('panels DOM: 統計: a tick moves only today\'s bar, its tip and the sums; the past bars stay the same elements', function () {
+    var e = mk(at(12, 10, 0), { history: sampleHistory() });
+    e.menu('history');
+    var svg = $(e, '.hist-chart svg'), past = $$(e, '.hist-chart [data-bar]')[1], pastRect = past.querySelector('rect.bar');
+    var today = $(e, '.hist-chart [data-today]'), h0 = +today.querySelector('rect.bar').getAttribute('height');
+    var total0 = text(e, '[data-o=total]'), tip0 = today.querySelector('title').textContent;
+    e.tick(at(12, 11, 0));
+    ok($(e, '.hist-chart svg') === svg && $$(e, '.hist-chart [data-bar]')[1] === past && past.querySelector('rect.bar') === pastRect,
+      'the same svg and past bar');
+    ok($(e, '.hist-chart [data-today]') === today, 'today\'s bar is the same element');
+    var h1 = +today.querySelector('rect.bar').getAttribute('height'), v1 = QJZ.app.state.snap.earned;
+    ok(h1 > h0, 'taller: ' + h0 + ' -> ' + h1);
+    near(h1, v1 / QJZ.stats.top(2272.73, 'earned') * (150 - 14 - 20), 0.06, 'still to scale');
+    near(+today.querySelector('rect.bar').getAttribute('y') + h1, 150 - 20, 0.06, 'on the base line');
+    ok(text(e, '[data-o=total]') !== total0 && today.querySelector('title').textContent !== tip0, 'the sum and its tip follow');
+    eq(text(e, '[data-o=total]'), 'NT$ ' + QJZ.odometer.format(QJZ.history.monthTotal(QJZ.app.state.history, '2026-11', QJZ.app.state.today, v1)));
+    $(e, '[data-stseg=metric] [data-st=cups]').click();
+    ok($(e, '.hist-chart svg') !== svg, 'another item draws it again');
+    done();
+  });
+
   test('panels DOM: 統計 while the money is masked: *** for 收入, the bars stay; the counts show', function () {
     var s = JSON.parse(JSON.stringify(SET_UP));
     s.privacy = { maskMoney: true };

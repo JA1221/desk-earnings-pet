@@ -10,6 +10,9 @@ window.QJZ = window.QJZ || {};
 // The bars are drawn to scale against a round top (QJZ.stats.top), with a line and a label at its half and at the top.
 // 隱藏金額 (privacy.maskMoney): the 收入 numbers (the axis, the sums, the tips) read ***; the bars stay.
 // The picks are kept for the session. Only numbers and fixed copy go into markup.
+// Review I-2: the chart is drawn again only when what it is drawn from changes (the picks, the mask, its width, a past
+// day, the scale's top, whether today has a bar); today's live 收入 only moves today's bar, its label and its tip, and the
+// sums, in place, so a tooltip held on any bar stays.
 QJZ.panelsStats = (function () {
   var K = QJZ.panels.kit;
   var PERIODS = [['week', '週'], ['month', '月']];
@@ -54,6 +57,12 @@ QJZ.panelsStats = (function () {
   }
 
   // The chart: W px wide (the card's), H tall. s: QJZ.stats.series; mask: 收入 masked.
+  function barH(v, top) { return Math.max(2, (Math.min(v, top) / top) * (H - T - B)); }
+  function tipText(d, m, mask) {
+    var tip = md(d.day) + '（' + WD.charAt(d.wd) + '）';
+    tip += d.future ? ' 還沒到' : d.v === null ? ' 沒有紀錄' : ' ' + valueText(d.v, m, mask);
+    return tip + (d.today ? '（今天，還在算）' : '');
+  }
   function svg(s, W, mask) {
     var m = s.metric, top = QJZ.stats.top(s.max, m), week = s.period === 'week';
     var L = m === 'earned' ? (mask ? 26 : 38) : 22, pw = W - L - R, ph = H - T - B;
@@ -72,11 +81,10 @@ QJZ.panelsStats = (function () {
     var todayI = -9;
     s.days.forEach(function (d, i) { if (d.today) todayI = i; });
     s.days.forEach(function (d, i) {
-      var cx = L + (i + 0.5) * slot, tip = md(d.day) + '（' + WD.charAt(d.wd) + '）';
-      tip += d.future ? ' 還沒到' : d.v === null ? ' 沒有紀錄' : ' ' + valueText(d.v, m, mask);
-      h += '<g data-bar data-v="' + (d.v === null ? '' : d.v) + '"><title>' + K.esc(tip + (d.today ? '（今天，還在算）' : '')) + '</title>';
+      var cx = L + (i + 0.5) * slot;
+      h += '<g data-bar' + (d.today ? ' data-today' : '') + ' data-v="' + (d.v === null ? '' : d.v) + '"><title>' + K.esc(tipText(d, m, mask)) + '</title>';
       if (d.v !== null && d.v > 0) {   // 0 is no bar: a 2px stub would look like data
-        var bh = Math.max(2, (Math.min(d.v, top) / top) * ph);
+        var bh = barH(d.v, top);
         h += '<rect class="bar' + (d.today ? ' today' : '') + '" x="' + (cx - bw / 2).toFixed(1) + '" y="' + (T + ph - bh).toFixed(1) +
           '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="1.5"/>';
         if (week && !(m === 'earned' && mask)) {
@@ -105,17 +113,39 @@ QJZ.panelsStats = (function () {
     var mask = !!(st.settings.privacy && st.settings.privacy.maskMoney);
     var s = QJZ.stats.series(st.history, st.today, st.snap && st.snap.earned, period, metric);
     var W = Math.max(200, Math.round(chart.clientWidth || 340));
-    var key = JSON.stringify([period, metric, mask, W, s.days.map(function (d) { return d.v === null ? null : Math.round(d.v * 100); })]);
-    if (c.cache.stats === key) return;
-    c.cache.stats = key;
-    on(c, 'period', period);
-    on(c, 'metric', metric);
-    K.out(c, 'stTitle', title(s));
-    chart.innerHTML = svg(s, W, mask);
+    var td = null, top = QJZ.stats.top(s.max, metric);
+    s.days.forEach(function (d) { if (d.today) td = d; });
+    var key = JSON.stringify([period, metric, mask, W, top, s.max > 0, td ? [td.day, td.v > 0] : null,
+      s.days.map(function (d) { return d.today || d.v === null ? null : Math.round(d.v * 100); })]);
+    if (c.cache.stats !== key) {
+      c.cache.stats = key;
+      on(c, 'period', period);
+      on(c, 'metric', metric);
+      K.out(c, 'stTitle', title(s));
+      chart.innerHTML = svg(s, W, mask);
+    } else if (td) patchToday(chart, td, top, metric, mask);
     K.out(c, 'sumLabel', (period === 'week' ? '本週' : '本月') + '合計');
     K.out(c, 'total', valueText(s.total, metric, mask));
     K.out(c, 'avg', s.avg === null ? '—' : valueText(s.avg, metric, mask));
     K.out(c, 'avgNote', s.avgDays ? '只算有紀錄的 ' + s.avgDays + ' 天（今天還沒過完，不算）' : '還沒有可以平均的日子（只算有紀錄的日子，今天不算）');
+  }
+
+  // Today's bar, its value on it (週) and its tip, moved to v where they are (the scale's top unchanged).
+  function patchToday(chart, d, top, m, mask) {
+    var g = chart.querySelector('[data-today]');
+    if (!g) return;
+    var v = d.v === null ? '' : String(d.v);
+    if (g.getAttribute('data-v') === v) return;
+    g.setAttribute('data-v', v);
+    var t = g.querySelector('title'), tip = tipText(d, m, mask);
+    if (t && t.textContent !== tip) t.textContent = tip;
+    var r = g.querySelector('rect.bar');
+    if (!r || !(d.v > 0)) return;
+    var bh = barH(d.v, top), base = H - B;
+    r.setAttribute('y', (base - bh).toFixed(1));
+    r.setAttribute('height', bh.toFixed(1));
+    var vl = g.querySelector('.vl');
+    if (vl) { vl.setAttribute('y', (base - bh - 3).toFixed(1)); vl.textContent = shortText(d.v, m, mask); }
   }
 
   function click(c, t) {
