@@ -13,6 +13,7 @@ public static class PageZoomTests
         Assert.Eq(150, PageZoom.Parse(150), "max");
         Assert.Eq(150, PageZoom.Parse(400), "clamped to max");
         Assert.Eq(50, PageZoom.Parse(10), "clamped to min");
+        Assert.Eq(50, PageZoom.Parse(44.9), "below 50 reads as 50");
         Assert.Eq(50, PageZoom.Parse(-30), "negative");
         Assert.Eq(70, PageZoom.Parse(74), "nearest step");
         Assert.Eq(80, PageZoom.Parse(75), "a half step rounds up, as the page's Math.round does");

@@ -166,6 +166,10 @@ QJZ.layouts = (function () {
   var CHAT_GAP = [7000, 15000], GAP_MS = 5000, SNACK_FLY_MS = 800, DRAG_SAFETY_MS = 60000;
   var DBL_MS = 600;   // a double press's second press comes within this (Windows' double-click time is 500 ms by default)
   var HOLD_MS = 1200; // a long press (the 🧍, water −1, the pomodoro's stop): how long it is held (health.css's ring fills as long)
+  // 1.1.4 item 1 / 1.1.5: the ring shows after this long held. A press let go before it is a tap; one let go after it but
+  // before HOLD_MS does nothing at all. health.css takes both from here (--hold-show, --hold-ms on the root, set at start),
+  // so the ring's delay and this rule cannot drift apart.
+  var HOLD_SHOW_MS = 250;
   var SHOWN_KEY = 'qjz.layout';   // sessionStorage: the layout to come back to after a reload
   var RANK = { chat: 1, event: 2, user: 3 };
   var WORK = { working: 'working', lunch: 'working', done: 'working', ended: 'ended' };   // menuState work; else 'before'
@@ -1580,7 +1584,11 @@ QJZ.layouts = (function () {
     if (!h) return;
     h.ring.classList.remove('holding', 'charged', 'h-' + h.kind);
     if (!fire && h.kind !== 'stand') swallow = h.el;   // slid off it or let go elsewhere (review M-3): no tap either
-    if (!fire || !ready() || app().nowMs() - h.at < HOLD_MS || !QJZ.care) return;
+    if (!fire || !ready()) return;
+    var held = app().nowMs() - h.at;
+    // 1.1.5: let go once the ring has shown but before it is full: nothing (no tap, no 「長按停止」, no long action)
+    if (held >= HOLD_SHOW_MS && held < HOLD_MS) { swallow = h.el; return; }
+    if (held < HOLD_MS || !QJZ.care) return;   // before the ring showed: a tap (its click does it)
     if (h.kind === 'stand') { QJZ.care.stoodUp(); return; }
     swallow = h.el;
     if (h.kind === 'water') { if (QJZ.care.undrink()) popCup('−1'); }
@@ -1871,6 +1879,9 @@ QJZ.layouts = (function () {
   function start(rootEl, opts) {
     opts = opts || {};
     root = rootEl;
+    // the long press's two times, for health.css's ring (its delay and its fill): the same numbers as holdEnd's
+    document.documentElement.style.setProperty('--hold-show', HOLD_SHOW_MS + 'ms');
+    document.documentElement.style.setProperty('--hold-ms', HOLD_MS + 'ms');
     bridge = opts.bridge || QJZ.bridge;
     first = opts.first || null;
     session = opts.session;
@@ -1945,7 +1956,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, left: left, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,

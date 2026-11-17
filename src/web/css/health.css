@@ -91,10 +91,12 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay .holding::after{content:"";position:absolute;inset:-2px;border-radius:99px;padding:4px;pointer-events:none;
   background:conic-gradient(var(--hc) calc(var(--hold)*1%),rgba(61,44,36,.2) 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
-  animation:qjz-hold 1.2s linear 1 forwards}
+  opacity:0;animation:qjz-hold calc(var(--hold-ms) - var(--hold-show)) linear var(--hold-show) 1 forwards}
 .lay .holding::before{content:"";position:absolute;inset:-2px;border-radius:99px;pointer-events:none;   /* the glow (1.1.3 B2: no outline) */
-  box-shadow:0 0 7px 2px var(--hg);animation:qjz-hold-in .15s ease-out .25s 1 both}
-@keyframes qjz-hold{0%,20.8%{--hold:0;opacity:0}25%{opacity:1}100%{--hold:100;opacity:1}}
+  box-shadow:0 0 7px 2px var(--hg);animation:qjz-hold-in .15s ease-out var(--hold-show) 1 both}
+/* 1.1.5: --hold-show and --hold-ms are layouts.js's HOLD_SHOW_MS and HOLD_MS (set on the root at its start): the ring is
+   unseen for HOLD_SHOW_MS, then fills to full at HOLD_MS; a press let go in between does nothing (layouts.js holdEnd) */
+@keyframes qjz-hold{from{--hold:0;opacity:1}to{--hold:100;opacity:1}}
 @keyframes qjz-hold-in{from{opacity:0}to{opacity:1}}
 .lay .holding.charged{background:var(--hbg)}
 /* full during a phase: U1's and U13's 番茄鐘 take the tint too (their phase colours outranked it: review M-4), and so do

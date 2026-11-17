@@ -2794,7 +2794,8 @@
       ok(chip.classList.contains('holding'), name + ': held');
       var run = holdAnims();
       eq(run.length, 1, name + ': the ring fills while it is held');
-      eq([run[0].effect.getComputedTiming().iterations, Math.round(run[0].effect.getComputedTiming().duration)], [1, U.HOLD_MS], name + ': once, over the hold');
+      var tm = run[0].effect.getComputedTiming();
+      eq([tm.iterations, Math.round(tm.delay), Math.round(tm.endTime)], [1, U.HOLD_SHOW_MS, U.HOLD_MS], name + ': once, from HOLD_SHOW_MS to the end of the hold');
       mouse(chip, 'mousemove', 30, 10);
       e.clock.ms = T + 500;
       mouse(chip, 'mouseup', 30, 10, { buttons: 0 });
@@ -3594,7 +3595,7 @@
       tap(e, b);
       eq(C.state.health.cups, 2, name + ': a tap is a cup');
       press(e, btnIn(e, name, WATER_BTN[name]), 500);
-      eq(C.state.health.cups, 3, name + ': a short press is a tap');
+      eq(C.state.health.cups, 2, name + ': let go after the ring showed (0.5 s): nothing, not a tap (1.1.5)');
       b = btnIn(e, name, WATER_BTN[name]);
       var rb = ringOf(b), r = rb.getBoundingClientRect();
       mouse(rb, 'mousedown', r.left + 6, r.top + 6, { detail: 1 });
@@ -3602,7 +3603,7 @@
       e.clock.ms += U.HOLD_MS;
       mouse(rb, 'mouseup', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
       mouse(rb, 'click', r.left + 6, r.top + 6, { buttons: 0, detail: 1 });
-      eq(C.state.health.cups, 2, name + ': the long press takes one off, and its click logs none');
+      eq(C.state.health.cups, 1, name + ': the long press takes one off, and its click logs none');
       ok(!e.root.querySelector('.holding'), name + ': the ring is gone');
       var pops = e.root.querySelectorAll('[data-cups] .plus');
       eq(pops.length && pops[pops.length - 1].textContent, '−1', name + ': 「−1」');
@@ -4091,5 +4092,40 @@
     f.menu('settings');
     eq(Array.prototype.map.call(f.root.querySelectorAll('.bar [data-act]'), function (b) { return b.getAttribute('data-act'); }), ['hide'], 'a panel beside its layout');
     done();
+  });
+
+  // 1.1.5: a press let go once the ring has shown, before it is full, does nothing: no tap, no long action, no 長按停止.
+  // At 0.2 s it is a tap, at 0.6 s nothing, full the long action, on each kind of long-press control.
+  test('layouts DOM: 1.1.5: a hold let go part-way does nothing: 0.2 s a tap, 0.6 s nothing, full the long press', function () {
+    eq(U.HOLD_SHOW_MS, 250, 'the ring shows after 0.25 s');
+    eq(getComputedStyle(document.documentElement).getPropertyValue('--hold-show').trim(), U.HOLD_SHOW_MS + 'ms', 'the CSS delay is that constant');
+    // [tag, layout, during a focus, the control, what the state reads]
+    var CASES = [
+      ['water', 'U1', false, function (e) { return $(e, '.u1 .mpills [data-act=drink]'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['🧍', 'U1', false, function (e) { return $(e, '.u1 .mpills [data-hold]'); }, function () { return C.state.health.standups; }, 0, 1],
+      ['pomodoro', 'U1', true, function (e) { return $(e, '.u1 .mpills [data-act=pomo]'); }, null],
+      ['U10 chip', 'U10', false, function (e) { return btnIn(e, 'U10', '.u10 .iv-x [data-act=drink]'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['U12 gauge', 'U12', false, function (e) { return $(e, '.u12 [data-gauge=cups]'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['U13 centre', 'U13', true, function (e) { return $(e, '.u13 .br-go .go'); }, null]
+    ];
+    CASES.forEach(function (k) {
+      var e = shown(mk(at(12, 9, 0), { first: k[1], care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+      e.tick(at(12, 9, 18));
+      if (k[2]) C.toggleFocus();
+      var read = k[4] || function () { return C.state.p.phase; };
+      var v0 = read();
+      press(e, k[3](e), 200);
+      if (k[4]) eq(read() - v0, k[5], k[0] + ': 0.2 s is a tap');
+      else { eq([read(), tips(e)], ['focus', ['長按停止']], k[0] + ': 0.2 s is a tap (長按停止)'); e.clock.ms += 3000; }
+      var v1 = read(), tipsBefore = e.root.querySelectorAll('.tip').length;
+      press(e, k[3](e), 600);
+      eq(read(), v1, k[0] + ': 0.6 s does nothing');
+      if (!k[4]) eq(e.root.querySelectorAll('.tip').length, tipsBefore, k[0] + ': no 長按停止 either');
+      ok(!e.root.querySelector('.holding'), k[0] + ': the ring is gone');
+      press(e, k[3](e), U.HOLD_MS);
+      if (k[4]) eq(read() - v1, k[6], k[0] + ': full is the long press');
+      else eq(read(), 'idle', k[0] + ': full stops the focus');
+      done();
+    });
   });
 })();

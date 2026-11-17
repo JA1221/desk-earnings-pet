@@ -12,7 +12,7 @@
     eq(QJZ.settings.DEFAULTS.zoom, 100);
     eq(QJZ.settings.parse(null).settings.zoom, 100, 'missing');
     eq([z(50), z(150), z(130)], [50, 150, 130]);
-    eq([z(10), z(-5), z(400)], [50, 50, 150], 'clamped');
+    eq([z(10), z(-5), z(44.9), z(400)], [50, 50, 50, 150], 'clamped: below 50 reads as 50');
     eq([z(74), z(75), z(104.9)], [70, 80, 100], 'snapped to the nearest step, a half step up (as the host does)');
     eq([z('120'), z(true), z(null)], [100, 100, 100], 'not a number');
     eq(QJZ.settings.ZOOM, [50, 150, 10]);
