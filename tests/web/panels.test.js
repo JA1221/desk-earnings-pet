@@ -1264,6 +1264,43 @@
     done();
   });
 
+  // 1.1.5 review: ◀ ▶
+  test('panels DOM: 統計 ◀ ▶: back to the earliest period with a record, ▶ off at today\'s; a past period\'s sums', function () {
+    var e = mk(at(12, 10, 0), { history: sampleHistory() });   // the earliest record: 2026-09-01
+    e.menu('history');
+    function nav() { return $$(e, '[data-stnav]').map(function (b) { return b.disabled; }); }
+    function back() { $(e, '[data-stnav="-1"]').click(); }
+    eq(nav(), [false, true], 'today\'s month: ▶ off');
+    eq($(e, '[data-stnav="-1"]').getAttribute('aria-label'), '上一月');
+    back();
+    eq([text(e, '[data-o=stTitle]'), nav()], ['2026 年 10 月', [false, false]]);
+    eq($$(e, '.hist-chart [data-bar]').length, 31);
+    eq($$(e, '.hist-chart [data-today]').length, 0, 'no 今天 bar');
+    eq(text(e, '[data-o=sumLabel]'), '合計');
+    eq(text(e, '[data-o=total]'), 'NT$ 1,000.00', '999 + 1 (the open 10-29 is no data)');
+    eq([text(e, '[data-o=avg]'), text(e, '[data-o=avgNote]')], ['NT$ 500.00', '只算有紀錄的 2 天'], 'no 今天還沒過完');
+    $(e, '[data-stseg=metric] [data-st=cups]').click();
+    eq(text(e, '[data-o=stTitle]'), '2026 年 10 月', 'another item keeps the period');
+    eq([text(e, '[data-o=total]'), text(e, '[data-o=avg]'), text(e, '[data-o=avgNote]')], ['0 杯', '—', '這段時間沒有可以平均的日子']);
+    $(e, '[data-stseg=metric] [data-st=earned]').click();
+    back();
+    eq([text(e, '[data-o=stTitle]'), nav()], ['2026 年 9 月', [true, false]], 'the earliest: ◀ off');
+    back();
+    eq(text(e, '[data-o=stTitle]'), '2026 年 9 月', 'a click on it does nothing');
+    var svg = $(e, '.hist-chart svg');
+    e.tick(at(12, 11, 0));
+    ok($(e, '.hist-chart svg') === svg, 'a past period is not drawn again on a tick');
+    $(e, '[data-stnav="1"]').click();
+    $(e, '[data-stnav="1"]').click();
+    eq([text(e, '[data-o=stTitle]'), nav(), text(e, '[data-o=sumLabel]')], ['2026 年 11 月', [false, true], '本月合計'], 'forward to today\'s');
+    back();
+    $(e, '[data-stseg=period] [data-st=week]').click();
+    eq([text(e, '[data-o=stTitle]'), nav()[1]], ['11/09 – 11/15', true], '週 / 月 goes back to today\'s period');
+    back();
+    eq([text(e, '[data-o=stTitle]'), $(e, '[data-stnav="-1"]').getAttribute('aria-label')], ['11/02 – 11/08', '上一週']);
+    done();
+  });
+
   test('panels DOM: 統計 while the money is masked: *** for 收入, the bars stay; the counts show', function () {
     var s = JSON.parse(JSON.stringify(SET_UP));
     s.privacy = { maskMoney: true };
@@ -1290,6 +1327,11 @@
     ok(+svg.getAttribute('width') <= card.clientWidth, 'the chart inside its card: ' + svg.getAttribute('width') + ' / ' + card.clientWidth);
     near(svg.getBoundingClientRect().width, +svg.getAttribute('width'), 1, 'drawn at its shown size (its text at 10 px)');
     $$(e, '[data-stseg] button').forEach(function (b) { ok(b.scrollWidth <= b.clientWidth + 1, 'a switch fits: ' + b.textContent); });
+    $(e, '[data-stnav="-1"]').click();   // the longest title, 2026 年 10 月, between ◀ ▶ and beside 週 / 月
+    var top = $(e, '.stats .hist-top'), cr = card.getBoundingClientRect();
+    ok(top.scrollWidth <= top.clientWidth + 1, 'the title row fits: ' + top.scrollWidth + ' / ' + top.clientWidth);
+    [$(e, '[data-stnav="1"]'), $(e, '[data-stseg=period]')].forEach(function (n) { ok(n.getBoundingClientRect().right <= cr.right - 2, 'inside the card'); });
+    eq(Math.round($(e, '[data-stnav="-1"]').getBoundingClientRect().top), Math.round($(e, '[data-stnav="1"]').getBoundingClientRect().top), 'one line');
     done();
   });
 

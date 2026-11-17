@@ -9,6 +9,9 @@ window.QJZ = window.QJZ || {};
 // The SVG is built at the width it is shown at, so its text is the size it says (10 px) in U13's 300 px panel too.
 // The bars are drawn to scale against a round top (QJZ.stats.top), with a line and a label at its half and at the top.
 // 隱藏金額 (privacy.maskMoney): the 收入 numbers (the axis, the sums, the tips) read ***; the bars stay.
+// ◀ ▶ beside the title (1.1.5 review) step to the week / month before or after: ▶ stops at today's, ◀ at the earliest
+// one with any record. 週 / 月 goes back to today's; another item keeps the period. A past period has no 「今天」 bar,
+// and its 合計 and 平均 are that period's (no 「今天還沒過完」).
 // The picks are kept for the session. Only numbers and fixed copy go into markup.
 // Review I-2: the chart is drawn again only when what it is drawn from changes (the picks, the mask, its width, a past
 // day, the scale's top, whether today has a bar); today's live 收入 only moves today's bar, its label and its tip, and the
@@ -21,7 +24,7 @@ QJZ.panelsStats = (function () {
   var NAME = { earned: '收入', cups: '喝水', standups: '起來動', tomatoes: '番茄' };
   var WD = '日一二三四五六';
   var H = 150, T = 14, B = 20, R = 4;
-  var period = 'month', metric = 'earned';
+  var period = 'month', metric = 'earned', offset = 0;   // offset: 0 today's period, -1 the one before, …
 
   function money(n) { return QJZ.odometer.format(n); }
   function md(key) { return key.slice(5, 7) + '/' + key.slice(8, 10); }
@@ -43,7 +46,9 @@ QJZ.panelsStats = (function () {
     return h + '</div>';
   }
   function card() {
-    return '<div class="card hist stats" data-o="stats"><div class="hist-top"><b data-o="stTitle"></b>' + seg('period', PERIODS) + '</div>' +
+    return '<div class="card hist stats" data-o="stats"><div class="hist-top"><span class="st-nav">' +
+      '<button type="button" class="st-step" data-stnav="-1">◀</button><b data-o="stTitle"></b>' +
+      '<button type="button" class="st-step" data-stnav="1">▶</button></span>' + seg('period', PERIODS) + '</div>' +
       seg('metric', ITEMS) +
       '<div class="hist-chart" data-o="chart"></div>' +
       '<div class="hist-sum"><small data-o="sumLabel"></small><b class="num" data-o="total"></b></div>' +
@@ -111,23 +116,33 @@ QJZ.panelsStats = (function () {
     var st = K.st(), chart = K.q(c, '[data-o=chart]');
     if (!chart) return;
     var mask = !!(st.settings.privacy && st.settings.privacy.maskMoney);
-    var s = QJZ.stats.series(st.history, st.today, st.snap && st.snap.earned, period, metric);
+    var first = QJZ.stats.earliest(st.history, period, st.today.day);
+    offset = Math.max(first, Math.min(0, offset));
+    var s = QJZ.stats.series(st.history, st.today, st.snap && st.snap.earned, period, metric, offset);
     var W = Math.max(200, Math.round(chart.clientWidth || 340));
     var td = null, top = QJZ.stats.top(s.max, metric);
     s.days.forEach(function (d) { if (d.today) td = d; });
-    var key = JSON.stringify([period, metric, mask, W, top, s.max > 0, td ? [td.day, td.v > 0] : null,
+    var key = JSON.stringify([period, metric, s.from, first, mask, W, top, s.max > 0, td ? [td.day, td.v > 0] : null,
       s.days.map(function (d) { return d.today || d.v === null ? null : Math.round(d.v * 100); })]);
     if (c.cache.stats !== key) {
       c.cache.stats = key;
       on(c, 'period', period);
       on(c, 'metric', metric);
       K.out(c, 'stTitle', title(s));
+      var unit = period === 'week' ? '週' : '月';
+      K.qa(c, '[data-stnav]').forEach(function (b) {
+        var back = b.getAttribute('data-stnav') === '-1';
+        b.disabled = back ? offset <= first : offset >= 0;
+        b.setAttribute('aria-label', (back ? '上一' : '下一') + unit);
+        b.title = (back ? '上一' : '下一') + unit;
+      });
       chart.innerHTML = svg(s, W, mask);
     } else if (td) patchToday(chart, td, top, metric, mask);
-    K.out(c, 'sumLabel', (period === 'week' ? '本週' : '本月') + '合計');
+    K.out(c, 'sumLabel', s.current ? (period === 'week' ? '本週' : '本月') + '合計' : '合計');
     K.out(c, 'total', valueText(s.total, metric, mask));
     K.out(c, 'avg', s.avg === null ? '—' : valueText(s.avg, metric, mask));
-    K.out(c, 'avgNote', s.avgDays ? '只算有紀錄的 ' + s.avgDays + ' 天（今天還沒過完，不算）' : '還沒有可以平均的日子（只算有紀錄的日子，今天不算）');
+    K.out(c, 'avgNote', s.current ? (s.avgDays ? '只算有紀錄的 ' + s.avgDays + ' 天（今天還沒過完，不算）' : '還沒有可以平均的日子（只算有紀錄的日子，今天不算）') :
+      s.avgDays ? '只算有紀錄的 ' + s.avgDays + ' 天' : '這段時間沒有可以平均的日子');
   }
 
   // Today's bar, its value on it (週) and its tip, moved to v where they are (the scale's top unchanged).
@@ -149,16 +164,24 @@ QJZ.panelsStats = (function () {
   }
 
   function click(c, t) {
+    var n = t.closest('[data-stnav]');
+    if (n) {
+      if (!n.disabled) { offset += +n.getAttribute('data-stnav'); update(c); }
+      return true;
+    }
     var b = t.closest('[data-stseg] [data-st]');
     if (!b) return false;
     var v = b.getAttribute('data-st');
-    if (b.closest('[data-stseg]').getAttribute('data-stseg') === 'period') period = v; else metric = v;
+    if (b.closest('[data-stseg]').getAttribute('data-stseg') === 'period') {
+      if (v !== period) offset = 0;   // 週 / 月: back to today's period
+      period = v;
+    } else metric = v;                // another item: the same period
     update(c);
     return true;
   }
 
   // Tests only.
-  function reset() { period = 'month'; metric = 'earned'; }
+  function reset() { period = 'month'; metric = 'earned'; offset = 0; }
 
   return { card: card, update: update, click: click, _reset: reset };
 })();

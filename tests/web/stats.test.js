@@ -72,6 +72,45 @@
     eq(S().series(h, { day: '2026-11-06' }, 0, 'week', 'cups').days[4].v, 0, 'today with no health yet: 0');
   });
 
+  // 1.1.5 review: ◀ ▶ step back through the periods
+  test('stats: an earlier period: across a year end, a leap February, never past today\'s', function () {
+    var h = { version: 1, days: {} };
+    var w = S().series(h, { day: '2027-01-05' }, 0, 'week', 'earned', -1);
+    eq([w.from, w.to, w.current, w.offset], ['2026-12-28', '2027-01-03', false, -1], 'the week before (Tue 01-05): across the year end');
+    eq(S().series(h, { day: '2027-01-05' }, 0, 'week', 'earned', 0).from, '2027-01-04', 'the current week');
+    eq(S().series(h, { day: '2027-01-05' }, 0, 'week', 'earned', -2).from, '2026-12-21');
+    var f = S().series(h, { day: '2028-03-31' }, 0, 'month', 'earned', -1);
+    eq([f.from, f.to, f.days.length], ['2028-02-01', '2028-02-29', 29], 'the 31st steps back to a whole February');
+    eq(S().series(h, { day: '2027-01-10' }, 0, 'month', 'earned', -1).from, '2026-12-01', 'back over a year end');
+    eq(S().series(h, { day: '2027-01-10' }, 0, 'month', 'earned', -13).from, '2025-12-01');
+    eq(S().series(h, { day: '2026-11-12' }, 0, 'month', 'earned', 3).from, '2026-11-01', 'a future offset is today\'s');
+  });
+
+  test('stats: a past period has no today; its 合計 and 平均 are its own, every day with data counted', function () {
+    var h = { version: 1, days: {
+      '2026-10-01': hrec('2026-10-01', 1000, { cups: 4 }), '2026-10-02': hrec('2026-10-02', 3000),
+      '2026-10-05': hrec('2026-10-05', 0), '2026-10-31': hrec('2026-10-31', 500, { cups: 2 }),
+      '2026-11-02': hrec('2026-11-02', 9999) } };
+    var m = S().series(h, { day: '2026-11-12' }, 777, 'month', 'earned', -1);
+    eq([m.from, m.to, m.current], ['2026-10-01', '2026-10-31', false]);
+    ok(m.days.every(function (d) { return !d.today && !d.future; }), 'no today, nothing ahead');
+    eq([m.total, m.avg, m.avgDays, m.max], [4500, 1500, 3, 3000], 'the live amount is not in it; the 0 day is not data');
+    var c = S().series(h, { day: '2026-11-12' }, 0, 'month', 'cups', -1);
+    eq([c.total, c.avg, c.avgDays], [6, 3, 2]);
+    var w = S().series(h, { day: '2026-11-04' }, 0, 'week', 'earned', -1);
+    eq([w.from, w.total, w.avgDays], ['2026-10-26', 500, 1], 'the week before, across the month');
+  });
+
+  test('stats: the earliest period with any record', function () {
+    var h = { version: 1, days: { '2026-09-01': hrec('2026-09-01', 1), '2026-11-02': hrec('2026-11-02', 1) } };
+    eq(S().earliest(h, 'month', '2026-11-12'), -2);
+    eq(S().earliest(h, 'week', '2026-11-12'), -10, 'the week of Mon 08-31 to the week of Mon 11-09');
+    eq(S().earliest({ version: 1, days: { '2026-12-31': hrec('2026-12-31', 1) } }, 'month', '2027-01-02'), -1, 'over a year end');
+    eq(S().earliest({ version: 1, days: {} }, 'month', '2026-11-12'), 0, 'none: today\'s only');
+    eq(S().earliest({ version: 1, days: { '2026-11-12': hrec('2026-11-12', 1) } }, 'week', '2026-11-12'), 0, 'only today');
+    eq(S().earliest(null, 'week', '2026-11-12'), 0);
+  });
+
   test('stats: unknown period or item fall back to 月 and 收入', function () {
     var m = S().series({ version: 1, days: {} }, { day: '2026-11-12' }, 0, 'year', 'steps');
     eq([m.period, m.metric, m.days.length], ['month', 'earned', 30]);

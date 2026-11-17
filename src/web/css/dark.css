@@ -93,7 +93,8 @@ html.dark .u13:is(.p-foc,.p-brk) .bigring .br-go .go{background:var(--card)}
 /* ---------- panels.css ---------- */
 html.dark .panel{--ok:#3BA56C;--err:#FF7A93;--soft:#4A3D34;--dash:#4A3D34;--warn:#5A2A33}
 html.dark .panel :is(.card,.btn.ghost,.seg,.tabs button,.stepper button,.x,.days button,.stepdots i,.ck,.q-bubble,.q-bubble::before){background:var(--card)}
-html.dark .panel :where(.cc,.calleg i){background:var(--card)}   /* (:where: the calendar's levels keep their blue) */
+html.dark .panel :where(.cc,.calleg i){background:var(--card)}
+html.dark .panel .st-step{background:var(--card)}   /* (:where: the calendar's levels keep their blue) */
 html.dark .panel .q-bubble::after{background:var(--card);background-clip:padding-box}
 html.dark .panel .tabs button.on,html.dark .panel .days button.on,html.dark .panel .seg button.on{background:var(--bar)}
 html.dark .panel .stepdots i.on{background:var(--money)}

@@ -4,7 +4,9 @@ window.QJZ = window.QJZ || {};
 //   PERIODS  'week' (Monday to Sunday, the week of today) | 'month' (the 1st to the last day of today's month).
 //   METRICS  'earned' (收入: a closed day's earned; today the live amount), 'cups' (喝水), 'standups' (起來動),
 //            'tomatoes' (番茄) — the counts of the day's health record (QJZ.health), today's live ones.
-//   series(history, today, todayEarned, period, metric) -> {period, metric, from, to, days, total, avg, avgDays, max}
+//   series(history, today, todayEarned, period, metric, offset) -> {period, metric, offset, from, to, current, days,
+//     total, avg, avgDays, max}. offset (1.1.5 review: ◀ ▶) is how many weeks / months back from today's (0, -1, …; a
+//     positive one counts as 0); current: the period holds today. A past period has no today and nothing in the future.
 //     days: one per date of the period, {day, d (date), wd (0 = Sunday), v, today, future}. v is null where nothing was
 //     recorded (no record, an open record for 收入, no health record for a count) and on the days after today; today is
 //     always a number (0 before anything happens).
@@ -12,6 +14,7 @@ window.QJZ = window.QJZ || {};
 //     avg: the mean over the days with data, i.e. v > 0, today left out while it is still going; avgDays how many
 //     there are. null when there are none.
 //     max: the biggest v (0 when none).
+//   earliest(history, period, todayKey) -> the offset (0 or less) of the earliest period with any record in history.
 //   top(max, metric)  the round top of the chart's scale: 收入 as QJZ.panels' niceMax; a count an even whole number,
 //     so its middle line is a whole number too.
 QJZ.stats = (function () {
@@ -22,6 +25,21 @@ QJZ.stats = (function () {
   function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
   function keyOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function dateOf(key) { var p = key.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+  // The day offset periods from the one that holds todayKey: its Monday (week) or its 1st (month).
+  function anchor(period, todayKey, offset) {
+    var t = dateOf(todayKey), n = Math.min(0, Math.floor(offset || 0));
+    if (period === 'week') return keyOf(new Date(t.getFullYear(), t.getMonth(), t.getDate() - (t.getDay() + 6) % 7 + 7 * n));
+    return keyOf(new Date(t.getFullYear(), t.getMonth() + n, 1));
+  }
+  function earliest(history, period, todayKey) {
+    var days = (history && history.days) || {}, first = null;
+    for (var k in days) if (Object.prototype.hasOwnProperty.call(days, k) && /^\d{4}-\d{2}-\d{2}$/.test(k) && (first === null || k < first)) first = k;
+    if (first === null || first >= todayKey) return 0;
+    var a = dateOf(range(period, first)[0]), b = dateOf(range(period, todayKey)[0]);
+    if (period === 'week') return -Math.round((b - a) / (7 * 86400000));
+    return (a.getFullYear() * 12 + a.getMonth()) - (b.getFullYear() * 12 + b.getMonth());
+  }
 
   // The dates of the period that holds todayKey, in order.
   function range(period, todayKey) {
@@ -48,10 +66,11 @@ QJZ.stats = (function () {
     return QJZ.health.of(today)[metric];
   }
 
-  function series(history, today, todayEarned, period, metric) {
+  function series(history, today, todayEarned, period, metric, offset) {
     period = PERIODS.indexOf(period) >= 0 ? period : 'month';
     metric = METRICS.indexOf(metric) >= 0 ? metric : 'earned';
-    var days = (history && history.days) || {}, todayKey = today.day, keys = range(period, todayKey);
+    offset = Math.min(0, Math.floor(isNum(offset) ? offset : 0));
+    var days = (history && history.days) || {}, todayKey = today.day, keys = range(period, anchor(period, todayKey, offset));
     var list = [], total = 0, max = 0, sum = 0, avgDays = 0;
     keys.forEach(function (key) {
       var isToday = key === todayKey, future = key > todayKey, v = null;
@@ -64,7 +83,8 @@ QJZ.stats = (function () {
       if (v > max) max = v;
       if (!isToday && v > 0) { sum += v; avgDays++; }
     });
-    return { period: period, metric: metric, from: keys[0], to: keys[keys.length - 1], days: list, total: total,
+    return { period: period, metric: metric, offset: offset, from: keys[0], to: keys[keys.length - 1], current: offset === 0,
+      days: list, total: total,
       avg: avgDays ? sum / avgDays : null, avgDays: avgDays, max: max };
   }
 
@@ -82,5 +102,5 @@ QJZ.stats = (function () {
     return t;
   }
 
-  return { PERIODS: PERIODS, METRICS: METRICS, range: range, series: series, top: top, niceMax: niceMax };
+  return { PERIODS: PERIODS, METRICS: METRICS, range: range, series: series, earliest: earliest, top: top, niceMax: niceMax };
 })();
