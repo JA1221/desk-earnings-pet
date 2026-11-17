@@ -16,6 +16,8 @@ using System.Web.Script.Serialization;
 //            html_url is never used, review I-1)
 //   unknown  anything else (no network, a timeout, 404 while the repo is private, rate limiting, an answer that does not
 //            parse): 「查不到更新資訊」, and the Releases page can be opened.
+// 1.1.6: a newer result also carries the release's exe when the answer names it as UpdateInstall.Asset requires (the
+// 「更新」 button); downloading it is UpdateInstall's, and only on that button.
 // Only two URL shapes are ever opened (SafeUrl, UrlToOpen): the Releases page and .../releases/tag/vX.Y.Z. The request
 // is injectable (Check / Begin / RunAsync take it), so tests never go online. Redirects are not followed: a 3xx is unknown.
 public sealed class UpdateResult
@@ -23,12 +25,16 @@ public sealed class UpdateResult
     public string Kind { get; private set; }
     public string Version { get; private set; }   // latest: the app's; newer: the release's; unknown: null
     public string Url { get; private set; }       // the page 前往下載 opens: the release's, else the Releases page
+    public UpdateAsset Asset { get; private set; }   // 1.1.6 一鍵更新: newer only, its exe (UpdateInstall.Asset); null: the link only
 
-    public UpdateResult(string kind, string version, string url)
+    public UpdateResult(string kind, string version, string url) : this(kind, version, url, null) { }
+
+    public UpdateResult(string kind, string version, string url, UpdateAsset asset)
     {
         Kind = kind;
         Version = version;
         Url = url;
+        Asset = asset;
     }
 }
 
@@ -101,7 +107,7 @@ public static class UpdateCheck
         string tag = Bridge.Str(d, "tag_name");   // html_url is not read: the page is built from the version (review I-1)
         int[] rel = ParseVersion(tag);
         if (rel == null) return Unknown();
-        if (Newer(tag, current)) return new UpdateResult("newer", string.Join(".", rel), TagUrl(rel));
+        if (Newer(tag, current)) return new UpdateResult("newer", string.Join(".", rel), TagUrl(rel), UpdateInstall.Asset(d, rel));
         return new UpdateResult("latest", string.Join(".", cur), ReleasesUrl);
     }
 

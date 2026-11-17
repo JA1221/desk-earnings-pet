@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,7 +74,12 @@ using Microsoft.Web.WebView2.Core;
 //   seated, ScreenFit.SettleDesk). Positions in window.json are unaffected (physical top-lefts; sizes are CSS).
 // - 1.1.5 檢查更新: checkUpdate {} makes the app's one network request (UpdateCheck, at most one at a time) and answers
 //   updateResult {kind, version}; openUpdate {} opens that result's page (the release's, or the Releases page) in the
-//   default browser. Nothing else here ever goes online.
+//   default browser. Nothing else here ever goes online, but 一鍵更新:
+// - 1.1.6 一鍵更新: updateResult also says install (a newer release whose exe UpdateInstall.Asset accepts, in a release
+//   build). installUpdate {} downloads and checks that exe (UpdateInstall.Download, off the UI thread) and answers
+//   updateState {phase:'downloading', percent} as it goes, then 'failed' (the file is gone) or 'restarting': the exe is
+//   swapped (UpdateInstall.Swap), the app quits as usual (the page saves), and the new exe starts with
+//   --after-update <pid> (Program.Main waits for this process before its single-instance check).
 // menuState {work, snacks} (page -> host): the work item and the snack count. healthMenu {cups, pomodoro:{phase, endsMs}}:
 // 記一杯水's cups and 開始 / 停止番茄鐘. (1.1.3 A2: the menu lost 隱藏金額, 少記一杯 and 我剛起來動過了, and with them the
 // page's mask / undrink / stoodUp actions, menuState's masked and healthMenu's sitOn.)
@@ -151,6 +157,9 @@ public class AppHost
     bool updateBusy;             // a 檢查更新 request is out (until it really ends, review M-1)
     bool updateAgain;            // pressed again while it was out: its answer goes to the page when it ends
     string updateUrl = UpdateCheck.ReleasesUrl;   // what openUpdate opens: the last result's page
+    UpdateAsset updateAsset;     // 1.1.6: the last result's exe (null: no 更新)
+    bool installing;             // 一鍵更新 is downloading, or has swapped the exe and is quitting
+    string restartExe;           // the swapped exe: Quit starts it
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
     // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
@@ -470,6 +479,7 @@ public class AppHost
                 }
             case "checkUpdate": CheckUpdate(); break;
             case "openUpdate": OpenUpdate(); break;
+            case "installUpdate": InstallUpdate(); break;
             case "hide": wantVisible = false; ApplyVisibility(); break;
             case "quit": Quit(); break;
         }
@@ -1062,6 +1072,7 @@ public class AppHost
     // 檢查更新: the one request, off the UI thread (UpdateCheck.Within gives up after WaitMs); the answer goes to the page.
     async void CheckUpdate()
     {
+        if (installing) return;   // the page does not ask while 一鍵更新 runs
         if (updateBusy) { updateAgain = true; return; }   // answered when the request out now ends
         updateBusy = true;
         UpdateResult r;
@@ -1090,7 +1101,87 @@ public class AppHost
     void AnswerUpdate(UpdateResult r)
     {
         updateUrl = UpdateCheck.UrlToOpen(r.Url);
-        Send("updateResult", new { kind = r.Kind, version = r.Version });
+        updateAsset = r.Kind == "newer" && Payload.IsRelease ? r.Asset : null;   // a dev build never updates itself
+        Send("updateResult", new { kind = r.Kind, version = r.Version, install = updateAsset != null });
+    }
+
+    // 一鍵更新: the last newer result's exe, downloaded and checked off the UI thread, then put in place of this exe.
+    async void InstallUpdate()
+    {
+        UpdateAsset a = updateAsset;
+        if (installing || quitting || a == null || !Payload.IsRelease) return;
+        installing = true;
+        SendUpdateState("downloading", 0);
+        string exe = Application.ExecutablePath;
+        SynchronizationContext at = ui;
+        string file = null;
+        try
+        {
+            string dir = Path.Combine(AppPaths.LocalDir, UpdateInstall.Folder);
+            int shown = 0;   // the last percent sent (worker thread only)
+            file = await Task.Run(delegate
+            {
+                return UpdateInstall.Download(a, dir, UpdateInstall.Get, delegate(long got, long size)
+                {
+                    int p = (int)(got * 100 / size);
+                    if (p == shown) return;
+                    shown = p;
+                    at.Post(delegate { if (installing && !quitting && restartExe == null) SendUpdateState("downloading", p); }, null);
+                }, delegate(string why) { ErrorLog.Write(why); });
+            });
+        }
+        catch (Exception ex) { ErrorLog.Write("update download", ex); file = null; }
+        if (quitting) { DeleteQuietly(file); return; }
+        if (file == null || !UpdateInstall.Swap(exe, file, File.Move, delegate(string why) { ErrorLog.Write(why); }))
+        {
+            DeleteQuietly(file);
+            installing = false;
+            SendUpdateState("failed", 0);
+            return;
+        }
+        restartExe = exe;
+        SendUpdateState("restarting", 100);
+        BeginQuit();   // the page saves as on any quit; Quit starts the new exe
+    }
+
+    void SendUpdateState(string phase, int percent)
+    {
+        Send("updateState", new { phase = phase, percent = percent });
+    }
+
+    static void DeleteQuietly(string path)
+    {
+        try { if (path != null && File.Exists(path)) File.Delete(path); }
+        catch (Exception) { }
+    }
+
+    // After Shutdown (files saved, the instance mutex released): the swapped exe, told to wait for this process. When it
+    // cannot start, the old exe goes back and that one is started instead.
+    void StartUpdated()
+    {
+        string exe = restartExe;
+        if (exe == null) return;
+        int pid;
+        using (System.Diagnostics.Process me = System.Diagnostics.Process.GetCurrentProcess()) pid = me.Id;
+        if (StartExe(exe, pid)) return;
+        if (UpdateInstall.Restore(exe, File.Move, delegate(string why) { ErrorLog.Write(why); })) StartExe(exe, pid);
+    }
+
+    static bool StartExe(string exe, int pid)
+    {
+        try
+        {
+            System.Diagnostics.ProcessStartInfo si = new System.Diagnostics.ProcessStartInfo(exe, UpdateInstall.RestartArgs(pid));
+            si.UseShellExecute = false;
+            si.WorkingDirectory = Path.GetDirectoryName(exe);
+            using (System.Diagnostics.Process.Start(si)) { }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("starting the updated exe", ex);
+            return false;
+        }
     }
 
     // The last result's page in the default browser: only ever the two shapes UpdateCheck.UrlToOpen lets through.
@@ -1121,6 +1212,7 @@ public class AppHost
     {
         if (quitting) return;
         Shutdown();
+        StartUpdated();   // 一鍵更新: the new exe (it waits for this process to end)
         // Deferred: Quit runs inside WebView2 and menu event handlers, which must return before their objects go.
         ui.Post(delegate
         {

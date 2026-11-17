@@ -29,7 +29,12 @@ public static class Program
         AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Fatal(e.ExceptionObject as Exception); };
 
         if (ForeignWebView2Beside()) return 0;
+        // 1.1.6 一鍵更新: started by the exe this one replaced, with --after-update <pid>: that process is still saving and
+        // quitting, and holds the instance mutex until it ends; wait for it (UpdateInstall.WaitForOldMs at most).
+        int oldPid = UpdateInstall.WaitPid(args);
+        if (oldPid > 0) UpdateInstall.WaitForExit(oldPid, UpdateInstall.WaitForOldMs);
         if (!SingleInstance.TryStart()) return 0;   // the running instance shows itself
+        UpdateInstall.CleanOld(Application.ExecutablePath);   // the exe an update replaced (best effort, every start)
         if (!Unpack()) return 1;
         return Start(args);
     }
