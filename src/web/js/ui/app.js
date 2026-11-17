@@ -46,6 +46,8 @@ window.QJZ = window.QJZ || {};
 // 1.1.6 一鍵更新: updateResult's install (true: the host can put that release in place, release build only) is
 // state.update.install; installUpdate() (newer + install, once) sends installUpdate {} and the host's updateState
 // {phase:'downloading'|'restarting'|'failed', percent} goes to state.update.phase / percent. 檢查更新 waits while it runs.
+// 1.1.7 item 4: init.afterUpdate (true only in the first init after 一鍵更新 restarted the app) makes state.updatedTo the
+// version now running (else null); the layouts' pet says 「已更新到 <version>」 once when it first shows.
 // Session: lock / unlock are tracked; a resume while locked is not an arrival (the unlock that follows is).
 // 相容模式: html.opaque (base.css paints the whole page) while settings.display.opaque or init.forceOpaque.
 // 省電模式 (§5.9): while settings.display.powerSaver the tick runs every SAVER_TICK_MS (the money moves 4 times a
@@ -55,7 +57,7 @@ QJZ.app = (function () {
 
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
-    pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, forceOpaque: false,
+    pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, updatedTo: null, forceOpaque: false,
     hotkeyFailed: null, storageError: null, storageErrors: [], update: null,
     zoomApplied: null   // the WebView2 zoom the host applied (zoomApplied; it may be under settings.zoom where it does not fit)
   };
@@ -227,6 +229,7 @@ QJZ.app = (function () {
     state.pendingQuestion = null;
     state.startHint = null;
     state.version = typeof msg.version === 'string' && msg.version ? msg.version : null;   // the host's AppHost.Version (設定 → 關於)
+    state.updatedTo = msg.afterUpdate === true ? state.version : null;   // 1.1.7 item 4
     state.forceOpaque = msg.forceOpaque === true;   // the host could not make the window transparent
     applySound();
     applyDisplay();
@@ -571,7 +574,7 @@ QJZ.app = (function () {
     listeners.tick = []; listeners.second = []; listeners.refresh = []; listeners.change = []; listeners.started = []; listeners.milestone = []; listeners.notice = [];
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
-    state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;
+    state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = state.updatedTo = null; state.forceOpaque = false;
     state.update = null; state.zoomApplied = null;
     document.documentElement.classList.remove('paused');
     document.documentElement.classList.remove('opaque');

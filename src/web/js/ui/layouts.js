@@ -186,6 +186,7 @@ QJZ.layouts = (function () {
   var NAMES = { U1: '1 經典直式', U3: '2 遊戲畫面', U12: '3 健康儀表板', U13: '4 番茄鐘優先', U5B: '5 橫向極簡', U10: '6 頂端小膠囊',
     M3: '7 迷你浮窗', U7: '8 桌面寵物' };
   var TIP_MS = 1600;  // 「長按停止」 shows this long (tip)
+  var UPDATED_MS = 6000;   // 「已更新到 1.1.7」 (1.1.7 item 4) shows this long
   var STAND_TIP = '長按＝我剛起來動過了';   // 1.1.7 item 2: a tap on a 🧍 countdown (or U12's 起來動 ring) says how it works
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
@@ -1476,6 +1477,8 @@ QJZ.layouts = (function () {
       var p = !first && panels() ? panels().initial(app().state) : null;
       if (p) openPanel(p);
       else show(first === 'PANEL' ? first : startLayout());
+      // 1.1.7 item 4: after 一鍵更新 restarted the app, the pet says so once, in its bubble (else a banner), as any line
+      if (app().state.updatedTo) say('已更新到 ' + app().state.updatedTo, UPDATED_MS);
       return;
     }
     render();

@@ -215,7 +215,8 @@
     return el;
   }
   // o: {first, seed, session, settings (top-level keys), start (null: not started), rec (today's record keys),
-  //     care: also start QJZ.care on the same bridge and clock (no heartbeat), pomo: history.pomodoro}
+  //     care: also start QJZ.care on the same bridge and clock (no heartbeat), pomo: history.pomodoro,
+  //     version: init's version (default 't'), afterUpdate: init's afterUpdate (1.1.7 item 4)}
   function mk(nowMs, o) {
     o = o || {};
     QJZ.care._reset();
@@ -243,7 +244,8 @@
       h.days[day] = rec;
     }
     if (o.pomo) h.pomodoro = o.pomo;
-    bridge.emit({ type: 'init', settings: JSON.stringify(settings), history: JSON.stringify(h), probeMs: null, nowMs: nowMs, version: 't' });
+    bridge.emit({ type: 'init', settings: JSON.stringify(settings), history: JSON.stringify(h), probeMs: null, nowMs: nowMs, version: o.version || 't',
+      afterUpdate: o.afterUpdate === true });
     return { bridge: bridge, sent: sent, clock: clock, root: root,
       menu: function (a) { bridge.emit({ type: 'menu', action: a }); },
       tick: function (ms) { clock.ms = ms; QJZ.app.tickNow(); } };
@@ -4583,5 +4585,38 @@
     mouse($(f, '.u5b .money'), 'contextmenu', 5, 5, { button: 2 });
     eq(of(f.sent, 'contextMenu').length, 1, 'a right click still opens the menu');
     done();
+  });
+
+  // Item 4: after 一鍵更新 restarted the app (init.afterUpdate), the pet says 「已更新到 <version>」 once, in the layout's
+  // bubble (a banner where there is none); not on a plain start, nor on another layout afterwards.
+  test('layouts DOM: 1.1.7 item 4: after an update the pet says 「已更新到 1.1.7」 once', function () {
+    var si = window.setInterval, typing = [], banners = [], fb = QJZ.fx.banner;
+    function start(o) {
+      typing = [];
+      window.setInterval = function (fn, ms) { if (ms === 55) { typing.push(fn); return 0; } return si.apply(window, arguments); };
+      try { return shown(mk(at(12, 10, 0), o)); } finally { window.setInterval = si; }
+    }
+    function typed() { for (var i = 0; i < 40; i++) typing.forEach(function (f) { f(); }); }
+    QJZ.fx.banner = function (host, text) { banners.push(text); return fb.apply(this, arguments); };
+    try {
+      var e = start({ first: 'U1', care: true, version: '1.1.7', afterUpdate: true });
+      typed();
+      var b = $(e, '[data-bubble]');
+      eq([b.classList.contains('show'), b.textContent], [true, '已更新到 1.1.7'], 'U1: in its bubble');
+      eq(QJZ.app.state.updatedTo, '1.1.7');
+      done();
+      e = start({ first: 'U1', care: true, version: '1.1.7' });
+      typed();
+      ok(!$(e, '[data-bubble]').classList.contains('show') || $(e, '[data-bubble]').textContent !== '已更新到 1.1.7', 'a plain start: nothing');
+      eq(QJZ.app.state.updatedTo, null);
+      done();
+      banners = [];
+      e = start({ first: 'U5B', care: true, version: '1.1.7', afterUpdate: true });
+      eq(banners, ['已更新到 1.1.7'], 'U5-B (no bubble): its banner');
+      e.menu('layout:U1');
+      e.menu('mini');
+      eq(banners, ['已更新到 1.1.7'], 'once: not again on another layout');
+      done();
+    } finally { QJZ.fx.banner = fb; window.setInterval = si; }
   });
 })();

@@ -50,7 +50,7 @@ QJZ.bridge = (function () {
       // 42 %), 'restarting' and 'failed' are newer with 更新 too, and pressing it shows that state.
       var u = (window.QJZ_DEV || {}).update, inst = u === 'install' || u === 'downloading' || u === 'restarting' || u === 'failed';
       setTimeout(function () {
-        dispatch(u === 'latest' ? { type: 'updateResult', kind: 'latest', version: '1.1.6' } :
+        dispatch(u === 'latest' ? { type: 'updateResult', kind: 'latest', version: DEV_VERSION } :
           u === 'newer' ? { type: 'updateResult', kind: 'newer', version: '1.2.0', install: false } :
           inst ? { type: 'updateResult', kind: 'newer', version: '1.2.0', install: true } : { type: 'updateResult', kind: 'unknown', version: null });
       }, 300);
@@ -69,7 +69,9 @@ QJZ.bridge = (function () {
     }
   }
 
-  // Dev mock: build the init message the host would send.
+  // Dev mock: build the init message the host would send. 1.1.7: QJZ_DEV.afterUpdate (dev.html ?updated=1) is the first
+  // init after 一鍵更新, from DEV_VERSION (the pet says 「已更新到 1.1.7」).
+  var DEV_VERSION = '1.1.7';
   function buildMockInit() {
     var dev = window.QJZ_DEV || {};
     var now = Date.now();
@@ -102,7 +104,8 @@ QJZ.bridge = (function () {
         }
       }
     }
-    return { type: 'init', settings: settings, history: history, probeMs: null, nowMs: now, version: 'dev' };
+    var upd = dev.afterUpdate === true;
+    return { type: 'init', settings: settings, history: history, probeMs: null, nowMs: now, version: upd ? DEV_VERSION : 'dev', afterUpdate: upd };
   }
 
   // Called by the app once its handlers are registered. The real host sends init by itself.

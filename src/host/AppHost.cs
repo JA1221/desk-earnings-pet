@@ -79,7 +79,8 @@ using Microsoft.Web.WebView2.Core;
 //   build). installUpdate {} downloads and checks that exe (UpdateInstall.Download, off the UI thread) and answers
 //   updateState {phase:'downloading', percent} as it goes, then 'failed' (the file is gone) or 'restarting': the exe is
 //   swapped (UpdateInstall.Swap), the app quits as usual (the page saves), and the new exe starts with
-//   --after-update <pid> (Program.Main waits for this process before its single-instance check).
+//   --after-update <pid> (Program.Main waits for this process before its single-instance check). 1.1.7 item 4: that
+//   start's first init carries afterUpdate true, and the pet says 「已更新到 <version>」 once (layouts.js).
 // menuState {work, snacks} (page -> host): the work item and the snack count. healthMenu {cups, pomodoro:{phase, endsMs}}:
 // 記一杯水's cups and 開始 / 停止番茄鐘. (1.1.3 A2: the menu lost 隱藏金額, 少記一杯 and 我剛起來動過了, and with them the
 // page's mask / undrink / stoodUp actions, menuState's masked and healthMenu's sitOn.)
@@ -160,11 +161,14 @@ public class AppHost
     UpdateAsset updateAsset;     // 1.1.6: the last result's exe (null: no 更新)
     bool installing;             // 一鍵更新 is downloading, or has swapped the exe and is quitting
     string restartExe;           // the swapped exe: Quit starts it
+    bool afterUpdate;            // 1.1.7 item 4: started by 一鍵更新 (--after-update): the first init says so, and only it
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
-    // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
-    public AppHost(string page, bool devPage)
+    // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value. afterUpdate: started
+    // with --after-update (UpdateInstall.WaitPid): the page's pet says 「已更新到 <Version>」 once.
+    public AppHost(string page, bool devPage, bool afterUpdate)
     {
+        this.afterUpdate = afterUpdate;
         startUrl = Origin + page;
         ownsRunValue = !devPage && AppPaths.Profile == null;
         files = new UserFiles(AppPaths.DataDir, ErrorLog.Write);
@@ -370,8 +374,10 @@ public class AppHost
             forceOpaque = window.ForceOpaque,
             probeMs = probe,
             nowMs = NowMs(),
-            version = Version
+            version = Version,
+            afterUpdate = afterUpdate   // 1.1.7 item 4: the first init after 一鍵更新 restarted the app (not after a page reload)
         });
+        afterUpdate = false;
         initSent = true;
         ArmFirstShow();   // the page answers init with its first setLayout
         // the current state, after anything that was queued

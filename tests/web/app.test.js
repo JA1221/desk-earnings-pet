@@ -20,7 +20,7 @@
       history: o.history === undefined ? null : o.history,
       probeMs: o.probeMs === undefined ? null : o.probeMs, nowMs: env.clock.ms, version: 't'
     };
-    ['lastExitMs', 'lastLeaveMs', 'backups', 'forceOpaque'].forEach(function (k) { if (o[k] !== undefined) msg[k] = o[k]; });
+    ['lastExitMs', 'lastLeaveMs', 'backups', 'forceOpaque', 'afterUpdate', 'version'].forEach(function (k) { if (o[k] !== undefined) msg[k] = o[k]; });
     env.bridge.emit(msg);
   }
   function hist(recs) {
@@ -405,6 +405,16 @@
       init(e, { history: hist([rec('2026-11-16', 522, {})]), lastExitMs: at(16, 14, 45), lastLeaveMs: x });
       eq(QJZ.app.state.pendingQuestion, { day: '2026-11-16', lockMs: at(16, 14, 45) }, 'not used: ' + x);
       QJZ.app._reset();
+    });
+  });
+  // 1.1.7 item 4: init.afterUpdate true (the first init after 一鍵更新 restarted the app): updatedTo is the version running
+  test('app init: afterUpdate makes updatedTo the running version; anything else, or no version, is null', function () {
+    [[true, '1.1.7', '1.1.7'], [undefined, '1.1.7', null], [false, '1.1.7', null], ['true', '1.1.7', null], [1, '1.1.7', null], [true, '', null]].forEach(function (c) {
+      var e = mk(at(17, 10, 0));
+      init(e, { afterUpdate: c[0], version: c[1] });
+      eq(QJZ.app.state.updatedTo, c[2], JSON.stringify(c));
+      QJZ.app._reset();
+      eq(QJZ.app.state.updatedTo, null, 'reset');
     });
   });
   test('app init: lastExitMs on another day, before the start, or junk is ignored', function () {

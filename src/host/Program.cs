@@ -119,7 +119,7 @@ public static class Program
         string page = DevPage(args);
         try
         {
-            host = new AppHost(page ?? "index.html", page != null);
+            host = new AppHost(page ?? "index.html", page != null, UpdateInstall.WaitPid(args) > 0);
             host.Run();
             return 0;
         }
