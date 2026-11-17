@@ -95,8 +95,8 @@
     target.dispatchEvent(ev);
     return ev;
   }
-  function wheel(target, dy) {
-    var ev = new WheelEvent('wheel', { deltaY: dy, ctrlKey: true, bubbles: true, cancelable: true });
+  function wheel(target, dy, mode) {
+    var ev = new WheelEvent('wheel', { deltaY: dy, deltaMode: mode || 0, ctrlKey: true, bubbles: true, cancelable: true });
     target.dispatchEvent(ev);
     return ev;
   }
@@ -123,6 +123,51 @@
     eq(tipText(e), '100%');
     eq(of(e.sent, 'setZoom').map(function (p) { return p.percent; }), [110, 120, 110, 100, 110, 100]);
     done();
+  });
+
+  test('zoom DOM: a held Ctrl + = is one step, its auto-repeats ignored (review M-7)', function () {
+    var e = mk();
+    key(document.body, { key: '=', code: 'Equal' });
+    var rep = new KeyboardEvent('keydown', { key: '=', code: 'Equal', ctrlKey: true, repeat: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(rep);
+    ok(rep.defaultPrevented, 'the browser does not zoom on a repeat either');
+    eq([QJZ.app.state.settings.zoom, of(e.sent, 'setZoom').length], [110, 1]);
+    done();
+  });
+
+  test('zoom DOM: a wheel in lines or pages is one step per event (review M-3)', function () {
+    var e = mk();
+    wheel(e.root.querySelector('.lay'), -3, 1);
+    eq(QJZ.app.state.settings.zoom, 110, '3 lines up: one step in');
+    wheel(e.root.querySelector('.lay'), -3, 1);
+    eq(QJZ.app.state.settings.zoom, 120, 'each event a step');
+    wheel(e.root.querySelector('.lay'), 1, 2);
+    eq(QJZ.app.state.settings.zoom, 110, 'a page down: one step out');
+    wheel(e.root.querySelector('.lay'), -3, 0);
+    eq(QJZ.app.state.settings.zoom, 110, 'but 3 px is still only part of a notch');
+    done();
+  });
+
+  // review M-6: the tall panels are sized by the zoom the host really applied (zoomApplied), which is lower than the
+  // setting where the setting does not fit
+  test('zoom DOM: the tall panels take the zoom the host applied, not only the chosen one', function () {
+    var had = Object.getOwnPropertyDescriptor(window.screen, 'availHeight');
+    Object.defineProperty(window.screen, 'availHeight', { configurable: true, get: function () { return 700; } });
+    try {
+      var e = mk({ zoom: 150, first: 'U5B' });   // (a panel beside it: its own height, not the layout's window)
+      e.menu('settings');
+      eq($(e, '.panel').style.height, '440px', 'chosen 150 %, none applied yet: 700 / 1.5 - 32, at least 440');
+      $(e, '[data-act=back]').click();
+      e.bridge.emit({ type: 'zoomApplied', factor: 1 });
+      eq(QJZ.app.state.zoomApplied, 1);
+      e.menu('settings');
+      eq($(e, '.panel').style.height, '633px', 'the host fitted 100 %: the full 633');
+      e.bridge.emit({ type: 'zoomApplied', factor: 'x' });
+      eq(QJZ.app.state.zoomApplied, null, 'a bad factor is none');
+      done();
+    } finally {
+      if (had) Object.defineProperty(window.screen, 'availHeight', had); else delete window.screen.availHeight;
+    }
   });
 
   test('zoom DOM: at 150 % Ctrl + = stays and only shows the tip; at 50 % Ctrl + - too', function () {

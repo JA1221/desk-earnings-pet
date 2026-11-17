@@ -146,7 +146,10 @@ public class AppHost
     Rectangle? growFrom;         // a same-layout grow pushed the window in from this rect to growTo; size changes while
     Point? growTo;               // it is still at growTo start from growFrom (WindowPlacer.ResizeInside)
     int zoomPercent = PageZoom.Default;   // 1.1.5 縮放比例 (settings zoom)
-    bool updateBusy;             // a 檢查更新 request is out
+    double sentZoom;                      // the ZoomFactor last told to the page (zoomApplied)
+    EventHandler displayChanged;          // SystemEvents.DisplaySettingsChanged, removed on quit
+    bool updateBusy;             // a 檢查更新 request is out (until it really ends, review M-1)
+    bool updateAgain;            // pressed again while it was out: its answer goes to the page when it ends
     string updateUrl = UpdateCheck.ReleasesUrl;   // what openUpdate opens: the last result's page
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
@@ -166,6 +169,11 @@ public class AppHost
         window.InitFailed += delegate(string message) { Fatal("window init failed", message); };
         window.WebReady += delegate { OnWebReady(); };
         window.MoveEnded += delegate { OnMoveEnded(); };
+        // 1.1.5 review M-4: a new DPI (another monitor, a changed Windows scale) or new display settings (a monitor added,
+        // removed or resized) fit the zoom again; during a drag the drop does it (OnMoveEnded)
+        window.MonitorDpiChanged += delegate { RefitZoom(); };
+        displayChanged = delegate { if (ui != null) ui.Post(delegate { RefitZoom(); }, null); };
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += displayChanged;
         window.PointerChanged += delegate(bool inside) { Send("pointer", new { inside = inside }); };
         window.HotKeyPressed += delegate(int id) { if (id == HotKey.Id) OnHotkey(); else menuEscape.OnHotKey(id); };
         window.SessionEnding += delegate { OnSessionEnding(); };
@@ -235,7 +243,7 @@ public class AppHost
         placer.ZoomPercent = zoomPercent;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
         // the page loads at the zoom its first layout will show at
-        window.SetZoom(PageZoom.Fit(zoomPercent, placer.SavedSize(startLayout) ?? Size.Empty, WindowPlacer.ScaleAt(window.Bounds),
+        SetWindowZoom(PageZoom.Fit(zoomPercent, placer.SavedSize(startLayout) ?? Size.Empty, WindowPlacer.ScaleAt(window.Bounds),
             Screen.FromRectangle(window.Bounds).WorkingArea));
         presentation.Changed += OnFullscreenChanged;
         presentation.WindowChanged += delegate { if (steppedBack) StepBehind(); };   // another full-screen window in front here
@@ -504,7 +512,7 @@ public class AppHost
         layoutCss = css;
         Rectangle before = window.Bounds;
         double dpr = Dpr(d), scaleBefore = window.CssScale;
-        if (window.SetZoom(ZoomFor(css, before))) dpr = 0;   // sized at the new zoom; the page reports its DPR after
+        if (SetWindowZoom(ZoomFor(css, before))) dpr = 0;   // sized at the new zoom; the page reports its DPR after
         if (move == LayoutMove.InPlace) window.KeepSize(css.Width, css.Height, dpr);   // the same window, untouched
         else if (!changed) window.SetContentSize(css.Width, css.Height, dpr);
         else
@@ -592,18 +600,42 @@ public class AppHost
 
     // The chosen zoom changed (setZoom), or the window landed on another monitor: the window takes the zoom it gets there
     // and is resized from it at once (the page re-reports its DPR and layout after).
-    void ApplyZoom()
+    // True when the zoom changed.
+    bool ApplyZoom()
     {
         if (layout == null || layoutCss.Width < 1)
         {
-            window.SetZoom(PageZoom.Factor(zoomPercent));   // nothing shown yet: the first setLayout fits it
-            return;
+            SetWindowZoom(PageZoom.Factor(zoomPercent));   // nothing shown yet: the first setLayout fits it
+            return false;
         }
         Rectangle before = window.Bounds;
         double scaleBefore = window.CssScale;
-        if (!window.SetZoom(ZoomFor(layoutCss, before))) return;
+        if (!SetWindowZoom(ZoomFor(layoutCss, before))) return false;
         window.SetContentSize(layoutCss.Width, layoutCss.Height, 0);
         if (!window.Moving) AfterZoomOrResize(before, scaleBefore);
+        return true;
+    }
+
+    // A new DPI or new display settings (review M-4): the zoom fitted again where the window is now, unless a drag is on
+    // (its drop does it) or the app is closing.
+    void RefitZoom()
+    {
+        if (quitting || window.IsDisposed || window.Moving) return;
+        try { ApplyZoom(); }
+        catch (Exception ex) { ErrorLog.Write("refit zoom", ex); }
+    }
+
+    // Sets the WebView2 zoom and tells the page the one it got (PageZoom.Fit may give less than the setting): the page
+    // sizes its tall panels by it (review M-6). True when it changed.
+    bool SetWindowZoom(double z)
+    {
+        bool changed = window.SetZoom(z);
+        if (Math.Abs(window.Zoom - sentZoom) > 1e-9)
+        {
+            sentZoom = window.Zoom;
+            Send("zoomApplied", new { factor = sentZoom });
+        }
+        return changed;
     }
 
     // U10's dock rect is 6 CSS px in from the work-area edges.
@@ -649,7 +681,9 @@ public class AppHost
 
     void OnMoveEnded()
     {
-        try { EndMove(); ApplyZoom(); }   // on another monitor the window may get another zoom (PageZoom.Fit)
+        // on another monitor the window may get another zoom (PageZoom.Fit); its spot is saved again after that refit
+        // (review M-5), so the saved anchor is the window as it ends up
+        try { EndMove(); if (ApplyZoom()) SaveSpot(); }
         finally { presentation.Poll(); }   // dropped on another monitor: is a full-screen window in front there?
     }
 
@@ -665,6 +699,14 @@ public class AppHost
             Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
+        SaveSpot();
+        Send("dragEnd", null);
+    }
+
+    // A dropped window's spot (not U10's: its dock is saved by SnapCapsule / DockCapsule).
+    void SaveSpot()
+    {
+        if (layout == "U10") return;
         if (WindowPlacer.DragMovesAnchor(layout, panelInPlace)) placer.SetAnchor(window.Bounds);   // 1.1.2: not U10, not a panel beside
         if (layout != WindowPlacer.PanelLayout)
         {
@@ -672,7 +714,6 @@ public class AppHost
             placer.Remember(layout, window.Location);
             placer.RememberSize(layout, layoutCss);
         }
-        Send("dragEnd", null);
     }
 
     static double Dpr(Dictionary<string, object> d)
@@ -1014,7 +1055,7 @@ public class AppHost
     // 檢查更新: the one request, off the UI thread (UpdateCheck.Within gives up after WaitMs); the answer goes to the page.
     async void CheckUpdate()
     {
-        if (updateBusy) return;
+        if (updateBusy) { updateAgain = true; return; }   // answered when the request out now ends
         updateBusy = true;
         UpdateResult r;
         try
@@ -1023,11 +1064,24 @@ public class AppHost
             // that outlives the wait is never joined by a second one
             Task<UpdateResult> work = UpdateCheck.Begin(UpdateCheck.Fetch, Version);
             SynchronizationContext at = ui;
-            work.ContinueWith(delegate { at.Post(delegate { updateBusy = false; }, null); }, TaskScheduler.Default);
+            Task ended = work.ContinueWith(delegate   // (not awaited: CheckUpdate answers at the wait, this at the end)
+            {
+                at.Post(delegate
+                {
+                    updateBusy = false;
+                    if (!updateAgain) return;
+                    updateAgain = false;   // pressed again meanwhile (the page had its unknown): this request's answer
+                    if (!quitting) AnswerUpdate(work.Result);
+                }, null);
+            }, TaskScheduler.Default);
             r = await UpdateCheck.Within(work, UpdateCheck.WaitMs);
         }
         catch (Exception ex) { ErrorLog.Write("update check", ex); r = UpdateCheck.Unknown(); updateBusy = false; }
-        if (quitting) return;
+        if (!quitting) AnswerUpdate(r);
+    }
+
+    void AnswerUpdate(UpdateResult r)
+    {
         updateUrl = UpdateCheck.UrlToOpen(r.Url);
         Send("updateResult", new { kind = r.Kind, version = r.Version });
     }
@@ -1112,6 +1166,7 @@ public class AppHost
     {
         quitting = true;
         quitTimer.Stop();
+        if (displayChanged != null) Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= displayChanged;   // a static event: it would keep the app alive
         firstShowTimer.Stop();
         firstShowTimer.Dispose();
         menuEscape.Stop();   // quitting from the open menu: Esc must not stay registered

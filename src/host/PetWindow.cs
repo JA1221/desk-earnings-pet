@@ -66,6 +66,9 @@ public class PetWindow : Form
 
     // A move or resize loop ended (WM_EXITSIZEMOVE), e.g. after BeginDrag.
     public event EventHandler MoveEnded;
+    // After a WM_DPICHANGED has resized the window (posted: the message is handled first). 1.1.5 review M-4: the host fits
+    // the zoom again for the new monitor.
+    public event EventHandler MonitorDpiChanged;
 
     // A move or resize loop runs (WM_ENTERSIZEMOVE until WM_EXITSIZEMOVE): the user is dragging the window.
     public bool Moving { get; private set; }
@@ -346,6 +349,7 @@ public class PetWindow : Form
                                      : new Size(r.Right - r.Left, r.Bottom - r.Top);
             Native.SetWindowPos(Handle, IntPtr.Zero, r.Left, r.Top, size.Width, size.Height, Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
             m.Result = IntPtr.Zero;
+            if (MonitorDpiChanged != null) BeginInvoke((MethodInvoker)delegate { if (MonitorDpiChanged != null) MonitorDpiChanged(this, EventArgs.Empty); });
             return;
         }
         if (m.Msg == Native.WM_MOUSEACTIVATE && noActivate)

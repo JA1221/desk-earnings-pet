@@ -56,6 +56,7 @@ QJZ.zoomKeys = (function () {
     var dir = keyStep(e);
     if (dir === null || (e.target && e.target.closest && e.target.closest('[data-f=hotkey]'))) return;
     e.preventDefault();
+    if (e.repeat) return;   // a held key is one step, not a save and a host resize per auto-repeat (review M-7)
     apply(dir);
   }
   var wheelAt = 0;
@@ -65,7 +66,9 @@ QJZ.zoomKeys = (function () {
     var now = Date.now();
     if (now - wheelAt > WHEEL_IDLE_MS) wheel = wheeler();
     wheelAt = now;
-    var dir = wheel(e.deltaY);
+    // deltaMode 0 is pixels (summed to notches); lines (1) or pages (2) are one step per event, whatever their size
+    // (review M-3: 3 lines would otherwise read as 3 px, and need 17 events for a step)
+    var dir = e.deltaMode ? (e.deltaY < 0 ? 1 : e.deltaY > 0 ? -1 : 0) : wheel(e.deltaY);
     if (dir) apply(dir);
   }
 

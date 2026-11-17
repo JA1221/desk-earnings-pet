@@ -537,7 +537,9 @@ QJZ.panels = (function () {
   // window.screen is in px at zoom 100 % (WebView2 does not scale it with the ZoomFactor): over the zoom, it is CSS px.
   function tallHeight() {
     var avail = window.screen && window.screen.availHeight > 0 ? window.screen.availHeight : 0;
-    var z = st().settings ? st().settings.zoom / 100 : 1;
+    // the zoom the window really has (the host's zoomApplied: it fits a lower one where the chosen one does not), else
+    // the chosen one (review M-6)
+    var z = st().zoomApplied || (st().settings ? st().settings.zoom / 100 : 1);
     return avail ? Math.max(440, Math.min(TALL, Math.floor(avail / z) - 32)) : TALL;
   }
   // 1.1.5 檢查更新: the button, then 檢查中… and one of the three results (app.state.update).

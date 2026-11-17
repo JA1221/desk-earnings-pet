@@ -50,7 +50,8 @@ QJZ.app = (function () {
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
     pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, forceOpaque: false,
-    hotkeyFailed: null, storageError: null, storageErrors: [], update: null
+    hotkeyFailed: null, storageError: null, storageErrors: [], update: null,
+    zoomApplied: null   // the WebView2 zoom the host applied (zoomApplied; it may be under settings.zoom where it does not fit)
   };
   var listeners = { tick: [], second: [], refresh: [], change: [], started: [], milestone: [], notice: [] };
   var tickTimer = null, tickEvery = 0, saveTimer = null, refreshTimer = null, lastSec = null, lastMilestone = null;
@@ -521,6 +522,10 @@ QJZ.app = (function () {
     bridge.on('hotkeyFailed', onHotkeyFailed);
     bridge.on('storageError', onStorageError);
     bridge.on('updateResult', onUpdateResult);
+    bridge.on('zoomApplied', function (m) {   // review M-6
+      var f = m && typeof m.factor === 'number' && m.factor >= 0.25 && m.factor <= 4 ? m.factor : null;
+      if (f !== state.zoomApplied) { state.zoomApplied = f; changed(); }
+    });
     bridge.on('menuOpening', function () { refresh(); });
     if (!unloadBound) { unloadBound = true; window.addEventListener('beforeunload', function () { flush(); }); }
     if (bridge.boot) bridge.boot();
@@ -538,7 +543,7 @@ QJZ.app = (function () {
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
     state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;
-    state.update = null;
+    state.update = null; state.zoomApplied = null;
     document.documentElement.classList.remove('paused');
     document.documentElement.classList.remove('opaque');
     document.documentElement.classList.remove('saver');
