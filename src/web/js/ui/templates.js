@@ -7,7 +7,8 @@ window.QJZ = window.QJZ || {};
 // 1.1 (spec §4.4, the A picks; §4.3 the countdown ring): [data-show=cups|tomatoes|both|any] is hidden (and keeps no
 // space) unless the model shows the cups / the tomatoes / both / either (§4.9 #8, decided by QJZ.care); [data-pring]
 // is the countdown ring (QJZ.ring) around the pet. data-act drink logs a cup, pomo starts or stops the pomodoro. The
-// M3 stickers and U7's tomatoes only show (§5.3): no data-act (1.1.4 item 7: U7's 💧 is a water button). [data-cups] is where a logged cup pops 「+1」.
+// 1.1.6 item 3 (看得到就能點): whatever shows can be pressed: U7's 💧 (1.1.4 item 7) and 🍅, U13's 💧 and M3's stickers are
+// water / pomodoro buttons like every other. [data-cups] is where a logged cup pops 「+1」.
 // The prompt (Task 11, QJZ.promptView): [data-prompt] holds the reminder / pomodoro bubble (U1, U3, U7, M3, U12), U5-B's
 // [data-prompt-line] the same in its top line, U10's [data-prompt-call] on the capsule, U13's [data-prompt-ring] inside
 // the big ring; all are empty and hidden until a prompt shows.
@@ -99,17 +100,20 @@ QJZ.templates = (function () {
   }
   // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows. 1.1.4 item 7:
   // its 💧 is a water button like every other (a tap a cup, a long press one off): it was a readout, and a tap on it fell
-  // through to the money tag's mask.
+  // through to the money tag's mask. 1.1.6 item 3: its 🍅 is a pomodoro button the same way (a tap starts one; while one
+  // runs a tap shows 「長按停止」 and a long press stops it).
   function hline() {
     return '<div class="hline" data-show="anyS"><button type="button" class="hpart wat" data-show="cups"' + DRINK + '>' + ic('drop') +
       '<span class="n" data-b="cups"></span></button>' +
-      '<span class="dt" data-show="both">・</span><span class="hpart" data-show="tomatoes">' + ic('tom') + '<span class="n" data-b="tomatoes"></span></span>' +
+      '<span class="dt" data-show="both">・</span><button type="button" class="hpart tom" data-show="tomatoes"' + POMO + '>' + ic('tom') +
+        '<span class="n" data-b="tomatoes"></span></button>' +
       '<span class="dt" data-show="ctS">・</span>' + standC('hpart') + '</div>';
   }
-  // M3 (A_M3): two stickers on the ring, cups top left and tomatoes top right.
+  // M3 (A_M3): two stickers on the ring, cups top left and tomatoes top right. 1.1.6 item 3: they are the water and the
+  // pomodoro buttons (at least 24 px tall, health.css); off the ring, so a double click on them is no 展開.
   function stickers() {
-    return '<span class="mb l" data-show="cups" data-cups data-hit>' + ic('drop') + '<span data-b="cups"></span></span>' +
-      '<span class="mb r" data-show="tomatoes" data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></span>';
+    return '<button type="button" class="mb l" data-show="cups"' + DRINK + ' data-hit>' + ic('drop') + '<span data-b="cups"></span></button>' +
+      '<button type="button" class="mb r" data-show="tomatoes"' + POMO + ' data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></button>';
   }
   function pring() { return QJZ.ring.markup(); }
   var PSLOT = '<div class="pslot" data-prompt hidden></div>';
@@ -214,7 +218,7 @@ QJZ.templates = (function () {
     // 分鐘 and ▶ 開始專心; it counts a focus (red) or a break (green) down with ■ 停止 on the same spot, and then only ■ 停止
     // stops it (1.1.2 review: the rest of the ring lets clicks through; layouts.js checks too). A prompt sits inside it
     // (Ruling C4). The pet sits on its edge, outside the button. Under it the tomato slots (one per the day's
-    // goal), and the cups and the next stand-up.
+    // goal), and the cups (1.1.6 item 3: a water button) and the next stand-up.
     U13: function () {
       return '<div class="win u13 pomo1 lay" data-hit>' + bar(TITLES.U13) + '<div class="body">' +
         '<div class="ptop">' + PILL + '<span class="pm money-box" data-plus="left"' + MASK + '><span class="cur">NT$</span> ' + ODO + '</span></div>' +
@@ -226,7 +230,7 @@ QJZ.templates = (function () {
           '<span class="br-rem" data-prompt-ring hidden></span></div>' +
           '<div class="po" data-pet="petonly"></div></div>' +
         '<div class="tslots"><span class="tsl" data-tslots></span><span data-b="tslotText"></span></div>' +
-        '<div class="pline"><span class="pp" data-show="cups" data-cups>' + ic('drop') + '<span data-b="cupsLong"></span></span>' +
+        '<div class="pline"><button type="button" class="pp wat" data-show="cups"' + DRINK + '>' + ic('drop') + '<span data-b="cupsLong"></span></button>' +
           '<span class="dt" data-show="cupsStand">・</span><span class="pp" data-show="stand" data-hold title="' + HOLD_TIP + '">' + standIcons() +
             '<span data-b="standLine"></span></span></div>' +
         '</div><div class="fx" data-fx data-fxwin></div></div>';

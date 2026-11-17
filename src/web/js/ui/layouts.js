@@ -128,6 +128,9 @@ window.QJZ = window.QJZ || {};
 //     click that comes with that release is no tap either (review M-3).
 //   item 5: M3's tag masks at once; only a double click on its round avatar (.ring) expands M3.
 //   item 9: U3's 設定 / 紀錄 / 調整起算時間 open in its own window too (INPLACE).
+// 1.1.6:
+//   item 3: whatever shows can be pressed: U13's 💧 (under the tomato slots), U7's 🍅 (its tag line) and M3's two stickers
+//     are water / pomodoro buttons like every other ([data-act=drink|pomo]): the same tap, long press, ring and tips.
 QJZ.layouts = (function () {
   var MAIN = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'];
   var ALL = ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3', 'PANEL'];

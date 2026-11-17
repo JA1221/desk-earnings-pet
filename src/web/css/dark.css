@@ -48,9 +48,10 @@ html.dark .tom-btn.wat{background:var(--t-water)}
 html.dark .tom-btn .play,html.dark .mp,html.dark .mp .cnt,html.dark .m3 .mb{background:var(--card)}
 html.dark .tom-btn.wat .play{color:#7CC4FF}
 html.dark .tom-btn.wat .cnt{background:#24496A}
-html.dark :is(.mp.wat,.isl .iv-x .ichip[data-act=drink],.u7 .hline button.hpart){background:var(--t-water)}
+html.dark :is(.mp.wat,.isl .iv-x .ichip[data-act=drink],.u7 .hline button.hpart,.pomo1 .pline button.pp){background:var(--t-water)}
 html.dark :is(.mp.st,.isl .iv-x .ichip[data-hold]){background:var(--t-stand)}
 html.dark :is(.mp.go,.isl .iv-x .ichip[data-act=pomo]){background:var(--t-pomo)}
+html.dark .u7 .hline button.hpart.tom{background:var(--t-pomo)}   /* (1.1.6 item 3; its own rule: the one above keeps its weight) */
 html.dark :is(.lay:is(.p-foc,.p-brk) .mp.go,.u10:is(.p-foc,.p-brk) .isl .iv-x .ichip[data-act=pomo]){background:var(--t-pomo2)}
 /* the long presses: the ring's track light, the full tint a deep one of its colour */
 html.dark .lay .holding{--hbg:#2F7A4F}

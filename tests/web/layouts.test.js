@@ -1722,29 +1722,61 @@
     done();
   });
 
-  // (1.1.4 item 7: U7's cups are its water button now, below; its tomatoes still only show)
-  test('layouts: U7 tag line\'s tomatoes and M3 stickers have no data-act', function () {
-    var e = mk(at(12, 10, 0), { first: 'U7', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) });
+  // 1.1.6 item 3 (看得到就能點): U7's tag line acts on its 💧 and its 🍅; M3's stickers are the water and the pomodoro buttons,
+  // with the tips every other one has, big enough to press, and they break neither M3's ring (its drag, its double click)
+  // nor the mask on its tag.
+  test('layouts DOM: 1.1.6 item 3: U7\'s 🍅 and M3\'s stickers are buttons; M3\'s ring drag, double click and tag mask stay', function () {
+    var e = shown(mk(at(12, 10, 0), { first: 'U7', care: true, settings: { health: WATER_ON }, rec: counts(3, 3) }));
     var line = $(e, '.u7 .mtag .hline');
     eq(shownText([line]), ['3/8・×3']);
-    eq(Array.prototype.map.call(line.querySelectorAll('[data-act]'), function (n) { return n.getAttribute('data-act'); }), ['drink'], 'only the cups act (1.1.4 item 7)');
-    eq(line.closest('[data-act]'), null);
-    clickOn(line.querySelector('.hpart:not([data-act])'));
-    eq(C.state.health.cups, 3, 'a click on the tomatoes logs nothing');
+    eq(Array.prototype.map.call(line.querySelectorAll('[data-act]'), function (n) { return n.getAttribute('data-act'); }), ['drink', 'pomo'], 'the cups and the tomatoes act');
+    eq([line.querySelector('[data-act=drink]').title, line.querySelector('[data-act=pomo]').title], ['記一杯水（長按＝少記一杯）', '番茄鐘（長按＝停止）'], 'the same tips');
+    tap(e, line.querySelector('[data-act=pomo]'));
+    eq([C.state.p.phase, QJZ.app.state.settings.privacy.maskMoney], ['focus', false], 'U7: a tap on 🍅 starts a focus, the money stays shown');
+    C.toggleFocus();
     e.menu('mini');
     var mb = e.root.querySelectorAll('.m3 .mb');
     eq(shownText(mb), ['3/8', '×3']);
     ok(mb[0].classList.contains('l') && mb[1].classList.contains('r'), 'cups top left, tomatoes top right');
+    eq([mb[0].getAttribute('data-act'), mb[1].getAttribute('data-act'), mb[0].tagName, mb[1].tagName], ['drink', 'pomo', 'BUTTON', 'BUTTON']);
+    eq([mb[0].title, mb[1].title], ['記一杯水（長按＝少記一杯）', '番茄鐘（長按＝停止）'], 'M3: the same tips');
+    var hits = hitsOf(e);
     Array.prototype.forEach.call(mb, function (n) {
-      eq([n.querySelectorAll('[data-act]').length, n.closest('[data-act]')], [0, null]);
-      clickOn(n);
+      var r = U.layoutBox(n), o = U.outer(r);
+      ok(r.height >= 24 && r.width >= 24, 'at least 24 px to press: ' + r.width + 'x' + r.height);
+      ok(hits.some(function (h) { return h[0] === o[0] && h[1] === o[1] && h[2] === o[2] && h[3] === o[3]; }), 'a hit rect of its own');
     });
-    eq([C.state.health.cups, C.state.p.phase], [3, 'idle'], 'clicks log nothing, start nothing');
     var ring = $(e, '.m3 .ring').getBoundingClientRect(), badge = $(e, '.m3').getBoundingClientRect();
     Array.prototype.forEach.call(mb, function (n) {
       var r = n.getBoundingClientRect();
       ok(r.top < ring.top + 30 && r.left >= 0 && r.right <= badge.right, 'on the ring\'s top corners, inside the badge');
     });
+    tap(e, mb[0]);
+    eq(C.state.health.cups, 4, 'M3: a tap on 💧 is a cup');
+    tap(e, mb[1]);
+    eq(C.state.p.phase, 'focus', 'M3: a tap on 🍅 starts a focus');
+    mouse(mb[1], 'dblclick', 5, 5, { detail: 2, buttons: 0 });
+    mouse(mb[0], 'dblclick', 5, 5, { detail: 2, buttons: 0 });
+    eq(QJZ.layouts.current(), 'M3', 'a double click on a sticker is no 展開');
+    eq(QJZ.app.state.settings.privacy.maskMoney, false, 'nor a mask');
+    var tag = $(e, '.m3 .tagm');
+    mouse(tag, 'mousedown', 5, 5, { detail: 1 });
+    mouse(tag, 'click', 5, 5, { buttons: 0, detail: 1 });
+    eq(QJZ.app.state.settings.privacy.maskMoney, true, 'M3: a click on its tag still masks at once');
+    var ringEl = $(e, '.m3 .ring'), rr = ringEl.getBoundingClientRect(), n = of(e.sent, 'dragStart').length;
+    mouse(ringEl, 'mousedown', rr.left + 40, rr.top + 60, { detail: 1 });
+    mouse(ringEl, 'mousemove', rr.left + 60, rr.top + 60);
+    eq(of(e.sent, 'dragStart').length, n + 1, 'the ring still drags the badge');
+    mouse(ringEl, 'mouseup', rr.left + 60, rr.top + 60, { buttons: 0 });
+    e.bridge.emit({ type: 'dragEnd' });
+    n = of(e.sent, 'dragStart').length;
+    var sr = mb[0].getBoundingClientRect();
+    mouse(mb[0], 'mousedown', sr.left + 4, sr.top + 4, { detail: 1 });
+    mouse(mb[0], 'mousemove', sr.left + 30, sr.top + 4);
+    mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    eq(of(e.sent, 'dragStart').length, n, 'a sticker is a button: a press there never drags');
+    mouse($(e, '.m3 .ring'), 'dblclick', 5, 5, { detail: 2, buttons: 0 });
+    eq(QJZ.layouts.current(), 'U7', 'a double click on the avatar still expands it');
     done();
   });
 
@@ -2527,7 +2559,7 @@
     return keys.filter(function (k) { return a[k] !== b[k]; }).map(function (k) { return k + ': ' + a[k] + ' -> ' + b[k]; });
   }
   function setMask(on) { QJZ.app.saveSettings({ privacy: { maskMoney: on } }); }
-  var MASK_VIEWS = [['U1'], ['U3'], ['U3', 'month'], ['U5B'], ['U7'], ['U10'], ['U10', 'hover'], ['U10', 'focus'], ['U12'], ['U13'], ['M3']];
+  var MASK_VIEWS = [['U1'], ['U3'], ['U3', 'month'], ['U5B'], ['U7'], ['U10'], ['U10', 'hover'], ['U10', 'focus'], ['U12'], ['U13'], ['M3'], ['U7', 'hover']];
   test('layouts DOM: 1.1.4 item 6: masking moves nothing by even 1 px, in every layout, both ways and from a masked start', function () {
     MASK_VIEWS.forEach(function (v) {
       [false, true].forEach(function (startMasked) {
@@ -2535,7 +2567,7 @@
         var e = shown(mk(at(12, 10, 0, 0), { first: v[0], care: true, settings: { health: BOTH, privacy: { maskMoney: startMasked } }, rec: today(3, 2, 1) }));
         e.tick(at(12, 13, 32, 7) + (v[1] === 'month' ? U.CARD_MS : 0));   // (U3: the other card, 10 s on)
         if (v[1] === 'focus') C.toggleFocus();
-        if (v[1] === 'hover') hoverOn($(e, '.isl'));
+        if (v[1] === 'hover') hoverOn($(e, '[data-hover]'));   // (U10's full view; U7's tools)
         eq(QJZ.app.state.settings.privacy.maskMoney, startMasked, tag);
         eq($(e, '.lay').classList.contains('masked'), startMasked, tag + ': as it started');
         var a = boxes(e);
@@ -3434,10 +3466,11 @@
   // fn(e, el, tag) for every long-press control of every layout while it is held (its ring on), idle and during a focus
   // (the 番茄鐘's), with the counts showing (cups 3/8, tomatoes ×2); -> the tags seen
   var HOLD_KINDS = ['U1 drink', 'U1 stand', 'U1 (focus) pomo', 'U3 drink', 'U3 stand', 'U3 (focus) pomo', 'U5B drink', 'U5B stand', 'U5B (focus) pomo',
-    'U7 drink', 'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo'];
+    'U7 drink', 'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo',
+    'U7 (focus) pomo', 'U13 drink', 'M3 drink', 'M3 (focus) pomo'];   // (1.1.6 item 3)
   function eachHold(fn) {
     var seenKinds = {};
-    ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13'].forEach(function (name) {
+    ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3'].forEach(function (name) {
       [false, true].forEach(function (phase) {
         var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
         e.tick(at(12, 9, 18));
@@ -3602,7 +3635,8 @@
   // Item 2b: wherever there is a water button (U1, U3, U5-B, U10's chip, U12's ring) a tap logs a cup and a long press takes
   // one off (blue ring), never below 0; the long press's own click logs nothing, and 「−1」 pops where 「+1」 does.
   var WATER_BTN = { U1: '.u1 .mpills [data-act=drink]', U3: '.u3 [data-act=drink]', U5B: '.u5b .rcol [data-act=drink]',
-    U10: '.u10 .iv-x [data-act=drink]', U12: '.u12 [data-gauge=cups]' };
+    U10: '.u10 .iv-x [data-act=drink]', U12: '.u12 [data-gauge=cups]',
+    U7: '.u7 .hline [data-act=drink]', U13: '.u13 .pline [data-act=drink]', M3: '.m3 .mb.l' };   // (U13's and M3's: 1.1.6 item 3)
   function btnIn(e, name, sel) {
     if (name === 'U10' && !$(e, '.isl').classList.contains('hover')) hoverOn($(e, '.isl'));
     return $(e, sel);
@@ -3644,7 +3678,8 @@
   // one; while a focus or a break runs a tap only shows 「長按停止」 for a moment, and a long press (red ring) stops it. Idle,
   // the button is a plain button (no ring).
   var POMO_BTN = { U1: '.u1 .mpills [data-act=pomo]', U3: '.u3 [data-act=pomo]', U5B: '.u5b .rcol [data-act=pomo]',
-    U10: '.u10 .iv-x [data-act=pomo]', U12: '.u12 [data-gauge=tom]', U13: '.u13 .br-go' };
+    U10: '.u10 .iv-x [data-act=pomo]', U12: '.u12 [data-gauge=tom]', U13: '.u13 .br-go',
+    U7: '.u7 .hline [data-act=pomo]', M3: '.m3 .mb.r' };   // (1.1.6 item 3: they show while there are tomatoes, or a focus)
   function pomoBtn(e, name) {
     var b = btnIn(e, name, POMO_BTN[name]);   // U13 while a phase runs: only its ■ 停止 takes the press (1.1.2 review)
     return name === 'U13' && /\bp-(foc|brk)\b/.test($(e, '.u13').className) ? b.querySelector('.go') : b;
@@ -3652,7 +3687,7 @@
   function tips(e) { return Array.prototype.filter.call(e.root.querySelectorAll('.tip'), drawn).map(function (t) { return t.textContent; }); }
   test('layouts DOM: 1.1.3 item 2c: the pomodoro button: a tap starts; during a phase a tap only says 長按停止, a long press (red ring) stops it', function () {
     Object.keys(POMO_BTN).forEach(function (name) {
-      var e = shown(mk(at(12, 10, 0), { first: name, care: true }));
+      var e = shown(mk(at(12, 10, 0), { first: name, care: true, rec: name === 'U7' || name === 'M3' ? counts(0, 2) : undefined }));
       var b = pomoBtn(e, name), r = b.getBoundingClientRect();
       ok(b && drawn(b), name + ': the button');
       mouse(b, 'mousedown', r.left + 6, r.top + r.height / 2, { detail: 1 });
@@ -4126,7 +4161,12 @@
       ['pomodoro', 'U1', true, function (e) { return $(e, '.u1 .mpills [data-act=pomo]'); }, null],
       ['U10 chip', 'U10', false, function (e) { return btnIn(e, 'U10', '.u10 .iv-x [data-act=drink]'); }, function () { return C.state.health.cups; }, 1, -1],
       ['U12 gauge', 'U12', false, function (e) { return $(e, '.u12 [data-gauge=cups]'); }, function () { return C.state.health.cups; }, 1, -1],
-      ['U13 centre', 'U13', true, function (e) { return $(e, '.u13 .br-go .go'); }, null]
+      ['U13 centre', 'U13', true, function (e) { return $(e, '.u13 .br-go .go'); }, null],
+      // 1.1.6 item 3
+      ['U13 water', 'U13', false, function (e) { return $(e, '.u13 .pline [data-act=drink]'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['U7 🍅', 'U7', true, function (e) { return $(e, '.u7 .hline [data-act=pomo]'); }, null],
+      ['M3 💧', 'M3', false, function (e) { return $(e, '.m3 .mb.l'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['M3 🍅', 'M3', true, function (e) { return $(e, '.m3 .mb.r'); }, null]
     ];
     CASES.forEach(function (k) {
       var e = shown(mk(at(12, 9, 0), { first: k[1], care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
@@ -4188,4 +4228,5 @@
     ok(text(f, '[data-b=card]') !== c0 && !/📅/.test(text(f, '[data-b=card]')), 'U3: the next item: ' + c0 + ' -> ' + text(f, '[data-b=card]'));
     done();
   });
+  // ================= 1.1.6 =================
 })();

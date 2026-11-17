@@ -113,6 +113,9 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .tom-btn .play{z-index:2}
 .lay :is(.u5b .mtop .st,.u7 .hline :is([data-hold],[data-act=drink]),.pomo1 .pline .pp,.isl .iv-x .ichip).holding::after,
 .lay :is(.u5b .mtop .st,.u7 .hline :is([data-hold],[data-act=drink]),.pomo1 .pline .pp,.isl .iv-x .ichip).holding::before{inset:-4px}
+/* 1.1.6 item 3: U7's 🍅 reaches into the gaps beside it (its margin): its ring goes 2 px out at its sides (clear of the ・), 4 px
+   out over and under it (clear of its own text) */
+.lay.u7 .hline button.tom.holding::after,.lay.u7 .hline button.tom.holding::before{inset:-4px -2px}
 .lay .gauge3 .rg.holding.charged{background:radial-gradient(closest-side,var(--hbg) 71%,transparent 73%),conic-gradient(var(--c) calc(var(--p)*1%),#F1E6D6 0)}
 /* 「長按停止」 (1.1.3 item 2c): a tap on a pomodoro button while a phase runs; layouts.js places it and lets it go */
 .lay .tip{position:absolute;left:0;top:0;z-index:8;pointer-events:none;white-space:nowrap;background:var(--line);color:#FFF8EC;border-radius:99px;
@@ -122,16 +125,20 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 /* ---------- U7 (A_U7): one more line on the tag ---------- */
 .u7 .hline{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap;line-height:1.3}
 .u7 .hline .hpart{display:inline-flex;align-items:center;gap:2px}
-/* 1.1.4 item 7: its 💧 is a water button, in the water buttons' pastel blue */
+/* 1.1.4 item 7: its 💧 is a water button, in the water buttons' pastel blue; 1.1.6 item 3: its 🍅 a pomodoro button, in theirs */
 .u7 .hline button.hpart{font:inherit;color:inherit;line-height:inherit;border:0;margin:0;padding:0 2px;border-radius:99px;background:#DDF0FF;cursor:pointer}   /* (its pill reaches into the gaps: the tag keeps its width) */
+.u7 .hline button.hpart.tom{background:#FFE1D8;margin:0 -2px}   /* (its pill reaches into the gaps: the tag keeps its width, the bubble its room;
+   its ring the default one, on its own edge, clear of the ・ beside it) */
 .u7 .hline button.hpart:active{transform:translate(1px,1px)}
 .u7 .hline svg.ic{width:14px;height:14px}
 .u7 .hline .dt{color:var(--sub)}
 
 /* ---------- M3 (A_M3; C_M3_f/b): stickers on the ring; the ring counts the pomodoro down ---------- */
-/* top 5px: turned 8deg, a sticker at the badge's top edge would be cut by the window */
+/* top 5px: turned 8deg, a sticker at the badge's top edge would be cut by the window. 1.1.6 item 3: they are the water and
+   the pomodoro buttons, at least 24 px tall to press */
 .m3 .mb{position:absolute;top:5px;z-index:3;display:inline-flex;align-items:center;gap:2px;background:#fff;border:2.5px solid var(--line);border-radius:99px;
-  padding:1px 7px 1px 4px;box-shadow:2px 2px 0 var(--line);font-weight:700;font-size:12px;line-height:1.3;cursor:pointer}
+  padding:1px 7px 1px 4px;min-height:24px;box-shadow:2px 2px 0 var(--line);font-family:inherit;color:var(--text);font-weight:700;font-size:12px;line-height:1.3;cursor:pointer}
+.m3 .mb:active{translate:1px 1px}
 .m3 .mb svg.ic{width:14px;height:14px}
 .m3 .mb.l{left:3px;transform:rotate(-8deg)}
 .m3 .mb.r{right:3px;transform:rotate(8deg)}
@@ -435,4 +442,7 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
 
 .pomo1 .pline{display:flex;align-items:center;gap:4px;min-height:16px;font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .pomo1 .pline .pp{display:inline-flex;align-items:center;gap:3px}
+/* 1.1.6 item 3: its 💧 is a water button, as U7's */
+.pomo1 .pline button.pp{font:inherit;color:inherit;line-height:inherit;border:0;margin:0;padding:0 3px;border-radius:99px;background:#DDF0FF;cursor:pointer}
+.pomo1 .pline button.pp:active{transform:translate(1px,1px)}
 .pomo1 .pline svg.ic{width:15px;height:15px}
