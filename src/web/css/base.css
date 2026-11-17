@@ -43,7 +43,7 @@ html.opaque,html.opaque body{background:#FFF8EC}
    1.1.4 item 6: masking moves nothing, by even 1 px. The odometer and its *** are in one grid cell (.mslot), each unseen in
    the other state but keeping its room, so the slot is as big in both; a money text that masks (.mv, layouts.js) keeps an
    unseen copy of its other state's text (data-ghost) as wide as it, its own text at its start. Tabular digits. */
-[data-mask]{cursor:pointer}
+[data-mask],[data-buy]{cursor:pointer}   /* [data-buy] (1.1.5): 可以買, a click shows its next item */
 .lay .mslot{display:inline-grid;vertical-align:baseline}
 .lay .mslot > *{grid-area:1/1;align-self:baseline}
 .lay .msk{visibility:hidden;justify-self:center;position:relative;top:.22em;letter-spacing:.04em}   /* (the * glyphs sit high: on the digits' middle) */

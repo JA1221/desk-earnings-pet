@@ -64,8 +64,28 @@
     eq(U.CARD_MS, 10000);
     eq([0, 9999, 10000, 19999, 20000, 30000, 40000, 50000, 60000].map(c),
       ['珍奶', '珍奶', 'month', 'month', '便當', 'month', '拿鐵', 'month', '珍奶']);
-    eq(U.cardAt([], 0), { month: false, item: null });
+    eq(U.cardAt([], 0), { month: false, item: null, index: null });
   });
+
+  // 1.1.5: a click on 可以買 shows the next item at once; the rotation counts on from the click
+  test('layouts: 可以買 clicked: the next item now, then on every ITEM_MS from the click', function () {
+    var items = QJZ.settings.DEFAULTS.items;   // 珍奶 便當 拿鐵
+    function name(ms, r) { return U.itemAt(items, ms, r).name; }
+    var r = U.nextRot(items, 5000, null, false);
+    eq(r, { shift: 2, at: 5000 }, 'shown at 5 s: 便當; next 拿鐵');
+    eq([name(5000, r), name(8999, r), name(9000, r), name(13000, r), name(17000, r)], ['拿鐵', '拿鐵', '珍奶', '便當', '拿鐵'],
+      'a whole 4 s each from the click (not the next 4 s mark at 8 s)');
+    var r2 = U.nextRot(items, 6000, r, false);
+    eq(name(6000, r2), '珍奶', 'clicked again: the one after');
+    eq(name(4000, r), '便當', 'before the click: as before');
+    function card(ms, rr) { var c = U.cardAt(items, ms, rr); return c.month ? 'month' : c.item.name; }
+    var c1 = U.nextRot(items, 3000, null, true);
+    eq([card(3000, c1), card(12999, c1), card(13000, c1), card(23000, c1)], ['便當', '便當', 'month', '拿鐵'], 'U3: the next item for a whole card');
+    var c2 = U.nextRot(items, 15000, null, true);
+    eq(card(15000, c2), '便當', 'U3 showing 本月累計: the item after the one it showed');
+    eq(U.nextRot([], 1000, null, false), null);
+  });
+
 
   test('layouts: rate line (never the salary), remaining phrases, hearts', function () {
     eq(U.rateText({ mode: 'monthly', amount: 50000, divisor: 22 }, 50000 / 22 / 8 / 3600), '每秒 +NT$ 0.079');
@@ -4127,5 +4147,45 @@
       else eq(read(), 'idle', k[0] + ': full stops the focus');
       done();
     });
+  });
+
+  // 1.1.5: a click on 可以買 (U1's chip, U3's card) shows the next item at once, masked too, and moves nothing
+  test('layouts DOM: 1.1.5: a click on 可以買 shows the next item now; the rotation restarts from the click; masked too', function () {
+    var T = at(12, 10, 0, 0);   // (a 4 s mark: the first item, 珍奶)
+    var e = mk(T, { first: 'U1' });
+    e.tick(T);
+    var chip = $(e, '.u1 [data-buy]');
+    ok(chip, 'U1 has it');
+    eq([chip.getAttribute('title'), getComputedStyle(chip).cursor], ['點一下換下一個', 'pointer']);
+    var before = chip.getBoundingClientRect(), label0 = text(e, '[data-b=itemLabel]');
+    e.clock.ms = T + 1500;
+    mouse(chip, 'mousedown', before.left + 10, before.top + 10, { detail: 1 });
+    mouse(chip, 'mouseup', before.left + 10, before.top + 10, { buttons: 0, detail: 1 });
+    mouse(chip, 'click', before.left + 10, before.top + 10, { buttons: 0, detail: 1 });
+    var label1 = text(e, '[data-b=itemLabel]');
+    ok(label1 !== label0 && /^可以買/.test(label1), 'at once: ' + label0 + ' -> ' + label1);
+    var after = chip.getBoundingClientRect();
+    eq([after.left, after.top, after.width, after.height], [before.left, before.top, before.width, before.height], 'the chip does not move');
+    eq(of(e.sent, 'dragStart').length, 0, 'no drag');
+    eq(QJZ.app.state.settings.privacy.maskMoney, false, 'no mask');
+    e.tick(T + 4000);
+    eq(text(e, '[data-b=itemLabel]'), label1, 'the 4 s mark right after the click does not switch it');
+    e.tick(T + 5500);
+    ok(text(e, '[data-b=itemLabel]') !== label1, 'a whole 4 s after the click, it moves on');
+    QJZ.app.saveSettings({ privacy: { maskMoney: true } });
+    var m0 = text(e, '[data-b=item]'), l0 = text(e, '[data-b=itemLabel]');
+    ok(/\*\*\*$/.test(m0), 'masked: ' + m0);
+    chip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    ok(text(e, '[data-b=itemLabel]') !== l0 && /\*\*\*$/.test(text(e, '[data-b=item]')), 'masked, it still changes: ' + text(e, '[data-b=item]'));
+    eq(QJZ.app.state.settings.privacy.maskMoney, true, 'and stays masked');
+    done();
+    var f = mk(T, { first: 'U3' });
+    f.tick(T);
+    var card = $(f, '.u3 [data-buy]');
+    ok(card && card.getAttribute('title') === '點一下換下一個', 'U3 has it on its card');
+    var c0 = text(f, '[data-b=card]');
+    card.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    ok(text(f, '[data-b=card]') !== c0 && !/📅/.test(text(f, '[data-b=card]')), 'U3: the next item: ' + c0 + ' -> ' + text(f, '[data-b=card]'));
+    done();
   });
 })();

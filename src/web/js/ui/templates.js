@@ -53,6 +53,8 @@ QJZ.templates = (function () {
   // odometer and its *** share one slot (.mslot), as big as the bigger of the two in both states, so masking moves
   // nothing; the money texts that mask ([data-ghost], layouts.js) keep room for what they show in the other state.
   var MASK = ' data-mask title="點一下：遮住／顯示金額"', ODO = '<span class="mslot"><span class="odo" data-odo></span><span class="msk">***</span></span>';
+  // 1.1.5: 可以買 (U1's chip, U3's card): a click shows the next item (layouts.js nextItem)
+  var BUY = ' data-buy title="點一下換下一個"';
   function mv(key, tag) { return '<' + (tag || 'span') + ' class="mv" data-ghost data-b="' + key + '"></' + (tag || 'span') + '>'; }
   var MONEY = '<div class="money" data-plus' + MASK + '><span class="cur">NT$</span>' + ODO + '</div>';
   // During a pomodoro the pill reads 專心中 / 休息中 with its icon (health.css shows the one for the layout's p-foc / p-brk).
@@ -134,7 +136,7 @@ QJZ.templates = (function () {
         '<div class="money-box"><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate">' + mv('rate') + '</div>' + mpills() + '</div>' +
         '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
           '<div class="track"><div class="fill" data-fill></div></div></div>' +
-        '<div class="chips"><div class="chip"><small data-b="itemLabel"></small>' + mv('item', 'b') + '</div>' +
+        '<div class="chips"><div class="chip"' + BUY + '><small data-b="itemLabel"></small>' + mv('item', 'b') + '</div>' +
           '<div class="chip"><small>本月累計</small>' + mv('month', 'b') + '</div></div>' +
         '<div class="vitals"><span>心情 <span class="hearts" data-b="hearts"></span></span><span>體力 <span class="bolt" data-bolts></span></span>' +
           feedBtn('feed') + '</div>' +
@@ -144,7 +146,7 @@ QJZ.templates = (function () {
       return '<div class="win u3 lay" data-hit><div class="scene" data-pet="hud"></div><div class="hud">' + pring() +
         '<div class="hud-top">' + PILL + '<div class="pill"><span data-b="clock"></span></div>' + standC('pill st') + feedBtn('pill feed') +
           '<button type="button" class="pill gear" data-act="settings" title="設定" aria-label="設定">' + ic('tbGear') + '</button></div>' +
-        '<div class="side" data-bubble-clear><div class="pill alt" data-alt>' + mv('card') +
+        '<div class="side" data-bubble-clear><div class="pill alt" data-alt' + BUY + '>' + mv('card') +
           '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
         '<div class="hud-bottom money-box"><div class="coin">$</div>' + MONEY +
           '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div>' +

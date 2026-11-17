@@ -215,18 +215,41 @@ QJZ.layouts = (function () {
   function lastLayout(settings) {
     return settings && settings.layout && settings.layout.mini === true ? 'M3' : backTarget(settings);
   }
-  // The item shown by the 可以買 chip: rotates every 4 s, from the wall clock.
-  function itemAt(items, ms) {
+  // The item shown by the 可以買 chip: rotates every ITEM_MS, from the wall clock. 1.1.5: a click on it shows the next
+  // one at once (nextItem); rot = {shift, at} then counts from that click: the item after the one shown at it, for a
+  // whole ITEM_MS, then on as before.
+  var ITEM_MS = 4000;
+  function wrap(i, n) { return ((i % n) + n) % n; }
+  function itemIndex(n, ms, r) {
+    return r && typeof r.at === 'number' && ms >= r.at ? wrap(r.shift + Math.floor((ms - r.at) / ITEM_MS), n) : wrap(Math.floor(ms / ITEM_MS), n);
+  }
+  function itemAt(items, ms, r) {
     if (!items || !items.length) return null;
-    return items[Math.floor(ms / 4000) % items.length];
+    return items[itemIndex(items.length, ms, r)];
   }
   // U3's one card (simplification #13): 可以買 and 本月累計 in turn, CARD_MS each, from the wall clock; the item
-  // moves on once a round (every 2 x CARD_MS), so the card changes calmly. -> {month: bool, item: item | null}
+  // moves on once a round (every 2 x CARD_MS), so the card changes calmly. -> {month: bool, item: item | null, index}
+  // 1.1.5: after a click (r) the card shows the next item from it for CARD_MS, then 本月累計, and on.
   var CARD_MS = 10000;
-  function cardAt(items, ms) {
-    var n = Math.floor(ms / CARD_MS);
-    if (n % 2) return { month: true, item: null };
-    return { month: false, item: items && items.length ? items[Math.floor(n / 2) % items.length] : null };
+  function cardAt(items, ms, r) {
+    var from = r && typeof r.at === 'number' && ms >= r.at, n = Math.floor((from ? ms - r.at : ms) / CARD_MS);
+    if (n % 2) return { month: true, item: null, index: null };
+    if (!items || !items.length) return { month: false, item: null, index: null };
+    var i = wrap((from ? r.shift : 0) + Math.floor(n / 2), items.length);
+    return { month: false, item: items[i], index: i };
+  }
+  // What a click on 可以買 at ms makes of rot: the item after the one on screen (U3's card: after its last item).
+  function nextRot(items, ms, r, card) {
+    if (!items || !items.length) return r || null;
+    var i;
+    if (card) {
+      var c = cardAt(items, ms, r);
+      if (c.month) {   // 本月累計 shows: the item it showed before it
+        var prev = cardAt(items, ms - CARD_MS, r);
+        i = prev.index === null ? 0 : prev.index;
+      } else i = c.index;
+    } else i = itemIndex(items.length, ms, r);
+    return { shift: i + 1, at: ms };
   }
   function itemText(it, earned, masked) {
     return it ? (it.icon ? it.icon + ' ' : '') + (masked ? '***' : '×' + QJZ.rewards.itemCount(earned, it)) : '';
@@ -337,13 +360,13 @@ QJZ.layouts = (function () {
     var hc = careModel(cs, s, ms, key);
     var perSec = st.rates ? st.rates.perSecond : 0;
     var pct = Math.max(0, Math.min(1, snap.pct || 0));
-    var it = itemAt(s.items, ms);
+    var it = itemAt(s.items, ms, buyRot);
     var kind = s.pet && s.pet.kind === 'cat' ? 'cat' : 'hamster';
     var v = vitals(st, pct);
     var snacks = st.snacks > 0 ? st.snacks : 0;
     var masked = !!(s.privacy && s.privacy.maskMoney);
     var clock = clockText(ms), monthReal = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
-    var card = cardAt(s.items, ms);
+    var card = cardAt(s.items, ms, buyRot);
     // the money texts as they read shown or masked (1.1.4 item 6: the other state's is each one's ghost, data-ghost)
     function moneyTexts(mk) {
       var month = mk ? '***' : monthReal;
@@ -1727,6 +1750,8 @@ QJZ.layouts = (function () {
       return;
     }
     if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
+    var buy = e.target.closest('[data-buy]');
+    if (buy && inRoot(buy) && !dragged) { nextItem(); return; }   // 1.1.5: 可以買 shows its next item
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
     var mk = e.target.closest('[data-mask]');
     if (mk && inRoot(mk)) {   // the amount: the mask, once per run of presses (M3 too, at once: 1.1.3 item 5)
@@ -1735,6 +1760,13 @@ QJZ.layouts = (function () {
       return;
     }
     if (isPetPart(e.target)) poke(e);
+  }
+  // 1.1.5: a click on 可以買: the next item at once; the rotation goes on from the click (masked too: its *** with the icon)
+  var buyRot = null;
+  function nextItem() {
+    if (!ready() || !view) return;
+    buyRot = nextRot(app().state.settings.items, app().nowMs(), buyRot, cur === 'U3');
+    render();
   }
   function toggleMask() {
     if (!ready()) return;
@@ -1940,7 +1972,7 @@ QJZ.layouts = (function () {
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
     root = bridge = first = view = cur = panelFrom = drag = session = resumeAt = null;
     panelKind = 'settings'; shown = false; dragging = false; sent = { size: '', hits: '', menu: '', dims: null };
-    answerRun = false; held = null; hold = null; swallow = null; inPlace = null; plusCents = plusAt = null;
+    answerRun = false; held = null; hold = null; swallow = null; buyRot = null; inPlace = null; plusCents = plusAt = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
     cancelBands();
@@ -1955,7 +1987,7 @@ QJZ.layouts = (function () {
     MAIN: MAIN, ALL: ALL, NAMES: NAMES, GROUPS: GROUPS,
     util: {
       hms: hms, left: left, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
-      isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, CARD_MS: CARD_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
+      isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, nextRot: nextRot, CARD_MS: CARD_MS, ITEM_MS: ITEM_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
       DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
