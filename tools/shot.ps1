@@ -41,6 +41,10 @@ else {
 }
 if (-not $file -or -not (Test-Path -LiteralPath $file -PathType Leaf)) { Write-Host "shot: no page '$path'"; exit 1 }
 $url = ([Uri][IO.Path]::GetFullPath($file)).AbsoluteUri + $rest
+# the money font is a fetched dependency (gitignored, tools\fetch-deps.ps1): without it every shot falls back to a plain font
+if (-not (Test-Path -LiteralPath (Join-Path $root 'src\web\fonts\Fredoka-Variable.ttf'))) {
+    Write-Host 'shot: WARNING src\web\fonts\Fredoka-Variable.ttf is missing (run tools\fetch-deps.ps1): the digits will not be Fredoka'
+}
 
 $outFile = [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($Out)) { $Out } else { Join-Path $root $Out }))
 New-Item -ItemType Directory -Force (Split-Path $outFile -Parent) | Out-Null

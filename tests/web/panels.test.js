@@ -1374,6 +1374,23 @@
     done();
   });
 
+  test('panels DOM: 深色模式 keeps the typeface of the clock and the money, and the money keeps an outline', function () {
+    function look(dark) {
+      var s = JSON.parse(JSON.stringify(SET_UP));
+      s.display = { dark: dark };
+      var e = mk(at(12, 10, 0), { settings: s, first: 'U1' });
+      var m = getComputedStyle($(e, '.u1 .money')), c = getComputedStyle($(e, '.u1 .clock'));
+      var out = { money: m.fontFamily, clock: c.fontFamily, weight: m.fontWeight, size: m.fontSize, shadow: m.textShadow, color: m.color };
+      done();
+      return out;
+    }
+    var light = look(false), dark = look(true);
+    eq([dark.money, dark.clock, dark.weight, dark.size], [light.money, light.clock, light.weight, light.size], 'the same font, weight and size');
+    ok(/Fredoka/.test(dark.money) && /Fredoka/.test(dark.clock), dark.money);
+    ok(dark.shadow !== 'none' && (dark.shadow.match(/rgb/g) || []).length === 9, 'the same nine-part outline: ' + dark.shadow);
+    ok(dark.shadow !== light.shadow && dark.color !== 'rgb(244, 233, 218)', 'in its dark colours, the digits still orange: ' + dark.color);
+  });
+
   // WCAG contrast of two computed colours (rgb / rgba strings; alpha over the colour under it is the caller's job)
   function rgb(c) { var m = /rgba?\(([^)]+)\)/.exec(c); if (!m) return null; var p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; }
   function lum(c) {
