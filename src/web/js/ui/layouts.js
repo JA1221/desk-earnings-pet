@@ -1613,6 +1613,29 @@ QJZ.layouts = (function () {
       { opacity: 0, transform: 'translateY(-3px)' }], { duration: TIP_MS, easing: 'ease-out' }).addEventListener('finish', function () { t.remove(); });
   }
 
+  // 1.1.5: the zoom just set (「110%」, QJZ.zoomKeys) as a tip like 「長按停止」's, for ZOOM_TIP_MS: centred at the top of
+  // the window's box (U10's capsule while it is open), over the title bar or the pet's head rather than the money, one at a
+  // time, never a hit rect.
+  var ZOOM_TIP_MS = 1000;
+  function zoomTip(text) {
+    var host = view ? view.fxWin || view.el : null;
+    if (!host) return;
+    Array.prototype.forEach.call(host.querySelectorAll('.tip.ztip'), function (n) { n.remove(); });
+    var t = document.createElement('span');
+    t.className = 'tip ztip';
+    t.textContent = text;
+    host.appendChild(t);
+    var hr = host.getBoundingClientRect();
+    var box = view.name === 'U10' && view.hover ? view.hover.getBoundingClientRect() : view.el.getBoundingClientRect();
+    var w = t.offsetWidth, h = t.offsetHeight;
+    var x = Math.max(box.left + 2, box.left + (box.width - w) / 2), y = box.top + Math.min(6, Math.max(0, (box.height - h) / 2));
+    t.style.left = Math.round(x - hr.left) + 'px';
+    t.style.top = Math.round(y - hr.top) + 'px';
+    if (!t.animate) { setTimeout(function () { t.remove(); }, ZOOM_TIP_MS); return; }
+    t.animate([{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none', offset: 0.12 }, { opacity: 1, offset: 0.7 },
+      { opacity: 0 }], { duration: ZOOM_TIP_MS, easing: 'ease-out' }).addEventListener('finish', function () { t.remove(); });
+  }
+
   // ---- pointer ----
   function inRoot(t) { return root && t && t.nodeType === 1 && root.contains(t); }
   // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar). [data-hold]: the countdown's long press.
@@ -1912,6 +1935,7 @@ QJZ.layouts = (function () {
 
   return {
     show: show, current: current, shownLayout: shownLayout, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
+    zoomTip: zoomTip,
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     dragging: function () { return dragging; },
     _brain: function () { return brain; },   // tests only (Ruling R3, like _reset and _bands): the pet's Brain

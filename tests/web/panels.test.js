@@ -506,7 +506,7 @@
 
   // #9: the ten sections of spec 5.3 plus 關於 in the four tabs of 1.0: 薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效),
   // 畫面 (版型, 動力加成), 其他 (開機, 隱私, 關於); 1.1 adds 健康 after 寵物.
-  var PANES = { time: ['today', 'salary', 'hours', 'start'], pet: ['pet', 'sound'], health: ['health'], display: ['layout', 'boost'],
+  var PANES = { time: ['today', 'salary', 'hours', 'start'], pet: ['pet', 'sound'], health: ['health'], display: ['layout', 'zoom', 'boost'],
     other: ['autostart', 'privacy', 'about'] };
   test('panels DOM: settings has five tabs (薪水和時間, 寵物, 健康, 畫面, 其他) and remembers the tab', function () {
     var e = mk(at(12, 10, 0));

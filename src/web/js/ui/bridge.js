@@ -44,6 +44,14 @@ QJZ.bridge = (function () {
     if (window.console) console.log('[bridge] send', type, payload || {});
     if (type === 'saveSettings') lsSet('qjz.settings', msg.text);
     else if (type === 'saveHistory') lsSet('qjz.history', msg.text);
+    else if (type === 'checkUpdate') {
+      // 1.1.5: the dev mock never goes online; QJZ_DEV.update ('latest' | 'newer' | 'unknown', default unknown) answers
+      var u = (window.QJZ_DEV || {}).update;
+      setTimeout(function () {
+        dispatch(u === 'latest' ? { type: 'updateResult', kind: 'latest', version: '1.1.5' } :
+          u === 'newer' ? { type: 'updateResult', kind: 'newer', version: '1.2.0' } : { type: 'updateResult', kind: 'unknown', version: null });
+      }, 300);
+    }
   }
 
   // Dev mock: build the init message the host would send.

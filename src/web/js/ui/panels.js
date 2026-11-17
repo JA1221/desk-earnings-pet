@@ -8,6 +8,9 @@ window.QJZ = window.QJZ || {};
 //               disclosure button each, loaded the first time they open), in five tabs (simplification #9, 1.1 #9):
 //               薪水和時間 (今天, 薪資, 工時, 起算), 寵物 (寵物, 音效), 健康 (QJZ.panelsHealth), 畫面 (版型, 動力加成),
 //               其他 (開機, 隱私, 關於).
+//               1.1.5: 畫面 has 縮放比例 (zoom, its own section: a select of 50–150 %, the same setting as Ctrl+wheel and
+//               Ctrl+± / Ctrl+0, QJZ.zoomKeys), and 關於 a 檢查更新 button beside the version (app.checkUpdate: the app's one
+//               network request) with its result and, for a new version or none found, a link (app.openUpdate).
 //               今天 comes first: 今天休假 (today counts 0), after 下班 繼續上班 (app.resumeWork), and 調整今天的起算時間;
 //               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
 //               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
@@ -28,7 +31,7 @@ QJZ.panels = (function () {
   var TITLES = { onboarding: '歡迎', settings: '設定', history: '紀錄', question: '下班時間', adjust: '設定', healthAsk: '提醒' };
   // [id, label, its sections (SECTIONS keys, in order)]
   var TABS = [['time', '薪水和時間', ['today', 'salary', 'hours', 'start']], ['pet', '寵物', ['pet', 'sound']],
-    ['health', '健康', ['health']], ['display', '畫面', ['layout', 'boost']], ['other', '其他', ['autostart', 'privacy', 'about']]];
+    ['health', '健康', ['health']], ['display', '畫面', ['layout', 'zoom', 'boost']], ['other', '其他', ['autostart', 'privacy', 'about']]];
   var KINDS = [['hamster', '黃金鼠'], ['cat', '貓咪']];
   var FILES = { settings: ['設定檔', 'settings.json'], history: ['紀錄檔', 'history.json'], window: ['視窗位置檔', 'window.json'] };
   // 關於 → 第三方授權: [file under the web root (build.ps1 copies both there and ships them in web.zip), title, what it
@@ -377,6 +380,13 @@ QJZ.panels = (function () {
           hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
           line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。')) + '</div>';
     },
+    // 1.1.5 縮放比例
+    zoom: function () {
+      var r = QJZ.settings.ZOOM, opts = '';
+      for (var p = r[0]; p <= r[1]; p += r[2]) opts += '<option value="' + p + '">' + p + '%</option>';
+      return '<div class="card">' + line(row('縮放比例', '<select class="zoom" data-f="zoom" aria-label="縮放比例">' + opts + '</select>') +
+        hint('所有版型和設定視窗一起放大或縮小。也可以在錢進中上按住 Ctrl 轉滑鼠滾輪，或按 Ctrl ＋ / Ctrl − 調整，Ctrl 0 回到 100%。')) + '</div>';
+    },
     health: function () { return QJZ.panelsHealth.section(); },
     boost: function () {
       return '<div class="card">' +
@@ -417,7 +427,9 @@ QJZ.panels = (function () {
         lic += line('<span class="lbl">' + esc(l[1]) + '</span>' + hint(l[2]) + '<pre class="lic" data-doc="' + l[0] + '" data-fail="' + LIC_FAIL + '"></pre>');
       });
       return '<div class="card">' +
-        line(row('錢進中', '<b data-o="version"></b>') + hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
+        line(row('錢進中', '<span class="ver"><b data-o="version"></b><button type="button" class="btn sm ghost" data-pa="checkUpdate">檢查更新</button></span>') +
+          '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span><button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
+          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
           '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
         '</div>' + disclosure('guide', '使用說明', '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') +
@@ -551,9 +563,25 @@ QJZ.panels = (function () {
   function focused(el) { return !!el && document.activeElement === el; }
   function save(patch) { app().saveSettings(patch); }
 
+  // window.screen is in px at zoom 100 % (WebView2 does not scale it with the ZoomFactor): over the zoom, it is CSS px.
   function tallHeight() {
     var avail = window.screen && window.screen.availHeight > 0 ? window.screen.availHeight : 0;
-    return avail ? Math.max(440, Math.min(TALL, avail - 32)) : TALL;
+    var z = st().settings ? st().settings.zoom / 100 : 1;
+    return avail ? Math.max(440, Math.min(TALL, Math.floor(avail / z) - 32)) : TALL;
+  }
+  // 1.1.5 檢查更新: the button, then 檢查中… and one of the three results (app.state.update).
+  function updateCheckView(c) {
+    var u = st().update, b = q(c, '[data-pa=checkUpdate]'), link = q(c, '[data-pa=openUpdate]');
+    if (!b) return;
+    var busy = !!(u && u.busy);
+    if (b.disabled !== busy) b.disabled = busy;
+    show(node(c, 'updLine'), !!u);
+    if (!u) return;
+    out(c, 'updText', busy ? '檢查中…' : u.kind === 'latest' ? '已是最新版（' + (u.version || '') + '）' :
+      u.kind === 'newer' ? '有新版 ' + u.version : '查不到更新資訊');
+    var to = busy || u.kind === 'latest' ? '' : u.kind === 'newer' ? '前往下載' : '開啟發布頁面';
+    show(link, !!to);
+    if (link && to && link.textContent !== to) link.textContent = to;
   }
 
   // ---- mount / update (called by layouts.js) ----
@@ -565,7 +593,7 @@ QJZ.panels = (function () {
     cur = { kind: k, win: win, body: body, nodes: {}, cache: {} };
     if (k === 'healthAsk') askShown = true;
     win.classList.add('p-' + k);
-    if (k !== 'question') win.style.height = tallHeight() + 'px';
+    if (k !== 'question') { cur.tall = tallHeight(); win.style.height = cur.tall + 'px'; }
     BUILD[k](cur);
     win.addEventListener('click', onClick);
     win.addEventListener('input', onInput);
@@ -662,8 +690,16 @@ QJZ.panels = (function () {
       var hf = hotkeyText(st().hotkeyFailed);
       show(node(c, 'hkFail'), !!hf);
       if (hf) { out(c, 'hkFailText', hf.text); out(c, 'hkFailSub', hf.sub); }
+      // 縮放比例 (1.1.5); a panel beside its window takes the height that fits the screen at the new zoom
+      var zs = q(c, '[data-f=zoom]');
+      if (zs && !focused(zs) && zs.value !== String(s.zoom)) zs.value = String(s.zoom);
+      if (c.zoom !== s.zoom) {
+        if (c.zoom !== undefined && c.tall && c.win.style.height === c.tall + 'px') { c.tall = tallHeight(); c.win.style.height = c.tall + 'px'; }
+        c.zoom = s.zoom;
+      }
       // 關於
       out(c, 'version', '版本 ' + (st().version || '開發版'));
+      updateCheckView(c);
     },
     history: function (c) {
       var s = st(), m = historyModel(s.history, s.today, s.snap.earned);
@@ -928,6 +964,8 @@ QJZ.panels = (function () {
   function action(c, a, b) {
     var s = st();
     switch (a) {
+      case 'checkUpdate': app().checkUpdate(); _update(); break;
+      case 'openUpdate': app().openUpdate(); break;
       case 'next':
         c.ob.amountText = q(c, '[data-f=amount]').value;
         if (obAmountCheck(c, true).ok) obStep(c, 2);
@@ -1024,6 +1062,7 @@ QJZ.panels = (function () {
         setErr(c, 'milestone', r.ok ? '' : r.error);
         if (r.ok) { save({ milestone: r.value }); el.value = amountInputText(r.value); }
         break;
+      case 'zoom': app().setZoom(+el.value); break;
       case 'volume':
         save({ sound: { volume: Math.max(0, Math.min(100, +el.value || 0)) / 100 } });
         if (st().settings.sound.enabled && QJZ.sound) QJZ.sound.coin();

@@ -35,7 +35,11 @@ window.QJZ = window.QJZ || {};
 //                                         is the saved one and the host still has a working one (active), the
 //                                         saved privacy.hotkey goes back to active, so the next start registers it.
 //   storageError {file, reason}           state.storageError (the last one), state.storageErrors (each file once).
-// Host settings the page changes (saved at once, then sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo).
+// Host settings the page changes (saved at once, then sent): setAutostart(on), setCaptureGuard(on), setHotkey(combo),
+// setZoom(percent) (1.1.5 縮放比例; the host sizes the windows from it).
+// 1.1.5 檢查更新: checkUpdate() asks the host (its one network request) and state.update is {busy:true} until its
+// updateResult {kind:'latest'|'newer'|'unknown', version}, then {kind, version} (an odd answer is unknown; latest without a
+// version is the app's own); openUpdate() has the host open that result's page in the default browser.
 // Session: lock / unlock are tracked; a resume while locked is not an arrival (the unlock that follows is).
 // 相容模式: html.opaque (base.css paints the whole page) while settings.display.opaque or init.forceOpaque.
 // 省電模式 (§5.9): while settings.display.powerSaver the tick runs every SAVER_TICK_MS (the money moves 4 times a
@@ -46,7 +50,7 @@ QJZ.app = (function () {
   var state = {
     settings: null, history: null, today: null, snap: null, rates: null, snacks: 0, mood: null,
     pendingQuestion: null, startHint: null, ready: false, paused: false, version: null, forceOpaque: false,
-    hotkeyFailed: null, storageError: null, storageErrors: []
+    hotkeyFailed: null, storageError: null, storageErrors: [], update: null
   };
   var listeners = { tick: [], second: [], refresh: [], change: [], started: [], milestone: [], notice: [] };
   var tickTimer = null, tickEvery = 0, saveTimer = null, refreshTimer = null, lastSec = null, lastMilestone = null;
@@ -459,6 +463,34 @@ QJZ.app = (function () {
     bridge.send('setHotkey', { combo: combo });
   }
 
+  // 1.1.5 縮放比例: percent snapped to the setting's steps; saved and sent only when it changes. Returns the zoom.
+  function setZoom(percent) {
+    if (!state.ready) return null;
+    var p = QJZ.settings.parse(JSON.stringify({ zoom: percent })).settings.zoom;
+    if (p === state.settings.zoom) return p;
+    saveSettings({ zoom: p });
+    flush();
+    bridge.send('setZoom', { percent: p });
+    return p;
+  }
+
+  // ---- 1.1.5 檢查更新 ----
+  function checkUpdate() {
+    if (!bridge || (state.update && state.update.busy)) return;
+    state.update = { busy: true };
+    bridge.send('checkUpdate', {});
+    changed();
+  }
+  function openUpdate() { if (bridge) bridge.send('openUpdate', {}); }
+  function onUpdateResult(msg) {
+    var kind = msg && (msg.kind === 'latest' || msg.kind === 'newer') ? msg.kind : 'unknown';
+    var v = msg && typeof msg.version === 'string' && /^\d{1,9}\.\d{1,9}\.\d{1,9}$/.test(msg.version) ? msg.version : null;
+    if (kind === 'latest' && !v) v = state.version;
+    if (kind === 'newer' && !v) kind = 'unknown';
+    state.update = { kind: kind, version: kind === 'unknown' ? null : v };
+    changed();
+  }
+
   function onHotkeyFailed(msg) {
     state.hotkeyFailed = msg;
     var s = state.settings, active = msg && msg.active;
@@ -487,6 +519,7 @@ QJZ.app = (function () {
     bridge.on('visibility', onVisibility);
     bridge.on('hotkeyFailed', onHotkeyFailed);
     bridge.on('storageError', onStorageError);
+    bridge.on('updateResult', onUpdateResult);
     bridge.on('menuOpening', function () { refresh(); });
     if (!unloadBound) { unloadBound = true; window.addEventListener('beforeunload', function () { flush(); }); }
     if (bridge.boot) bridge.boot();
@@ -504,6 +537,7 @@ QJZ.app = (function () {
     state.settings = state.history = state.today = state.snap = state.rates = null;
     state.snacks = 0; state.pendingQuestion = null; state.startHint = null; state.ready = false; state.paused = false;
     state.hotkeyFailed = state.storageError = null; state.storageErrors = []; state.version = null; state.forceOpaque = false;
+    state.update = null;
     document.documentElement.classList.remove('paused');
     document.documentElement.classList.remove('opaque');
     document.documentElement.classList.remove('saver');
@@ -513,6 +547,7 @@ QJZ.app = (function () {
     state: state, start: start, tickNow: tick, tickMs: tickMs, refresh: refresh, _reset: reset, on: on, nowMs: nowMs, flush: flush,
     startWork: startWork, adjustStart: adjustStart, endWork: endWork, resumeWork: resumeWork, setOffDay: setOffDay,
     feed: feed, pet: pet, annoy: annoy, saveSettings: saveSettings, setHealth: setHealth, setPomodoro: setPomodoro, answerEarlyLeave: answerEarlyLeave, quit: quit,
-    setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey
+    setAutostart: setAutostart, setCaptureGuard: setCaptureGuard, setHotkey: setHotkey,
+    setZoom: setZoom, checkUpdate: checkUpdate, openUpdate: openUpdate
   };
 })();

@@ -242,3 +242,12 @@
 .panel .cc.today{outline:3px solid var(--money);outline-offset:1px}
 .panel .calleg{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--sub);margin-top:9px;flex-wrap:wrap}
 .panel .calleg i{width:13px;height:13px;border:1.6px solid var(--line);border-radius:3px;display:inline-block;background:#fff}
+
+/* ---------- 1.1.5: 縮放比例 (畫面) and 檢查更新 (關於) ---------- */
+.panel select.zoom{font-family:"Fredoka",var(--font);font-size:14px;font-weight:700;color:var(--text);background:#fff;border:2.5px solid var(--line);border-radius:12px;
+  padding:3px 6px;box-shadow:2px 2px 0 var(--shadow);outline:none;cursor:pointer}
+.panel select.zoom:focus-visible{outline:3px solid var(--money);outline-offset:2px}
+.panel .ver{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.panel .upd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:13px;font-weight:700}
+.panel .linkbtn{font:inherit;font-size:13px;font-weight:700;color:#B5541A;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.panel .linkbtn:focus-visible{outline:3px solid var(--money);outline-offset:2px;border-radius:4px}

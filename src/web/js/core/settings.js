@@ -28,7 +28,9 @@ QJZ.settings = (function () {
     // the reminder question (onboarding, or the one-time question after the 1.0 upgrade, §5.5); until then neither
     // reminder runs whatever sit.on / water.on say (QJZ.reminders.ask).
     health: { asked: false, every: 50, sit: { on: false }, water: { on: false, goal: 8 }, pomodoro: { focus: 25, short: 5, long: 15, longEvery: 4 } },
-    onboarded: false
+    onboarded: false,
+    // 1.1.5 縮放比例: every window and panel, in percent (ZOOM; the host's PageZoom applies it as the WebView2 ZoomFactor)
+    zoom: 100
   };
   // The layouts layout.current (and the unread layout.start) and the topmost map may name. Kept in sync with
   // HostSettings.Layouts (src/host).
@@ -40,6 +42,7 @@ QJZ.settings = (function () {
     'every': [5, 120, 5], 'water.goal': [1, 20, 1],   // every: 5–120 since 1.1.1 (it was 20–120)
     'pomodoro.focus': [10, 90, 5], 'pomodoro.short': [1, 30, 1], 'pomodoro.long': [5, 60, 5], 'pomodoro.longEvery': [2, 8, 1]
   };
+  var ZOOM = [50, 150, 10];   // 縮放比例 [min, max, step], % (1.1.5)
   var SKINS = { hamster: ['p0', 'p4', 'h2', 's4', 's5'], cat: ['p0', 'p4', 'h2', 's4', 's5'] };
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
@@ -139,6 +142,7 @@ QJZ.settings = (function () {
     out.health.pomodoro.longEvery = ranged(pom.longEvery, R['pomodoro.longEvery'], hd.pomodoro.longEvery);
 
     out.onboarded = bool(s.onboarded, d.onboarded);
+    out.zoom = ranged(s.zoom, ZOOM, d.zoom);
     return out;
   }
 
@@ -174,7 +178,7 @@ QJZ.settings = (function () {
   }
 
   return {
-    DEFAULTS: DEFAULTS, LAYOUTS: LAYOUTS, DOCKS: DOCKS, HEALTH_RANGES: HEALTH_RANGES,
+    DEFAULTS: DEFAULTS, LAYOUTS: LAYOUTS, DOCKS: DOCKS, HEALTH_RANGES: HEALTH_RANGES, ZOOM: ZOOM,
     parse: parse, validateSalary: validateSalary, skinsFor: skinsFor, standGoal: standGoal, tomatoGoal: tomatoGoal
   };
 })();
