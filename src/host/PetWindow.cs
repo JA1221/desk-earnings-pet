@@ -17,7 +17,9 @@ using Microsoft.Web.WebView2.WinForms;
 // WS_EX_TRANSPARENT count for hit-testing); a ~30 Hz cursor poll sets WS_EX_TRANSPARENT whenever
 // the cursor is outside every hit rect, so the whole window, WebView2 included, is skipped.
 // CSS -> physical px uses the page's devicePixelRatio (reported with SetContentSize / SetHitRects),
-// which can differ from DPI / 96 (page zoom, Windows Text size).
+// which can differ from DPI / 96 (page zoom, Windows Text size). 1.1.5 縮放比例 is the WebView2 ZoomFactor (Zoom), so
+// the page's DPR includes it and every conversion follows; the page's own zoom keys and Ctrl+wheel stay off (the page
+// handles them itself and asks the host, AppHost setZoom).
 // Focus: showing never activates the window; with NoActivate set (floating layouts) clicks do not either.
 // If either transparency call fails (Transparency), the window still works with an opaque #FFF8EC background
 // (ForceOpaque; the page is told in init); click-through keeps working as long as the window could be layered.
@@ -30,6 +32,8 @@ public class PetWindow : Form
     private int cssWidth;
     private int cssHeight;
     private double scale;      // physical px per CSS px; 0 until known, then the page's DPR
+    private double zoom = 1;   // the WebView2 ZoomFactor (1.1.5 縮放比例): part of the page's DPR
+    private double staleDpr;   // the DPR before the last zoom change: a report of it is from before the change, ignored
     private int windowDpi;     // tracked through WM_DPICHANGED
     private bool pollSuspended;
     private bool webStarted;
@@ -173,7 +177,7 @@ public class PetWindow : Form
     {
         this.cssWidth = cssWidth;
         this.cssHeight = cssHeight;
-        if (dpr > 0) scale = dpr;
+        TakeDpr(dpr);
         ApplySize();
     }
 
@@ -184,19 +188,41 @@ public class PetWindow : Form
     {
         this.cssWidth = cssWidth;
         this.cssHeight = cssHeight;
-        if (dpr > 0) scale = dpr;
+        TakeDpr(dpr);
         Size size = PetGeometry.WindowSize(cssWidth, cssHeight, Scale());
         Bounds = new Rectangle(place(size), size);
     }
 
     // The page lays itself out at cssWidth x cssHeight in the window as it is (an in-place panel, 1.1.2): remembered
     // like SetContentSize (a DPI change resizes from it), but the window keeps its size exactly, even where that CSS size
-    // would round to another one.
+    // would round to another one. Only a new DPR (the zoom changed) resizes it, as SetHitRects would.
     public void KeepSize(int cssWidth, int cssHeight, double dpr)
     {
         this.cssWidth = cssWidth;
         this.cssHeight = cssHeight;
-        if (dpr > 0) scale = dpr;
+        if (TakeDpr(dpr)) ApplySize();
+    }
+
+    // The WebView2 ZoomFactor (1.1.5 縮放比例; set before the page loads, it applies from the first frame).
+    public double Zoom { get { return zoom; } }
+
+    // Physical px per CSS px at zoom 1 on this monitor: the page's DPR without the zoom.
+    public double BaseScale { get { return Scale() / zoom; } }
+
+    // Sets the zoom; false when it is the one already set. The scale becomes the one the page will report (as after a DPI
+    // change) and a report of the old one, sent before the change reached the page, is ignored. The window is not resized
+    // here: the caller sizes it (SetContentSize with dpr 0).
+    public bool SetZoom(double z)
+    {
+        if (!(z > 0) || Math.Abs(z - zoom) < 1e-9) return false;
+        if (scale > 0)
+        {
+            staleDpr = scale;
+            scale = scale * z / zoom;
+        }
+        zoom = z;
+        web.ZoomFactor = z;
+        return true;
     }
 
     // Areas (CSS px, page coordinates) that receive the mouse; everywhere else clicks fall through.
@@ -204,11 +230,7 @@ public class PetWindow : Form
     public void SetHitRects(RectangleF[] cssRects, double dpr)
     {
         hitRects = cssRects ?? new RectangleF[0];
-        if (dpr > 0 && dpr != scale)
-        {
-            scale = dpr;
-            ApplySize();
-        }
+        if (TakeDpr(dpr)) ApplySize();
         UpdateClickThrough();
     }
 
@@ -317,6 +339,7 @@ public class PetWindow : Form
         {
             int newDpi = (int)(m.WParam.ToInt64() & 0xFFFF);
             if (scale > 0) scale = PetGeometry.ScaleAfterDpiChange(scale, windowDpi, newDpi);   // provisional until the page re-reports
+            staleDpr = 0;
             windowDpi = newDpi;
             Native.RECT r = (Native.RECT)Marshal.PtrToStructure(m.LParam, typeof(Native.RECT));
             Size size = cssWidth > 0 ? PetGeometry.WindowSize(cssWidth, cssHeight, Scale())
@@ -376,7 +399,19 @@ public class PetWindow : Form
 
     private double Scale()
     {
-        return scale > 0 ? scale : PetGeometry.DpiScale(windowDpi > 0 ? windowDpi : DeviceDpi);
+        return scale > 0 ? scale : PetGeometry.DpiScale(windowDpi > 0 ? windowDpi : DeviceDpi) * zoom;
+    }
+
+    // A DPR the page reported (0 or less: none): taken unless it is the one from before the last zoom change. True when
+    // the scale changed.
+    private bool TakeDpr(double dpr)
+    {
+        if (!(dpr > 0)) return false;
+        if (staleDpr > 0 && Math.Abs(dpr - staleDpr) < 1e-6) return false;
+        staleDpr = 0;
+        if (dpr == scale) return false;
+        scale = dpr;
+        return true;
     }
 
     private void ApplySize()
@@ -431,7 +466,8 @@ public class PetWindow : Form
 
             await web.EnsureCoreWebView2Async(await WebViewEnv.GetAsync());
             CoreWebView2Settings s = web.CoreWebView2.Settings;
-            s.IsZoomControlEnabled = false;   // page zoom would desync DPR from the reported layout
+            s.IsZoomControlEnabled = false;   // the page handles Ctrl+wheel / Ctrl+± itself (1.1.5): its zoom goes through the setting
+            web.ZoomFactor = zoom;
             s.IsPinchZoomEnabled = false;
             s.AreDefaultContextMenusEnabled = false;
             s.AreBrowserAcceleratorKeysEnabled = false;

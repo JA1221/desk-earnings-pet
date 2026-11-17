@@ -29,6 +29,10 @@ public class WindowPlacer
     Point? anchor;          // the shared top-left; null until set (the upgrade, the first placement, a drop)
     Size? anchorSize;       // the physical size of the window it was set with (null: unknown)
     bool startSpotKnown;    // PrePlace put the hidden window at a spot from window.json (PanelFrom)
+    int zoomPercent = PageZoom.Default;
+
+    // 1.1.5 縮放比例 (settings zoom): PrePlace sizes the hidden window at it, as the page will show it (PageZoom.Fit).
+    public int ZoomPercent { get { return zoomPercent; } set { zoomPercent = value; } }
 
     public WindowPlacer(UserFiles files)
     {
@@ -66,17 +70,17 @@ public class WindowPlacer
         window.StartPosition = FormStartPosition.Manual;
         if (anchored && !anchor.HasValue && spot.HasValue && css.HasValue)
         {
-            Size was = StartSize(css, ScaleAt(new Rectangle(spot.Value, css.Value)), window.Size);
+            Size was = StartSize(css, ZoomedScaleAt(new Rectangle(spot.Value, css.Value), css.Value, areas), window.Size);
             SetAnchor(SeedAnchor(spot, was, null, was, areas, primary));
         }
         if (anchored && anchor.HasValue)
         {
-            Size size = StartSize(css, css.HasValue ? ScaleAt(new Rectangle(anchor.Value, css.Value)) : 1, window.Size);
+            Size size = StartSize(css, css.HasValue ? ZoomedScaleAt(new Rectangle(anchor.Value, css.Value), css.Value, areas) : 1, window.Size);
             window.Bounds = AtAnchor(anchor.Value, anchorSize, size, areas);
             startSpotKnown = true;
             return;
         }
-        double scale = css.HasValue ? ScaleAt(spot.HasValue ? new Rectangle(spot.Value, css.Value) : primary) : 1;
+        double scale = css.HasValue ? ZoomedScaleAt(spot.HasValue ? new Rectangle(spot.Value, css.Value) : primary, css.Value, areas) : 1;
         window.Bounds = StartBounds(spot, StartSize(css, scale, window.Size), areas, primary);
         startSpotKnown = spot.HasValue;
     }
@@ -93,8 +97,15 @@ public class WindowPlacer
     // first-ever spot: a start that opens with a panel opens it beside that window (PanelFrom).
     public bool StartSpotKnown { get { return startSpotKnown; } }
 
+    // ScaleAt r times the zoom a page of css size gets there (PageZoom.Fit on the work area nearest r).
+    double ZoomedScaleAt(Rectangle r, Size css, Rectangle[] areas)
+    {
+        double s = ScaleAt(r);
+        return s * PageZoom.Fit(zoomPercent, css, s, ScreenFit.NearestArea(r, areas));
+    }
+
     // Physical px per CSS px on the monitor nearest r's centre (its effective DPI / 96); 1 when unknown.
-    static double ScaleAt(Rectangle r)
+    public static double ScaleAt(Rectangle r)
     {
         try
         {

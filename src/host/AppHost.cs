@@ -65,6 +65,15 @@ using Microsoft.Web.WebView2.Core;
 // - Every end (結束, a close from outside, Windows ending the session) records the time in session.json
 //   (ExitStamp); the next start hands it to the page as init lastExitMs, with the .bak texts (init backups) and
 //   whether the window had to go opaque (init forceOpaque).
+// - 1.1.5 縮放比例: settings zoom (a percent, PageZoom) is the WebView2 ZoomFactor, set before the page loads and on the
+//   page's setZoom {percent} (設定 → 畫面, Ctrl+wheel, Ctrl+± / Ctrl+0). The page's DPR includes it, so sizes, hit rects,
+//   U10's dock margin and U7's desk follow. A window that would not fit its work area at the chosen zoom gets a lower
+//   one, never below 100 % (PageZoom.Fit, again for every setLayout and after a drop on another monitor). A zoom change
+//   resizes the window from its top-left, kept inside its work area (U10 re-docks; U7 seated on the taskbar edge stays
+//   seated, ScreenFit.SettleDesk). Positions in window.json are unaffected (physical top-lefts; sizes are CSS).
+// - 1.1.5 檢查更新: checkUpdate {} makes the app's one network request (UpdateCheck, at most one at a time) and answers
+//   updateResult {kind, version}; openUpdate {} opens that result's page (the release's, or the Releases page) in the
+//   default browser. Nothing else here ever goes online.
 // menuState {work, snacks} (page -> host): the work item and the snack count. healthMenu {cups, pomodoro:{phase, endsMs}}:
 // 記一杯水's cups and 開始 / 停止番茄鐘. (1.1.3 A2: the menu lost 隱藏金額, 少記一杯 and 我剛起來動過了, and with them the
 // page's mask / undrink / stoodUp actions, menuState's masked and healthMenu's sitOn.)
@@ -74,7 +83,7 @@ using Microsoft.Web.WebView2.Core;
 // actions drink (記一杯水) and pomodoro do not show a hidden window (ShowRescue.MenuShows).
 public class AppHost
 {
-    public const string Version = "1.1.4";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
+    public const string Version = "1.1.5";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
     const string Origin = "https://app.qjz/";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;
@@ -136,6 +145,9 @@ public class AppHost
     string capsuleDock = "top";  // U10's dock: the page's setLayout dock, or where a drop snapped it
     Rectangle? growFrom;         // a same-layout grow pushed the window in from this rect to growTo; size changes while
     Point? growTo;               // it is still at growTo start from growFrom (WindowPlacer.ResizeInside)
+    int zoomPercent = PageZoom.Default;   // 1.1.5 縮放比例 (settings zoom)
+    bool updateBusy;             // a 檢查更新 request is out
+    string updateUrl = UpdateCheck.ReleasesUrl;   // what openUpdate opens: the last result's page
 
     // page: file under the web root to load (index.html, or a dev page). devPage: a dev run (--page/--spike). Neither
     // a dev run nor a test profile (QJZ_PROFILE, AppPaths.Profile) touches the autostart Run value.
@@ -219,7 +231,12 @@ public class AppHost
         session.Activity += OnSession;
         SingleInstance.Listen(OnSecondInstance);
         startLayout = settings.StartLayout;
+        zoomPercent = settings.Zoom;
+        placer.ZoomPercent = zoomPercent;
         placer.PrePlace(window, settings.StartLayout);   // on the monitor (and DPI) where the first layout will show
+        // the page loads at the zoom its first layout will show at
+        window.SetZoom(PageZoom.Fit(zoomPercent, placer.SavedSize(startLayout) ?? Size.Empty, WindowPlacer.ScaleAt(window.Bounds),
+            Screen.FromRectangle(window.Bounds).WorkingArea));
         presentation.Changed += OnFullscreenChanged;
         presentation.WindowChanged += delegate { if (steppedBack) StepBehind(); };   // another full-screen window in front here
         presentation.Start();   // after PrePlace: the window's monitor is the start layout's
@@ -427,6 +444,17 @@ public class AppHost
                     break;
                 }
             case "setHotkey": ChangeHotkey(Bridge.Str(d, "combo")); break;
+            case "setZoom":
+                {
+                    object v;
+                    if (!d.TryGetValue("percent", out v)) break;
+                    zoomPercent = PageZoom.Parse(v);
+                    placer.ZoomPercent = zoomPercent;
+                    ApplyZoom();
+                    break;
+                }
+            case "checkUpdate": CheckUpdate(); break;
+            case "openUpdate": OpenUpdate(); break;
             case "hide": wantVisible = false; ApplyVisibility(); break;
             case "quit": Quit(); break;
         }
@@ -475,13 +503,15 @@ public class AppHost
         Size css = new Size((int)Math.Ceiling(Math.Min(w, MaxCssSize)), (int)Math.Ceiling(Math.Min(h, MaxCssSize)));
         layoutCss = css;
         Rectangle before = window.Bounds;
-        if (move == LayoutMove.InPlace) window.KeepSize(css.Width, css.Height, Dpr(d));   // the same window, untouched
-        else if (!changed) window.SetContentSize(css.Width, css.Height, Dpr(d));
+        double dpr = Dpr(d), scaleBefore = window.CssScale;
+        if (window.SetZoom(ZoomFor(css, before))) dpr = 0;   // sized at the new zoom; the page reports its DPR after
+        if (move == LayoutMove.InPlace) window.KeepSize(css.Width, css.Height, dpr);   // the same window, untouched
+        else if (!changed) window.SetContentSize(css.Width, css.Height, dpr);
         else
         {
             // Resized and moved in one step (no frame of the new size at the old spot), then placed again at the size a
             // landing on another DPI gave it.
-            window.SetContentSizeAt(css.Width, css.Height, Dpr(d), delegate(Size size) { return Target(move, name, size, before, shownBefore).Location; });
+            window.SetContentSizeAt(css.Width, css.Height, dpr, delegate(Size size) { return Target(move, name, size, before, shownBefore).Location; });
             Rectangle again = Target(move, name, window.Size, before, shownBefore);
             if (again != window.Bounds) window.Bounds = again;
             if (move == LayoutMove.Dock) placer.Remember(name, window.Location);   // the next start in U10 shows there
@@ -497,8 +527,7 @@ public class AppHost
         }
         else if (!window.Moving)   // a new size mid-drag (another DPI) is left to the drop (OnMoveEnded)
         {
-            if (name == "U10") DockCapsule(before);
-            else if (window.Size != before.Size) FitAfterResize(before);
+            if (window.Size != before.Size || name == "U10") AfterZoomOrResize(before, scaleBefore);
         }
         UpdateStepBack();   // a panel the user asked for replaced another panel (no layout change)
         UpdateTray();
@@ -536,6 +565,46 @@ public class AppHost
         if (at != window.Location) window.Location = at;
     }
 
+    // The window resized within its layout (before: its rect then, at scaleBefore physical px per CSS px): U10 back to its
+    // dock; U7 seated on the taskbar edge kept seated when the zoom changed (ScreenFit.SettleDesk); any other window kept
+    // inside its work area (FitAfterResize).
+    void AfterZoomOrResize(Rectangle before, double scaleBefore)
+    {
+        if (layout == "U10") { DockCapsule(before); return; }
+        if (layout == "U7" && Math.Abs(window.CssScale - scaleBefore) > 1e-9)
+        {
+            Rectangle area = Screen.FromRectangle(before).WorkingArea;
+            Rectangle at = ScreenFit.SettleDesk(before, DeskMargin(scaleBefore), window.Size, DeskMargin(window.CssScale), area);
+            if (at.Location != window.Location) window.Location = at.Location;
+            if (at.Location != before.Location) { growFrom = null; growTo = null; }
+            FitAfterResize(new Rectangle(window.Location, before.Size));
+            return;
+        }
+        FitAfterResize(before);
+    }
+
+    // The zoom for a page of css size in the window at rect (on that monitor): PageZoom.Fit of the chosen zoom.
+    double ZoomFor(Size css, Rectangle at)
+    {
+        return PageZoom.Fit(zoomPercent, css, window.BaseScale, Screen.FromRectangle(at).WorkingArea);
+    }
+
+    // The chosen zoom changed (setZoom), or the window landed on another monitor: the window takes the zoom it gets there
+    // and is resized from it at once (the page re-reports its DPR and layout after).
+    void ApplyZoom()
+    {
+        if (layout == null || layoutCss.Width < 1)
+        {
+            window.SetZoom(PageZoom.Factor(zoomPercent));   // nothing shown yet: the first setLayout fits it
+            return;
+        }
+        Rectangle before = window.Bounds;
+        double scaleBefore = window.CssScale;
+        if (!window.SetZoom(ZoomFor(layoutCss, before))) return;
+        window.SetContentSize(layoutCss.Width, layoutCss.Height, 0);
+        if (!window.Moving) AfterZoomOrResize(before, scaleBefore);
+    }
+
     // U10's dock rect is 6 CSS px in from the work-area edges.
     const int CapsuleMarginCss = 6;
 
@@ -571,9 +640,15 @@ public class AppHost
     // U7's desk ends this many CSS px above the window bottom (layouts.css: .u7 bottom padding and the hard shadow).
     const int U7DeskMarginCss = 16;
 
+    // U7's desk margin in physical px at scale.
+    static int DeskMargin(double scale)
+    {
+        return (int)Math.Round(U7DeskMarginCss * scale, MidpointRounding.AwayFromZero);
+    }
+
     void OnMoveEnded()
     {
-        try { EndMove(); }
+        try { EndMove(); ApplyZoom(); }   // on another monitor the window may get another zoom (PageZoom.Fit)
         finally { presentation.Poll(); }   // dropped on another monitor: is a full-screen window in front there?
     }
 
@@ -585,7 +660,7 @@ public class AppHost
         if (layout == "U7")
         {
             Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
-            int margin = (int)Math.Round(U7DeskMarginCss * window.CssScale, MidpointRounding.AwayFromZero);
+            int margin = DeskMargin(window.CssScale);
             Rectangle fit = ScreenFit.KeepBottomIn(window.Bounds, margin, area);
             if (fit.Location != window.Location) window.Location = fit.Location;
         }
@@ -933,6 +1008,28 @@ public class AppHost
         hotkey = previous != null && HotKey.Register(window.Handle, previous) ? previous : null;
         hotkeyFailure = new { combo = wanted, reason = HotKey.FailureReason(result), active = hotkey };
         Send("hotkeyFailed", hotkeyFailure);
+    }
+
+    // 檢查更新: the one request, off the UI thread (UpdateCheck.RunAsync gives up after WaitMs); the answer goes to the page.
+    async void CheckUpdate()
+    {
+        if (updateBusy) return;
+        updateBusy = true;
+        UpdateResult r;
+        try { r = await UpdateCheck.RunAsync(UpdateCheck.Fetch, Version, UpdateCheck.WaitMs); }
+        catch (Exception ex) { ErrorLog.Write("update check", ex); r = UpdateCheck.Unknown(); }
+        finally { updateBusy = false; }
+        if (quitting) return;
+        updateUrl = UpdateCheck.SafeUrl(r.Url) ? r.Url : UpdateCheck.ReleasesUrl;
+        Send("updateResult", new { kind = r.Kind, version = r.Version });
+    }
+
+    // The last result's page in the default browser: only ever the repo's own release pages (UpdateCheck.SafeUrl).
+    void OpenUpdate()
+    {
+        string url = UpdateCheck.SafeUrl(updateUrl) ? updateUrl : UpdateCheck.ReleasesUrl;
+        try { using (System.Diagnostics.Process.Start(url)) { } }
+        catch (Exception ex) { ErrorLog.Write("open " + url, ex); }
     }
 
     void SetAutoStart(bool on)
