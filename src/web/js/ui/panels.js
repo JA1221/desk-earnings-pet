@@ -749,7 +749,7 @@ QJZ.panels = (function () {
     set('lunchEnd', s.lunch.end);
     set('fixedStart', s.fixed.start);
     set('fixedEnd', s.fixed.end);
-    set('startAt', t && isNum(t.startMs) ? hmOf(t.startMs) : hmOf(app().nowMs()));
+    set('startAt', t && isNum(t.startMs) ? hmOf(Math.min(t.startMs, app().nowMs())) : hmOf(app().nowMs()));   // 1.1.7: a 固定 start still ahead offers now
     set('name.hamster', s.pet.names.hamster);
     set('name.cat', s.pet.names.cat);
     set('milestone', amountInputText(s.milestone));

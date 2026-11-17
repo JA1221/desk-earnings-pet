@@ -78,6 +78,12 @@
     eq(QJZ.day.earlyLeaveQuestion(QJZ.day.onLock(r, T(16, 0)), s10), { day: D, lockMs: T(16, 0) }, 'locked 16:00');
     eq(QJZ.day.earlyLeaveQuestion(QJZ.day.onLock(r, T(17, 40)), s10), null, 'locked after 17:30 (10 h would end later)');
   });
+  test('固定 review: a lock before the fixed start asks nothing; 開始上班 before it starts now by hand', function () {
+    var r = act(QJZ.day.empty(D), T(7, 40));
+    eq(QJZ.day.earlyLeaveQuestion(QJZ.day.onLock(r, T(7, 50)), FIX), null, 'locked 07:50, start 08:00');
+    var m = QJZ.day.manualStart(r, T(7, 45));
+    eq([m.startMs, m.startSource], [T(7, 45), 'manual'], 'manual start at 07:45');
+  });
   test('固定: applyMode moves an auto start, starts an unstarted day before the end, keeps one set by hand', function () {
     var auto = QJZ.day.onActivity(QJZ.day.empty(D), { type: 'unlock', ms: T(8, 37) }, FLEX);
     var r = QJZ.day.applyMode(auto, FIX, T(10, 0));

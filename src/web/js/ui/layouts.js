@@ -1396,7 +1396,8 @@ QJZ.layouts = (function () {
   // 開始上班: starts the day (an off day too: that ends 今天休假); after 下班 it is 繼續上班 (the end is cleared).
   function startWork() {
     var t = app().state.today;
-    if (typeof t.startMs === 'number' && !t.offDay) {
+    // 1.1.7 review: in 固定 a start can still be ahead (07:40, start 08:00): 開始上班 then starts now, by hand
+    if (typeof t.startMs === 'number' && !t.offDay && t.startMs <= app().nowMs()) {
       if (t.endMs !== null && t.endMs !== undefined) { app().resumeWork(); say('繼續上班！金額接著算。'); }
       else say('已經在算錢囉！');
       return;

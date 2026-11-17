@@ -93,7 +93,8 @@ QJZ.day = (function () {
   function earlyLeaveQuestion(prevRec, settings) {
     if (!prevRec || prevRec.offDay || prevRec.startMs === null || prevRec.endMs !== null || prevRec.lastLockMs === null) return null;
     var planned = QJZ.earn.endAtMs(prevRec.startMs, prevRec.day, QJZ.settings.hours(settings), settings.lunch);
-    if (prevRec.lastLockMs < planned) return { day: prevRec.day, lockMs: prevRec.lastLockMs };
+    // 1.1.7 review: a lock before the start (固定: activity 07:40, locked 07:50, start 08:00) is not a leave
+    if (prevRec.lastLockMs > prevRec.startMs && prevRec.lastLockMs < planned) return { day: prevRec.day, lockMs: prevRec.lastLockMs };
     return null;
   }
 
