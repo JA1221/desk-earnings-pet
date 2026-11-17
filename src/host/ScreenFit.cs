@@ -41,10 +41,16 @@ public static class ScreenFit
 
     public static Rectangle SettleDesk(Rectangle before, int beforeMargin, Size size, int margin, Rectangle area)
     {
-        int desk = before.Bottom - beforeMargin;
-        if (Math.Abs(desk - area.Bottom) > EdgeSlack) return new Rectangle(before.Location, size);
+        if (!Seated(before, beforeMargin, area)) return new Rectangle(before.Location, size);
         int y = Math.Max(area.Top, area.Bottom + margin - size.Height);
-        return new Rectangle(before.X, y, size.Width, size.Height);
+        int x = Math.Max(area.Left, Math.Min(before.X, area.Right - size.Width));
+        return new Rectangle(x, y, size.Width, size.Height);
+    }
+
+    // U7's desk (margin px above win's bottom) is on area's bottom, within EdgeSlack px.
+    public static bool Seated(Rectangle win, int margin, Rectangle area)
+    {
+        return Math.Abs(win.Bottom - margin - area.Bottom) <= EdgeSlack;
     }
 
     // Moves win fully inside area (shrinking a side only when it is larger than the area).

@@ -119,13 +119,17 @@ public static class ScreenFitTests
     public static void Test_SettleDeskKeepsU7OnTheTaskbarEdge()
     {
         Rectangle area = new Rectangle(0, 0, 1920, 1040);
-        Rectangle seated = new Rectangle(1500, 1040 + 16 - 260, 320, 260);   // desk (16 px above the bottom) on 1040
-        Assert.Eq(new Rectangle(1500, 1040 + 24 - 390, 480, 390), ScreenFit.SettleDesk(seated, 16, new Size(480, 390), 24, area), "150 %: still on the edge");
-        Assert.Eq(new Rectangle(1500, 1040 + 8 - 130, 160, 130), ScreenFit.SettleDesk(seated, 16, new Size(160, 130), 8, area), "50 %: still on the edge");
-        Rectangle nearly = new Rectangle(1500, 1040 + 16 - 260 - 2, 320, 260);
+        Rectangle seated = new Rectangle(1300, 1040 + 16 - 260, 320, 260);   // desk (16 px above the bottom) on 1040
+        Assert.Eq(new Rectangle(1300, 1040 + 24 - 390, 480, 390), ScreenFit.SettleDesk(seated, 16, new Size(480, 390), 24, area), "150 %: still on the edge");
+        Assert.Eq(new Rectangle(1300, 1040 + 8 - 130, 160, 130), ScreenFit.SettleDesk(seated, 16, new Size(160, 130), 8, area), "50 %: still on the edge");
+        Rectangle nearly = new Rectangle(1300, 1040 + 16 - 260 - 2, 320, 260);
         Assert.Eq(1040 + 24 - 390, ScreenFit.SettleDesk(nearly, 16, new Size(480, 390), 24, area).Y, "2 px above (rounding) counts as on the edge");
-        Rectangle high = new Rectangle(1500, 300, 320, 260);
-        Assert.Eq(new Rectangle(1500, 300, 480, 390), ScreenFit.SettleDesk(high, 16, new Size(480, 390), 24, area), "higher up: the top-left stays");
-        Assert.Eq(new Rectangle(1500, 0, 480, 1200), ScreenFit.SettleDesk(seated, 16, new Size(480, 1200), 24, area), "never above the area's top");
+        Rectangle high = new Rectangle(1300, 300, 320, 260);
+        Assert.Eq(new Rectangle(1300, 300, 480, 390), ScreenFit.SettleDesk(high, 16, new Size(480, 390), 24, area), "higher up: the top-left stays");
+        Assert.Eq(new Rectangle(1300, 0, 480, 1200), ScreenFit.SettleDesk(seated, 16, new Size(480, 1200), 24, area), "never above the area's top");
+        Assert.Eq(new Rectangle(1920 - 480, 1040 + 24 - 390, 480, 390), ScreenFit.SettleDesk(new Rectangle(1700, seated.Y, 320, 260), 16, new Size(480, 390), 24, area),
+            "seated, it is kept inside the area's sides (its desk margin may hang below the bottom, as a drop leaves it)");
+        Assert.True(ScreenFit.Seated(seated, 16, area) && ScreenFit.Seated(nearly, 16, area), "seated");
+        Assert.True(!ScreenFit.Seated(high, 16, area), "not seated");
     }
 }

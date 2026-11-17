@@ -571,13 +571,14 @@ public class AppHost
     void AfterZoomOrResize(Rectangle before, double scaleBefore)
     {
         if (layout == "U10") { DockCapsule(before); return; }
-        if (layout == "U7" && Math.Abs(window.CssScale - scaleBefore) > 1e-9)
+        Rectangle area = Screen.FromRectangle(before).WorkingArea;
+        if (layout == "U7" && Math.Abs(window.CssScale - scaleBefore) > 1e-9 && ScreenFit.Seated(before, DeskMargin(scaleBefore), area))
         {
-            Rectangle area = Screen.FromRectangle(before).WorkingArea;
+            // seated on the taskbar edge: the desk stays on it (its margin below the work area, as a drop leaves it)
             Rectangle at = ScreenFit.SettleDesk(before, DeskMargin(scaleBefore), window.Size, DeskMargin(window.CssScale), area);
             if (at.Location != window.Location) window.Location = at.Location;
-            if (at.Location != before.Location) { growFrom = null; growTo = null; }
-            FitAfterResize(new Rectangle(window.Location, before.Size));
+            growFrom = null;
+            growTo = null;
             return;
         }
         FitAfterResize(before);
