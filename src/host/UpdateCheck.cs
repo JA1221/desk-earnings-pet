@@ -12,11 +12,12 @@ using System.Web.Script.Serialization;
 // cookies, no credentials, no identifiers, TLS 1.2 set explicitly, a short timeout. Its tag_name (vX.Y.Z) against
 // AppHost.Version gives one of three results (UpdateResult.Kind):
 //   latest   the app is as new as the latest release, or newer: 「已是最新版（<app version>）」
-//   newer    a newer release: 「有新版 X.Y.Z」, and its page can be opened (html_url)
+//   newer    a newer release: 「有新版 X.Y.Z」, and its page can be opened (built from the parsed version: the answer's
+//            html_url is never used, review I-1)
 //   unknown  anything else (no network, a timeout, 404 while the repo is private, rate limiting, an answer that does not
 //            parse): 「查不到更新資訊」, and the Releases page can be opened.
-// Only the repo's own release pages are ever opened (SafeUrl). The request is injectable (Check / RunAsync take it), so
-// tests never go online.
+// Only two URL shapes are ever opened (SafeUrl, UrlToOpen): the Releases page and .../releases/tag/vX.Y.Z. The request
+// is injectable (Check / Begin / RunAsync take it), so tests never go online. Redirects are not followed: a 3xx is unknown.
 public sealed class UpdateResult
 {
     public string Kind { get; private set; }
@@ -39,8 +40,9 @@ public static class UpdateCheck
     public const int TimeoutMs = 8000;      // the request's own timeouts (connect + response, and each read)
     public const int WaitMs = 10000;        // the longest the user waits for an answer, whatever the request does
     const int MaxBytes = 1 << 20;           // a release's JSON is a few KB; more is not read
-    static readonly Regex VersionRx = new Regex(@"^\s*[vV]?(\d{1,9})\.(\d{1,9})\.(\d{1,9})\s*$");
-    static readonly Regex SafeRx = new Regex(@"^https://github\.com/JA1221/desk-earnings-pet/releases(/[A-Za-z0-9._/-]*)?$");
+    // \z, not $ ($ also matches before a final \n); spaces and tabs around it only
+    static readonly Regex VersionRx = new Regex(@"^[ \t]*[vV]?(\d{1,9})\.(\d{1,9})\.(\d{1,9})[ \t]*\z");
+    static readonly Regex TagUrlRx = new Regex(@"^https://github\.com/JA1221/desk-earnings-pet/releases/tag/v\d{1,9}\.\d{1,9}\.\d{1,9}\z");
 
     public static UpdateResult Unknown()
     {
@@ -69,10 +71,22 @@ public static class UpdateCheck
         return false;
     }
 
-    // Only the repo's own release pages: https, github.com, this repo's /releases, plain path characters.
+    // The page of release v (from ParseVersion).
+    public static string TagUrl(int[] v)
+    {
+        return ReleasesUrl + "/tag/v" + string.Join(".", v);
+    }
+
+    // Exactly one of the two shapes: the Releases page, or the page of a release vX.Y.Z.
     public static bool SafeUrl(string url)
     {
-        return url != null && SafeRx.IsMatch(url);
+        return url != null && (url == ReleasesUrl || TagUrlRx.IsMatch(url));
+    }
+
+    // What 前往下載 / 開啟發布頁面 may hand to the shell: url when it is one of the two shapes, else the Releases page.
+    public static string UrlToOpen(string url)
+    {
+        return SafeUrl(url) ? url : ReleasesUrl;
     }
 
     // The result for the API's answer json (null: none) and the app's version current.
@@ -84,12 +98,11 @@ public static class UpdateCheck
         try { d = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>; }
         catch (Exception) { return Unknown(); }
         if (d == null) return Unknown();
-        string tag = Bridge.Str(d, "tag_name"), page = Bridge.Str(d, "html_url");
+        string tag = Bridge.Str(d, "tag_name");   // html_url is not read: the page is built from the version (review I-1)
         int[] rel = ParseVersion(tag);
         if (rel == null) return Unknown();
-        string url = SafeUrl(page) ? page : ReleasesUrl;
-        if (Newer(tag, current)) return new UpdateResult("newer", string.Join(".", rel), url);
-        return new UpdateResult("latest", string.Join(".", cur), url);
+        if (Newer(tag, current)) return new UpdateResult("newer", string.Join(".", rel), TagUrl(rel));
+        return new UpdateResult("latest", string.Join(".", cur), ReleasesUrl);
     }
 
     // One request (fetch: the API's answer, null for none) and its result; a fetch that throws is unknown.
@@ -101,12 +114,22 @@ public static class UpdateCheck
         return Result(json, current);
     }
 
-    // Check on a worker thread; unknown when it has not answered within waitMs (the request is left to time out).
-    public static async Task<UpdateResult> RunAsync(Func<string> fetch, string current, int waitMs)
+    // Check on a worker thread. The task ends when the request really has (the host keeps 檢查更新 busy until then).
+    public static Task<UpdateResult> Begin(Func<string> fetch, string current)
     {
-        Task<UpdateResult> t = Task.Run(delegate { return Check(fetch, current); });
-        if (await Task.WhenAny(t, Task.Delay(waitMs)).ConfigureAwait(false) != t) return Unknown();
-        return t.Result;
+        return Task.Run(delegate { return Check(fetch, current); });
+    }
+
+    // work's result, or unknown when it has not answered within waitMs (the request is left to time out).
+    public static async Task<UpdateResult> Within(Task<UpdateResult> work, int waitMs)
+    {
+        if (await Task.WhenAny(work, Task.Delay(waitMs)).ConfigureAwait(false) != work) return Unknown();
+        return work.Result;
+    }
+
+    public static Task<UpdateResult> RunAsync(Func<string> fetch, string current, int waitMs)
+    {
+        return Within(Begin(fetch, current), waitMs);
     }
 
     public static void EnsureTls12()
@@ -127,12 +150,12 @@ public static class UpdateCheck
         q.Credentials = null;
         q.UseDefaultCredentials = false;
         q.PreAuthenticate = false;
-        q.MaximumAutomaticRedirections = 3;
+        q.AllowAutoRedirect = false;   // a redirect is not followed: its 3xx is unknown (review M-2)
         return q;
     }
 
-    // The real request: the API's answer for a 200, else null (404 while the repo is private, 403 rate limiting, no
-    // network, a timeout).
+    // The real request: the API's answer for a 200, else null (a 3xx, 404 while the repo is private, 403 rate limiting,
+    // no network, a timeout).
     public static string Fetch()
     {
         EnsureTls12();

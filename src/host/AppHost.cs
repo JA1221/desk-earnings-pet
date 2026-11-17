@@ -1011,24 +1011,31 @@ public class AppHost
         Send("hotkeyFailed", hotkeyFailure);
     }
 
-    // 檢查更新: the one request, off the UI thread (UpdateCheck.RunAsync gives up after WaitMs); the answer goes to the page.
+    // 檢查更新: the one request, off the UI thread (UpdateCheck.Within gives up after WaitMs); the answer goes to the page.
     async void CheckUpdate()
     {
         if (updateBusy) return;
         updateBusy = true;
         UpdateResult r;
-        try { r = await UpdateCheck.RunAsync(UpdateCheck.Fetch, Version, UpdateCheck.WaitMs); }
-        catch (Exception ex) { ErrorLog.Write("update check", ex); r = UpdateCheck.Unknown(); }
-        finally { updateBusy = false; }
+        try
+        {
+            // busy until the request itself has ended, not only until the page got its answer (review M-1): a request
+            // that outlives the wait is never joined by a second one
+            Task<UpdateResult> work = UpdateCheck.Begin(UpdateCheck.Fetch, Version);
+            SynchronizationContext at = ui;
+            work.ContinueWith(delegate { at.Post(delegate { updateBusy = false; }, null); }, TaskScheduler.Default);
+            r = await UpdateCheck.Within(work, UpdateCheck.WaitMs);
+        }
+        catch (Exception ex) { ErrorLog.Write("update check", ex); r = UpdateCheck.Unknown(); updateBusy = false; }
         if (quitting) return;
-        updateUrl = UpdateCheck.SafeUrl(r.Url) ? r.Url : UpdateCheck.ReleasesUrl;
+        updateUrl = UpdateCheck.UrlToOpen(r.Url);
         Send("updateResult", new { kind = r.Kind, version = r.Version });
     }
 
-    // The last result's page in the default browser: only ever the repo's own release pages (UpdateCheck.SafeUrl).
+    // The last result's page in the default browser: only ever the two shapes UpdateCheck.UrlToOpen lets through.
     void OpenUpdate()
     {
-        string url = UpdateCheck.SafeUrl(updateUrl) ? updateUrl : UpdateCheck.ReleasesUrl;
+        string url = UpdateCheck.UrlToOpen(updateUrl);
         try { using (System.Diagnostics.Process.Start(url)) { } }
         catch (Exception ex) { ErrorLog.Write("open " + url, ex); }
     }
