@@ -6,7 +6,7 @@
 #        ?query or #hash.
 # -Out   the PNG; a relative path is from the repo root.
 # -Size  the viewport in CSS px as W,H (default 800,600).
-# -Scale the device scale (default 1): 0.5 / 1.5 draw the page as WebView2 does at 縮放比例 50 % / 150 % on a 100 % monitor
+# -Scale the device scale (default 1): 0.7 / 1.5 draw the page as WebView2 does at 縮放比例 70 % / 150 % on a 100 % monitor
 #        (the PNG is W x Scale by H x Scale px).
 # Exits 1 when no PNG was written.
 param(

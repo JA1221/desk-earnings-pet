@@ -148,7 +148,8 @@ public static class HostSettingsTests
         Assert.Eq(100, HostSettings.Parse(null).Zoom, "default 100 %");
         Assert.Eq(100, HostSettings.Parse("{}").Zoom, "missing");
         Assert.Eq(130, HostSettings.Parse("{\"zoom\":130}").Zoom, "set");
-        Assert.Eq(50, HostSettings.Parse("{\"zoom\":20}").Zoom, "clamped");
+        Assert.Eq(70, HostSettings.Parse("{\"zoom\":20}").Zoom, "clamped");
+        Assert.Eq(70, HostSettings.Parse("{\"zoom\":50}").Zoom, "a stored 50 reads as 70");
         Assert.Eq(100, HostSettings.Parse("{\"zoom\":\"150\"}").Zoom, "a string is not a zoom");
     }
 }
