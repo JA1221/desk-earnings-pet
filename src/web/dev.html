@@ -406,6 +406,15 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
     });
   }
   QJZ.zoomKeys.start();
+  // 1.1.5: ?buy=N clicks 可以買 N times (its next item at once)
+  if (/^\d$/.test(devQ.get('buy') || '')) {
+    var offBuy = QJZ.app.on('change', function () {
+      offBuy();
+      setTimeout(function () {
+        for (var bn = +devQ.get('buy'); bn > 0; bn--) { var bb = document.querySelector('#root [data-buy]'); if (bb) bb.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })); }
+      }, 100);
+    });
+  }
   QJZ.care.start();
   QJZ.app.start();
 
