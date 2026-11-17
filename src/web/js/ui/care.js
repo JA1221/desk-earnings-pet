@@ -130,7 +130,7 @@ QJZ.care = (function () {
   function working(rec, s, now) {
     return QJZ.earn.snapshot({
       startMs: rec.startMs, endMs: rec.endMs, nowMs: now, day: rec.day, salary: s.salary,
-      hoursPerDay: s.hoursPerDay, lunch: s.lunch, offDay: !!rec.offDay
+      hoursPerDay: QJZ.settings.hours(s), lunch: s.lunch, offDay: !!rec.offDay
     }).status === 'working';
   }
   function onBreakStart(ev, rec, s) {

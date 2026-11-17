@@ -6,6 +6,10 @@ QJZ.settings = (function () {
     hoursPerDay: 8,
     lunch: { start: '12:00', end: '13:00' },
     startMode: 'auto',
+    // 1.1.7 上班方式: 'flex' (彈性: the first activity starts the day, hoursPerDay long) or 'fixed' (固定: a work day runs
+    // fixed.start–fixed.end, and its length comes from them, QJZ.settings.hours). A file without it is 'flex'.
+    workMode: 'flex',
+    fixed: { start: '08:00', end: '17:30' },
     workDays: [1, 2, 3, 4, 5],
     pet: { kind: 'hamster', skin: 'p0', names: { cat: '小橘', hamster: '金金' } },
     // current: the last main layout; mini: it was left as the mini badge (M3). The app starts in mini ? M3 : current
@@ -78,6 +82,10 @@ QJZ.settings = (function () {
     out.lunch.end = hm(lu.end, d.lunch.end);
 
     out.startMode = oneOf(s.startMode, ['auto', 'manual'], d.startMode);
+    out.workMode = oneOf(s.workMode, ['flex', 'fixed'], d.workMode);
+    // both times or neither: a bad one, or an end not after the start, falls back to the defaults
+    var fx = isObj(s.fixed) ? s.fixed : {}, fs = hm(fx.start, null), fe = hm(fx.end, null);
+    if (fs !== null && fe !== null && QJZ.time.parseHM(fe) > QJZ.time.parseHM(fs)) { out.fixed.start = fs; out.fixed.end = fe; }
 
     if (Array.isArray(s.workDays)) {
       var days = [];
@@ -150,7 +158,33 @@ QJZ.settings = (function () {
 
   // §5.4, derived, never stored. 起來動目標: the working minutes of a day over the reminder interval, rounded down, at
   // least 1 (8 h, 50 min -> 9). 番茄每日目標: one round, 每幾顆長休息.
-  function standGoal(settings) { return Math.max(1, Math.floor(settings.hoursPerDay * 60 / settings.health.every)); }
+  function standGoal(settings) { return Math.max(1, Math.floor(hours(settings) * 60 / settings.health.every)); }
+
+  // 1.1.7: the hours of a work day, for every caller (rates, the planned end, targets, the stand-up goal). 彈性:
+  // hoursPerDay. 固定: fixed.end - fixed.start less the part of lunch inside it (08:00–17:30, lunch 12:00–13:00 -> 8.5);
+  // nothing left (lunch covers it all) -> hoursPerDay. Any object with hoursPerDay works (no workMode: 彈性).
+  function hours(settings) {
+    if (!settings) return 8;
+    var span = fixedMinutes(settings);
+    if (span) {
+      var len = span.e - span.s, ls = settings.lunch ? QJZ.time.parseHM(settings.lunch.start) : NaN,
+        le = settings.lunch ? QJZ.time.parseHM(settings.lunch.end) : NaN;
+      if (!isNaN(ls) && !isNaN(le) && le > ls) len -= Math.max(0, Math.min(span.e, le) - Math.max(span.s, ls));
+      if (len > 0) return len / 60;
+    }
+    return settings.hoursPerDay;
+  }
+  // 固定's start and end in minutes after midnight, or null when not 固定 (or the times are bad).
+  function fixedMinutes(settings) {
+    if (!settings || settings.workMode !== 'fixed' || !isObj(settings.fixed)) return null;
+    var a = QJZ.time.parseHM(settings.fixed.start), b = QJZ.time.parseHM(settings.fixed.end);
+    return !isNaN(a) && !isNaN(b) && b > a ? { s: a, e: b } : null;
+  }
+  // 固定's start and end on `day` in epoch ms, or null when not 固定.
+  function fixedSpan(settings, day) {
+    var m = fixedMinutes(settings);
+    return m ? { startMs: QJZ.time.atMinutes(day, m.s), endMs: QJZ.time.atMinutes(day, m.e) } : null;
+  }
   function tomatoGoal(settings) { return settings.health.pomodoro.longEvery; }
 
   // null / empty / "null" / non-object JSON (array, number, string) -> defaults, not corrupted.
@@ -181,6 +215,7 @@ QJZ.settings = (function () {
 
   return {
     DEFAULTS: DEFAULTS, LAYOUTS: LAYOUTS, DOCKS: DOCKS, HEALTH_RANGES: HEALTH_RANGES, ZOOM: ZOOM,
-    parse: parse, validateSalary: validateSalary, skinsFor: skinsFor, standGoal: standGoal, tomatoGoal: tomatoGoal
+    parse: parse, validateSalary: validateSalary, skinsFor: skinsFor, standGoal: standGoal, tomatoGoal: tomatoGoal,
+    hours: hours, fixedSpan: fixedSpan
   };
 })();

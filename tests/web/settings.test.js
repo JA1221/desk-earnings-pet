@@ -56,6 +56,7 @@ test('an old 1.0 settings.json reads back with every value unchanged (only layou
   want.health={asked:false,every:50,sit:{on:false},water:{on:false,goal:8},pomodoro:{focus:25,short:5,long:15,longEvery:4}};
   want.privacy.maskMoney=false;
   want.zoom=100;   // 1.1.5 縮放比例
+  want.workMode='flex'; want.fixed={start:'08:00',end:'17:30'};   // 1.1.7 上班方式: 彈性
   eq(s,want); });
 // 1.1.2 item 10: the money mask, off by default and on an upgrade, a saved one kept.
 test('privacy.maskMoney: off by default and for an older file; a saved true stays; anything else is off', function(){

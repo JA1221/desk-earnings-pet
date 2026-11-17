@@ -84,8 +84,15 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
   if (devQ.get('bg') === 'night') document.documentElement.classList.add('night');
   if (devQ.get('bar') === '0') document.body.classList.add('hidebar');
   // The dev user has answered the reminder question (reminders off); ?panel=healthAsk shows it.
-  window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: '09:12', afterUpdate: devQ.get('updated') === '1',
+  // 1.1.7: ?workMode=fixed (固定 08:00–17:30, or ?fixed=HH:MM-HH:MM): no seeded start, so the app's own start applies it
+  // (?start=HH:MM still seeds one, as an auto start).
+  var devFixed = devQ.get('workMode') === 'fixed', devSpan = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(devQ.get('fixed') || '');
+  window.QJZ_DEV = { nowHM: devQ.get('now') || '14:32:07', start: devFixed ? null : '09:12', afterUpdate: devQ.get('updated') === '1',
     settings: devFirstRun ? null : { salary: { mode: 'monthly', amount: 50000, divisor: 22 }, onboarded: true, health: { asked: true } } };
+  if (devFixed && window.QJZ_DEV.settings) {
+    window.QJZ_DEV.settings.workMode = 'fixed';
+    if (devSpan) window.QJZ_DEV.settings.fixed = { start: devSpan[1], end: devSpan[2] };
+  }
 </script>
 <script src="js/core/time.js"></script>
 <script src="js/core/earnings.js"></script>
@@ -238,7 +245,7 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
     if (devSeed === 'history') {
       // about four months of work days: most full, some cut short, an off day now and then
       var devS = QJZ.settings.parse(localStorage.getItem('qjz.settings') || JSON.stringify(window.QJZ_DEV.settings)).settings;
-      var daily = QJZ.earn.rates(devS.salary, devS.hoursPerDay).daily, share = [1, 1, 0.93, 1, 0.82, 1, 1, 0.97, 0.64, 1, 1, 0.88];
+      var daily = QJZ.earn.rates(devS.salary, QJZ.settings.hours(devS)).daily, share = [1, 1, 0.93, 1, 0.82, 1, 1, 0.97, 0.64, 1, 1, 0.88];
       for (var back = 1; back <= 120; back++) {
         var key = devDayKey(todayKey, back), wd = T.weekday(key);
         if (wd === 0 || wd === 6) continue;

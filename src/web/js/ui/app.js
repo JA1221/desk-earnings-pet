@@ -100,10 +100,10 @@ QJZ.app = (function () {
   // ---- derived values ----
   function recompute(ms) {
     var s = state.settings, t = state.today;
-    state.rates = QJZ.earn.rates(s.salary, s.hoursPerDay);
+    state.rates = QJZ.earn.rates(s.salary, QJZ.settings.hours(s));
     state.snap = QJZ.earn.snapshot({
       startMs: t.startMs, endMs: t.endMs, nowMs: ms, day: t.day,
-      salary: s.salary, hoursPerDay: s.hoursPerDay, lunch: s.lunch, offDay: !!t.offDay
+      salary: s.salary, hoursPerDay: QJZ.settings.hours(s), lunch: s.lunch, offDay: !!t.offDay
     });
     state.snacks = QJZ.rewards.snacksAvailable(t, state.snap.earned, s.milestone);
     updateMood(ms);
@@ -124,7 +124,7 @@ QJZ.app = (function () {
     if (ms - moodMs < 1000 && !fresh) return;
     var s = state.settings;
     state.mood = QJZ.mood.advance(state.mood, moodMs, ms,
-      { day: t.day, startMs: start, endMs: t.endMs, hoursPerDay: s.hoursPerDay, lunch: s.lunch });
+      { day: t.day, startMs: start, endMs: t.endMs, hoursPerDay: QJZ.settings.hours(s), lunch: s.lunch });
     moodMs = ms;
   }
   function milestones() { return QJZ.rewards.milestones(state.snap.earned, state.settings.milestone); }
@@ -415,11 +415,24 @@ QJZ.app = (function () {
   function saveSettings(patch) {
     if (!state.ready) return;
     // Round-trip through the sanitizer so a bad patch can never leave invalid settings behind.
+    var prev = state.settings;
     state.settings = QJZ.settings.parse(JSON.stringify(merge(state.settings, isPlain(patch) ? patch : {}))).settings;
+    applyFixed(prev, state.settings);
     applySound();
     applyDisplay();
     markSettings();
     changed();
+  }
+  // 1.1.7: switched to 固定, or its times or the work days changed under 固定: today follows (QJZ.day.applyMode).
+  // Back to 彈性 leaves today as it is.
+  function applyFixed(prev, s) {
+    if (s.workMode !== 'fixed' || (prev.workMode === 'fixed' && prev.fixed.start === s.fixed.start &&
+        prev.fixed.end === s.fixed.end && String(prev.workDays) === String(s.workDays))) return;
+    var rec = QJZ.day.applyMode(state.today, s, nowMs());
+    if (rec === state.today) return;
+    state.startHint = null;
+    setToday(rec);
+    markHistory();
   }
   // Health counts of a day (§5.6). Saved at once: a cup is a small, deliberate act. A past day keeps the cup goal it
   // already has (a closed day keeps its goal); one without gets today's setting.

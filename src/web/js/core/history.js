@@ -40,11 +40,11 @@ QJZ.history = (function () {
     for (var k in rec) if (Object.prototype.hasOwnProperty.call(rec, k)) out[k] = rec[k];
     var earned = 0;
     if (typeof rec.startMs === 'number') {
-      var planned = QJZ.earn.endAtMs(rec.startMs, rec.day, settings.hoursPerDay, settings.lunch);
+      var planned = QJZ.earn.endAtMs(rec.startMs, rec.day, QJZ.settings.hours(settings), settings.lunch);
       var snap = QJZ.earn.snapshot({
         startMs: rec.startMs, endMs: rec.endMs === undefined ? null : rec.endMs,
         nowMs: planned, day: rec.day, salary: settings.salary,
-        hoursPerDay: settings.hoursPerDay, lunch: settings.lunch, offDay: !!rec.offDay
+        hoursPerDay: QJZ.settings.hours(settings), lunch: settings.lunch, offDay: !!rec.offDay
       });
       earned = Math.round(snap.earned * 100) / 100;
     }

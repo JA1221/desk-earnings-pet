@@ -24,15 +24,36 @@ QJZ.day = (function () {
   // A workday start is always a whole minute, floored (08:37:58 -> 08:37:00), so the start shown, the planned end and
   // the earnings all agree. Every place that sets a start goes through floorMinute.
 
-  // logon / unlock / resume / appstart / probe: the first one of a working day starts it.
+  function isWorkDay(rec, settings) { return indexOf(settings.workDays, QJZ.time.weekday(rec.day)) >= 0; }
+
+  // logon / unlock / resume / appstart / probe: the first one of a working day starts it. 固定 (1.1.7): the first one
+  // before the fixed end starts the day at the fixed start (startSource 'fixed'), earlier or later than it (07:40 or
+  // 08:20 -> 08:00); one after the end does not (開始上班 still does). startMode is not used in 固定.
   function onActivity(rec, ev, settings) {
     var changes = { lastLockMs: null };
-    if (rec.startMs === null && !rec.offDay && settings.startMode === 'auto' &&
-        indexOf(settings.workDays, QJZ.time.weekday(rec.day)) >= 0) {
-      changes.startMs = QJZ.time.floorMinute(ev.ms);
-      changes.startSource = 'auto';
+    if (rec.startMs === null && !rec.offDay && isWorkDay(rec, settings)) {
+      var fixed = QJZ.settings.fixedSpan(settings, rec.day);
+      if (fixed) {
+        if (ev.ms < fixed.endMs) { changes.startMs = fixed.startMs; changes.startSource = 'fixed'; }
+      } else if (settings.startMode === 'auto') {
+        changes.startMs = QJZ.time.floorMinute(ev.ms);
+        changes.startSource = 'auto';
+      }
     }
     return copy(rec, changes);
+  }
+
+  // After the settings changed to 固定 (or its times changed) at nowMs: a work day's start that came by itself (auto,
+  // fixed) moves to the fixed start, and a work day not begun yet begins there as onActivity would. A start set by hand
+  // (開始上班, 調整起算時間) stays, and so does every start under 彈性. Anything else returns rec as it is.
+  function applyMode(rec, settings, nowMs) {
+    var fixed = QJZ.settings.fixedSpan(settings, rec.day);
+    if (!fixed || rec.offDay || rec.adjusted || !isWorkDay(rec, settings)) return rec;
+    if (rec.startMs === null) return nowMs < fixed.endMs ? copy(rec, { startMs: fixed.startMs, startSource: 'fixed' }) : rec;
+    if ((rec.startSource === 'auto' || rec.startSource === 'fixed') && rec.startMs !== fixed.startMs) {
+      return copy(rec, { startMs: fixed.startMs, startSource: 'fixed' });
+    }
+    return rec;
   }
 
   // Lock or suspend.
@@ -71,7 +92,7 @@ QJZ.day = (function () {
   // Never for an off day (it counts 0 either way).
   function earlyLeaveQuestion(prevRec, settings) {
     if (!prevRec || prevRec.offDay || prevRec.startMs === null || prevRec.endMs !== null || prevRec.lastLockMs === null) return null;
-    var planned = QJZ.earn.endAtMs(prevRec.startMs, prevRec.day, settings.hoursPerDay, settings.lunch);
+    var planned = QJZ.earn.endAtMs(prevRec.startMs, prevRec.day, QJZ.settings.hours(settings), settings.lunch);
     if (prevRec.lastLockMs < planned) return { day: prevRec.day, lockMs: prevRec.lastLockMs };
     return null;
   }
@@ -89,7 +110,7 @@ QJZ.day = (function () {
   }
 
   return {
-    empty: empty, normalize: normalize, onActivity: onActivity, onLock: onLock, onExit: onExit,
+    empty: empty, normalize: normalize, onActivity: onActivity, applyMode: applyMode, onLock: onLock, onExit: onExit,
     manualStart: manualStart, adjustStart: adjustStart, manualEnd: manualEnd, resume: resume, setOffDay: setOffDay,
     earlyLeaveQuestion: earlyLeaveQuestion, resolveEarlyLeave: resolveEarlyLeave, rollover: rollover
   };

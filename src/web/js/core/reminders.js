@@ -16,7 +16,7 @@ QJZ.reminders = (function () {
     var ended = rec && typeof rec.endMs === 'number' && rec.endMs <= t;
     return QJZ.earn.snapshot({
       startMs: rec ? rec.startMs : null, endMs: ended ? rec.endMs : null, nowMs: t, day: rec ? rec.day : null,
-      salary: settings.salary, hoursPerDay: settings.hoursPerDay, lunch: settings.lunch, offDay: !!(rec && rec.offDay)
+      salary: settings.salary, hoursPerDay: QJZ.settings.hours(settings), lunch: settings.lunch, offDay: !!(rec && rec.offDay)
     });
   }
   function workMs(rec, settings, fromMs, toMs) {
