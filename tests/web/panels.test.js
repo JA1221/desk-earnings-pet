@@ -1331,6 +1331,9 @@
     eq(nums().map(function (n) { return n.textContent; }), ['NT$ ***', 'NT$ ***']);
     ok(nums().every(function (n) { return n.getAttribute('data-ghost').indexOf('NT$ 1') === 0; }), 'each keeps its amount\'s room');
     eq(rects(), before, 'the rows do not move');
+    ok(nums().every(function (n) { var t = n.parentNode.querySelector('.mt').getBoundingClientRect(), r = n.getBoundingClientRect();
+      return Math.abs((r.top + r.bottom) / 2 - (t.top + t.bottom) / 2) < 5 && Math.abs(r.right - n.parentNode.getBoundingClientRect().right) < 2; }),
+      'each on the line of its row, at its right end');
     eq(numRects(), nb, 'nor the amounts\' boxes');
     eq($$(e, '[data-o=months] li .md').map(function (n) { return n.textContent; }), ['上班 2 天', '上班 1 天'], 'the days still show');
     QJZ.app.saveSettings({ privacy: { maskMoney: false } });
