@@ -142,40 +142,12 @@
     } };
   }
 
-  test('panels: history bars: every date of the month, completed days and today\'s live value', function () {
-    var h = sampleHistory(), today = h.days['2026-11-12'];
-    var m = U.historyModel(h, today, 284.09);
-    eq(m.month, '2026-11');
-    eq(m.title, '2026 年 11 月');
-    eq(m.days.length, 30);
-    eq(m.days[0], { day: '2026-11-01', d: 1, earned: null, today: false, weekend: true });
-    eq(m.days[1].earned, 2000);
-    eq(m.days[2].earned, 1500.5);
-    eq(m.days[4].earned, null, 'an open record is not a bar');
-    eq(m.days[5].earned, 0, 'a closed off day is a zero bar');
-    eq(m.days[11], { day: '2026-11-12', d: 12, earned: 284.09, today: true, weekend: false });
-    near(m.total, 3784.59, 1e-9);
-    near(m.total, QJZ.history.monthTotal(h, '2026-11', today, 284.09), 1e-9, 'same as the 本月累計 chip');
-    eq(m.max, 2000);
-    eq(m.worked, 2, 'completed days that earned something');
-    eq(U.historyModel({ version: 1, days: {} }, { day: '2026-02-03' }, 0).days.length, 28);
-  });
-
   test('panels: previous months, newest first, without the current month', function () {
     eq(U.previousMonths(sampleHistory(), '2026-11'), [
       { month: '2026-10', title: '2026 年 10 月', total: 1000, worked: 2 },
       { month: '2026-09', title: '2026 年 9 月', total: 100, worked: 1 }
     ]);
     eq(U.previousMonths({ version: 1, days: {} }, '2026-11'), []);
-  });
-
-  test('panels: chart scale', function () {
-    eq(U.niceMax(0), 100);
-    eq(U.niceMax(2000), 2000);
-    eq(U.niceMax(2272.73), 2500);
-    eq(U.niceMax(3784), 4000);
-    eq(U.niceMax(120), 150);
-    eq(U.niceMax(95), 100);
   });
 
   // ---------- early-leave question ----------
@@ -1203,23 +1175,25 @@
     done();
   });
 
-  test('panels DOM: history: a bar per date, 本月合計, previous months', function () {
+  test('panels DOM: history: 統計 opens on this month\'s 收入, a bar per date, 本月合計, previous months', function () {
     var h = sampleHistory();
     delete h.days['2026-11-12'];
     var e = mk(at(12, 10, 0), { history: h });
     e.menu('history');
     ok($(e, '.panel.p-history'));
     eq(text(e, '.ptitle'), '紀錄');
+    eq(text(e, '[data-o=stTitle]'), '2026 年 11 月');
+    eq($$(e, '[data-stseg] .on').map(function (b) { return b.textContent; }), ['月', '收入']);
     eq($$(e, '.hist-chart [data-bar]').length, 30, 'one slot per date');
     eq($$(e, '.hist-chart rect.bar').length, 4, '3 completed days that earned something + today; the 0 day has no bar');
     var zero = $$(e, '.hist-chart [data-bar]')[5];
     eq(zero.querySelector('rect.bar'), null, 'a closed off day with 0 draws nothing, not a 2px stub');
     ok(zero.querySelector('title').textContent.indexOf('NT$ 0.00') >= 0, 'but its tooltip still says 0');
-    var bar = $(e, '.hist-chart rect.bar');
-    eq(bar.getAttribute('fill'), '#FFC857');
-    eq(bar.getAttribute('stroke'), '#3D2C24');
     var total = QJZ.history.monthTotal(QJZ.app.state.history, '2026-11', QJZ.app.state.today, QJZ.app.state.snap.earned);
+    eq(text(e, '[data-o=sumLabel]'), '本月合計');
     eq(text(e, '[data-o=total]'), 'NT$ ' + QJZ.odometer.format(total));
+    eq(text(e, '[data-o=avg]'), 'NT$ 1,924.41', '(2000 + 1500.5 + 2272.73 the 5th, closed at start) / 3: the off day and today left out');
+    eq(text(e, '[data-o=avgNote]'), '只算有紀錄的 3 天（今天還沒過完，不算）');
     eq($$(e, '[data-o=months] li').length, 2);
     ok($$(e, '[data-o=months] li')[0].textContent.indexOf('2026 年 10 月') >= 0);
     ok($$(e, '[data-o=months] li')[0].textContent.indexOf('NT$ 1,000.00') >= 0);
@@ -1228,6 +1202,72 @@
     eq(text(e, '[data-o=total]'), 'NT$ ' + QJZ.odometer.format(total2), 'today keeps counting');
     $(e, '[data-act=back]').click();
     eq(QJZ.layouts.current(), 'U1');
+    done();
+  });
+
+  // the drawn bars: their height and the value they stand for
+  function bars(e) {
+    return $$(e, '.hist-chart rect.bar').map(function (r) { return { h: +r.getAttribute('height'), v: +r.parentNode.getAttribute('data-v') }; });
+  }
+  test('panels DOM: 統計: 週 and each item, drawn to scale, the labels the values', function () {
+    var h = sampleHistory();
+    h.days['2026-11-09'] = QJZ.health.withHealth({ day: '2026-11-09', earned: 1000 }, { cups: 6, tomatoes: 3, standups: 4 });
+    h.days['2026-11-10'] = QJZ.health.withHealth({ day: '2026-11-10', earned: 2000 }, { cups: 3, tomatoes: 0, standups: 2 });
+    var e = mk(at(12, 10, 0), { history: h, care: true });
+    QJZ.care.setCups(2);
+    e.menu('history');
+    $(e, '[data-stseg=period] [data-st=week]').click();
+    eq(text(e, '[data-o=stTitle]'), '11/09 – 11/15');
+    eq($$(e, '.hist-chart [data-bar]').length, 7);
+    eq($$(e, '.hist-chart .xl').map(function (t) { return t.textContent; }).join(''), '一二三四五六日');
+    eq(text(e, '[data-o=sumLabel]'), '本週合計');
+    $(e, '[data-stseg=metric] [data-st=cups]').click();
+    eq($$(e, '[data-stseg] .on').map(function (b) { return b.textContent; }), ['週', '喝水']);
+    ok($(e, '.hist-chart svg').classList.contains('m-cups'));
+    eq(text(e, '[data-o=total]'), '11 杯', '6 + 3 + today 2');
+    eq(text(e, '[data-o=avg]'), '4.5 杯');
+    var b = bars(e), ph = 150 - 14 - 20, top = QJZ.stats.top(6, 'cups');
+    eq(b.map(function (x) { return x.v; }), [6, 3, 2]);
+    b.forEach(function (x) { near(x.h, x.v / top * ph, 0.06, 'to scale: ' + x.v); });
+    eq($$(e, '.hist-chart .yl').map(function (t) { return t.textContent; }), [String(top / 2), String(top)]);
+    eq($$(e, '.hist-chart .vl').map(function (t) { return t.textContent; }), ['6', '3', '2'], 'the week shows each value on its bar');
+    $(e, '[data-stseg=metric] [data-st=standups]').click();
+    eq([text(e, '[data-o=total]'), text(e, '[data-o=avg]')], ['6 次', '3 次']);
+    $(e, '[data-stseg=metric] [data-st=tomatoes]').click();
+    eq([text(e, '[data-o=total]'), text(e, '[data-o=avg]')], ['3 顆', '3 顆'], 'the 0 day is no data for the average');
+    $(e, '[data-stseg=metric] [data-st=earned]').click();
+    var eb = bars(e), etop = QJZ.stats.top(2000, 'earned');
+    eb.forEach(function (x) { near(x.h, x.v / etop * ph, 0.06, 'to scale: ' + x.v); });
+    eq($$(e, '.hist-chart .yl').map(function (t) { return t.textContent; }), ['1,000', '2,000']);
+    done();
+  });
+
+  test('panels DOM: 統計 while the money is masked: *** for 收入, the bars stay; the counts show', function () {
+    var s = JSON.parse(JSON.stringify(SET_UP));
+    s.privacy = { maskMoney: true };
+    var e = mk(at(12, 10, 0), { history: sampleHistory(), settings: s });
+    e.menu('history');
+    eq(text(e, '[data-o=total]'), 'NT$ ***');
+    eq(text(e, '[data-o=avg]'), 'NT$ ***');
+    ok($$(e, '.hist-chart rect.bar').length > 0, 'the bars stay');
+    eq($$(e, '.hist-chart .yl').map(function (t) { return t.textContent; }), ['***', '***']);
+    ok($$(e, '.hist-chart title').every(function (t) { return !/\d,\d|\d\.\d\d/.test(t.textContent); }), 'no amount in a tip');
+    $(e, '[data-stseg=period] [data-st=week]').click();
+    eq($$(e, '.hist-chart .vl').length, 0, 'no value on a bar');
+    $(e, '[data-stseg=metric] [data-st=cups]').click();
+    ok(/杯$/.test(text(e, '[data-o=total]')), 'a count is no money');
+    done();
+  });
+
+  test('panels DOM: 統計 fits the 300 px panel in U13\'s window', function () {
+    var e = mk(at(12, 10, 0), { history: sampleHistory(), first: 'U13' });
+    e.menu('history');
+    var card = $(e, '[data-o=stats]'), svg = $(e, '.hist-chart svg');
+    ok($(e, '.panel.inplace'), 'in place');
+    ok(card.getBoundingClientRect().right <= $(e, '.panel').getBoundingClientRect().right, 'inside the panel');
+    ok(+svg.getAttribute('width') <= card.clientWidth, 'the chart inside its card: ' + svg.getAttribute('width') + ' / ' + card.clientWidth);
+    near(svg.getBoundingClientRect().width, +svg.getAttribute('width'), 1, 'drawn at its shown size (its text at 10 px)');
+    $$(e, '[data-stseg] button').forEach(function (b) { ok(b.scrollWidth <= b.clientWidth + 1, 'a switch fits: ' + b.textContent); });
     done();
   });
 

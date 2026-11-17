@@ -58,7 +58,7 @@
 面板：<code>?firstrun=1</code> 真正的第一次開啟（清掉 localStorage、不帶 dev 薪資）、<code>?seed=history</code> 填入範例紀錄並開「紀錄」、
 <code>?seed=earlyleave</code> 昨天 16:02 鎖定沒按下班（會問提早下班）、<code>?panel=settings|history|onboarding|adjust|healthAsk</code>
 （healthAsk：升級後問一次要不要提醒）、<code>?tab=time|pet|health|display|other</code>、<code>?scroll=px</code> 面板往下捲、<code>?disc=adv|guide|lic</code> 點開設定裡那個摺疊區並捲到最下面（adv = 健康 → 進階）、
-<code>?notice=hotkey|storage|both</code> 模擬 host 警告、
+<code>?notice=hotkey|storage|both</code> 模擬 host 警告、<code>?stat=week|month&amp;item=earned|cups|standups|tomatoes</code> 紀錄的統計、
 <code>?amount=文字</code> 在歡迎畫面填薪資、<code>?step=2</code> 再按「下一步」、<code>?obstep=2|3</code> 直接到歡迎畫面第 2 / 3 步（沒填薪資就填 50,000）。<br>
 寵物：<code>?sim=poke,poke5,feed,drag,drop,hide,show,wait:毫秒</code> 依序模擬點寵物（poke5 = 連點五下）、餵食、拖曳 / 放開（dragEnd）、隱藏 / 顯示視窗；<code>?rng=數字</code> 固定寵物的隨機動作。<br>
 健康：<code>?cups=3&amp;tom=3&amp;stand=2</code> 今天的杯數、番茄數、起來動次數，<code>?water=on</code> 打開喝水提醒（<code>?sit=on</code> 打開起來動提醒），
@@ -127,6 +127,7 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
 <script src="js/ui/panels.js"></script>
 <script src="js/ui/panels-health.js"></script>
 <script src="js/ui/zoomkeys.js"></script>
+<script src="js/ui/panels-stats.js"></script>
 <script>
   // Show what the page tells the host: the last setLayout, and (?hits=1 / button) the hit rects as dashed boxes.
   var showHits = devQ.get('hits') === '1', lastRects = [], lastLayout = null, sentEl = document.getElementById('sent');
@@ -257,6 +258,11 @@ U10：<code>?dock=top|bottomLeft|bottomCenter|bottomRight</code> 膠囊位置（
         var dc = devDisc && document.querySelector('[data-disc="' + devDisc + '"]'), dsc = dc && dc.closest('.pscroll');
         if (dc) dc.click();
         if (dsc) dsc.scrollTop = dsc.scrollHeight;   // what it opened, in view
+        // 1.1.5: ?stat=week|month and ?item=earned|cups|standups|tomatoes pick 紀錄 → 統計's switches
+        ['stat', 'item'].forEach(function (k) {
+          var sb = devQ.get(k) && document.querySelector('[data-stseg=' + (k === 'stat' ? 'period' : 'metric') + '] [data-st="' + devQ.get(k) + '"]');
+          if (sb) sb.click();
+        });
         var scr = devQ.get('scroll'), sp = document.querySelector('.pscroll');
         if (scr && /^\d+$/.test(scr) && sp) sp.scrollTop = +scr;   // ?scroll=px: the panel scrolled down that far
         var amt = devQ.get('amount'), f = document.querySelector('[data-f=amount]'), nx = document.querySelector('[data-pa=next]');

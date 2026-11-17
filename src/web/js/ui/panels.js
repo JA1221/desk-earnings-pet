@@ -15,8 +15,8 @@ window.QJZ = window.QJZ || {};
 //               'adjust' (menu 調整起算時間) opens there. Every change is saved at once through QJZ.app (host
 //               settings through app.setAutostart / setCaptureGuard / setHotkey). 版型 has 相容模式 (display.opaque;
 //               shown on and locked while the host forces it, init.forceOpaque) and 省電模式 (display.powerSaver).
-//   history     this month's bars (completed days, earned !== null, plus today's live value), 本月合計, and the
-//               totals of earlier months.
+//   history     統計 (1.1.5, QJZ.panelsStats: one bar chart, 週 / 月 and 收入 / 喝水 / 起來動 / 番茄, its 合計 and
+//               平均), the health calendar (QJZ.panelsHealth) and the totals of earlier months.
 //   question    the early-leave question for state.pendingQuestion -> app.answerEarlyLeave. It is the first panel
 //               after onboarding, is asked when another panel closes, and when a new one comes up on a main layout.
 //   healthAsk   onboarding's step 3 alone, for a 1.0 user who never saw it (§5.5, QJZ.panelsHealth): 確定 saves
@@ -212,24 +212,6 @@ QJZ.panels = (function () {
   }
 
   // ---- history ----
-  // Every date of today's month: completed days (earned is a number) and today's live amount; open records
-  // (earned null) are no bar. total matches QJZ.history.monthTotal (the 本月累計 chip).
-  function historyModel(history, today, todayEarned) {
-    var month = today.day.slice(0, 7), y = parseInt(month.slice(0, 4), 10), mo = parseInt(month.slice(5, 7), 10);
-    var n = new Date(y, mo, 0).getDate(), days = [], total = 0, max = 0, worked = 0;
-    for (var d = 1; d <= n; d++) {
-      var key = month + '-' + pad(d), rec = has(history.days, key) ? history.days[key] : null;
-      var isToday = key === today.day, v = null, wd = new Date(y, mo - 1, d).getDay();
-      if (isToday) v = isNum(todayEarned) && todayEarned > 0 ? todayEarned : 0;
-      else if (rec && isNum(rec.earned)) v = rec.earned;
-      days.push({ day: key, d: d, earned: v, today: isToday, weekend: wd === 0 || wd === 6 });
-      if (v === null) continue;
-      total += v;
-      if (v > max) max = v;
-      if (!isToday && v > 0) worked++;
-    }
-    return { month: month, title: monthTitle(month), days: days, total: total, max: max, worked: worked };
-  }
   // Earlier months, newest first: {month, title, total, worked (days that earned something)}.
   function previousMonths(history, month) {
     return QJZ.history.monthTotals(history).filter(function (t) { return t.month < month; }).map(function (t) {
@@ -237,14 +219,6 @@ QJZ.panels = (function () {
       return { month: t.month, title: monthTitle(t.month), total: t.total, worked: worked };
     });
   }
-  // A round top for the chart's scale.
-  function niceMax(v) {
-    if (!(v > 0)) return 100;
-    var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10 + 1e-9)), steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-    for (var i = 0; i < steps.length; i++) if (steps[i] * p >= v - 1e-9) return steps[i] * p;
-    return 10 * p;
-  }
-
   // ---- early-leave question ----
   function dayBefore(key) {
     var p = key.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2] - 1);
@@ -489,12 +463,7 @@ QJZ.panels = (function () {
     },
     history: function (c) {
       c.body.innerHTML = '<div class="ph"><h2 class="ptitle">紀錄</h2><button type="button" class="btn sm" data-act="back">關閉</button></div>' + WARN +
-        '<div class="pscroll" data-nodrag>' +
-          '<div class="card hist"><div class="hist-top"><b data-o="month"></b>' +
-            '<span class="legend"><i class="lg"></i>每天 <i class="lg today"></i>今天</span></div>' +
-            '<div class="hist-chart" data-o="chart"></div>' +
-            '<div class="hist-sum"><small>本月合計</small><b class="num" data-o="total"></b><span data-o="worked"></span></div></div>' +
-          QJZ.panelsHealth.calendarCard() +
+        '<div class="pscroll" data-nodrag>' + QJZ.panelsStats.card() + QJZ.panelsHealth.calendarCard() +
           '<div class="card"><span class="lbl">之前的月份</span><ul class="months" data-o="months"></ul></div>' +
         '</div>';
     },
@@ -702,21 +671,13 @@ QJZ.panels = (function () {
       updateCheckView(c);
     },
     history: function (c) {
-      var s = st(), m = historyModel(s.history, s.today, s.snap.earned);
-      var key = m.month + '|' + money(m.total) + '|' + m.max + '|' + m.worked;
-      if (c.cache.hist !== key) {
-        c.cache.hist = key;
-        out(c, 'month', m.title);
-        node(c, 'chart').innerHTML = chartSvg(m);
-        out(c, 'total', 'NT$ ' + money(m.total));
-        var begun = isNum(s.today.startMs) && !s.today.offDay;
-        out(c, 'worked', m.worked ? '上班 ' + m.worked + ' 天' + (begun ? ' ＋ 今天' : '') : begun ? '只有今天' : '');
-      }
+      var s = st(), month = s.today.day.slice(0, 7);
+      QJZ.panelsStats.update(c);
       QJZ.panelsHealth.calendarUpdate(c);
-      var count = Object.keys(s.history.days).length + '|' + m.month;
+      var count = Object.keys(s.history.days).length + '|' + month;
       if (c.cache.months !== count) {
         c.cache.months = count;
-        renderMonths(c, previousMonths(s.history, m.month));
+        renderMonths(c, previousMonths(s.history, month));
       }
     },
     healthAsk: function (c) { QJZ.panelsHealth.askUpdate(c); }
@@ -757,39 +718,7 @@ QJZ.panels = (function () {
     set('hotkey', s.privacy.hotkey);
   }
 
-  // ---- history chart ----
-  function chartSvg(m) {
-    var W = 340, H = 160, L = 40, R = 6, T = 10, B = 20, pw = W - L - R, ph = H - T - B;
-    var top = niceMax(m.max), n = m.days.length, slot = pw / n, bw = Math.max(3, slot * 0.62);
-    var y = function (v) { return T + ph - (v / top) * ph; };
-    var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(m.title + '每天的收入') + '">' +
-      '<defs><pattern id="qjz-hist-today" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">' +
-      '<rect width="6" height="6" fill="#FFC857"/><rect width="3" height="6" fill="#FFB627"/></pattern></defs>';
-    m.days.forEach(function (d, i) {
-      if (d.weekend) h += '<rect class="we" x="' + (L + i * slot).toFixed(1) + '" y="' + T + '" width="' + slot.toFixed(1) + '" height="' + ph + '"/>';
-    });
-    [top / 2, top].forEach(function (v) {
-      h += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/>' +
-        '<text class="yl" x="' + (L - 5) + '" y="' + (y(v) + 3).toFixed(1) + '">' + esc(amountInputText(v)) + '</text>';
-    });
-    var todayD = -9;
-    m.days.forEach(function (d) { if (d.today) todayD = d.d; });
-    m.days.forEach(function (d, i) {
-      var cx = L + (i + 0.5) * slot;
-      h += '<g data-bar><title>' + esc(shortDate(d.day) + (d.earned === null ? ' 沒有紀錄' : ' NT$ ' + money(d.earned)) + (d.today ? '（今天）' : '')) + '</title>';
-      if (d.earned !== null && d.earned > 0) {   // 0 is no bar: a 2px stub would look like data
-        var bh = Math.max(2, (Math.min(d.earned, top) / top) * ph);
-        h += '<rect class="bar' + (d.today ? ' today' : '') + '" x="' + (cx - bw / 2).toFixed(1) + '" y="' + (T + ph - bh).toFixed(1) +
-          '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="1.5" fill="' + (d.today ? 'url(#qjz-hist-today)' : '#FFC857') +
-          '" stroke="#3D2C24" stroke-width="1.6"/>';
-      }
-      h += '</g>';
-      if (d.today || ((d.d === 1 || d.d % 5 === 0) && Math.abs(d.d - todayD) > 1)) {   // labels never touch today's
-        h += '<text class="xl' + (d.today ? ' now' : '') + '" x="' + cx.toFixed(1) + '" y="' + (H - 5) + '">' + d.d + '</text>';
-      }
-    });
-    return h + '<line class="base" x1="' + L + '" x2="' + (W - R) + '" y1="' + (T + ph) + '" y2="' + (T + ph) + '"/></svg>';
-  }
+  // ---- history: earlier months ----
   function renderMonths(c, list) {
     var ul = node(c, 'months');
     ul.innerHTML = '';
@@ -890,6 +819,7 @@ QJZ.panels = (function () {
     if (!c || !c.win.contains(e.target)) return;
     var t = e.target, v;
     if (QJZ.panelsHealth.click(c, t)) return;   // its switches, steppers and ticks
+    if (QJZ.panelsStats.click(c, t)) return;    // 統計's 週 / 月 and item switches
     if ((v = attr(t, '[data-seg] [data-v]', 'data-v')) !== null) { pickSeg(c, t.closest('[data-seg]').getAttribute('data-seg'), v); return; }
     if ((v = attr(t, '[data-skin]', 'data-skin')) !== null) { pickSkin(c, v); return; }
     if ((v = attr(t, '[data-tab]', 'data-tab')) !== null) { tab = v; _update(); var sc = q(c, '.pscroll'); if (sc) sc.scrollTop = 0; return; }
@@ -1176,6 +1106,7 @@ QJZ.panels = (function () {
     offs.forEach(function (f) { try { f(); } catch (e) {} });
     offs = [];
     started = false; cur = null; tab = 'time'; lastQ = null; askShown = false;
+    if (QJZ.panelsStats) QJZ.panelsStats._reset();
   }
 
   return {
@@ -1190,7 +1121,7 @@ QJZ.panels = (function () {
       needsOnboarding: needsOnboarding, initialPanel: initialPanel, onboardingPatch: onboardingPatch, checkAmount: checkAmount,
       amountInputText: amountInputText, checkItem: checkItem, normHM: normHM, checkLunch: checkLunch, startAt: startAt,
       toggleDay: toggleDay, stepHours: stepHours, comboFromEvent: comboFromEvent, hotkeyText: hotkeyText, storageText: storageText,
-      historyModel: historyModel, previousMonths: previousMonths, niceMax: niceMax, questionText: questionText,
+      previousMonths: previousMonths, questionText: questionText,
       questionModel: questionModel, salaryPreview: salaryPreview
     }
   };

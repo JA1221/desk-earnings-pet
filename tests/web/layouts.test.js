@@ -2474,7 +2474,8 @@
         e.menu(name === 'M3' ? 'mini' : 'layout:U1');
       });
       QJZ.layouts.openPanel('history');
-      ok(!$(e, '.lay').classList.contains('masked') && /\d\.\d\d/.test(text(e, '[data-o=total]')), '紀錄 is not masked');
+      // 1.1.5 item 2: 紀錄's 統計 follows the mask (its 收入 numbers read ***); the panel itself is never .masked
+      ok(!$(e, '.lay').classList.contains('masked') && text(e, '[data-o=total]') === 'NT$ ***', '紀錄: 統計 masked');
       QJZ.layouts.closePanel();
       clickOn($(e, '.u1 .money'));
       eq(QJZ.app.state.settings.privacy.maskMoney, false, 'a click on the *** shows them again');
