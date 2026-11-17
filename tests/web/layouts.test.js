@@ -2474,8 +2474,10 @@
         e.menu(name === 'M3' ? 'mini' : 'layout:U1');
       });
       QJZ.layouts.openPanel('history');
-      // 1.1.5 item 2: 紀錄's 統計 follows the mask (its 收入 numbers read ***); the panel itself is never .masked
+      // 1.1.5: 紀錄's amounts follow the mask (統計's 收入 numbers and 之前的月份 read ***); the panel itself is never .masked
       ok(!$(e, '.lay').classList.contains('masked') && text(e, '[data-o=total]') === 'NT$ ***', '紀錄: 統計 masked');
+      ok(Array.prototype.every.call(e.root.querySelectorAll('[data-o=months] li .num'), function (n) { return n.textContent === 'NT$ ***'; }),
+        '紀錄: 之前的月份 masked');
       QJZ.layouts.closePanel();
       clickOn($(e, '.u1 .money'));
       eq(QJZ.app.state.settings.privacy.maskMoney, false, 'a click on the *** shows them again');

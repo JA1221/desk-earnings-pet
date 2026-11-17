@@ -1318,6 +1318,26 @@
     done();
   });
 
+  // 1.1.5 review: 之前的月份 follow 隱藏金額 too, and masking moves nothing in the list
+  test('panels DOM: 之前的月份 read NT$ *** while masked, and keep their place', function () {
+    var e = mk(at(12, 10, 0), { history: sampleHistory() });
+    e.menu('history');
+    var nums = function () { return $$(e, '[data-o=months] li .num'); };
+    var rects = function () { return $$(e, '[data-o=months] li').map(function (li) { var r = li.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); }); };
+    var numRects = function () { return nums().map(function (n) { var r = n.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width)]; }); };
+    eq(nums().map(function (n) { return n.textContent; }), ['NT$ 1,000.00', 'NT$ 100.00']);
+    var before = rects(), nb = numRects();
+    QJZ.app.saveSettings({ privacy: { maskMoney: true } });
+    eq(nums().map(function (n) { return n.textContent; }), ['NT$ ***', 'NT$ ***']);
+    ok(nums().every(function (n) { return n.getAttribute('data-ghost').indexOf('NT$ 1') === 0; }), 'each keeps its amount\'s room');
+    eq(rects(), before, 'the rows do not move');
+    eq(numRects(), nb, 'nor the amounts\' boxes');
+    eq($$(e, '[data-o=months] li .md').map(function (n) { return n.textContent; }), ['上班 2 天', '上班 1 天'], 'the days still show');
+    QJZ.app.saveSettings({ privacy: { maskMoney: false } });
+    eq(nums()[0].textContent, 'NT$ 1,000.00', 'shown again');
+    done();
+  });
+
   test('panels DOM: 統計 fits the 300 px panel in U13\'s window', function () {
     var e = mk(at(12, 10, 0), { history: sampleHistory(), first: 'U13' });
     e.menu('history');

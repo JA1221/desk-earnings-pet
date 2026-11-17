@@ -679,10 +679,11 @@ QJZ.panels = (function () {
       var s = st(), month = s.today.day.slice(0, 7);
       QJZ.panelsStats.update(c);
       QJZ.panelsHealth.calendarUpdate(c);
-      var count = Object.keys(s.history.days).length + '|' + month;
+      var mask = !!(s.settings.privacy && s.settings.privacy.maskMoney);
+      var count = Object.keys(s.history.days).length + '|' + month + '|' + mask;
       if (c.cache.months !== count) {
         c.cache.months = count;
-        renderMonths(c, previousMonths(s.history, month));
+        renderMonths(c, previousMonths(s.history, month), mask);
       }
     },
     healthAsk: function (c) { QJZ.panelsHealth.askUpdate(c); }
@@ -724,7 +725,9 @@ QJZ.panels = (function () {
   }
 
   // ---- history: earlier months ----
-  function renderMonths(c, list) {
+  // 1.1.5 review: 隱藏金額 masks these amounts too (NT$ ***), as 統計's. Each keeps an unseen copy of its other state's
+  // text (.mv, data-ghost: base.css), so masking moves nothing (1.1.4 item 6).
+  function renderMonths(c, list, mask) {
     var ul = node(c, 'months');
     ul.innerHTML = '';
     if (!list.length) {
@@ -736,10 +739,12 @@ QJZ.panels = (function () {
     }
     list.forEach(function (m) {
       var li = document.createElement('li');
-      li.innerHTML = '<span class="mt"></span><span class="md"></span><b class="num"></b>';
+      li.innerHTML = '<span class="mt"></span><span class="md"></span><b class="num mv"></b>';
       li.children[0].textContent = m.title;
       li.children[1].textContent = '上班 ' + m.worked + ' 天';
-      li.children[2].textContent = 'NT$ ' + money(m.total);
+      var shown = 'NT$ ' + money(m.total), hidden = 'NT$ ***';
+      li.children[2].textContent = mask ? hidden : shown;
+      li.children[2].setAttribute('data-ghost', mask ? shown : hidden);
       ul.appendChild(li);
     });
   }
