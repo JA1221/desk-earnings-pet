@@ -1401,7 +1401,7 @@
     var res = [];
     Array.prototype.forEach.call(box.querySelectorAll('*'), function (el) {
       if (el.closest('svg:not(.ic), .scene, .po, .av, [data-pet], [aria-hidden=true], .msk')) return;
-      var own = Array.prototype.some.call(el.childNodes, function (t) { return t.nodeType === 3 && t.nodeValue.trim(); });
+      var own = el.tagName === 'SELECT' || Array.prototype.some.call(el.childNodes, function (t) { return t.nodeType === 3 && t.nodeValue.trim(); });
       if (!own || !el.getClientRects().length) return;
       var cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || +cs.opacity < 1 || el.closest('[disabled], .inert, .nil, .done')) return;
@@ -1429,6 +1429,13 @@
       if (name === 'U1' || name === 'U13') {
         e.menu('settings');
         ['time', 'pet', 'health', 'display', 'other'].forEach(function (t) { $(e, '[data-tab=' + t + ']').click(); allLegible(e, name + ' 設定 ' + t); });
+        $(e, '[data-tab=display]').click();
+        ok($(e, 'select.zoom') && contrasts($(e, '[data-pane=display]')).some(function (x) { return /%/.test(x[0]); }), name + ': the 縮放比例 list is checked');
+        [['latest', '1.1.5'], ['newer', '1.2.0'], ['unknown', null]].forEach(function (u) {   // 檢查更新's three results
+          $(e, '[data-tab=other]').click();
+          e.bridge.emit({ type: 'updateResult', kind: u[0], version: u[1] });
+          allLegible(e, name + ' 檢查更新 ' + u[0]);
+        });
         $(e, '[data-act=back]').click();
         e.menu('history');
         allLegible(e, name + ' 紀錄');

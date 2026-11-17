@@ -113,3 +113,6 @@ html.dark .panel .hist-chart .we{fill:rgba(244,233,218,.05)}
 html.dark .panel .hist-chart .bar{stroke:var(--ink)}
 html.dark .panel .cc.bl{border-color:#5A4A3E;color:#B59C84;background:transparent}
 html.dark .panel .cc.full{background:#2E7FD6}
+/* chunk A's 1.1.5 parts: 縮放比例's list, 檢查更新's links (the 「N%」 tip is a .lay .tip, above) */
+html.dark .panel select.zoom{background:var(--bg)}
+html.dark .panel .linkbtn{color:#FFB27A}
