@@ -429,7 +429,7 @@ QJZ.panels = (function () {
       return '<div class="card">' +
         line(row('錢進中', '<span class="ver"><b data-o="version"></b><button type="button" class="btn sm ghost" data-pa="checkUpdate">檢查更新</button></span>') +
           '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span><button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
-          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。')) +
+          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。') + hint('平常不連網；按「檢查更新」才會向 GitHub 查一次最新版本，不會送出你的資料。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
           '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
         '</div>' + disclosure('guide', '使用說明', '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') +
