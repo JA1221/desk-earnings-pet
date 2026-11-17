@@ -17,7 +17,7 @@ window.QJZ = window.QJZ || {};
 // class hot while a prompt asks for it; [data-tslots] the tomato slots; [data-hover] what the pointer expands (U7's pet
 // and tag: the tools; U10's capsule: the full view); [data-show=stand] the time to the next stand-up (while one is
 // asked), cupsStand both that and the cups. 1.1.1 item 6: U1, U3, U5-B and U7 show it compact, 🧍 N 分 ([data-show=standC],
-// [data-b=standMin]; U7's tag line anyS / ctS), as a readout only.
+// [data-b=standMin]; U7's tag line anyS, its ・ cX / sT), as a readout only.
 // 1.1.2 item 4: start and stop are one [data-act=pomo] button per layout, in a place nothing moves: U1's sits in the
 // middle of its pills (the cups left of it, the tomatoes right; the countdown went up beside the status), U3's tomato
 // count and U5-B's cups keep their room when they are not shown, U10's is the first chip (its count after its ▶ / ■,
@@ -98,22 +98,25 @@ QJZ.templates = (function () {
       '<button type="button" class="tom-btn"' + POMO + '>' + ic('tom') +
         '<span class="cnt" data-show="tomatoes" data-b="tomatoes"></span><span class="play" data-b="pomoGlyph"></span></button></div>';
   }
-  // U7 (A_U7): one more line on the tag, 💧 3/8・🍅 ×3・🧍 32 分, each part by its rule; gone when none shows. 1.1.4 item 7:
-  // its 💧 is a water button like every other (a tap a cup, a long press one off): it was a readout, and a tap on it fell
-  // through to the money tag's mask. 1.1.6 item 3: its 🍅 is a pomodoro button the same way (a tap starts one; while one
-  // runs a tap shows 「長按停止」 and a long press stops it).
+  // U7 (A_U7): one more line on the tag, 💧 3/8・🧍 32 分・🍅 ×3 (1.1.7 item 3: the order of every other layout), each part by
+  // its rule, a ・ only between parts that show (layouts.js SHOW cX / sT); gone when none shows. 1.1.4 item 7: its 💧 is a
+  // water button like every other (a tap a cup, a long press one off): it was a readout, and a tap on it fell through to
+  // the money tag's mask. 1.1.6 item 3: its 🍅 is a pomodoro button the same way (a tap starts one; while one runs a tap
+  // shows 「長按停止」 and a long press stops it).
   function hline() {
     return '<div class="hline" data-show="anyS"><button type="button" class="hpart wat" data-show="cups"' + DRINK + '>' + ic('drop') +
       '<span class="n" data-b="cups"></span></button>' +
-      '<span class="dt" data-show="both">・</span><button type="button" class="hpart tom" data-show="tomatoes"' + POMO + '>' + ic('tom') +
-        '<span class="n" data-b="tomatoes"></span></button>' +
-      '<span class="dt" data-show="ctS">・</span>' + standC('hpart') + '</div>';
+      '<span class="dt" data-show="cX">・</span>' + standC('hpart') + '<span class="dt" data-show="sT">・</span>' +
+      '<button type="button" class="hpart tom" data-show="tomatoes"' + POMO + '>' + ic('tom') + '<span class="n" data-b="tomatoes"></span></button></div>';
   }
-  // M3 (A_M3): two stickers on the ring, cups top left and tomatoes top right. 1.1.6 item 3: they are the water and the
-  // pomodoro buttons (at least 24 px tall, health.css); off the ring, so a double click on them is no 展開.
+  // M3 (A_M3): stickers on the ring's corners. 1.1.6 item 3: the cups and the tomatoes are the water and the pomodoro
+  // buttons (at least 24 px tall, health.css); off the ring, so a double click on them is no 展開. 1.1.7 item 1: four
+  // corners, 💧 top left, 🧍 top right (the compact countdown, standC's rule, its long press and tip), 🍅 bottom left and the
+  // hover ⚙ bottom right (hoverGear).
   function stickers() {
-    return '<button type="button" class="mb l" data-show="cups"' + DRINK + ' data-hit>' + ic('drop') + '<span data-b="cups"></span></button>' +
-      '<button type="button" class="mb r" data-show="tomatoes"' + POMO + ' data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></button>';
+    return '<button type="button" class="mb tl" data-show="cups"' + DRINK + ' data-hit>' + ic('drop') + '<span data-b="cups"></span></button>' +
+      '<span class="mb tr" data-show="standC" data-hold data-hit title="' + HOLD_TIP + '">' + standIcons() + '<span data-b="standMin"></span></span>' +
+      '<button type="button" class="mb bl" data-show="tomatoes"' + POMO + ' data-hit>' + ic('tom') + '<span data-b="tomatoes"></span></button>';
   }
   // 1.1.6 item 2: 設定 on U10 and M3 as on U7's tools: a round ⚙ that shows only while the pointer is on the window
   // ([data-hover]: U10's full view, M3's whole badge), placed where it covers no text and moves nothing (health.css).
@@ -164,11 +167,13 @@ QJZ.templates = (function () {
           tomslots() + '</div>' +
         '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
+    // U5-B: 1.1.7 item 6: the top line ends in a ⚙ (設定, as every other layout's), where its ⋯ (the menu) was; the
+    // right-click menu is still everywhere.
     U5B: function () {
       return '<div class="win u5b lay" data-hit><div class="po" data-pet="petonly"></div>' + pring() + '<div class="mid">' +
         '<div class="mtop"><span class="dot"></span><span class="mline"><span data-b="status"></span> ・ <span data-b="hm"></span></span>' +
           standC('st') + '<span class="pline" data-prompt-line hidden></span>' + feedBtn('feed') +
-          '<button type="button" class="x" data-act="menu" title="選單">⋯</button></div>' +
+          '<button type="button" class="x" data-act="settings" title="設定" aria-label="設定">' + ic('tbGear') + '</button></div>' +
         '<div class="money-box">' + MONEY + '</div>' +
         '<div class="thin"><div class="fill" data-fill></div></div>' +
         '<div class="meta2"><span data-b="pct"></span><span data-b="remainPhrase"></span></div>' +
@@ -188,7 +193,8 @@ QJZ.templates = (function () {
         '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + hoverGear('mg', true) + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     // U10 (G_U10_*): one fixed window, the dark capsule on its edge at the dock (layouts.js: class d-<dock>). Its views:
-    // collapsed (whole dollars, the cups and tomatoes by the rule), a pomodoro's countdown, the full view while the
+    // collapsed (whole dollars, the cups and tomatoes by the rule; 1.1.7 item 5: and between them the compact 🧍 N 分, by
+    // standC's rule, 💤 during 等一下 ([data-zz]); all three only show, the hover expands as before), a pomodoro's countdown, the full view while the
     // pointer is on it (2 decimals; 1.1.3 item 7: the water, 🧍 and 番茄鐘 chips, U1's row in a column, always there and
     // all as wide; 1.1.6 item 2: and a ⚙ on the avatar's corner) and the call while a prompt shows.
     // Only the capsule takes clicks. No odometer: the capsule changes at most once a second.
@@ -196,6 +202,7 @@ QJZ.templates = (function () {
       return '<div class="u10 lay"><div class="isl" data-hit data-hover><div class="av" data-pet="avatar"></div>' +
         '<span class="iv iv-c"><i class="gd"></i><span class="im mv" data-ghost data-b="moneyWhole"' + MASK + '></span>' +
           '<span class="ichip" data-show="cups" data-cups>' + ic('drop') + '<span data-b="cupsNum"></span></span>' +
+          '<span class="ichip st" data-show="standC" data-zz>' + standIcons() + '<span data-b="standMin"></span></span>' +
           '<span class="ichip" data-show="tomatoes">' + ic('tom') + '<span data-b="tomNum"></span></span></span>' +
         '<span class="iv iv-f"><span class="donut" data-gauge="pomo"></span><span class="im" data-b="mmss"></span>' +
           '<span class="isub" data-b="phaseNote"></span><span class="im sm mv" data-ghost data-b="moneyWhole"' + MASK + '></span></span>' +

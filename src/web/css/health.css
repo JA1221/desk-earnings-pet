@@ -82,9 +82,9 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 @property --hold{syntax:'<number>';inherits:false;initial-value:0}
 .lay [data-hold]{position:relative;cursor:pointer}
 .isl .ichip,.gauge3 .rg{position:relative}
-.lay [data-hold] .zz{display:none;font-size:.95em;line-height:1;font-family:"Segoe UI Emoji","Apple Color Emoji",var(--font)}
-.lay [data-hold].snz .zz{display:inline-block}
-.lay [data-hold].snz svg.ic-stand{display:none}
+.lay :is([data-hold],[data-zz]) .zz{display:none;font-size:.95em;line-height:1;font-family:"Segoe UI Emoji","Apple Color Emoji",var(--font)}
+.lay :is([data-hold],[data-zz]).snz .zz{display:inline-block}
+.lay :is([data-hold],[data-zz]).snz svg.ic-stand{display:none}
 .lay .holding{--hc:#22C55E;--hg:rgba(34,197,94,.65);--hbg:#A6E8BF;z-index:5}
 .lay .holding.h-water{--hc:#2E9BFF;--hg:rgba(46,155,255,.65);--hbg:#A9D6FF}
 .lay .holding.h-pomo{--hc:#FF4A33;--hg:rgba(255,74,51,.6);--hbg:#FF9F88}
@@ -135,13 +135,18 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 
 /* ---------- M3 (A_M3; C_M3_f/b): stickers on the ring; the ring counts the pomodoro down ---------- */
 /* top 5px: turned 8deg, a sticker at the badge's top edge would be cut by the window. 1.1.6 item 3: they are the water and
-   the pomodoro buttons, at least 24 px tall to press */
+   the pomodoro buttons, at least 24 px tall to press. 1.1.7 item 1: four corners, 💧 and 🧍 on one line at the top, 🍅 and
+   the hover ⚙ (.mg) on one line under the ring's middle, above the tag; each 5 px in from its side, the right ones the same
+   spot while the bubble shows (the badge grows right by 194 px, .m3.prompting) */
 .m3 .mb{position:absolute;top:5px;z-index:3;display:inline-flex;align-items:center;gap:2px;background:#fff;border:2.5px solid var(--line);border-radius:99px;
   padding:1px 7px 1px 4px;min-height:24px;box-shadow:2px 2px 0 var(--line);font-family:inherit;color:var(--text);font-weight:700;font-size:12px;line-height:1.3;cursor:pointer}
 .m3 .mb:active{translate:1px 1px}
 .m3 .mb svg.ic{width:14px;height:14px}
-.m3 .mb.l{left:3px;transform:rotate(-8deg)}
-.m3 .mb.r{right:3px;transform:rotate(8deg)}
+.m3 .mb.tl{left:5px;transform:rotate(-8deg)}
+.m3 .mb.tr{right:5px;transform:rotate(8deg)}
+.m3 .mb.bl{left:5px;top:var(--m3-low);transform:rotate(5deg)}
+.m3 .mb.tr{gap:1px;padding:1px 6px 1px 3px}   /* (the widest text, 🧍 50 分: its corner stays on the ring's band, off the pet) */
+.m3{--m3-low:76px}
 .m3 .ring.p-foc{background:conic-gradient(var(--tom) calc(var(--p,0)*1%),#fff 0)}
 .m3 .ring.p-brk{background:conic-gradient(var(--rest) calc(var(--p,0)*1%),#fff 0)}
 
@@ -241,7 +246,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
    content box (min-width 168 - 8 of padding) left as it was, so nothing in it moves */
 .m3 .ring{transform-origin:50% 90%}
 .m3.prompting{padding-right:198px;min-width:362px}
-.m3.prompting .mb.r{right:204px}   /* clear of the bubble's icon (1.1.1) */
+.m3.prompting :is(.mb.tr,.mg){right:199px}   /* where they were: the content box keeps its place (1.1.7 item 1) */
 .m3 .pslot{right:8px;top:14px}
 
 /* U5-B (C_U5_b): no room for a bubble; the top line's text becomes the title, a pill that wobbles, the small buttons
@@ -454,10 +459,9 @@ button.gauge3:active .rg{transform:translate(1px,1px)}
    before the money: no text there, and nothing moves (it is out of the flow) */
 .isl .ug{position:absolute;left:64px;top:calc(50% + 15px);z-index:2;border:0;background:#FFF8EC;box-shadow:0 0 0 2px #3D2C24}
 .isl .ug:active{translate:1px 1px}
-/* M3: off the ring's lower right (clear of the ring, its arc, the tag and the stickers), inside the badge's 168 px; while
-   the bubble shows the content box is left of it, and so is the ⚙ */
-.m3 .mg{position:absolute;left:calc(50% + 54px);top:78px;z-index:3;background:#fff;border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--shadow);
+/* M3: the bottom right corner (1.1.7 item 1: on the line of the 🍅 in the bottom left, .m3 .mb.bl), off the ring, clear of
+   the tag and the stickers, inside the badge's 168 px; while the bubble shows the content box is left of it, and so is the ⚙ */
+.m3 .mg{position:absolute;right:5px;top:var(--m3-low);z-index:3;background:#fff;border:2.5px solid var(--line);box-shadow:2px 2px 0 var(--shadow);
   opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
 .m3.hover .mg{opacity:1;visibility:visible;transition:opacity .2s}
-.m3.prompting .mg{left:calc(50% - 43px)}
 .m3 .mg:active{translate:1px 1px}

@@ -547,7 +547,7 @@
       e = mk(at(9, 0), { first: 'M3' });
       e.menu('drink');
       eq(brain().state, 'sip');
-      eq($$(e, '.m3 .mb.l .plus').length, 1, 'M3: the cups sticker pops +1');
+      eq($$(e, '.m3 .mb.tl .plus').length, 1, 'M3: the cups sticker pops +1');
       eq(lines, ['drank']);
       lines.length = 0;
       e.tick(at(9, 10));

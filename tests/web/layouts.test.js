@@ -672,15 +672,17 @@
     done();
   });
 
-  test('layouts DOM: buttons — dots, ⋯, feed', function () {
+  test('layouts DOM: buttons — dots, ⚙, feed', function () {
     var e = mk(at(12, 10, 0));
     $(e, '[data-act=hide]').click();
     eq(of(e.sent, 'hide').length, 1);
     e.menu('mini');   // (1.1.3 C2: no 縮小 on the title bar; the menu's 7 迷你浮窗)
     eq(QJZ.layouts.current(), 'M3');
     e.menu('layout:U5B');
-    $(e, '[data-act=menu]').click();
-    eq(of(e.sent, 'contextMenu').length, 1);
+    eq(e.root.querySelectorAll('[data-act=menu]').length, 0, '1.1.7 item 6: U5-B has no ⋯');
+    var ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
+    $(e, '.u5b .money').dispatchEvent(ev);
+    eq(of(e.sent, 'contextMenu').length, 1, 'the right-click menu still works');
     $(e, '[data-act=feed]').click();
     eq(QJZ.app.state.today.snacksEaten, 1);
     eq(QJZ.app.state.snacks, 1);
@@ -1642,7 +1644,7 @@
     eq(shownText(e.root.querySelectorAll('.m3 .mb')), [], 'M3: no sticker');
     C.drink();   // from the menu or the tray: the layout follows at once, no tick needed
     eq(shownText(e.root.querySelectorAll('.m3 .mb')), ['1/8'], 'M3: the cups sticker');
-    ok($(e, '.m3 .mb.l').contains($(e, '.m3 .mb svg.ic')), 'with its icon, top left');
+    ok($(e, '.m3 .mb.tl').contains($(e, '.m3 .mb svg.ic')), 'with its icon, top left');
     e.menu('layout:U7');
     eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['1/8'], 'U7: cups only, no ・');
     ok($(e, '.u7 .mtag').getBoundingClientRect().height > tag + 10, 'the line takes room only when it shows');
@@ -1735,9 +1737,9 @@
     eq([C.state.p.phase, QJZ.app.state.settings.privacy.maskMoney], ['focus', false], 'U7: a tap on 🍅 starts a focus, the money stays shown');
     C.toggleFocus();
     e.menu('mini');
-    var mb = e.root.querySelectorAll('.m3 .mb');
+    var mb = e.root.querySelectorAll('.m3 .mb.tl, .m3 .mb.bl');
     eq(shownText(mb), ['3/8', '×3']);
-    ok(mb[0].classList.contains('l') && mb[1].classList.contains('r'), 'cups top left, tomatoes top right');
+    ok(mb[0].classList.contains('tl') && mb[1].classList.contains('bl'), 'cups top left, tomatoes bottom left (1.1.7 item 1)');
     eq([mb[0].getAttribute('data-act'), mb[1].getAttribute('data-act'), mb[0].tagName, mb[1].tagName], ['drink', 'pomo', 'BUTTON', 'BUTTON']);
     eq([mb[0].title, mb[1].title], ['記一杯水（長按＝少記一杯）', '番茄鐘（長按＝停止）'], 'M3: the same tips');
     var hits = hitsOf(e);
@@ -1749,7 +1751,7 @@
     var ring = $(e, '.m3 .ring').getBoundingClientRect(), badge = $(e, '.m3').getBoundingClientRect();
     Array.prototype.forEach.call(mb, function (n) {
       var r = n.getBoundingClientRect();
-      ok(r.top < ring.top + 30 && r.left >= 0 && r.right <= badge.right, 'on the ring\'s top corners, inside the badge');
+      ok(r.left >= 0 && r.right <= badge.right, 'on the ring\'s corners, inside the badge');
     });
     tap(e, mb[0]);
     eq(C.state.health.cups, 4, 'M3: a tap on 💧 is a cup');
@@ -1991,7 +1993,7 @@
     eq(hitsOf(e), [U.outer(small)]);
     QJZ.app.saveSettings({ health: BOTH });
     C.drink();
-    eq(shownText(e.root.querySelectorAll('.iv-c > .ichip')), ['1'], 'a cup today: the cups chip (§4.9 #8)');
+    eq(shownText(e.root.querySelectorAll('.iv-c > .ichip')), ['1', '50 分'], 'a cup today: the cups chip (§4.9 #8); 1.1.7 item 5: the next stand-up');
     hoverOn(isl);
     eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['1/8 杯', '50 分後', '▶'], 'water on: the cups; the reminder asked: the next stand-up');
     clickOn($(e, '.iv-x [data-act=drink]'));
@@ -2414,7 +2416,7 @@
 
   var STANDC = { U1: '.u1 .mpills [data-hold]', U3: '.u3 .hud-top [data-show=standC]', U5B: '.u5b .mtop [data-show=standC]',
     U7: '.u7 .hline [data-show=standC]' };
-  test('layouts DOM: U1, U3, U5-B and U7 show 🧍 N 分 (M3 does not), once a minute, without animation', function () {
+  test('layouts DOM: U1, U3, U5-B, U7 (and 1.1.7: M3) show 🧍 N 分, once a minute, without animation', function () {
     var e = shown(mk(at(12, 9, 0), { care: true, settings: { health: BOTH } }));
     e.tick(at(12, 9, 18));
     ['U1', 'U3', 'U5B', 'U7'].forEach(function (name) {
@@ -2429,7 +2431,7 @@
     });
     eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['0/8・32 分'], 'U7: on the tag line, after the cups');
     e.menu('mini');
-    eq(e.root.querySelectorAll('[data-show=standC]').length, 0, 'M3: none');
+    eq(shownText(e.root.querySelectorAll('.m3 [data-show=standC]')), ['32 分'], '1.1.7 item 1: M3 too, top right');
     e.menu('layout:U1');
     var n = $(e, STANDC.U1), texts = [];
     for (var t = at(12, 9, 18, 1); t <= at(12, 9, 19, 59); t += 1000) {
@@ -2484,9 +2486,9 @@
     e.menu('layout:U5B');
     var line = [$(e, '.u5b [data-b=hm]'), $(e, STANDC.U5B), $(e, '.u5b .mtop .feed'), $(e, '.u5b .mtop .x')];
     row(line);
-    ok(box(line[3]).right <= box($(e, '.u5b .mid')).right + 0.5, 'U5-B: the ⋯ still in its column');
+    ok(box(line[3]).right <= box($(e, '.u5b .mid')).right + 0.5, 'U5-B: the ⚙ still in its column');
     e.menu('layout:U7');
-    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['10/12・×12・119 分']);
+    eq(shownText(e.root.querySelectorAll('.u7 .hline')), ['10/12・119 分・×12'], '1.1.7 item 3: 💧・🧍・🍅');
     ok(box($(e, '.u7 .hline')).width <= box($(e, '.u7 .mtag')).width, 'U7: inside the tag');
     done();
   });
@@ -3088,7 +3090,7 @@
       e.menu('mini');
       var p = promptBox(e, 'M3');
       Array.prototype.forEach.call(e.root.querySelectorAll('.m3 .mb'), function (s) {
-        if (drawn(s)) ok(apart(p, s.getBoundingClientRect()), 'M3 ' + kind + ': clear of the sticker ' + rect4(p) + ' / ' + rect4(s.getBoundingClientRect()));
+        if (drawn(s) && getComputedStyle(s).visibility !== 'hidden') ok(apart(p, s.getBoundingClientRect()), 'M3 ' + kind + ': clear of the sticker ' + rect4(p) + ' / ' + rect4(s.getBoundingClientRect()));
       });
       e.menu('layout:U5B');
       var ct = $(e, '.u5b .pline .ct'), call = $(e, '.u5b .pline .call'), card = $(e, '.u5b').getBoundingClientRect();
@@ -3467,7 +3469,7 @@
   // (the 番茄鐘's), with the counts showing (cups 3/8, tomatoes ×2); -> the tags seen
   var HOLD_KINDS = ['U1 drink', 'U1 stand', 'U1 (focus) pomo', 'U3 drink', 'U3 stand', 'U3 (focus) pomo', 'U5B drink', 'U5B stand', 'U5B (focus) pomo',
     'U7 drink', 'U7 stand', 'U10 drink', 'U10 stand', 'U10 (focus) pomo', 'U12 drink', 'U12 stand', 'U12 (focus) pomo', 'U13 stand', 'U13 (focus) pomo',
-    'U7 (focus) pomo', 'U13 drink', 'M3 drink', 'M3 (focus) pomo'];   // (1.1.6 item 3)
+    'U7 (focus) pomo', 'U13 drink', 'M3 drink', 'M3 (focus) pomo', 'M3 stand'];   // (1.1.6 item 3; 1.1.7 item 1)
   function eachHold(fn) {
     var seenKinds = {};
     ['U1', 'U3', 'U5B', 'U7', 'U10', 'U12', 'U13', 'M3'].forEach(function (name) {
@@ -3636,7 +3638,7 @@
   // one off (blue ring), never below 0; the long press's own click logs nothing, and 「−1」 pops where 「+1」 does.
   var WATER_BTN = { U1: '.u1 .mpills [data-act=drink]', U3: '.u3 [data-act=drink]', U5B: '.u5b .rcol [data-act=drink]',
     U10: '.u10 .iv-x [data-act=drink]', U12: '.u12 [data-gauge=cups]',
-    U7: '.u7 .hline [data-act=drink]', U13: '.u13 .pline [data-act=drink]', M3: '.m3 .mb.l' };   // (U13's and M3's: 1.1.6 item 3)
+    U7: '.u7 .hline [data-act=drink]', U13: '.u13 .pline [data-act=drink]', M3: '.m3 .mb.tl' };   // (U13's and M3's: 1.1.6 item 3)
   function btnIn(e, name, sel) {
     if (name === 'U10' && !$(e, '.isl').classList.contains('hover')) hoverOn($(e, '.isl'));
     return $(e, sel);
@@ -3679,7 +3681,7 @@
   // the button is a plain button (no ring).
   var POMO_BTN = { U1: '.u1 .mpills [data-act=pomo]', U3: '.u3 [data-act=pomo]', U5B: '.u5b .rcol [data-act=pomo]',
     U10: '.u10 .iv-x [data-act=pomo]', U12: '.u12 [data-gauge=tom]', U13: '.u13 .br-go',
-    U7: '.u7 .hline [data-act=pomo]', M3: '.m3 .mb.r' };   // (1.1.6 item 3: they show while there are tomatoes, or a focus)
+    U7: '.u7 .hline [data-act=pomo]', M3: '.m3 .mb.bl' };   // (1.1.6 item 3: they show while there are tomatoes, or a focus)
   function pomoBtn(e, name) {
     var b = btnIn(e, name, POMO_BTN[name]);   // U13 while a phase runs: only its ■ 停止 takes the press (1.1.2 review)
     return name === 'U13' && /\bp-(foc|brk)\b/.test($(e, '.u13').className) ? b.querySelector('.go') : b;
@@ -4165,8 +4167,8 @@
       // 1.1.6 item 3
       ['U13 water', 'U13', false, function (e) { return $(e, '.u13 .pline [data-act=drink]'); }, function () { return C.state.health.cups; }, 1, -1],
       ['U7 🍅', 'U7', true, function (e) { return $(e, '.u7 .hline [data-act=pomo]'); }, null],
-      ['M3 💧', 'M3', false, function (e) { return $(e, '.m3 .mb.l'); }, function () { return C.state.health.cups; }, 1, -1],
-      ['M3 🍅', 'M3', true, function (e) { return $(e, '.m3 .mb.r'); }, null]
+      ['M3 💧', 'M3', false, function (e) { return $(e, '.m3 .mb.tl'); }, function () { return C.state.health.cups; }, 1, -1],
+      ['M3 🍅', 'M3', true, function (e) { return $(e, '.m3 .mb.bl'); }, null]
     ];
     CASES.forEach(function (k) {
       var e = shown(mk(at(12, 9, 0), { first: k[1], care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
@@ -4314,7 +4316,7 @@
       ok(g.left >= b.left && g.right <= b.right && g.top >= b.top && g.bottom <= b.bottom, tag + ': inside the badge');
       var ring = $(e, '.m3 .ring').getBoundingClientRect(), R = ring.width / 2, cx = ring.left + R, cy = ring.top + R;
       ok(Math.hypot(g.left + g.width / 2 - cx, g.top + g.height / 2 - cy) >= R + g.width / 2, tag + ': off the ring and its arc');
-      ['.tagm', '.sub', '.mb.l', '.mb.r', '.pslot > *'].forEach(function (sel) {
+      ['.tagm', '.sub', '.mb.tl', '.mb.tr', '.mb.bl', '.pslot > *'].forEach(function (sel) {
         var n = $(e, '.m3 ' + sel);
         if (n && drawn(n) && overlap(g, n.getBoundingClientRect())) bad.push(tag + ': over ' + sel);
       });
@@ -4337,5 +4339,249 @@
     });
     eq(bad, [], 'the ⚙ is clear of everything on M3');
     eq(U.hoverOutMs('M3'), 300, 'M3\'s ⚙ waits 0.3 s, as U7\'s tools');
+  });
+
+  // ================= 1.1.7 =================
+  // what reads in n: its text without what is hidden or unseen (a held countdown and its ・ keep their room unseen)
+  function visText(n) {
+    var out = '';
+    (function walk(x) {
+      if (x.nodeType === 3) out += x.nodeValue;
+      else if (x.nodeType === 1 && drawn(x) && getComputedStyle(x).visibility !== 'hidden' && !x.classList.contains('plus')) {
+        for (var c = x.firstChild; c; c = c.nextSibling) walk(c);
+      }
+    })(n);
+    return out.replace(/\s+/g, ' ').trim();
+  }
+  function clearTips(e) { Array.prototype.forEach.call(e.root.querySelectorAll('.tip'), function (t) { t.remove(); }); }
+  function kindOf117(n) { return n.getAttribute('data-act') || (n.hasAttribute('data-hold') ? 'stand' : '?'); }
+
+  // Item 3: U7's tag line reads 💧・🧍・🍅 (the order of U1's row and U10's chips), a ・ only between parts that show; while
+  // its own reminder asks, the 🧍 and the ・ beside it are unseen and keep their room, so the line does not move.
+  test('layouts DOM: 1.1.7 item 3: U7\'s tag line reads 💧・🧍・🍅, a ・ only between the parts that show; held, nothing moves', function () {
+    [[BOTH, today(3, 2, 1), '3/8・32 分・×2'], [WATER_ON, today(3, 2, 1), '3/8・×2'], [ASK.sit, today(0, 2, 1), '32 分・×2'],
+      [BOTH, today(3, 0, 1), '3/8・32 分'], [ASK.sit, today(0, 0, 1), '32 分'], [WATER_ON, today(3, 0, 0), '3/8']].forEach(function (c) {
+      var e = shown(mk(at(12, 9, 0), { first: 'U7', care: true, settings: { health: c[0] }, rec: c[1] }));
+      e.tick(at(12, 9, 18));
+      var line = $(e, '.u7 .hline');
+      eq(visText(line), c[2], c[2]);
+      eq(Array.prototype.map.call(line.querySelectorAll('[data-act],[data-hold]'), kindOf117), ['drink', 'stand', 'pomo'], 'the order');
+      if (c[0] === BOTH) {   // its reminder asks: the 🧍 unseen, its room kept
+        e.tick(at(12, 9, 49, 59));   // (1 分: the same digits as while it asks)
+        var r0 = line.getBoundingClientRect(), parts = boxesIn(line);
+        e.tick(at(12, 9, 50));
+        ok($(e, '.u7').classList.contains('prompting'), c[2] + ': asking');
+        eq(visText(line), c[1].health.tomatoes ? '3/8・×2' : '3/8', c[2] + ': held');
+        var r1 = line.getBoundingClientRect();
+        eq([r1.left, r1.top, r1.width, r1.height], [r0.left, r0.top, r0.width, r0.height], c[2] + ': the line keeps its place and size');
+        eq(moved(parts, boxesIn(line)), [], c[2] + ': nothing in it moved');
+      }
+      done();
+    });
+  });
+  // Item 3: wherever 💧, 🧍 and 🍅 sit together they go in that order: U1's row, U7's tag line, U10 folded and its full view's
+  // chips, M3's corners (reading order). (U3, U5-B and U13 have them in separate places; U12's rings read 💧 🍅 🧍.)
+  test('layouts DOM: 1.1.7 item 3: 💧 🧍 🍅 in that order in U1, U7, U10 (folded and full) and M3', function () {
+    var GROUP = { U1: '.u1 .mpills', U7: '.u7 .hline', U10: '.u10 .iv-c', 'U10 full': '.u10 .iv-x .chips', M3: '.m3' };
+    var ANY = '[data-act=drink],[data-cups],[data-hold],[data-show=standC],[data-act=pomo],[data-show=tomatoes]';
+    function kind(n) { return n.matches('[data-act=drink],[data-cups]') ? '💧' : n.matches('[data-hold],[data-show=standC]') ? '🧍' : '🍅'; }
+    Object.keys(GROUP).forEach(function (k) {
+      var name = k.split(' ')[0], e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+      e.tick(at(12, 9, 18));
+      var g = $(e, GROUP[k]), list = Array.prototype.filter.call(g.querySelectorAll(ANY), function (n) {
+        var up = n.parentElement.closest(ANY);
+        return !(up && g.contains(up));   // the outermost one: U1's 番茄鐘, not its ×N inside it
+      });
+      eq(list.map(kind).join(' '), '💧 🧍 🍅', k);
+      done();
+    });
+  });
+
+  // Item 1: M3's four corners: 💧 top left, 🧍 top right, 🍅 bottom left, the hover ⚙ bottom right. The top two on one line,
+  // the bottom two on one line, each pair as far in from the sides (symmetric about the ring), at least 24 px tall, clear
+  // of the tag, the sub line and the bubble, and on the same spots while the bubble shows; each a hit rect of its own.
+  test('layouts DOM: 1.1.7 item 1: M3 has four corners (💧 🧍 / 🍅 ⚙), in line and symmetric, clear of the tag, the sub line and the bubble', function () {
+    var first = null;
+    ['none', 'break', 'breakEnd', 'both'].forEach(function (kind) {
+      var e = shown(mk(at(12, 9, 0), { first: 'M3', care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+      e.tick(at(12, 9, 18));
+      if (kind !== 'none') C._dev({ prompt: kind, water: kind === 'break' });
+      var m3 = $(e, '.m3'), tag = 'M3 ' + kind;
+      hoverOn(m3);
+      eq(m3.classList.contains('prompting'), kind !== 'none', tag + ': the bubble');
+      var q = ['.mb.tl', '.mb.tr', '.mb.bl', '.mg'].map(function (s) { return $(e, '.m3 ' + s); });
+      eq(Array.prototype.map.call(m3.querySelectorAll('.mb, .mg'), kindOf117), ['drink', 'stand', 'pomo', 'settings'], tag + ': 💧 🧍 🍅 ⚙');
+      var held = kind === 'both';   // (its own reminder asks: the 🧍 unseen, its room kept)
+      eq(q.map(visText), ['3/8', held ? '' : '32 分', '×2', ''], tag + ': what reads');
+      var L = q.map(U.layoutBox), R = q.map(function (n) { return n.getBoundingClientRect(); });
+      L.forEach(function (b, i) { ok(b.height >= 24 && b.width >= 24, tag + ' ' + i + ': 24 px to press: ' + b.width + 'x' + b.height); });
+      near(L[0].top + L[0].height / 2, L[1].top + L[1].height / 2, 0.5, tag + ': 💧 and 🧍 on one line');
+      near(L[2].top + L[2].height / 2, L[3].top + L[3].height / 2, 0.5, tag + ': 🍅 and ⚙ on one line');
+      var ring = $(e, '.m3 .ring').getBoundingClientRect(), cx = (ring.left + ring.right) / 2;
+      near(cx - L[0].left, L[1].left + L[1].width - cx, 0.5, tag + ': 💧 and 🧍 as far from the ring\'s middle');
+      near(cx - L[2].left, L[3].left + L[3].width - cx, 0.5, tag + ': 🍅 and ⚙ as far from the ring\'s middle');
+      near(L[0].left, L[2].left, 0.5, tag + ': 💧 over 🍅');
+      near(L[1].left + L[1].width, L[3].left + L[3].width, 0.5, tag + ': 🧍 over ⚙');
+      ok(R[0].bottom <= R[2].top && R[1].bottom <= R[3].top, tag + ': the top line above the bottom one');
+      var others = [['the tag', $(e, '.m3 .tagm')], ['the sub line', $(e, '.m3 .sub')]];
+      if (kind !== 'none') others.push(['the bubble', null]);
+      q.forEach(function (n, i) {
+        if (i === 1 && held) return;
+        others.forEach(function (o) {
+          var b = o[1] ? o[1].getBoundingClientRect() : promptBox(e, 'M3');
+          ok(!overlap(R[i], b), tag + ' ' + i + ': clear of ' + o[0] + ' ' + rect4(R[i]) + ' / ' + rect4(b));
+        });
+        q.forEach(function (o, j) { if (j !== i && !(j === 1 && held)) ok(!overlap(R[i], R[j]), tag + ': ' + i + ' clear of ' + j); });
+      });
+      var hits = hitsOf(e);
+      q.forEach(function (n, i) {
+        var o = U.outer(L[i]), has = hits.some(function (h) { return h[0] === o[0] && h[1] === o[1] && h[2] === o[2] && h[3] === o[3]; });
+        eq(has, !(i === 1 && held), tag + ' ' + i + ': a hit rect of its own' + (i === 1 && held ? ' (none while unseen)' : ''));
+      });
+      // (the left ones by their left edge, the right ones by their right edge: a text may change its width)
+      var m = U.layoutBox(m3), spots = q.map(function (n, i) { var b = U.layoutBox(n); return [i % 2 ? b.left + b.width - m.left : b.left - m.left, b.top - m.top].join(); });
+      if (!first) first = spots;
+      else eq(spots, first, tag + ': the same spots as without the bubble');
+      done();
+    });
+  });
+  // Item 1: M3's 🧍 is the compact countdown: standC's rule (not with 起來動 off, not during a focus; unseen while its reminder
+  // asks), 💤 during 等一下, the long press of every 🧍 (and its tip, item 2); a press there never drags, a double click never
+  // expands; the ring still drags and its double click still expands.
+  test('layouts DOM: 1.1.7 item 1: M3\'s 🧍 follows the compact rule, takes the long press and the tip; the ring\'s drag and double click stay', function () {
+    var e = shown(mk(at(12, 9, 0), { first: 'M3', care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+    e.tick(at(12, 9, 18));
+    var st = $(e, '.m3 .mb.tr');
+    eq([visText(st), st.title, st.getAttribute('data-show')], ['32 分', '下次起來動（長按＝我剛起來動過了）', 'standC']);
+    ok(st.querySelector('svg.ic-stand'), 'the stand-up icon');
+    tap(e, st);
+    eq([tips(e), C.state.health.standups], [[U.STAND_TIP], 1], 'a tap: the tip, nothing counted');
+    clearTips(e);
+    longPress(e, st);
+    eq([C.state.health.standups, tips(e)], [2, []], 'a long press: 我剛起來動過了');
+    var r = st.getBoundingClientRect(), n = of(e.sent, 'dragStart').length;
+    mouse(st, 'mousedown', r.left + 4, r.top + 4, { detail: 1 });
+    mouse(st, 'mousemove', r.left + 30, r.top + 4);
+    mouse(document.body, 'mouseup', 0, 0, { buttons: 0 });
+    eq(of(e.sent, 'dragStart').length, n, 'a press on it never drags');
+    mouse(st, 'dblclick', r.left + 4, r.top + 4, { detail: 2, buttons: 0 });
+    eq(QJZ.layouts.current(), 'M3', 'a double click on it is no 展開');
+    C.toggleFocus();
+    ok(!drawn(st), 'not during a focus');
+    C.toggleFocus();
+    ok(drawn(st), 'back after it');
+    e.tick(at(12, 10, 49, 59));
+    e.tick(at(12, 10, 50));
+    ok($(e, '.m3').classList.contains('prompting'), 'its reminder asks');
+    eq(getComputedStyle(st).visibility, 'hidden', 'unseen while it asks');
+    clickOn($(e, '[data-answer=later]'));
+    ok(st.classList.contains('snz') && getComputedStyle(st.querySelector('.zz')).display !== 'none' && !drawn(st.querySelector('svg.ic-stand')),
+      '等一下: 💤 N 分');
+    var ring = $(e, '.m3 .ring'), rr = ring.getBoundingClientRect();
+    n = of(e.sent, 'dragStart').length;
+    mouse(ring, 'mousedown', rr.left + 40, rr.top + 60, { detail: 1 });
+    mouse(ring, 'mousemove', rr.left + 60, rr.top + 60);
+    eq(of(e.sent, 'dragStart').length, n + 1, 'the ring still drags the badge');
+    mouse(ring, 'mouseup', rr.left + 60, rr.top + 60, { buttons: 0 });
+    e.bridge.emit({ type: 'dragEnd' });
+    mouse(ring, 'dblclick', 5, 5, { detail: 2, buttons: 0 });
+    ok(QJZ.layouts.current() !== 'M3', 'a double click on the avatar still expands it');
+    done();
+    var f = shown(mk(at(12, 9, 0), { first: 'M3', care: true, settings: { health: WATER_ON }, rec: today(3, 2, 1) }));
+    f.tick(at(12, 9, 18));
+    ok(!drawn($(f, '.m3 .mb.tr')) && drawn($(f, '.m3 .mb.tl')) && drawn($(f, '.m3 .mb.bl')), '起來動 off: no 🧍, the others stay');
+    done();
+  });
+
+  // Item 2: a tap on any 🧍 countdown (U1, U3, U5-B, U7, U10's full view, U13, M3) or U12's 起來動 ring shows
+  // 「長按＝我剛起來動過了」 as a tip in 「長按停止」's style; a long press still counts and shows none; let go part-way, nothing.
+  var STAND_CTL = { U1: '.u1 .mpills [data-hold]', U3: '.u3 [data-hold]', U5B: '.u5b [data-hold]', U7: '.u7 .hline [data-hold]',
+    U10: '.u10 .iv-x [data-hold]', U12: '.u12 [data-hold=gauge]', U13: '.u13 .pline [data-hold]', M3: '.m3 .mb.tr' };
+  test('layouts DOM: 1.1.7 item 2: a tap on a 🧍 shows 「長按＝我剛起來動過了」; the long press still counts; part-way nothing', function () {
+    eq(U.STAND_TIP, '長按＝我剛起來動過了');
+    Object.keys(STAND_CTL).forEach(function (name) {
+      var e = shown(mk(at(12, 9, 0), { first: name, care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+      e.tick(at(12, 9, 18));
+      function el() { return btnIn(e, name, STAND_CTL[name]); }
+      ok(el() && drawn(el()), name + ': the countdown');
+      tap(e, el());
+      eq([tips(e), C.state.health.standups], [[U.STAND_TIP], 1], name + ': a tap: the tip, nothing counted');
+      var t = e.root.querySelector('.tip'), tr = t.getBoundingClientRect(), box = (name === 'U10' ? $(e, '.isl') : $(e, '.lay')).getBoundingClientRect();
+      eq(t.className, 'tip', name + ': 長按停止\'s tip');
+      ok(tr.left >= box.left && tr.right <= box.right && tr.top >= box.top && tr.bottom <= box.bottom, name + ': inside ' + rect4(tr) + ' / ' + rect4(box));
+      clearTips(e);
+      press(e, el(), 600);
+      eq([tips(e), C.state.health.standups], [[], 1], name + ': let go part-way: nothing, no tip');
+      longPress(e, el());
+      eq([tips(e), C.state.health.standups], [[], 2], name + ': a long press counts, no tip');
+      eq(of(e.sent, 'dragStart').length, 0, name + ': never a drag');
+      done();
+    });
+    var f = shown(mk(at(12, 9, 0), { first: 'U1', care: true, settings: { health: WATER_ON } }));
+    f.tick(at(12, 9, 18));
+    tap(f, $(f, '.u1 .mpills [data-hold]'));
+    eq(tips(f), [], 'with 起來動 off the faded -- has no tip');
+    done();
+  });
+
+  // Item 5: U10 folded shows 💧 🧍 🍅: the 🧍 N 分 chip by the compact rule (💤 during 等一下), only showing like the other two;
+  // the capsule still sits at its dock at every dock, nothing moves when masking, and the hover expands as before.
+  test('layouts DOM: 1.1.7 item 5: U10 folded shows 💧 🧍 🍅 at every dock; only showing; masking moves nothing', function () {
+    QJZ.settings.DOCKS.forEach(function (dock) {
+      var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH, layout: { capsule: dock } }, rec: today(3, 2, 1) }));
+      e.tick(at(12, 9, 18));
+      var iv = $(e, '.u10 .iv-c'), chips = Array.prototype.filter.call(iv.querySelectorAll('.ichip'), drawn);
+      eq(chips.map(visText), ['3', '32 分', '2'], dock + ': 💧 🧍 🍅');
+      ok(chips[1].querySelector('svg.ic-stand'), dock + ': the stand-up icon');
+      eq([chips[1].hasAttribute('data-act'), chips[1].hasAttribute('data-hold'), chips[1].tagName], [false, false, 'SPAN'], dock + ': it only shows');
+      chips.forEach(function (c, i) { if (i) ok(chips[i - 1].getBoundingClientRect().right <= c.getBoundingClientRect().left, dock + ': side by side'); });
+      var lay = $(e, '.u10').getBoundingClientRect(), r = $(e, '.isl').getBoundingClientRect();
+      var h = Math.abs(r.left - lay.left) < 1 ? 'Left' : Math.abs(r.right - lay.right) < 1 ? 'Right' : Math.abs(r.left + r.right - lay.left - lay.right) < 2 ? 'Center' : '?';
+      var v = Math.abs(r.top - lay.top) < 1 ? 'top' : Math.abs(r.bottom + 5 - lay.bottom) < 1 ? 'bottom' : '?';
+      eq(v === 'top' ? v : v + h, dock, dock + ': at its dock');
+      ok(r.left >= lay.left - 0.5 && r.right <= lay.right + 0.5, dock + ': inside the window');
+      eq(hitsOf(e), [U.outer(r)], dock + ': the capsule is the hit rect');
+      tap(e, chips[1]);
+      eq([C.state.health.standups, tips(e)], [1, []], dock + ': a tap on it does nothing');
+      var a = boxesIn($(e, '.u10'));
+      setMask(true);
+      eq(moved(a, boxesIn($(e, '.u10'))), [], dock + ': masking moves nothing');
+      setMask(false);
+      hoverOn($(e, '.isl'));
+      ok($(e, '.isl').classList.contains('hover') && drawn($(e, '.u10 .iv-x [data-hold]')), dock + ': the hover expands as before');
+      done();
+    });
+    var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
+    e.tick(at(12, 9, 49, 59));
+    e.tick(at(12, 9, 50));
+    ok($(e, '.u10').classList.contains('prompting'), 'the call');
+    clickOn($(e, '[data-answer=later]'));
+    var c = $(e, '.u10 .iv-c [data-show=standC]');
+    ok(drawn(c) && c.classList.contains('snz') && getComputedStyle(c.querySelector('.zz')).display !== 'none', '等一下: 💤 N 分');
+    C.toggleFocus();
+    ok(!drawn($(e, '.u10 .iv-c')), 'a focus: the countdown view, as before');
+    done();
+    var f = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: WATER_ON }, rec: today(3, 2, 1) }));
+    f.tick(at(12, 9, 18));
+    eq(Array.prototype.filter.call($(f, '.u10 .iv-c').querySelectorAll('.ichip'), drawn).map(visText), ['3', '2'], '起來動 off: no 🧍');
+    done();
+  });
+
+  // Item 6: U5-B's ⋯ (the menu) is a ⚙ that opens 設定 as every other layout's; the right-click menu still works.
+  test('layouts DOM: 1.1.7 item 6: U5-B\'s ⋯ is a ⚙ (設定); the right-click menu stays', function () {
+    var e = shown(mk(at(12, 10, 0), { first: 'U5B', care: true }));
+    var g = $(e, '.u5b .mtop .x'), r = g.getBoundingClientRect();
+    eq([g.getAttribute('data-act'), g.title, g.getAttribute('aria-label'), g.querySelectorAll('svg.ic-tbGear').length, g.textContent.trim()],
+      ['settings', '設定', '設定', 1, '']);
+    ok(r.width >= 24 && r.height >= 24, '24 px to press');
+    eq(e.root.querySelectorAll('[data-act=menu]').length, 0, 'no ⋯');
+    clickOn(g);
+    eq([QJZ.layouts.current(), !!$(e, '[data-tab]'), 'inPlace' in last(e.sent, 'setLayout')], ['PANEL', true, false], 'a click opens 設定 beside it');
+    eq(of(e.sent, 'contextMenu').length, 0, 'not the menu');
+    done();
+    var f = shown(mk(at(12, 10, 0), { first: 'U5B', care: true }));
+    mouse($(f, '.u5b .money'), 'contextmenu', 5, 5, { button: 2 });
+    eq(of(f.sent, 'contextMenu').length, 1, 'a right click still opens the menu');
+    done();
   });
 })();

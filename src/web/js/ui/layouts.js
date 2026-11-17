@@ -31,7 +31,7 @@ window.QJZ = window.QJZ || {};
 //                 so pets can be poked and M3 double-clicked). U7 sends grab: [x, y], page CSS px, where the
 //                 lifted pet's scruff tip is (QJZ.pets.grabAt): the host should move the window so that point sits
 //                 under the cursor before its move loop starts, and the pet then hangs from the cursor by it.
-//   contextMenu {} right-click anywhere (and the ⋯ button).    hide {}  the close dot / ✕ button.
+//   contextMenu {} right-click anywhere (1.1.7: U5-B's ⋯ is a ⚙ now).    hide {}  the close dot / ✕ button.
 //   menuState {work, snacks}  for the menu (simplification #2), whenever either changes: work 'before' (the item
 //                 reads 開始上班), 'working' (下班; also at lunch and 可以下班) or 'ended' (繼續上班); snacks to feed.
 //                 Checked on every render and on QJZ.app's refresh (hidden: every minute, and when the host's
@@ -186,6 +186,7 @@ QJZ.layouts = (function () {
   var NAMES = { U1: '1 經典直式', U3: '2 遊戲畫面', U12: '3 健康儀表板', U13: '4 番茄鐘優先', U5B: '5 橫向極簡', U10: '6 頂端小膠囊',
     M3: '7 迷你浮窗', U7: '8 桌面寵物' };
   var TIP_MS = 1600;  // 「長按停止」 shows this long (tip)
+  var STAND_TIP = '長按＝我剛起來動過了';   // 1.1.7 item 2: a tap on a 🧍 countdown (or U12's 起來動 ring) says how it works
 
   // ================= pure helpers (tests: QJZ.layouts.util) =================
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -512,7 +513,8 @@ QJZ.layouts = (function () {
     v.prings = all(el, '[data-pring]');
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
-    v.holds = all(el, '[data-hold]:not([data-hold=gauge])');   // the countdowns (U12's 起來動 ring counts, no 💤)
+    // the countdowns (U12's 起來動 ring counts, no 💤; U10's collapsed one only shows, [data-zz], 1.1.7 item 5)
+    v.holds = all(el, '[data-hold]:not([data-hold=gauge]),[data-zz]');
     v.nils = all(el, '[data-nil]');
     v.ghosts = all(el, '[data-ghost]');   // the money texts that mask (1.1.4 item 6)   // an always-there countdown that reads -- (1.1.3)
     v.pins = all(el, '.bar .tb.pin');
@@ -665,7 +667,16 @@ QJZ.layouts = (function () {
     // the compact 下次起來動 (1.1.1 item 6), and U7's tag line with it
     standC: function (m) { return m.showStandC || m.standCHeld; },
     anyS: function (m) { return m.showCups || m.showTomatoes || m.showStandC || m.standCHeld; },
-    ctS: function (m) { return (m.showCups || m.showTomatoes) && (m.showStandC || m.standCHeld); }
+    // 1.1.7 item 3: U7's 💧・🧍・🍅: the ・ after the cups (cX) and the one before the tomatoes (sT), each only between parts there
+    cX: function (m) { return m.showCups && (m.showStandC || m.standCHeld || m.showTomatoes); },
+    sT: function (m) { return (m.showStandC || m.standCHeld) && m.showTomatoes; }
+  };
+  // While the compact 🧍 is held (unseen, its room kept: M-2) the ・ that only stands beside it is unseen too, its room kept,
+  // so the line neither reflows nor shows a ・ next to nothing.
+  var UNSEEN = {
+    standC: function (m) { return m.standCHeld; },
+    cX: function (m) { return m.standCHeld && !m.showTomatoes; },
+    sT: function (m) { return m.standCHeld; }
   };
   function renderHealth(m, w) {
     var i, ph = m.ring.phase, shows = (m.showCups ? 'c' : '') + (m.showTomatoes ? 't' : '') + (m.showStand ? 's' : '') +
@@ -675,7 +686,7 @@ QJZ.layouts = (function () {
       view.shows.forEach(function (n) {
         var k = n.getAttribute('data-show'), f = SHOW[k];
         n.hidden = !(f && f(m));
-        if (k === 'standC') n.style.visibility = m.standCHeld ? 'hidden' : '';   // held: unseen, its room kept (M-2)
+        if (UNSEEN[k]) n.style.visibility = UNSEEN[k](m) ? 'hidden' : '';   // held: unseen, its room kept (M-2)
       });
       view.nils.forEach(function (n) { n.classList.toggle('nil', !(n.getAttribute('data-nil') === 'stand' ? m.showStand : m.showStandC)); });
     }
@@ -852,6 +863,7 @@ QJZ.layouts = (function () {
     all(view.el, '[data-hit]').forEach(function (el) {
       var cond = el.getAttribute('data-hit-if');
       if (el.hidden || (cond && !el.matches(cond))) return;
+      if (el.style.visibility === 'hidden') return;   // a held countdown (UNSEEN): unseen, so clicks go through (1.1.7: M3's 🧍)
       var r = boxOf(el);
       if (!(r.width > 0 && r.height > 0)) return;
       if (el.getAttribute('data-hit') === 'pet') petRects(el, r).forEach(function (q) { out.push(outer(q)); });
@@ -1418,7 +1430,6 @@ QJZ.layouts = (function () {
         break;
       case 'mini': show('M3'); break;
       case 'hide': send('hide', {}); break;
-      case 'menu': send('contextMenu', {}); break;
       case 'back': if (panels()) panels().close(); else closePanel(); break;
       case 'drink': if (QJZ.care) QJZ.care.drink(); break;
       case 'pomo':   // 1.1.3 item 2c: a tap starts; while a phase runs it only says how to stop (a long press does)
@@ -1612,14 +1623,14 @@ QJZ.layouts = (function () {
     hold = null;
     if (!h) return;
     h.ring.classList.remove('holding', 'charged', 'h-' + h.kind);
-    if (!fire && h.kind !== 'stand') swallow = h.el;   // slid off it or let go elsewhere (review M-3): no tap either
+    if (!fire) swallow = h.el;   // slid off it or let go elsewhere (review M-3): no tap either (1.1.7: nor the 🧍's tip)
     if (!fire || !ready()) return;
     var held = app().nowMs() - h.at;
     // 1.1.5: let go once the ring has shown but before it is full: nothing (no tap, no 「長按停止」, no long action)
     if (held >= HOLD_SHOW_MS && held < HOLD_MS) { swallow = h.el; return; }
     if (held < HOLD_MS || !QJZ.care) return;   // before the ring showed: a tap (its click does it)
-    if (h.kind === 'stand') { QJZ.care.stoodUp(); return; }
     swallow = h.el;
+    if (h.kind === 'stand') { QJZ.care.stoodUp(); return; }
     if (h.kind === 'water') { if (QJZ.care.undrink()) popCup('−1'); }
     else if (phaseRuns()) QJZ.care.toggleFocus();
   }
@@ -1755,7 +1766,9 @@ QJZ.layouts = (function () {
       if (a.matches('.tb,[data-act=drink],[data-act=pomo]') && document.activeElement === a) a.blur();   // (however it got the focus: M-5; 1.1.3)
       return;
     }
-    if (e.target.closest('[data-hold]')) return;   // the countdown: its long press is all it does (onDown, onUp)
+    // the countdown: its long press is what it does (onDown, onUp); 1.1.7 item 2: a tap only says so (none on an inert one)
+    var hc = e.target.closest('[data-hold]');
+    if (hc) { if (!hc.classList.contains('inert') && e.detail > 0) tip(hc, STAND_TIP); return; }
     var buy = e.target.closest('[data-buy]');
     if (buy && inRoot(buy) && !dragged) { nextItem(); return; }   // 1.1.5: 可以買 shows its next item
     if (dragged) { dragged = false; return; }   // the end of a drag, not a poke
@@ -1994,7 +2007,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, left: left, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, nextRot: nextRot, CARD_MS: CARD_MS, ITEM_MS: ITEM_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, hoverOutMs: hoverOutMs,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, STAND_TIP: STAND_TIP, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,
