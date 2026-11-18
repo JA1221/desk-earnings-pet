@@ -519,8 +519,8 @@ QJZ.layouts = (function () {
     v.prings = all(el, '[data-pring]');
     v.gauges = all(el, '[data-gauge]');
     v.tslots = all(el, '[data-tslots]');
-    // the countdowns (U12's 起來動 ring counts, no 💤; U10's collapsed one only shows, [data-zz], 1.1.7 item 5)
-    v.holds = all(el, '[data-hold]:not([data-hold=gauge]),[data-zz]');
+    // the countdowns (U12's 起來動 ring counts, no 💤)
+    v.holds = all(el, '[data-hold]:not([data-hold=gauge])');
     v.nils = all(el, '[data-nil]');
     v.ghosts = all(el, '[data-ghost]');   // the money texts that mask (1.1.4 item 6)   // an always-there countdown that reads -- (1.1.3)
     v.pins = all(el, '.bar .tb.pin');

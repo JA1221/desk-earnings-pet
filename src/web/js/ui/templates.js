@@ -194,17 +194,15 @@ QJZ.templates = (function () {
         '<div class="sub" data-hit data-b="m3sub"></div>' + stickers() + hoverGear('mg', true) + PSLOT + '<div class="fx" data-fx data-fxwin></div></div>';
     },
     // U10 (G_U10_*): one fixed window, the dark capsule on its edge at the dock (layouts.js: class d-<dock>). Its views:
-    // collapsed (whole dollars, the cups and tomatoes by the rule; 1.1.7 item 5: and between them the compact 🧍 N 分, by
-    // standC's rule, 💤 during 等一下 ([data-zz]); all three only show, the hover expands as before), a pomodoro's countdown, the full view while the
+    // collapsed (1.1.7 review of item 5: the avatar and the whole dollars only, the least there is; the cups, 🧍 and
+    // tomatoes are in the full view), a pomodoro's countdown, the full view while the
     // pointer is on it (2 decimals; 1.1.3 item 7: the water, 🧍 and 番茄鐘 chips, U1's row in a column, always there and
     // all as wide; 1.1.6 item 2: and a ⚙ on the avatar's corner) and the call while a prompt shows.
     // Only the capsule takes clicks. No odometer: the capsule changes at most once a second.
     U10: function () {
       return '<div class="u10 lay"><div class="isl" data-hit data-hover><div class="av" data-pet="avatar"></div>' +
         '<span class="iv iv-c"><i class="gd"></i><span class="im mv" data-ghost data-b="moneyWhole"' + MASK + '></span>' +
-          '<span class="ichip" data-show="cups" data-cups>' + ic('drop') + '<span data-b="cupsNum"></span></span>' +
-          '<span class="ichip st" data-show="standC" data-zz>' + standIcons() + '<span data-b="standMin"></span></span>' +
-          '<span class="ichip" data-show="tomatoes">' + ic('tom') + '<span data-b="tomNum"></span></span></span>' +
+          '</span>' +
         '<span class="iv iv-f"><span class="donut" data-gauge="pomo"></span><span class="im" data-b="mmss"></span>' +
           '<span class="isub" data-b="phaseNote"></span><span class="im sm mv" data-ghost data-b="moneyWhole"' + MASK + '></span></span>' +
         '<span class="iv iv-x">' + hoverGear('ug') + '<span class="icol"><span class="isub"><i class="gd"></i><span data-b="status"></span> · ' +

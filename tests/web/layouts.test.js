@@ -1905,7 +1905,7 @@
         state + ': the capsule and its shadow inside ' + JSON.stringify([r.left, r.top, r.right, r.bottom]));
       if (w) ok(r.width >= w[0] && r.width <= w[1] && r.height >= h[0] && r.height <= h[1], state + ': ' + r.width + 'x' + r.height);
     }
-    check('collapsed', [180, 280], [34, 40]);
+    check('collapsed', [110, 280], [34, 40]);   // 1.1.7 review of item 5: the avatar and the dollars only
     hoverOn($(e, '.isl'));
     check('hover', [320, 500], [92, 106]);
     e.menu('layout:U10');   // built again: collapsed
@@ -1995,7 +1995,7 @@
     eq(hitsOf(e), [U.outer(small)]);
     QJZ.app.saveSettings({ health: BOTH });
     C.drink();
-    eq(shownText(e.root.querySelectorAll('.iv-c > .ichip')), ['1', '50 分'], 'a cup today: the cups chip (§4.9 #8); 1.1.7 item 5: the next stand-up');
+    eq(shownText(e.root.querySelectorAll('.iv-c > :not(.gd)')), ['NT$ 284'], 'a cup today: collapsed is still the dollars only (1.1.7 review of item 5)');
     hoverOn(isl);
     eq(shownText(e.root.querySelectorAll('.iv-x .ichip')), ['1/8 杯', '50 分後', '▶'], 'water on: the cups; the reminder asked: the next stand-up');
     clickOn($(e, '.iv-x [data-act=drink]'));
@@ -4382,9 +4382,9 @@
     });
   });
   // Item 3: wherever 💧, 🧍 and 🍅 sit together they go in that order: U1's row, U7's tag line, U10 folded and its full view's
-  // chips, M3's corners (reading order), and (1.1.7 review o1) U12's rings. (U3, U5-B and U13 have them in separate places.)
-  test('layouts DOM: 1.1.7 item 3: 💧 🧍 🍅 in that order in U1, U7, U10 (folded and full), M3 and U12', function () {
-    var GROUP = { U1: '.u1 .mpills', U7: '.u7 .hline', U10: '.u10 .iv-c', 'U10 full': '.u10 .iv-x .chips', M3: '.m3', U12: '.u12 .rings' };
+  // chips (folded it has none: 1.1.7 review of item 5), M3's corners (reading order), and (1.1.7 review o1) U12's rings. (U3, U5-B and U13 have them in separate places.)
+  test('layouts DOM: 1.1.7 item 3: 💧 🧍 🍅 in that order in U1, U7, U10 (full), M3 and U12', function () {
+    var GROUP = { U1: '.u1 .mpills', U7: '.u7 .hline', 'U10 full': '.u10 .iv-x .chips', M3: '.m3', U12: '.u12 .rings' };
     var ANY = '[data-act=drink],[data-cups],[data-hold],[data-show=standC],[data-act=pomo],[data-show=tomatoes]';
     function kind(n) { return n.matches('[data-act=drink],[data-cups]') ? '💧' : n.matches('[data-hold],[data-show=standC]') ? '🧍' : '🍅'; }
     Object.keys(GROUP).forEach(function (k) {
@@ -4526,25 +4526,22 @@
     done();
   });
 
-  // Item 5: U10 folded shows 💧 🧍 🍅: the 🧍 N 分 chip by the compact rule (💤 during 等一下), only showing like the other two;
-  // the capsule still sits at its dock at every dock, nothing moves when masking, and the hover expands as before.
-  test('layouts DOM: 1.1.7 item 5: U10 folded shows 💧 🧍 🍅 at every dock; only showing; masking moves nothing', function () {
+  // Item 5, as the review changed it: U10 folded is the avatar and the whole dollars only (no 💧 🧍 🍅 chips; they are in
+  // the full view); the capsule still sits at its dock at every dock, nothing moves when masking, the hover expands as before.
+  test('layouts DOM: 1.1.7 item 5: U10 folded is the avatar and the dollars only, at every dock; masking moves nothing', function () {
     QJZ.settings.DOCKS.forEach(function (dock) {
       var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH, layout: { capsule: dock } }, rec: today(3, 2, 1) }));
       e.tick(at(12, 9, 18));
-      var iv = $(e, '.u10 .iv-c'), chips = Array.prototype.filter.call(iv.querySelectorAll('.ichip'), drawn);
-      eq(chips.map(visText), ['3', '32 分', '2'], dock + ': 💧 🧍 🍅');
-      ok(chips[1].querySelector('svg.ic-stand'), dock + ': the stand-up icon');
-      eq([chips[1].hasAttribute('data-act'), chips[1].hasAttribute('data-hold'), chips[1].tagName], [false, false, 'SPAN'], dock + ': it only shows');
-      chips.forEach(function (c, i) { if (i) ok(chips[i - 1].getBoundingClientRect().right <= c.getBoundingClientRect().left, dock + ': side by side'); });
+      var iv = $(e, '.u10 .iv-c');
+      eq(iv.querySelectorAll('.ichip').length, 0, dock + ': no chips');
+      eq(shownText(e.root.querySelectorAll('.iv-c > :not(.gd)')).length, 1, dock + ': the dollars');
+      ok(drawn($(e, '.isl > .av')), dock + ': the avatar');
       var lay = $(e, '.u10').getBoundingClientRect(), r = $(e, '.isl').getBoundingClientRect();
       var h = Math.abs(r.left - lay.left) < 1 ? 'Left' : Math.abs(r.right - lay.right) < 1 ? 'Right' : Math.abs(r.left + r.right - lay.left - lay.right) < 2 ? 'Center' : '?';
       var v = Math.abs(r.top - lay.top) < 1 ? 'top' : Math.abs(r.bottom + 5 - lay.bottom) < 1 ? 'bottom' : '?';
       eq(v === 'top' ? v : v + h, dock, dock + ': at its dock');
       ok(r.left >= lay.left - 0.5 && r.right <= lay.right + 0.5, dock + ': inside the window');
       eq(hitsOf(e), [U.outer(r)], dock + ': the capsule is the hit rect');
-      tap(e, chips[1]);
-      eq([C.state.health.standups, tips(e)], [1, []], dock + ': a tap on it does nothing');
       var a = boxesIn($(e, '.u10'));
       setMask(true);
       eq(moved(a, boxesIn($(e, '.u10'))), [], dock + ': masking moves nothing');
@@ -4554,18 +4551,9 @@
       done();
     });
     var e = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: BOTH }, rec: today(3, 2, 1) }));
-    e.tick(at(12, 9, 49, 59));
-    e.tick(at(12, 9, 50));
-    ok($(e, '.u10').classList.contains('prompting'), 'the call');
-    clickOn($(e, '[data-answer=later]'));
-    var c = $(e, '.u10 .iv-c [data-show=standC]');
-    ok(drawn(c) && c.classList.contains('snz') && getComputedStyle(c.querySelector('.zz')).display !== 'none', '等一下: 💤 N 分');
+    e.tick(at(12, 9, 18));
     C.toggleFocus();
-    ok(!drawn($(e, '.u10 .iv-c')), 'a focus: the countdown view, as before');
-    done();
-    var f = shown(mk(at(12, 9, 0), { first: 'U10', care: true, settings: { health: WATER_ON }, rec: today(3, 2, 1) }));
-    f.tick(at(12, 9, 18));
-    eq(Array.prototype.filter.call($(f, '.u10 .iv-c').querySelectorAll('.ichip'), drawn).map(visText), ['3', '2'], '起來動 off: no 🧍');
+    ok(!drawn($(e, '.u10 .iv-c')) && drawn($(e, '.u10 .iv-f')), 'a focus: the countdown view, as before');
     done();
   });
 
