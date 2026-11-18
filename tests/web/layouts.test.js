@@ -2052,7 +2052,7 @@
   test('layouts DOM: U12: rings from the three goals, always shown; the water ring drinks; the matching ring glows; the bottom line', function () {
     var e = shown(mk(at(12, 9, 0), { first: 'U12', care: true, settings: { health: BOTH }, rec: today(3, 3, 5) }));
     e.tick(at(12, 9, 42));
-    eq(rings(e), ['cups 37.5 3/8 喝水（杯）', 'tom 75 3 番茄（顆）', 'stand 55.6 5 8 分後起來動'], 'goals: 8 cups, 4 tomatoes, 9 stand-ups (8 h / 50 min); 1.1.4 item 3: the time to the next');
+    eq(rings(e), ['cups 37.5 3/8 喝水（杯）', 'stand 55.6 5 8 分後起來動', 'tom 75 3 番茄（顆）'], 'goals: 8 cups, 4 tomatoes, 9 stand-ups (8 h / 50 min); 1.1.4 item 3: the time to the next');
     eq(shownText(e.root.querySelectorAll('.u12 .say')), ['再 8 分鐘起來動～']);
     eq(getComputedStyle($(e, '.u12 [data-gauge=cups] .rg')).transitionDuration, '0s', 'no transition on the rings');
     clickOn($(e, '.u12 [data-gauge=cups]'));
@@ -2061,7 +2061,7 @@
     var size = sizeOf(e);
     e.tick(at(12, 9, 49, 59));
     e.tick(at(12, 9, 50));
-    eq(hots(e), [true, false, true], 'both: the water and the stand-up rings glow');
+    eq(hots(e), [true, true, false], 'both: the water and the stand-up rings glow');
     eq(seen($(e, '[data-gauge=stand] .gl')), '該起來了！');
     eq(shownText(e.root.querySelectorAll('.u12 .say')), [], 'the bubble takes the line\'s place');
     var b = $(e, '.u12 .dfoot [data-prompt] .rbub');
@@ -2070,10 +2070,10 @@
     eq(sizeOf(e), size, 'the window keeps its size');
     clickOn($(e, '[data-answer=up]'));
     eq(hots(e), [false, false, false]);
-    eq(rings(e)[2], 'stand 66.7 6 50 分後起來動');
+    eq(rings(e)[1], 'stand 66.7 6 50 分後起來動');
     QJZ.app.saveSettings({ health: { water: { on: false } } });
     C._dev({ prompt: 'sit' });
-    eq(hots(e), [false, false, true], 'sit: the stand-up ring');
+    eq(hots(e), [false, true, false], 'sit: the stand-up ring');
     eq(sizeOf(e), size, 'sit: the same size');
     QJZ.app.saveSettings({ health: { sit: { on: false }, water: { on: true } } });
     C._dev({ prompt: 'water' });
@@ -2081,21 +2081,21 @@
     eq(sizeOf(e), size, 'water: the same size');
     eq(seen($(e, '[data-gauge=stand] .gl')), '起來動（次）');
     C._dev({ prompt: 'break' });
-    eq(hots(e), [false, true, false], 'a pomodoro bubble: the tomato ring');
+    eq(hots(e), [false, false, true], 'a pomodoro bubble: the tomato ring');
     clickOn($(e, '[data-answer=ok]'));
-    eq(rings(e)[1], 'tom 60 休息03:00 番茄倒數', 'the break counts down in the tomato ring');
+    eq(rings(e)[2], 'tom 60 休息03:00 番茄倒數', 'the break counts down in the tomato ring');
     eq(['cups', 'tom', 'stand'].map(function (g) { return $(e, '[data-gauge=' + g + ']').classList.contains('rest'); }), [false, true, false],
       'only the countdown turns green');
     eq(shownText(e.root.querySelectorAll('.u12 .say')), ['休息一下～'], 'water only (1.1.1): no stand-up line (1.1.3: the break\'s)');
     QJZ.app.saveSettings({ health: { sit: { on: true } } });
     C.toggleFocus();
     C.toggleFocus();
-    eq(rings(e)[1], 'tom 100 專心25:00第 4 顆 番茄倒數', 'a focus: 專心 mm:ss 第 N 顆');
+    eq(rings(e)[2], 'tom 100 專心25:00第 4 顆 番茄倒數', 'a focus: 專心 mm:ss 第 N 顆');
     eq(shownText(e.root.querySelectorAll('.u12 .say')), ['專心中～提醒等休息再說']);
     eq(sizeOf(e), size);
     done();
     var f = mk(at(12, 10, 0), { first: 'U12', care: true });   // water off, no cup, nothing asked
-    eq(rings(f), ['cups 0 0/8 喝水（杯）', 'tom 0 0 番茄（顆）', 'stand 0 0 起來動（次）'], 'unused: the rings are still there (§4.9 #8)');
+    eq(rings(f), ['cups 0 0/8 喝水（杯）', 'stand 0 0 起來動（次）', 'tom 0 0 番茄（顆）'], 'unused: the rings are still there (§4.9 #8)');
     ok(Array.prototype.every.call(f.root.querySelectorAll('.u12 [data-gauge]'), drawn));
     eq(shownText(f.root.querySelectorAll('.u12 .say')), ['點番茄，開始專心～'], 'nothing asked: no stand-up line (1.1.3: what the 番茄 ring does)');
     done();
@@ -4382,9 +4382,9 @@
     });
   });
   // Item 3: wherever 💧, 🧍 and 🍅 sit together they go in that order: U1's row, U7's tag line, U10 folded and its full view's
-  // chips, M3's corners (reading order). (U3, U5-B and U13 have them in separate places; U12's rings read 💧 🍅 🧍.)
-  test('layouts DOM: 1.1.7 item 3: 💧 🧍 🍅 in that order in U1, U7, U10 (folded and full) and M3', function () {
-    var GROUP = { U1: '.u1 .mpills', U7: '.u7 .hline', U10: '.u10 .iv-c', 'U10 full': '.u10 .iv-x .chips', M3: '.m3' };
+  // chips, M3's corners (reading order), and (1.1.7 review o1) U12's rings. (U3, U5-B and U13 have them in separate places.)
+  test('layouts DOM: 1.1.7 item 3: 💧 🧍 🍅 in that order in U1, U7, U10 (folded and full), M3 and U12', function () {
+    var GROUP = { U1: '.u1 .mpills', U7: '.u7 .hline', U10: '.u10 .iv-c', 'U10 full': '.u10 .iv-x .chips', M3: '.m3', U12: '.u12 .rings' };
     var ANY = '[data-act=drink],[data-cups],[data-hold],[data-show=standC],[data-act=pomo],[data-show=tomatoes]';
     function kind(n) { return n.matches('[data-act=drink],[data-cups]') ? '💧' : n.matches('[data-hold],[data-show=standC]') ? '🧍' : '🍅'; }
     Object.keys(GROUP).forEach(function (k) {

@@ -268,14 +268,17 @@ QJZ.layouts = (function () {
     if (!salary || !(salary.amount > 0)) return '還沒設定薪資（右鍵 → 設定）';
     return '每秒 +NT$ ' + (masked ? '***' : perSec.toFixed(3));
   }
-  function remainPhrase(key, sec) {
+  // toStart (1.1.7 review h1): the seconds until a start still ahead (固定 before its start), else null; then the
+  // countdown is to 上班, and from the start on it is to 下班 again.
+  function remainPhrase(key, sec, toStart) {
     if (key === 'done') return '可以下班囉！';
     if (key === 'ended') return '今天辛苦了！';
     if (key === 'off') return '今天休假';
-    if (key === 'before') return '還沒開始上班';
+    if (key === 'before') return toStart != null ? '還有 ' + left(toStart) + ' 上班' : '還沒開始上班';
     return '還有 ' + left(sec) + ' 下班';
   }
-  function m3Sub(key, sec) {
+  function m3Sub(key, sec, toStart) {
+    if (key === 'before' && toStart != null) return STATUS.before + ' · 還有 ' + left(toStart);
     return key === 'working' || key === 'lunch' ? STATUS[key] + ' · 還有 ' + left(sec) : STATUS[key];
   }
   function heartsText(n) {
@@ -387,14 +390,16 @@ QJZ.layouts = (function () {
     }
     var m = moneyTexts(masked);
     m.ghost = moneyTexts(!masked);
+    var toStart = key === 'before' && today && typeof today.startMs === 'number' && ms < today.startMs ? (today.startMs - ms) / 1000 : null;
     var more = {
       masked: masked,
       key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
       petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
-      remain: left(snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec),
-      m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec),
+      remain: left(toStart != null ? toStart : snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec, toStart),
+      remainLbl: toStart != null ? '距離上班' : '距離下班', remainTo: toStart != null ? '上班' : '下班',   // U1's / U3's label
+      m3sub: hc.phase ? POMO_STATUS[hc.phase] + ' · ' + hc.ring.label : m3Sub(key, snap.remainingSec, toStart),
       itemLabel: it ? '可以買' + it.name : '',
       cardMonth: card.month,
       hearts: heartsText(v.hearts), bolts: v.bolts,

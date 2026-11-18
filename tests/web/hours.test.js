@@ -123,6 +123,20 @@
     near(QJZ.app.state.snap.earned, 50000 / 22 / 8.5 / 3, 1e-6);
     QJZ.app._reset();
   });
+  // review h1: before the 固定 start the countdown is to 上班 (U1 距離上班, U3 上班, the phrases); from 08:00 to 下班 again
+  test('app 固定: at 07:40 the countdown is 距離上班 00:20:00; at 08:00 距離下班 08:30:00', function () {
+    var e = mkApp(T(7, 40), FIXED_RAW), U = QJZ.layouts.util;
+    var m = U.model(QJZ.app.state, T(7, 40));
+    eq([m.remainLbl, m.remainTo, m.remain, m.remainPhrase, m.m3sub], ['距離上班', '上班', '00:20:00', '還有 00:20:00 上班', '還沒上班 · 還有 00:20:00']);
+    e.tick(T(8, 0));
+    m = U.model(QJZ.app.state, T(8, 0));
+    eq([m.remainLbl, m.remainTo, m.remain, m.remainPhrase], ['距離下班', '下班', '08:30:00', '還有 08:30:00 下班']);
+    QJZ.app._reset();
+    mkApp(T(7, 40), { salary: SAL, onboarded: true, health: { asked: true }, startMode: 'manual' });
+    m = U.model(QJZ.app.state, T(7, 40));
+    eq([m.remainLbl, m.remainPhrase], ['距離下班', '還沒開始上班'], '彈性, no start yet: as before');
+    QJZ.app._reset();
+  });
   test('app 固定: started at 08:20 counts from 08:00; at 18:00 nothing starts', function () {
     mkApp(T(8, 20), FIXED_RAW);
     eq(QJZ.app.state.today.startMs, T(8, 0));

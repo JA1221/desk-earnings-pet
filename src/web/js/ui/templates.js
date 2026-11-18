@@ -130,17 +130,18 @@ QJZ.templates = (function () {
   // U12 (G_U12_*): the three rings, each the day's count against its goal with the count in it and its label under it.
   // The water ring logs a cup (§5.3); the tomato ring counts the pomodoro down while one runs (§5.2) and is a pomodoro
   // button (1.1.3 item 6: a tap starts one, a long press stops it); the stand-up label turns 「該起來了！」 while the
-  // reminder asks for it. A long press's ring goes round the ring itself ([data-holdring]).
+  // reminder asks for it. A long press's ring goes round the ring itself ([data-holdring]). 1.1.7 review o1: 喝水、起來動、番茄,
+  // the 💧 🧍 🍅 order of every other layout.
   function gauges() {
     return '<div class="rings">' +
       '<button type="button" class="gauge3" data-gauge="cups"' + DRINK + '><span class="rg" data-holdring>' + ic('drop') +
         '<b data-b="cups"></b></span><span class="gl">喝水（杯）</span></button>' +
-      '<button type="button" class="gauge3" data-gauge="tom"' + POMO + '><span class="rg" data-holdring><span class="g-day">' + ic('tom') + '<b data-b="tomNum"></b></span>' +
-        '<span class="g-run"><small data-b="phaseShort"></small><b data-b="mmss"></b><small data-b="nth"></small></span></span>' +
-        '<span class="gl" data-b="tomLabel"></span></button>' +
       '<div class="gauge3" data-gauge="stand"><span class="rg" data-hold="gauge" title="起來動（長按＝我剛起來動過了）">' + ic('stand') +
         '<b data-b="standups"></b></span>' +
-        '<span class="gl" data-b="standLabel"></span></div></div>';
+        '<span class="gl" data-b="standLabel"></span></div>' +
+      '<button type="button" class="gauge3" data-gauge="tom"' + POMO + '><span class="rg" data-holdring><span class="g-day">' + ic('tom') + '<b data-b="tomNum"></b></span>' +
+        '<span class="g-run"><small data-b="phaseShort"></small><b data-b="mmss"></b><small data-b="nth"></small></span></span>' +
+        '<span class="gl" data-b="tomLabel"></span></button></div>';
   }
   var TEMPLATES = {
     U1: function () {
@@ -148,7 +149,7 @@ QJZ.templates = (function () {
         '<div class="row-top"><div class="clock" data-b="clock"></div>' + PILL + '</div>' +
         '<div class="scene-wrap"><div class="scene" data-pet="scene"></div>' + pring() + '<div class="fx" data-fx><div class="bubble" data-bubble></div></div></div>' +
         '<div class="money-box"><div class="money-label">今天已經賺到</div>' + MONEY + '<div class="rate">' + mv('rate') + '</div>' + mpills() + '</div>' +
-        '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span>距離下班 <b data-b="remain"></b></span></div>' +
+        '<div><div class="prog-top"><span>今日進度 <b data-b="pct"></b></span><span><span data-b="remainLbl">距離下班</span> <b data-b="remain"></b></span></div>' +
           '<div class="track"><div class="fill" data-fill></div></div></div>' +
         '<div class="chips"><div class="chip"' + BUY + '><small data-b="itemLabel"></small>' + mv('item', 'b') + '</div>' +
           '<div class="chip"><small>本月累計</small>' + mv('month', 'b') + '</div></div>' +
@@ -163,7 +164,7 @@ QJZ.templates = (function () {
         '<div class="side" data-bubble-clear><div class="pill alt" data-alt' + BUY + '>' + mv('card') +
           '<span class="alt-dots" aria-hidden="true"><i></i><i></i></span></div></div>' +
         '<div class="hud-bottom money-box"><div class="coin">$</div>' + MONEY +
-          '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span>下班 <b data-b="remain"></b></span></div>' +
+          '<div class="xp"><span data-b="pct"></span><div class="track"><div class="fill" data-fill></div></div><span><span data-b="remainTo">下班</span> <b data-b="remain"></b></span></div>' +
           tomslots() + '</div>' +
         '</div>' + PSLOT + '<div class="fx" data-fx data-fxwin><div class="bubble" data-bubble></div></div></div>';
     },
