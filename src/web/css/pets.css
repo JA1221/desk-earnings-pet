@@ -25,7 +25,7 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 .pet-svg .bod{transform-box:view-box;transform-origin:118px 172px}
 .pet-svg .swing{transform-box:view-box;transform-origin:var(--gx,118px) var(--gy,50px)}
 .pet-svg .pawL,.pet-svg .pawR{transform-box:fill-box;transform-origin:center bottom}
-.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.note){transform-box:view-box}
+.pet-svg :is(.armL,.armR,.scr,.held,.breath,.legs,.limp,.chew,.mouth-b,.zz,.snot,.hrt,.smk,.cf,.coin,.coinspin,.csp,.flame,.fly,.drip,.vein,.qm,.tear,.crumb,.steam2,.spk,.note,.feed,.like){transform-box:view-box}
 
 /* ---------- always on ---------- */
 .pet-svg .puff{transform-box:view-box;animation:puff 1.2s ease-in-out infinite}
@@ -153,6 +153,23 @@ html.calm .pet-svg .zz:nth-child(3){transform:translate(14px,-24px)}
 .pet-svg.st-coffee .eyes-alt{animation:sipB 4s infinite}
 @keyframes sipA{0%,35.9%,68%,100%{opacity:1}36%,67.9%{opacity:0}}
 @keyframes sipB{0%,35.9%,68%,100%{opacity:0}36%,67.9%{opacity:1}}
+
+/* ---------- slack 滑手機摸魚 (1.1.8): head down over the phone, grinning; the feed flicks up; a heart pops; now and then a
+   guilty look up (eyes open, mouth flat) and back down ---------- */
+.pet-svg.st-slack .held{animation:slackHold 3.2s ease-in-out infinite}
+@keyframes slackHold{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(calc(-.8px * var(--m))) rotate(calc(-2deg * var(--m)))}}
+.pet-svg.st-slack .head,.pet-svg.st-slack .squish{animation:slackHead 6s ease-in-out infinite}
+@keyframes slackHead{0%,64%,92%,100%{transform:translateY(calc(1px * var(--m))) rotate(calc(2deg * var(--m)))}72%,86%{transform:translateY(calc(-.6px * var(--m))) rotate(calc(-1deg * var(--m)))}}
+.pet-svg.st-slack .look{animation:slackLook 6s ease-in-out infinite}
+@keyframes slackLook{0%,64%,92%,100%{transform:translate(0,calc(1.4px * var(--m)))}72%,86%{transform:translate(calc(2.2px * var(--m)),calc(-.4px * var(--m)))}}
+.pet-svg.st-slack :is(.eyes-open,.mouth-a){animation:slackA 6s infinite}
+.pet-svg.st-slack :is(.eyes-alt,.mouth-b){animation:slackB 6s infinite}
+@keyframes slackA{0%,69.9%,88%,100%{opacity:1}70%,87.9%{opacity:0}}
+@keyframes slackB{0%,69.9%,88%,100%{opacity:0}70%,87.9%{opacity:1}}
+.pet-svg.st-slack .feed{animation:feedFlick 1.8s ease-out infinite}
+@keyframes feedFlick{0%,50%{transform:translateY(0)}62%,100%{transform:translateY(calc(-1.8px * var(--m)))}}
+.pet-svg.st-slack .like{animation:likePop 3.6s ease-out infinite}
+@keyframes likePop{0%,40%{opacity:0;transform:scale(.3)}48%{opacity:1;transform:scale(1.25)}56%,78%{opacity:1;transform:scale(1)}100%{opacity:0;transform:translateY(calc(-3px * var(--m))) scale(.9)}}
 
 /* ---------- stare 盯螢幕: leans in towards the screen, eyes locked on it, hardly blinks ---------- */
 .pet-svg.st-stare .head,.pet-svg.st-stare .squish{animation:lean 5s ease-in-out infinite}

@@ -2,11 +2,14 @@ window.QJZ = window.QJZ || {};
 // What the pet does (spec §5.1). Pure and timer-free: everything is decided from the wall-clock time the caller
 // passes in, so layouts.js drives it from the app's existing 100 ms tick and a page that was hidden (throttled
 // timers, paused tick) simply catches up on the next call.
-//   base(status, minutesToEnd, secInStatus) -> the state for the work status:
-//       before -> idle, working -> typing (sprint in the last 30 minutes), lunch -> lunchSleep,
-//       done / ended -> celebrate for the first 8 s, then waitBag.
-//   pickIdle(m, rng, status) -> an idle action or null: while working one of stretch|yawn|coffee|stare|scratch
-//       (yawn x3 when energy < 40); before work doze now and then (RULING-3); otherwise null.
+//   base(status, minutesToEnd, secInStatus, slackEnd) -> the state for the work status:
+//       before -> idle, working -> typing (sprint in the last 30 minutes; slack instead on a slackDay, slackEnd true),
+//       lunch -> lunchSleep, done / ended -> celebrate for the first 8 s, then waitBag.
+//   pickIdle(m, rng, status, hour) -> an idle action or null: while working one of stretch|yawn|coffee|stare|scratch
+//       (yawn x3 when energy < 40) or now and then slack (1.1.8 滑手機摸魚: weight SLACK_W, about 1 in 10; SLACK_W_LAZY,
+//       about 1 in 3, while lazy: energy < 40 or 14:00–16:00); before work doze now and then (RULING-3); otherwise null.
+//   slackDay(ms) -> true on about 3 days in 10 (SLACK_DAY), by the local date alone (the same all day, across restarts):
+//       that day the last 30 minutes are slack, scrolling the phone till 下班, instead of the sprint.
 //   Poker: poke(nowMs) -> 'petted' | 'angry' (5 pokes within 2 s -> angry for 4 s).
 //   Brain: the running pet. update(nowMs, info) -> the state to show, where
 //       info = {status, minutesToEnd, lunchMin (minutes into lunch, or null), mood ({energy, mood}, optional)}.
@@ -30,34 +33,44 @@ window.QJZ = window.QJZ || {};
 //   省電模式 (§5.9): setSaver(on) spaces the idle actions SAVER_IDLE_EVERY apart (brain.saver); a change schedules the
 //       next one from the next update, an action that is on plays to its end.
 QJZ.behavior = (function () {
-  var IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch'];
+  var IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch', 'slack'];
   var CELEBRATE_SEC = 8, SPRINT_MIN = 30, LUNCH_EAT_MIN = 10;
   var IDLE_EVERY = [20000, 60000], IDLE_FOR = [3000, 5000], DOZE_FOR = [8000, 15000], DOZE_CHANCE = 0.4;
+  var SLACK_FOR = [8000, 15000], SLACK_W = 0.55, SLACK_W_LAZY = 3, SLACK_DAY = 0.3;
   var SAVER_IDLE_EVERY = [60000, 180000];
   var GAP_MS = 5000, PET_MS = 2000;
   var POKE_WINDOW = 2000, POKE_COUNT = 5, ANGRY_MS = 4000;
   var WAVE_MS = 4000, STRETCH_MS = 4000, SIP_MS = 3000;
   var CUES = { focus: 1, wave: 1, holdCup: 1, stretch: 1 };
 
-  function base(status, minutesToEnd, secInStatus) {
+  function base(status, minutesToEnd, secInStatus, slackEnd) {
     switch (status) {
-      case 'working': return minutesToEnd <= SPRINT_MIN ? 'sprint' : 'typing';
+      case 'working': return minutesToEnd <= SPRINT_MIN ? (slackEnd ? 'slack' : 'sprint') : 'typing';
       case 'lunch': return 'lunchSleep';
       case 'done': case 'ended': return secInStatus >= CELEBRATE_SEC ? 'waitBag' : 'celebrate';
       default: return 'idle';
     }
   }
 
-  function pickIdle(m, rng, status) {
+  function lazy(m, hour) { return !!(m && m.energy < 40) || (hour >= 14 && hour < 16); }
+  function pickIdle(m, rng, status, hour) {
     rng = rng || Math.random;
     if (status === 'before') return rng() < DOZE_CHANCE ? 'doze' : null;
     if (status !== undefined && status !== 'working') return null;
-    var yawn = m && m.energy < 40 ? 3 : 1, total = IDLES.length - 1 + yawn, r = rng() * total;
-    for (var i = 0; i < IDLES.length; i++) {
-      r -= IDLES[i] === 'yawn' ? yawn : 1;
+    var w = { yawn: m && m.energy < 40 ? 3 : 1, slack: lazy(m, hour) ? SLACK_W_LAZY : SLACK_W }, total = 0, i;
+    for (i = 0; i < IDLES.length; i++) total += w[IDLES[i]] || 1;
+    var r = rng() * total;
+    for (i = 0; i < IDLES.length; i++) {
+      r -= w[IDLES[i]] || 1;
       if (r < 0) return IDLES[i];
     }
     return IDLES[IDLES.length - 1];
+  }
+  // FNV-1a of the local date (YYYY-MM-DD): a slack day or not, the same for the whole day
+  function slackDay(ms) {
+    var d = new Date(ms), s = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(), h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return (h % 1000) / 1000 < SLACK_DAY;
   }
 
   // mulberry32: a small seeded generator for tests and reproducible dev runs.
@@ -132,7 +145,7 @@ QJZ.behavior = (function () {
     var b = 'focus';
     if (!focusing) {
       // 可以下班 that came during a focus celebrates after it (§5.2): its clock starts when the focus ends
-      b = base(info.status, info.minutesToEnd, (now - (this.waited ? Math.max(this.since, this.focusEnd) : this.since)) / 1000);
+      b = base(info.status, info.minutesToEnd, (now - (this.waited ? Math.max(this.since, this.focusEnd) : this.since)) / 1000, slackDay(now));
       if (b === 'lunchSleep' && info.lunchMin !== null && info.lunchMin !== undefined && info.lunchMin < LUNCH_EAT_MIN) b = 'lunchEat';
     }
 
@@ -154,8 +167,8 @@ QJZ.behavior = (function () {
       if (this.idle && now >= this.idle.until) { this.idle = null; this.nextIdle = null; }
       if (this.nextIdle === null && !this.idle) this.schedule(now);
       if (!this.idle && now >= this.nextIdle) {
-        var pick = pickIdle(info.mood || null, this.rng, b === 'idle' ? 'before' : 'working');
-        if (pick) this.idle = { state: pick, until: now + between(this.rng, pick === 'doze' ? DOZE_FOR : IDLE_FOR) };
+        var pick = pickIdle(info.mood || null, this.rng, b === 'idle' ? 'before' : 'working', new Date(now).getHours());
+        if (pick) this.idle = { state: pick, until: now + between(this.rng, pick === 'doze' ? DOZE_FOR : pick === 'slack' ? SLACK_FOR : IDLE_FOR) };
         else this.schedule(now);
       }
       if (this.idle) s = this.idle.state;
@@ -200,7 +213,7 @@ QJZ.behavior = (function () {
   Brain.prototype.knock = function (now) { if (this.cued !== 'focus') this.waveAt = now; };
 
   return {
-    IDLES: IDLES, base: base, pickIdle: pickIdle, rng: rng, Poker: Poker, Brain: Brain,
+    IDLES: IDLES, base: base, pickIdle: pickIdle, slackDay: slackDay, SLACK_FOR: SLACK_FOR, SLACK_DAY: SLACK_DAY, rng: rng, Poker: Poker, Brain: Brain,
     PET_MS: PET_MS, EAT_MS: 3000, HOP_MS: 2400, WAVE_MS: WAVE_MS, STRETCH_MS: STRETCH_MS, SIP_MS: SIP_MS
   };
 })();

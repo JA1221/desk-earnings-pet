@@ -394,7 +394,7 @@ QJZ.layouts = (function () {
     var more = {
       masked: masked,
       key: key, kind: kind, status: hc.phase ? POMO_STATUS[hc.phase] : STATUS[key],
-      petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60) : 'typing',   // base state
+      petState: QJZ.behavior ? QJZ.behavior.base(snap.status, snap.remainingSec / 60, 0, QJZ.behavior.slackDay(ms)) : 'typing',   // base state
       clock: clock, hm: clock.slice(0, 5),
       pct: (pct * 100).toFixed(1) + '%', pctNum: pct * 100,
       remain: left(toStart != null ? toStart : snap.remainingSec), remainPhrase: remainPhrase(key, snap.remainingSec, toStart),

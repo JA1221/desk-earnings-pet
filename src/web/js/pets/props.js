@@ -103,6 +103,20 @@ QJZ.pets.props = (function () {
         `<ellipse cx="0" cy="-7" rx="8" ry="2.3" fill="#8B5A3C" ${ol(ctx, 1.6)}/><ellipse cx="-.6" cy="-7.2" rx="4.4" ry="1.1" fill="#F2DCC0"/>` +
         `<path d="M0,5.2 c-3,-2.2 -4,-3.6 -4,-5 a2,2 0 0 1 4,-.6 a2,2 0 0 1 4,.6 c0,1.4 -1,2.8 -4,5z" fill="#fff"/>`) };
     },
+    // 1.1.8 slack: a phone held up in both paws, tipped a little, its screen a feed (.feed flicks up now and then) and a
+    // heart (.like) that pops over its corner
+    phone: function (ctx) {
+      var flat = ctx.mode === 'flat', body = flat ? '#4A5160' : '#3B3F4A', scr = flat ? '#DDF0FF' : '#CDEBFF';
+      var feed = `<rect x="-4.3" y="-6.6" width="8.6" height="5" rx=".8" fill="#FFC857"/>` +
+        `<path class="keep" d="M-4.3,.4 h8.6 M-4.3,2.4 h5.6" stroke="#8FA6BC" stroke-width="1.1" stroke-linecap="round"/>` +
+        `<rect x="-4.3" y="4" width="8.6" height="4.4" rx=".8" fill="#FF8FA3"/>`;
+      var heart = `<path d="M0,2.6 c-2.4,-1.7 -3.2,-2.9 -3.2,-4 a1.6,1.6 0 0 1 3.2,-.5 a1.6,1.6 0 0 1 3.2,.5 c0,1.1 -.8,2.3 -3.2,4z" fill="#FF5A7A" ${ol(ctx, 1.1)}/>`;
+      return { held: at(ctx.rig.hold, `<g transform="translate(0 -5) rotate(-10) scale(1.25)">` +
+        `<rect x="-7" y="-11" width="14" height="22" rx="2.6" fill="${body}" ${ol(ctx, 2)}/>` +
+        `<rect x="-5.6" y="-8.8" width="11.2" height="17.2" rx="1.2" fill="${scr}"/>` +
+        anim('feed', feed) + `<rect x="-2" y="-10.2" width="4" height=".9" rx=".45" fill="#6B7280"/>` +
+        `<g transform="translate(6.5 -11.5)">` + anim('like', heart) + `</g></g>`) };
+    },
     // rice ball with nori, held for lunch
     onigiri: function (ctx) {
       var d = 'M0,-10 C3.5,-10 11,1 11,5 C11,8.5 8,9.5 0,9.5 C-8,9.5 -11,8.5 -11,5 C-11,1 -3.5,-10 0,-10 Z';
@@ -328,5 +342,5 @@ QJZ.pets.props = (function () {
     return f ? f(ctx) : {};
   }
 
-  return { NAMES: NAMES, HELD: ['coffee', 'onigiri', 'snack', 'glass', 'sipGlass'], draw: draw };
+  return { NAMES: NAMES, HELD: ['coffee', 'onigiri', 'snack', 'glass', 'sipGlass', 'phone'], draw: draw };
 })();

@@ -3,7 +3,8 @@
 // same SVG, and ids that never collide between SVGs.
 (function () {
   var VIEWS = ['scene', 'petonly', 'avatar'];
-  var STATES = ['idle', 'doze', 'typing', 'stretch', 'yawn', 'coffee', 'stare', 'scratch', 'sprint', 'lunchSleep', 'lunchEat',
+  // (1.1.8: slack 滑手機摸魚 joins the working idles, in the review order after scratch)
+  var STATES = ['idle', 'doze', 'typing', 'stretch', 'yawn', 'coffee', 'stare', 'scratch', 'slack', 'sprint', 'lunchSleep', 'lunchEat',
     'celebrate', 'waitBag', 'petted', 'angry', 'eat', 'hop', 'dangle'];
   var EXPRESSIONS = ['open', 'happy', 'closed', 'sleepy', 'angry', 'surprised', 'dazed', 'sparkle'];
   var MOUTHS = ['neutral', 'smile', 'open', 'chew', 'yawn', 'pout', 'tiny'];
@@ -175,7 +176,7 @@
     });
   });
 
-  test('pets: 18 states in review order, each with a label and known parts', function () {
+  test('pets: 19 states in review order (1.1.8: slack), each with a label and known parts', function () {
     eq(QJZ.pets.states.NAMES, STATES);
     STATES.forEach(function (s) {
       var st = QJZ.pets.states.get(s);
@@ -619,7 +620,7 @@
   // ---------- Task 17: the 1.1 poses drawn for all 10 skins, and declared (poses11) after the user's OK ----------
   test('pets: the 1.1 poses are states by name, outside the 1.0 review order', function () {
     var P = QJZ.pets;
-    eq(P.states.NAMES, STATES, 'NAMES stays the 18 1.0 states');
+    eq(P.states.NAMES, STATES, 'NAMES stays the 1.0 states and 1.1.8 slack');
     P.NEW_POSES.forEach(function (s) {
       var st = P.states.get(s);
       ok(st && st.label && st.group === '1.1', s + ' is a state');

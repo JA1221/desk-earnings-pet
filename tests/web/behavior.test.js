@@ -2,7 +2,7 @@
 // and QJZ.lines (what the pet says). All pure: the rng is seeded, times are plain numbers.
 (function () {
   var B = QJZ.behavior, L = QJZ.lines;
-  var WORK_IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch'];
+  var WORK_IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch', 'slack'];   // (1.1.8: slack, 滑手機摸魚)
   var BASE = ['idle', 'typing', 'sprint', 'lunchSleep', 'celebrate', 'waitBag'];
   var T0 = new Date(2026, 10, 12, 10, 0, 0, 0).getTime();
   function working(min) { return { status: 'working', minutesToEnd: min === undefined ? 300 : min }; }
@@ -41,7 +41,7 @@
   });
 
   // ---------- pickIdle ----------
-  test('behavior: pickIdle with a seeded rng picks only the five working idles, all of them', function () {
+  test('behavior: pickIdle with a seeded rng picks only the six working idles, all of them', function () {
     var rng = B.rng(42), seen = {};
     for (var i = 0; i < 500; i++) {
       var s = B.pickIdle({ energy: 80, mood: 60 }, rng);
@@ -59,8 +59,9 @@
       return n / 4000;
     }
     var tired = share(30), fresh = share(80);
-    ok(tired > 0.37 && tired < 0.49, 'tired ' + tired + ' (3/7)');
-    ok(fresh > 0.16 && fresh < 0.24, 'fresh ' + fresh + ' (1/5)');
+    // (1.1.8: slack weighs 0.55, or 3 when tired: 3 / (4 + 3 + 3) and 1 / 5.55)
+    ok(tired > 0.26 && tired < 0.34, 'tired ' + tired + ' (3/10)');
+    ok(fresh > 0.15 && fresh < 0.21, 'fresh ' + fresh + ' (1/5.55)');
   });
 
   test('behavior: RULING-3 — before work pickIdle sometimes dozes, never a working idle', function () {
@@ -85,6 +86,52 @@
 
   // ---------- Brain ----------
   // Runs the brain from t0 for sec seconds in steps of stepMs; returns the runs [{state, from, to}].
+  // ---------- 1.1.8: slack 滑手機摸魚 ----------
+  test('behavior 1.1.8: slack is about 1 idle in 10, about 1 in 3 when tired or 14:00–16:00', function () {
+    function share(m, hour) {
+      var rng = B.rng(5), n = 0;
+      for (var i = 0; i < 6000; i++) if (B.pickIdle(m, rng, 'working', hour) === 'slack') n++;
+      return n / 6000;
+    }
+    var fresh = share({ energy: 80, mood: 60 }, 10), pm = share({ energy: 80, mood: 60 }, 15), tired = share({ energy: 30, mood: 60 }, 10);
+    ok(fresh > 0.07 && fresh < 0.13, 'fresh 10:00 ' + fresh + ' (0.55 / 5.55)');
+    ok(pm > 0.33 && pm < 0.42, '15:00 ' + pm + ' (3 / 8)');
+    ok(tired > 0.26 && tired < 0.34, 'tired ' + tired + ' (3 / 10)');
+    ok(share({ energy: 80, mood: 60 }, 16) < 0.13 && share({ energy: 80, mood: 60 }, 13) < 0.13, '13:00 and 16:00 are not lazy');
+    for (var i = 0; i < 200; i++) ok(B.pickIdle({ energy: 30 }, B.rng(i), 'before', 15) !== 'slack', 'never before work');
+  });
+  function day(n, h, m) { return new Date(2026, 10, 12 + n, h, m || 0, 0, 0).getTime(); }
+  test('behavior 1.1.8: slackDay is the same all day and about 3 days in 10', function () {
+    var yes = 0;
+    for (var n = 0; n < 1000; n++) {
+      var d = B.slackDay(day(n, 0, 1));
+      eq(B.slackDay(day(n, 12)), d); eq(B.slackDay(day(n, 23, 59)), d);
+      if (d) yes++;
+    }
+    ok(yes > 240 && yes < 360, yes + ' of 1000 days');
+  });
+  test('behavior 1.1.8: the last 30 minutes are slack on a slack day, else the sprint', function () {
+    eq([B.base('working', 20, 0, true), B.base('working', 20, 0, false), B.base('working', 40, 0, true), B.base('lunch', 20, 0, true)],
+      ['slack', 'sprint', 'typing', 'lunchSleep']);
+    var sd = null, nd = null;
+    for (var n = 0; n < 60 && (sd === null || nd === null); n++) { if (B.slackDay(day(n, 17))) { if (sd === null) sd = day(n, 17); } else if (nd === null) nd = day(n, 17); }
+    var r = runs(new B.Brain(B.rng(3)), working(20), 600, 250, sd);
+    eq(r.map(function (x) { return x.state; }), ['slack'], 'a slack day: slack till 下班, no idle actions');
+    r = runs(new B.Brain(B.rng(3)), working(20), 600, 250, nd);
+    eq(r.map(function (x) { return x.state; }), ['sprint'], 'another day: the sprint');
+  });
+  test('lines 1.1.8: slack has lines; the 下班 ones only in the last 30 minutes', function () {
+    var any = {}, end = 0;
+    for (var i = 0; i < 300; i++) {
+      var t = L.pick('slack', { kind: i % 2 ? 'cat' : 'hamster', rng: B.rng(i), hour: 10, energy: 80 });
+      ok(t && t.indexOf('{') < 0 && t.indexOf('下班') < 0, t);
+      any[t] = 1;
+      if (L.pick('slack', { kind: 'cat', rng: B.rng(i), hour: 17, minutesToEnd: 12 }).indexOf('下班') >= 0) end++;
+    }
+    ok(Object.keys(any).length >= 4, Object.keys(any).length + ' lines');
+    ok(end > 30, end + ' 下班 lines in the last 30 minutes');
+  });
+
   function runs(brain, info, sec, stepMs, t0) {
     var out = [], t = t0 || T0, end = t + sec * 1000, cur = null;
     for (; t <= end; t += stepMs || 250) {
@@ -95,14 +142,17 @@
     return out;
   }
 
-  test('behavior: brain — idle actions every 20–60 s for 3–5 s while typing', function () {
+  function lastsOk(a, note) {   // 3–5 s; 1.1.8: slack 8–15 s
+    var len = a.to - a.from + 250, r = a.state === 'slack' ? [8000, 15250] : [3000, 5250];
+    ok(len >= r[0] && len <= r[1], a.state + ' lasted ' + len + (note || ''));
+  }
+  test('behavior: brain — idle actions every 20–60 s for 3–5 s (slack 8–15 s) while typing', function () {
     var r = runs(new B.Brain(B.rng(7)), working(), 900);
     var acts = r.filter(function (x) { return x.state !== 'typing'; });
     ok(acts.length >= 12 && acts.length <= 40, acts.length + ' idle actions in 15 min');
     acts.forEach(function (a) {
       ok(WORK_IDLES.indexOf(a.state) >= 0, a.state);
-      var len = a.to - a.from + 250;
-      ok(len >= 3000 && len <= 5250, a.state + ' lasted ' + len);
+      lastsOk(a);
     });
     for (var i = 1; i < r.length - 1; i++) {
       if (r[i].state !== 'typing') continue;
@@ -126,8 +176,7 @@
     ok(acts.length >= 18 && acts.length <= 60, acts.length + ' idle actions in an hour');
     acts.forEach(function (a) {
       ok(WORK_IDLES.indexOf(a.state) >= 0, a.state);
-      var len = a.to - a.from + 250;
-      ok(len >= 3000 && len <= 5250, a.state + ' lasted ' + len + ' (as long as without it)');
+      lastsOk(a, ' (as long as without it)');
     });
     var g = gaps(r, 'typing');
     ok(g.length >= 18, g.length + ' gaps');
