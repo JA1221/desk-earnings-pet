@@ -56,7 +56,7 @@ QJZ.pets = QJZ.pets || {};
 // paws that hold the held prop (compose puts them in the OVER slot with it, in the moving .held group). under: the
 // outline, behind the body, of an arm whose fur is in the front layer; the avatar has no front layer, so compose
 // leaves it out there (an outline alone would show as a dark arm).
-// Modes: type | rest | up | hold | scratch, phone (1.1.8: hold, the right paw swipes), and wave (the desk backpack: wave with one paw, pat the bag with the other);
+// Modes: type | rest | up | hold | scratch, phone (1.1.8: the left paw holds the phone, the right one swipes it), and wave (the desk backpack: wave with one paw, pat the bag with the other);
 // 1.1: hello (wave with the left paw, the right one rests on the keys), glass (both paws hold the water glass:
 // glassArm) and cup (wave with the left paw, the right one holds the glass). GRIP: the modes that hold the held prop.
 QJZ.pets.rig = (function () {
@@ -128,15 +128,22 @@ QJZ.pets.rig = (function () {
   }
 
   var GRIP = { hold: 1, cup: 1, glass: 1, phone: 1 };
-  // 1.1.8 slack: the phone held sideways under the face, from the skin's holdArm (which every skin has under its mouth):
-  // {cx, cy, w, h} and the two paws at its ends, a little below its middle, so they grip the ends and leave the screen
-  // between them; a cat's limbs reach them (holdArm.arms, their tips moved as far as the paws).
+  // 1.1.8 slack (review 2): a phone held upright in the left paw, its screen towards the pet (the back towards us), off to
+  // the left side and low, so it never covers the mouth; the right paw reaches over and swipes its screen. From the
+  // skin's holdArm (under its mouth) and hold scale: {cx, cy, w, h, rot, hold: the left paw, rest: the right paw,
+  // to: [dx, dy] where the swiping paw goes (the phone's right edge), arms: a cat's limbs to the two paws or null}.
+  // rig.phone.dy (optional) moves it all down, for a skin whose mouth sits low.
   function phoneAt(rig) {
-    var h = rig.holdArm, p = h.paws, dx = p[1][0] - p[0][0], cx = (p[0][0] + p[1][0]) / 2, py = (p[0][1] + p[1][1]) / 2;
-    var g = { cx: cx, cy: py - 2 + (rig.phone && rig.phone.dy || 0), w: dx + 16, h: 13 }, ex = g.w / 2 - 1.5, y = g.cy + 3.5;
-    g.paws = [[n(cx - ex), n(y), p[0][2]], [n(cx + ex), n(y), p[1][2]]];
-    g.arms = h.arms ? h.arms.map(function (a, i) {
-      var q = g.paws[i];
+    var hp = rig.holdArm, p = hp.paws, s = rig.hold[2] || 1, dy = rig.phone && rig.phone.dy || 0;
+    // the phone left of the mouth (every skin's face is centred on x 118; 8 clears the widest mouth), its bottom a little
+    // under the paws; the left paw grips its bottom left corner; the right paw swipes at its right edge, just over it
+    var py = (p[0][1] + p[1][1]) / 2 + dy, w = 14 * s, h = 22 * s, cx = Math.min(p[0][0] - 4 * s, 118 - 8 - w / 2);
+    var g = { cx: n(cx), cy: n(py + 5 - h / 2), w: n(w), h: n(h), rot: -6 };
+    g.hold = [n(cx - w / 2 + 2 * s), n(py + 4), p[0][2]];
+    g.rest = [n(p[1][0]), n(py), p[1][2]];
+    g.to = [n(cx + w / 2 + 5 * s - p[1][0]), n(g.cy - h * 0.15 - py)];
+    g.arms = hp.arms ? hp.arms.map(function (a, i) {
+      var q = i ? g.rest : g.hold;
       return [a[0], [n(a[1][0] + q[0] - p[i][0]), n(a[1][1] + q[1] - p[i][1])]];
     }) : null;
     return g;
@@ -148,11 +155,11 @@ QJZ.pets.rig = (function () {
       case 'hello': return hello(rig, { front: rig.pawR });
       case 'cup': return hello(rig, { grip: grip(rig, 1) });
       case 'glass': return { grip: grip(rig, 0) + grip(rig, 1) };
-      case 'phone': {   // 1.1.8 slack: both paws hold the phone at its ends (phoneAt); the right one (.swipe) swipes across it
-        var hp = phoneAt(rig), aw = rig.holdArm.w, l = hp.arms ? front(rig, hp.arms[0][0], hp.arms[0][1], aw) : '', r = hp.arms ? front(rig, hp.arms[1][0], hp.arms[1][1], aw) : '';
-        var q1 = hp.paws[1];
-        return { grip: l + rig.paw(hp.paws[0][0], hp.paws[0][1], hp.paws[0][2]) +
-          `<g class="swipe" style="transform-origin:${q1[0]}px ${q1[1]}px">` + r + rig.paw(q1[0], q1[1], q1[2]) + '</g>' };
+      case 'phone': {   // 1.1.8 slack: the left paw holds the phone (phoneAt); the right one (.swipe) reaches over and swipes it
+        var hp = phoneAt(rig), aw = rig.holdArm.w, q0 = hp.hold, q1 = hp.rest;
+        var l = hp.arms ? front(rig, hp.arms[0][0], hp.arms[0][1], aw) : '', r = hp.arms ? front(rig, hp.arms[1][0], hp.arms[1][1], aw) : '';
+        return { grip: l + rig.paw(q0[0], q0[1], q0[2]) +
+          `<g class="swipe" style="transform-origin:${q1[0]}px ${q1[1]}px;--sx:${hp.to[0]}px;--sy:${hp.to[1]}px">` + r + rig.paw(q1[0], q1[1], q1[2]) + '</g>' };
       }
       case 'up': {
         var u = rig.up, o = {};

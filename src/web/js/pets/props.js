@@ -103,24 +103,20 @@ QJZ.pets.props = (function () {
         `<ellipse cx="0" cy="-7" rx="8" ry="2.3" fill="#8B5A3C" ${ol(ctx, 1.6)}/><ellipse cx="-.6" cy="-7.2" rx="4.4" ry="1.1" fill="#F2DCC0"/>` +
         `<path d="M0,5.2 c-3,-2.2 -4,-3.6 -4,-5 a2,2 0 0 1 4,-.6 a2,2 0 0 1 4,.6 c0,1.4 -1,2.8 -4,5z" fill="#fff"/>`) };
     },
-    // 1.1.8 slack (review: the face stays clear): a phone held sideways, low, between the two holding paws (rig.holdArm,
-    // which every skin has under its mouth), playing a video: sky, a hill, a ball that bounces (.ball), the progress bar
-    // filling (.prog); a heart (.like) pops over its corner. The right paw swipes across it now and then (rig.js 'phone').
+    // 1.1.8 slack (review 2): the back of an upright phone (its screen faces the pet), held in the left paw off to the
+    // side under the face (rig.phoneAt): a pink case, the camera at the top left, a little heart sticker, the screen's
+    // light glowing round its edge; a heart (.like) pops over it now and then (something it liked).
     phone: function (ctx) {
-      var g = QJZ.pets.rig.phoneAt(ctx.rig), cx = g.cx, cy = g.cy;
-      var w = n(g.w), h = g.h, x0 = n(-w / 2), y0 = -h / 2;
-      var flat = ctx.mode === 'flat', body = flat ? '#4A5160' : '#3B3F4A';
-      var sx = n(x0 + 1.6), sw = n(w - 3.2), sy = y0 + 1.5, sh = h - 3;
-      var screen = `<rect x="${sx}" y="${sy}" width="${sw}" height="${sh}" rx="1" fill="#8FD3FF"/>` +
-        `<path d="M${sx},${n(sy + sh)} v-3 q${n(sw * 0.3)},-3.4 ${n(sw * 0.55)},-1 q${n(sw * 0.25)},2 ${n(sw * 0.45)},-.6 v3.6 z" fill="#7BD389"/>` +
-        `<circle cx="${n(sx + sw * 0.5)}" cy="${n(sy + 2.6)}" r="1.4" fill="#FFC857"/>` +
-        anim('ball', `<circle cx="${n(sx + sw * 0.32)}" cy="${n(sy + sh - 3.6)}" r="1.5" fill="#FF6B57"/>`) +
-        `<rect x="${n(sx + 1)}" y="${n(sy + sh - 1.2)}" width="${n(sw - 2)}" height=".7" rx=".35" fill="#fff" opacity=".8"/>` +
-        `<g transform="translate(${n(sx + 1)} 0)">` + anim('prog', `<rect x="0" y="${n(sy + sh - 1.2)}" width="${n(sw - 2)}" height=".7" rx=".35" fill="#FF3B3B"/>`) + `</g>`;
+      var g = QJZ.pets.rig.phoneAt(ctx.rig), w = g.w, h = g.h, x0 = n(-w / 2), y0 = n(-h / 2), flat = ctx.mode === 'flat';
+      var cs = flat ? '#FF9FB0' : '#FF8FA3', u = w / 11;
       var heart = `<path d="M0,2.6 c-2.4,-1.7 -3.2,-2.9 -3.2,-4 a1.6,1.6 0 0 1 3.2,-.5 a1.6,1.6 0 0 1 3.2,.5 c0,1.1 -.8,2.3 -3.2,4z" fill="#FF5A7A" ${ol(ctx, 1.1)}/>`;
-      return { held: `<g transform="translate(${n(cx)} ${n(cy)}) rotate(-3)">` +
-        `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="2.4" fill="${body}" ${ol(ctx, 1.8)}/>` + screen +
-        `<g transform="translate(${n(-x0 - 1)} ${n(y0 - 1.5)})">` + anim('like', heart) + `</g></g>` };
+      return { held: `<g transform="translate(${g.cx} ${g.cy}) rotate(${g.rot})">` +
+        `<rect x="${n(x0 - 1.2)}" y="${n(y0 - 1.2)}" width="${n(w + 2.4)}" height="${n(h + 2.4)}" rx="${n(3.2 * u)}" fill="#BFE6FF" opacity=".55"/>` +
+        `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="${n(2.4 * u)}" fill="${cs}" ${ol(ctx, 1.8)}/>` +
+        `<rect x="${n(x0 + 1.4 * u)}" y="${n(y0 + 1.4 * u)}" width="${n(4.4 * u)}" height="${n(5.6 * u)}" rx="${n(1.3 * u)}" fill="#3B3F4A"/>` +
+        `<circle cx="${n(x0 + 3.6 * u)}" cy="${n(y0 + 3 * u)}" r="${n(1 * u)}" fill="#9AA3B2"/><circle cx="${n(x0 + 3.6 * u)}" cy="${n(y0 + 5.4 * u)}" r="${n(.8 * u)}" fill="#9AA3B2"/>` +
+        `<g transform="translate(${n(1.6 * u)} ${n(3 * u)}) scale(${n(.7 * u)})"><path d="M0,2.6 c-2.4,-1.7 -3.2,-2.9 -3.2,-4 a1.6,1.6 0 0 1 3.2,-.5 a1.6,1.6 0 0 1 3.2,.5 c0,1.1 -.8,2.3 -3.2,4z" fill="#fff" opacity=".9"/></g>` +
+        `<g transform="translate(${n(-x0 + 1)} ${n(y0 - 1)})">` + anim('like', heart) + `</g></g>` };
     },
     // rice ball with nori, held for lunch
     onigiri: function (ctx) {

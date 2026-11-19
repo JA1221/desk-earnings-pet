@@ -25,8 +25,8 @@ QJZ.pets.states = (function () {
     ['coffee', { group: '上班中', label: '喝咖啡', eyes: 'open', mouth: 'neutral', arms: 'hold', props: ['coffee'], alt: { eyes: 'closed' } }],
     ['stare', { group: '上班中', label: '盯螢幕', eyes: 'open', mouth: 'neutral', arms: 'rest', props: ['dots'] }],
     ['scratch', { group: '上班中', label: '抓頭', eyes: 'open', mouth: 'pout', arms: 'scratch', props: ['question'] }],
-    // 1.1.8: 滑手機摸魚: a phone held sideways under the face (a video), grinning at it (^^), swiping it now and then,
-    // laughing at it (alt mouth: open) and once a round a guilty look up (alt eyes: open)
+    // 1.1.8: 滑手機摸魚: a phone upright in the left paw, its screen towards the pet, grinning at it (^^), the right paw
+    // swiping it, laughing at it (alt mouth: open) and once a round a guilty look up (alt eyes: open)
     ['slack', { group: '上班中', label: '滑手機摸魚', eyes: 'happy', mouth: 'smile', arms: 'phone', props: ['phone'], alt: { eyes: 'open', mouth: 'open' } }],
     ['sprint', { group: '衝刺', label: '衝刺', eyes: 'angry', mouth: 'neutral', arms: 'type', props: ['fire', 'sweat'] }],
     ['lunchSleep', { group: '午休', label: '趴桌睡', pose: 'lie', eyes: 'closed', mouth: 'neutral', arms: 'none', props: ['zzz', 'bubble'] }],
