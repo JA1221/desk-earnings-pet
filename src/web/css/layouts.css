@@ -149,3 +149,17 @@ html.saver :is(.mtop .dot,.u3 .coin){animation:none}
 
 /* ---------- PANEL: the frame only; its content (and its width) is in panels.css ---------- */
 .btn{font-size:14px;font-weight:700;border:2.5px solid var(--line);background:var(--bar);border-radius:99px;padding:6px 18px;box-shadow:2px 2px 0 var(--shadow)}
+
+/* 1.1.9: the ⚙'s long press, a quick menu of every layout (layouts.js quickOpen): page coordinates, over everything */
+.qmenu{position:absolute;z-index:40;width:344px;box-sizing:border-box;padding:7px 8px 8px;background:var(--bg);color:var(--text);border:3px solid var(--line);
+  border-radius:14px;box-shadow:4px 4px 0 var(--shadow);font-family:var(--font);user-select:none;-webkit-user-select:none}
+.qmenu .qhead{font-size:11px;font-weight:700;color:var(--sub);margin:0 2px 5px}
+.qmenu .qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.qmenu .qitem{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;padding:4px 2px 3px;border-radius:9px;border:2px solid transparent;cursor:pointer}
+.qmenu .qitem .lth{display:block;width:58px;padding:2px;border-radius:6px;background:var(--bg);border:2px solid var(--line)}
+.qmenu .qitem small{font-size:10.5px;font-weight:700;color:var(--sub);white-space:nowrap;letter-spacing:-.03em}
+.qmenu .qitem.on .lth{background:var(--bar)}
+.qmenu .qitem.on small{color:var(--text)}
+.qmenu .qitem.hot,.qmenu .qitem:hover{background:var(--bar);border-color:var(--line)}
+.qmenu .qitem.hot small,.qmenu .qitem:hover small{color:var(--text)}
+.qmenu .qitem.hot .lth,.qmenu .qitem:hover .lth{background:var(--bg)}

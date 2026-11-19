@@ -89,7 +89,7 @@
   function of(sent, type) { return sent.filter(function (s) { return s.type === type; }).map(function (s) { return s.p; }); }
   function $(e, sel) { return e.root.querySelector(sel); }
   function text(e, sel) { var n = $(e, sel); return n ? n.textContent : null; }
-  function visible(n) { return !!n && !n.hidden && n.offsetParent !== null; }
+  function visible(n) { return !!n && !n.hidden && n.offsetParent !== null && getComputedStyle(n).visibility !== 'hidden'; }
   function key(target, o) {
     var ev = new KeyboardEvent('keydown', { key: o.key, code: o.code, ctrlKey: true, shiftKey: !!o.shiftKey, bubbles: true, cancelable: true });
     target.dispatchEvent(ev);
@@ -322,10 +322,17 @@
 
   test('update DOM: a newer release the host can install has 更新; pressed: one installUpdate, 下載中 N%, then 正在重新啟動', function () {
     var e = mk();
+    openAbout(e);
+    var at = $(e, '[data-pa=checkUpdate]').getBoundingClientRect();
     newer(e, true);
     var ib = $(e, '[data-pa=installUpdate]'), cb = $(e, '[data-pa=checkUpdate]'), link = $(e, '[data-pa=openUpdate]');
     eq(text(e, '[data-o=updText]'), '有新版 1.2.0');
     ok(visible(ib) && !ib.disabled, '更新');
+    // 1.1.9: 更新 is where 檢查更新 was (its left edge and its middle), and 檢查更新 is gone meanwhile
+    var r = ib.getBoundingClientRect();
+    ok(Math.abs(r.left - at.left) < 0.5 && Math.abs((r.top + r.bottom) / 2 - (at.top + at.bottom) / 2) < 0.5, '更新 on the spot of 檢查更新: ' + JSON.stringify([r.left, r.top, at.left, at.top]));
+    ok(Math.abs(r.width - at.width) < 0.5, 'as wide: the whole of it is under wherever 檢查更新 was pressed');
+    ok(!visible(cb), '檢查更新 gives way');
     eq(ib.textContent, '更新');
     ok(visible(link) && link.textContent === '前往下載', 'and the link');
     eq(of(e.sent, 'installUpdate').length, 0, 'nothing downloads before the press');
@@ -347,6 +354,7 @@
     QJZ.panels._update();
     eq(text(e, '[data-o=updText]'), '更新完成，正在重新啟動…');
     ok(ib.disabled && cb.disabled, 'still disabled');
+    ok(visible(ib) && !visible(cb), '更新 stays on the spot, disabled');
     ok(!visible(link), 'no link while it restarts');
     e.bridge.emit({ type: 'updateState', phase: 'failed' });
     QJZ.panels._update();
@@ -365,7 +373,7 @@
     var link = $(e, '[data-pa=openUpdate]');
     ok(visible(link) && link.textContent === '前往下載', 'the release page');
     ok(!visible($(e, '[data-pa=installUpdate]')), 'no 更新');
-    ok(!$(e, '[data-pa=checkUpdate]').disabled, '檢查更新 again');
+    ok(visible($(e, '[data-pa=checkUpdate]')) && !$(e, '[data-pa=checkUpdate]').disabled, '檢查更新 back on its spot');
     $(e, '[data-pa=checkUpdate]').click();
     eq(of(e.sent, 'checkUpdate').length, 2);
     e.bridge.emit({ type: 'updateResult', kind: 'newer', version: '1.2.0', install: true });
@@ -379,7 +387,7 @@
     [false, undefined, 'true', 1].forEach(function (inst) {
       newer(e, inst);
       eq(text(e, '[data-o=updText]'), '有新版 1.2.0');
-      ok(!visible($(e, '[data-pa=installUpdate]')), 'no 更新: ' + inst);
+      ok(!visible($(e, '[data-pa=installUpdate]')) && visible($(e, '[data-pa=checkUpdate]')), 'no 更新, 檢查更新 stays: ' + inst);
       ok(visible($(e, '[data-pa=openUpdate]')), 'the link only');
       QJZ.app.installUpdate();
       eq(of(e.sent, 'installUpdate').length, 0, 'nothing sent: ' + inst);

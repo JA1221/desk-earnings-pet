@@ -255,6 +255,36 @@ QJZ.templates = (function () {
         '<div class="pbody" data-panel></div><div class="fx" data-fx data-fxwin></div></div>';
     }
   };
+
+  // 1.1.9: a small sketch of each layout (64 x 40), for 設定 → 畫面's layout cards and the ⚙ long press's quick menu
+  // (layouts.js). Plain shapes in the theme's colours (base.css .th-*), so they follow 深色模式.
+  var TH = {
+    U1: '<rect class="th-f th-l" x="21" y="2" width="22" height="36" rx="3"/><rect class="th-y" x="22.5" y="3.5" width="19" height="4.5"/>' +
+      '<rect class="th-s" x="24" y="10" width="16" height="10" rx="1.5"/><circle class="th-a" cx="32" cy="16.5" r="3"/>' +
+      '<rect class="th-a" x="25" y="23" width="14" height="3.5" rx="1.5"/><rect class="th-l2" x="24" y="29" width="16" height="2" rx="1"/>' +
+      '<rect class="th-l2" x="24" y="33" width="7" height="2.5" rx="1"/><rect class="th-l2" x="33" y="33" width="7" height="2.5" rx="1"/>',
+    U3: '<rect class="th-f th-l" x="6" y="5" width="52" height="30" rx="3"/><rect class="th-s" x="7.5" y="6.5" width="49" height="17"/>' +
+      '<circle class="th-a" cx="32" cy="17" r="5"/><rect class="th-y" x="7.5" y="24" width="49" height="9.5"/><rect class="th-a" x="11" y="26.5" width="16" height="4" rx="2"/>' +
+      '<circle class="th-f th-l" cx="46" cy="28.5" r="3"/><circle class="th-f th-l" cx="53" cy="28.5" r="3"/>',
+    U12: '<rect class="th-f th-l" x="13" y="3" width="38" height="34" rx="3"/><rect class="th-y" x="14.5" y="4.5" width="35" height="4.5"/>' +
+      '<rect class="th-a" x="22" y="11.5" width="20" height="4" rx="1.5"/><circle class="th-r1" cx="21" cy="25" r="4.5"/><circle class="th-r2" cx="32" cy="25" r="4.5"/><circle class="th-r3" cx="43" cy="25" r="4.5"/>' +
+      '<rect class="th-l2" x="18" y="32" width="28" height="2" rx="1"/>',
+    U13: '<rect class="th-f th-l" x="17" y="2" width="30" height="36" rx="3"/><rect class="th-y" x="18.5" y="3.5" width="27" height="4.5"/>' +
+      '<circle class="th-r3" cx="32" cy="23" r="9"/><rect class="th-a" x="22" y="10" width="20" height="3" rx="1.5"/>',
+    U5B: '<rect class="th-f th-l" x="3" y="12" width="58" height="16" rx="4"/><circle class="th-a" cx="11" cy="20" r="4.5"/>' +
+      '<rect class="th-a" x="19" y="17" width="20" height="5" rx="2"/><rect class="th-l2" x="19" y="24" width="24" height="1.6" rx=".8"/>' +
+      '<circle class="th-f th-l" cx="49" cy="20" r="3"/><circle class="th-f th-l" cx="56" cy="20" r="3"/>',
+    U10: '<rect class="th-scr" x="3" y="2" width="58" height="36" rx="2"/><rect class="th-d" x="19" y="4" width="26" height="9" rx="4.5"/>' +
+      '<circle class="th-a" cx="23.5" cy="8.5" r="3"/><rect class="th-y" x="28.5" y="7" width="13" height="3" rx="1.5"/>',
+    M3: '<circle class="th-f th-l" cx="32" cy="16" r="11"/><circle class="th-a" cx="32" cy="16" r="6"/>' +
+      '<rect class="th-y th-l" x="21" y="27" width="22" height="8" rx="4"/>',
+    U7: '<path class="th-a th-l" d="M21,30 C21,15 26,8 32,8 C38,8 43,15 43,30 Z"/><circle class="th-a th-l" cx="24.5" cy="11" r="3.4"/><circle class="th-a th-l" cx="39.5" cy="11" r="3.4"/>' +
+      '<circle class="th-e" cx="28.5" cy="19" r="1.4"/><circle class="th-e" cx="35.5" cy="19" r="1.4"/><rect class="th-y th-l" x="20" y="29" width="24" height="7" rx="3.5"/>'
+  };
+  function thumb(name) {
+    return TH[name] ? '<svg class="lthumb" viewBox="0 0 64 40" aria-hidden="true" focusable="false">' + TH[name] + '</svg>' : '';
+  }
   TEMPLATES.parts = { BAR: BAR, MONEY: MONEY, PILL: PILL, feedBtn: feedBtn };
+  TEMPLATES.thumb = thumb;
   return TEMPLATES;
 })();

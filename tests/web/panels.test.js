@@ -929,7 +929,7 @@
     eq($$(e, '[data-sec=layout] .card .row .lbl').map(function (l) { return l.textContent; }), ['深色模式', '相容模式（不透明背景）', '省電模式']);
     eq($$(e, '[data-sec=layout] .card [data-f], [data-sec=layout] .card [data-seg], [data-sec=layout] .card [data-num]').length, 0, 'nothing else');
     eq($(e, '[data-tgl=powerSaver]').closest('.line').querySelector('.hint').textContent, '金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。');
-    ok(text(e, '[data-pane=display]').indexOf('膠囊') < 0, 'no capsule position (§4.9 #12)');
+    ok(text(e, '[data-pane=display]').replace(text(e, '[data-pane=display] .lays'), '').indexOf('膠囊') < 0, 'no capsule position (§4.9 #12; 1.1.9: only the layout card 6 頂端小膠囊)');
     var ps = $(e, '[data-tgl=powerSaver]');
     eq(ps.getAttribute('aria-checked'), 'false', 'off by default');
     ps.click();

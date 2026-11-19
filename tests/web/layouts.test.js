@@ -4607,4 +4607,136 @@
       done();
     } finally { QJZ.fx.banner = fb; window.setInterval = si; }
   });
+
+  // ================= 1.1.9 =================
+  // The ⚙'s long press: a quick menu of every layout by it; slid onto one and let go, that layout shows. A tap is 設定.
+  var ORDER = ['U1', 'U3', 'U12', 'U13', 'U5B', 'U10', 'M3', 'U7'];
+  var HOVER_EL = { U7: '.u7 .dpet', U10: '.isl', M3: '.m3' };
+  function gearIn(e, name) {
+    if (HOVER_EL[name]) hoverOn($(e, HOVER_EL[name]));
+    return Array.prototype.filter.call(e.root.querySelectorAll('[data-act=settings]'), drawn)[0];
+  }
+  function mid(el) { var r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
+  function downOn(el) { var p = mid(el); mouse(el, 'mousedown', p[0], p[1], { detail: 1 }); }
+  function upOn(el, click) {
+    var p = mid(el);
+    mouse(el, 'mousemove', p[0], p[1]);
+    mouse(el, 'mouseup', p[0], p[1], { buttons: 0, detail: 1 });
+    if (click) mouse(click, 'click', p[0], p[1], { buttons: 0, detail: 1 });
+  }
+  function qmenu(e) { return e.root.querySelector('.qmenu'); }
+  function inside(a, b) { return a.left >= b.left - 0.5 && a.top >= b.top - 0.5 && a.right <= b.right + 0.5 && a.bottom <= b.bottom + 0.5; }
+
+  test('layouts DOM: 1.1.9: a long press on any layout\'s ⚙ shows the 8 layouts by it; let go on one, that layout shows', function () {
+    ORDER.forEach(function (name, i) {
+      var e = shown(mk(at(12, 10, 0), { first: name, care: true }));
+      var g = gearIn(e, name);
+      ok(g, name + ': a ⚙');
+      downOn(g);
+      ok(!qmenu(e), name + ': not before QUICK_MS');
+      ok(QJZ.layouts._quick(), name + ': held QUICK_MS: open');
+      var m = qmenu(e);
+      ok(m && drawn(m), name + ': the menu');
+      eq(Array.prototype.map.call(m.querySelectorAll('[data-qlay]'), function (n) { return n.getAttribute('data-qlay'); }), ORDER, name + ': every layout, by category');
+      eq(Array.prototype.map.call(m.querySelectorAll('[data-qlay] small'), function (n) { return n.textContent; }), ORDER.map(function (id) { return U.NAMES ? U.NAMES[id] : QJZ.layouts.NAMES[id]; }), name + ': the names');
+      ok(m.querySelectorAll('[data-qlay] svg.lthumb').length === 8, name + ': a sketch each');
+      eq(Array.prototype.map.call(m.querySelectorAll('.qitem.on'), function (n) { return n.getAttribute('data-qlay'); }), [name], name + ': the one in use marked');
+      // the window holds it and it takes clicks
+      var mr = m.getBoundingClientRect(), size = sizeOf(e), rr = e.root.getBoundingClientRect();
+      ok(mr.right - rr.left <= size[0] + 0.5 && mr.bottom - rr.top <= size[1] + 0.5, name + ': inside the window ' + JSON.stringify([mr.right - rr.left, mr.bottom - rr.top, size]));
+      ok(hitsOf(e).some(function (h) { return h[0] <= mr.left + 1 && h[1] <= mr.top + 1 && h[0] + h[2] >= mr.right - 1 && h[1] + h[3] >= mr.bottom - 1; }), name + ': a hit rect');
+      ok(drawn(gearIn(e, name) || g) || !HOVER_EL[name], name + ': its ⚙ still shows');
+      // slide to another layout and let go there
+      var to = ORDER[(i + 3) % ORDER.length], it = m.querySelector('[data-qlay=' + to + ']');
+      var p = mid(it);
+      mouse(it, 'mousemove', p[0], p[1]);
+      ok(it.classList.contains('hot'), name + ': the one under the pointer lights up');
+      upOn(it, e.root);
+      eq(QJZ.layouts.current(), to, name + ' → ' + to);
+      ok(!qmenu(e), name + ': gone');
+      eq(QJZ.app.state.settings.layout.mini, to === 'M3', name + ': remembered');
+      done();
+    });
+  });
+
+  test('layouts DOM: 1.1.9: a tap on ⚙ is still 設定; let go off the menu or Esc closes it and nothing changes', function () {
+    ['U1', 'U7', 'U10', 'M3'].forEach(function (name) {
+      var e = shown(mk(at(12, 10, 0), { first: name, care: true })), g = gearIn(e, name);
+      downOn(g);
+      upOn(g, g);
+      eq(QJZ.layouts.current(), 'PANEL', name + ': a tap opens 設定');
+      ok(!qmenu(e), name + ': no menu');
+      done();
+      e = shown(mk(at(12, 10, 0), { first: name, care: true }));
+      g = gearIn(e, name);
+      downOn(g);
+      QJZ.layouts._quick();
+      upOn(g, g);
+      eq([QJZ.layouts.current(), !!qmenu(e)], [name, false], name + ': let go on the ⚙ itself: closed, no 設定');
+      downOn(g = gearIn(e, name));
+      QJZ.layouts._quick();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      eq([QJZ.layouts.current(), !!qmenu(e)], [name, false], name + ': Esc');
+      mouse(g, 'mouseup', 0, 0, { buttons: 0 });
+      downOn(g = gearIn(e, name));
+      QJZ.layouts._quick();
+      var m = qmenu(e), it = m.querySelector('.qhead');
+      upOn(it, e.root);
+      eq([QJZ.layouts.current(), !!qmenu(e)], [name, false], name + ': let go on the menu but on no layout');
+      downOn(g = gearIn(e, name));
+      mouse(e.root, 'mousemove', 1, 1);   // slid off before it opened: nothing at all
+      ok(!QJZ.layouts._quick() && !qmenu(e), name + ': slid off: no menu');
+      mouse(e.root, 'mouseup', 1, 1, { buttons: 0 });
+      eq(QJZ.layouts.current(), name, name + ': nothing');
+      done();
+    });
+  });
+
+  test('layouts DOM: 1.1.9: U10: the menu opens off the capsule, away from its dock; the capsule stays where it was', function () {
+    QJZ.settings.DOCKS.forEach(function (dock) {
+      var e = shown(mk(at(12, 10, 0), { first: 'U10', care: true, settings: { layout: { capsule: dock } } }));
+      var g = gearIn(e, 'U10'), isl = $(e, '.isl'), before = isl.getBoundingClientRect(), lay = $(e, '.u10');
+      var fromBottom = lay.getBoundingClientRect().bottom - before.bottom;
+      downOn(g);
+      QJZ.layouts._quick();
+      var m = qmenu(e).getBoundingClientRect(), now = isl.getBoundingClientRect(), lr = lay.getBoundingClientRect();
+      if (dock === 'top') {
+        ok(m.top >= now.bottom, dock + ': under the capsule');
+        eq(now.top, before.top, dock + ': the capsule did not move');
+      } else {
+        ok(m.bottom <= now.top, dock + ': over the capsule');
+        eq(lr.bottom - now.bottom, fromBottom, dock + ': the capsule keeps its place at the bottom');
+      }
+      ok(inside(m, lr), dock + ': inside the window ' + JSON.stringify([m.left, m.top, m.right, m.bottom, lr.left, lr.top, lr.right, lr.bottom]));
+      eq(last(e.sent, 'setLayout').dock, dock, dock + ': the dock goes with the new size');
+      ok(isl.classList.contains('hover'), dock + ': the capsule stays open while the menu shows');
+      upOn(g, g);
+      eq(lay.style.height, '', dock + ': the window back to its size');
+      done();
+    });
+  });
+
+  // 設定 → 畫面: every layout as a card, the one in use marked; a click closes 設定 onto it
+  test('layouts DOM: 1.1.9: 設定 → 畫面 shows the 8 layouts as cards; a click switches to it', function () {
+    var e = mk(at(12, 10, 0), { first: 'U3' });
+    e.menu('settings');
+    $(e, '[data-tab=display]').click();
+    var cards = e.root.querySelectorAll('[data-lay]');
+    eq(Array.prototype.map.call(cards, function (n) { return n.getAttribute('data-lay'); }), ORDER);
+    eq(Array.prototype.map.call(e.root.querySelectorAll('.lays .kind .lbl'), function (n) { return n.textContent; }), ['視窗類', '小巧類', '桌面類']);
+    eq(Array.prototype.map.call(e.root.querySelectorAll('[data-lay].on'), function (n) { return n.getAttribute('data-lay'); }), ['U3'], 'the one in use');
+    eq($(e, '[data-lay=U3]').getAttribute('aria-pressed'), 'true');
+    ok(Array.prototype.every.call(cards, function (c) { return c.querySelector('svg.lthumb') && drawn(c); }), 'a sketch each');
+    var pane = $(e, '.pscroll').getBoundingClientRect();
+    ok(Array.prototype.every.call(cards, function (c) { var r = c.getBoundingClientRect(); return r.right <= pane.right + 0.5 && r.left >= pane.left - 0.5; }), 'none wider than the panel');
+    $(e, '[data-lay=U12]').click();
+    eq(QJZ.layouts.current(), 'U12', 'closed onto it');
+    eq(QJZ.app.state.settings.layout.current, 'U12', 'remembered');
+    e.menu('settings');
+    $(e, '[data-tab=display]').click();
+    eq(Array.prototype.map.call(e.root.querySelectorAll('[data-lay].on'), function (n) { return n.getAttribute('data-lay'); }), ['U12']);
+    $(e, '[data-lay=M3]').click();
+    eq([QJZ.layouts.current(), QJZ.app.state.settings.layout.mini], ['M3', true], '7 迷你浮窗');
+    done();
+  });
 })();

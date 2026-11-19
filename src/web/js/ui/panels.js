@@ -312,6 +312,21 @@ QJZ.panels = (function () {
     });
     return h;
   }
+  // 1.1.9: the layout cards of 畫面 (data-lay), by QJZ.layouts.GROUPS
+  function layCards() {
+    var L = QJZ.layouts, T = QJZ.templates;
+    if (!L || !L.GROUPS || !T || !T.thumb) return '';
+    var h = '<div class="lays">';
+    L.GROUPS.forEach(function (g) {
+      h += '<div class="kind"><span class="lbl">' + esc(g[0]) + '</span><div class="lgrid">';
+      g[1].forEach(function (id) {
+        h += '<button type="button" class="lcard" data-lay="' + esc(id) + '" title="' + esc(L.NAMES[id]) + '" aria-pressed="false">' +
+          '<span class="lth">' + T.thumb(id) + '</span><small>' + esc(L.NAMES[id]) + '</small></button>';
+      });
+      h += '</div></div>';
+    });
+    return h + '</div>';
+  }
   var SALARY_ROWS =
     line(row('薪資方式', seg('mode', [['monthly', '月薪'], ['hourly', '時薪']]))) +
     line('<label class="lbl" data-o="amountLabel">月薪金額</label>' + moneyIn('amount', 'big') + err('amount') + hint('', 'modeNote')) +
@@ -363,10 +378,13 @@ QJZ.panels = (function () {
     },
     // No start-layout picker and no topmost switches (simplification #12): the app opens in the layout used last, and
     // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout. Two switches only (1.1 #12): 相容模式 and 省電模式.
-    // 1.1.3 item 3: it names the layout in use as the menu does, 「N 名稱」 (QJZ.layouts.NAMES).
+    // 1.1.3 item 3: it names the layout in use as the menu does, 「N 名稱」 (QJZ.layouts.NAMES). 1.1.9: every layout as a
+    // card (a sketch, QJZ.templates.thumb, and its name) by category, the one in use marked, as the pet picker; a click
+    // switches to it (the panel closes onto it: layouts.returnTo).
     layout: function () {
-      return '<div class="lnow">現在的版型<b data-o="layoutName"></b></div>' +
-        hint('換版型：右鍵選單 →「版型」。下次開啟會用你最後用的版型；要不要永遠在最上層，也在「版型」裡切換（每個版型各自記住）。') +
+      return '<div class="lnow">現在的版型<b data-o="layoutName"></b></div>' + layCards() +
+        hint('點一下就換成那個版型（設定會關起來）。在任何版型上按住 ⚙ 不放，也會跳出版型選單，滑到想要的版型放開就換。') +
+        hint('下次開啟會用你最後用的版型；要不要永遠在最上層，在右鍵選單 →「版型」裡切換（每個版型各自記住）。') +
         '<div class="card">' + line(row('深色模式', tgl('dark', '深色模式')) + hint('視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。')) + '</div>' +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
           hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
@@ -419,8 +437,9 @@ QJZ.panels = (function () {
         lic += line('<span class="lbl">' + esc(l[1]) + '</span>' + hint(l[2]) + '<pre class="lic" data-doc="' + l[0] + '" data-fail="' + LIC_FAIL + '"></pre>');
       });
       return '<div class="card">' +
-        line(row('錢進中', '<span class="ver"><b data-o="version"></b><button type="button" class="btn sm ghost" data-pa="checkUpdate">檢查更新</button></span>') +
-          '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span><button type="button" class="btn sm go" data-pa="installUpdate" hidden>更新</button>' +
+        line(row('錢進中', '<span class="ver"><b data-o="version"></b><span class="updb"><button type="button" class="btn sm ghost" data-pa="checkUpdate">檢查更新</button>' +
+            '<button type="button" class="btn sm go" data-pa="installUpdate" hidden>更新</button></span></span>') +
+          '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span>' +
           '<button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
           hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。') + hint('平常不連網；按「檢查更新」才會向 GitHub 查一次最新版本，按「更新」才會下載新版，不會送出你的資料。')) +
         line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
@@ -561,7 +580,8 @@ QJZ.panels = (function () {
   }
   // 1.1.5 檢查更新: the button, then 檢查中… and one of the three results (app.state.update). 1.1.6 一鍵更新: a newer
   // result the host can install also has 更新; pressed, 下載中 N% (更新 and 檢查更新 disabled), then 更新完成，正在重新啟動…
-  // or 更新失敗 with the release's link.
+  // or 更新失敗 with the release's link. 1.1.9: 更新 takes 檢查更新's place (the same spot, so the pointer need not move):
+  // from the newer result through 下載中 and 正在重新啟動 (disabled then); 檢查更新 is back for anything else.
   function updateCheckView(c) {
     var u = st().update, b = q(c, '[data-pa=checkUpdate]'), link = q(c, '[data-pa=openUpdate]'), ib = q(c, '[data-pa=installUpdate]');
     if (!b) return;
@@ -570,7 +590,9 @@ QJZ.panels = (function () {
     if (b.disabled !== held) b.disabled = held;
     show(node(c, 'updLine'), !!u);
     var canInstall = !!(u && !busy && u.kind === 'newer' && u.install && ph !== 'failed');
-    show(ib, canInstall);
+    var swap = canInstall || ph === 'downloading' || ph === 'restarting';
+    show(ib, swap);
+    show(b, !swap);
     if (ib && ib.disabled !== !!ph) ib.disabled = !!ph;
     if (!u) return;
     out(c, 'updText', busy ? '檢查中…' : ph === 'downloading' ? '下載中 ' + (u.percent || 0) + '%' :
@@ -673,7 +695,13 @@ QJZ.panels = (function () {
       QJZ.panelsHealth.update(c);
       // 版型
       var L = QJZ.layouts;
-      out(c, 'layoutName', L && L.NAMES && L.shownLayout ? L.NAMES[L.shownLayout()] || '' : '');
+      var shownL = L && L.shownLayout ? L.shownLayout() : null;
+      out(c, 'layoutName', L && L.NAMES && shownL ? L.NAMES[shownL] || '' : '');
+      qa(c, '[data-lay]').forEach(function (b) {
+        var on = b.getAttribute('data-lay') === shownL;
+        if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
+        if (b.getAttribute('aria-pressed') !== String(on)) b.setAttribute('aria-pressed', String(on));
+      });
       var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
       tglOn(c, 'opaque', s.display.opaque || forced);
       if (op && op.disabled !== forced) op.disabled = forced;
@@ -732,6 +760,12 @@ QJZ.panels = (function () {
     });
   }
 
+  // 1.1.9: a layout card: 設定 closes onto that layout (as 完成 closes onto the one it came from)
+  function pickLayout(id) {
+    var L = lay();
+    if (!L || !L.returnTo || !L.returnTo(id)) return;
+    close();
+  }
   function skinsOn(c, id) {
     qa(c, '[data-skin]').forEach(function (b) {
       var on = b.getAttribute('data-skin') === id;
@@ -864,6 +898,7 @@ QJZ.panels = (function () {
     if (QJZ.panelsStats.click(c, t)) return;    // 統計's 週 / 月 and item switches
     if ((v = attr(t, '[data-seg] [data-v]', 'data-v')) !== null) { pickSeg(c, t.closest('[data-seg]').getAttribute('data-seg'), v); return; }
     if ((v = attr(t, '[data-skin]', 'data-skin')) !== null) { pickSkin(c, v); return; }
+    if ((v = attr(t, '[data-lay]', 'data-lay')) !== null) { pickLayout(v); return; }
     if ((v = attr(t, '[data-tab]', 'data-tab')) !== null) { tab = v; _update(); var sc = q(c, '.pscroll'); if (sc) sc.scrollTop = 0; return; }
     if ((v = attr(t, '[data-tgl]', 'data-tgl')) !== null) { toggle(c, v); return; }
     if ((v = attr(t, '[data-disc]', 'data-disc')) !== null) { disclose(c, v); return; }

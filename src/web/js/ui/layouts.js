@@ -470,7 +470,7 @@ QJZ.layouts = (function () {
   var dragAt = 0;        // wall clock of the last dragStart (a missing dragEnd ends the dangle after a minute)
   var answerRun = false; // the run of presses under way (a click, its double, …) began on a prompt's answer button
   var held = null;       // {rect, width, height} for DBL_MS after an answer: kept in setLayout and hitRects (holdSpot)
-  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0 };
+  var timers = { say: 0, type: 0, hover: 0, idle: 0, held: 0, hold: 0, quick: 0 };
   var hoverUntil = 0;    // U7 tools: Date.now() after which they hide (refreshed by every mouse move)
   var capRaf = 0;        // the frame asked for while U10's capsule grows or shrinks (capTick)
   var offs = [];
@@ -846,6 +846,11 @@ QJZ.layouts = (function () {
       right = Math.max(right, b.left + b.width + 4);
       bottom = Math.max(bottom, b.top + b.height + 4);
     }
+    if (quick && quick.menu) {   // 1.1.9: the quick layout menu, with its shadow
+      var qb = quick.menu.getBoundingClientRect();
+      right = Math.max(right, qb.right + 4);
+      bottom = Math.max(bottom, qb.bottom + 4);
+    }
     return { width: Math.ceil(right) + pad, height: Math.ceil(bottom) + pad };
   }
   // The element's border box in page px without its own CSS transform (an element in the middle of a transform
@@ -876,6 +881,7 @@ QJZ.layouts = (function () {
       else if (el.getAttribute('data-hit-shape') === 'disc') discRects(r, DISC_BANDS).forEach(function (q) { out.push(outer(q)); });
       else out.push(outer(r));
     });
+    if (quick && quick.menu) out.push(outer(quick.menu.getBoundingClientRect()));   // 1.1.9: the quick layout menu
     return out;
   }
 
@@ -1188,6 +1194,7 @@ QJZ.layouts = (function () {
     if (name === 'PANEL' && cur !== 'PANEL') panelFrom = cur || startLayout();
     if (name !== 'PANEL') inPlace = null;
     holdEnd(false);
+    if (quick) { var qm = quick.menu; quick = null; clearTimeout(timers.quick); timers.quick = 0; if (qm) qm.remove(); }
     stopSay();
     unhold(false);   // a new layout: its own size and rects
     chatAt = nextChat(app().nowMs());   // a new layout: no line at once, whenever the old schedule fell due
@@ -1251,6 +1258,12 @@ QJZ.layouts = (function () {
           h: view.el.getBoundingClientRect().height } : null;
     }
     return show('PANEL');
+  }
+  // 1.1.9: 設定 → 畫面's layout card: the panel goes back to name instead of the layout it came from (closePanel shows it)
+  function returnTo(name) {
+    if (cur !== 'PANEL' || ALL.indexOf(name) < 0 || name === 'PANEL') return false;
+    panelFrom = name;
+    return true;
   }
   function closePanel() {
     var to = panelFrom && panelFrom !== 'PANEL' ? panelFrom : backTarget(app().state.settings);
@@ -1695,6 +1708,97 @@ QJZ.layouts = (function () {
       { opacity: 0 }], { duration: ZOOM_TIP_MS, easing: 'ease-out' }).addEventListener('finish', function () { t.remove(); });
   }
 
+
+  // ---- 1.1.9: the ⚙'s long press, a quick menu of every layout ----
+  // Held QUICK_MS on any layout's ⚙ (not 設定's own), a menu of the 8 layouts (a sketch and the name each, in
+  // GROUPS order, the one in use marked) shows by the ⚙; slid onto one and let go there, that layout shows. Let go
+  // anywhere else (on the ⚙ too), or Esc: it closes, nothing changes. A tap (let go before QUICK_MS) is 設定 as ever.
+  // The menu is a hit rect and the window grows to hold it (measure); U10's capsule window grows on the side away from
+  // its dock, so the capsule stays where it is. While it shows, the ⚙ that only shows on hover (U7, U10, M3) stays.
+  var QUICK_MS = 500;
+  var quick = null;          // {gear, open, menu, grow}: armed by a press on a ⚙, open once held QUICK_MS
+  var quickSwallow = false;  // the click that comes with the release of an open menu does nothing
+  function quickGear(t) {
+    var g = t && t.closest ? t.closest('[data-act=settings]') : null;
+    return g && cur !== 'PANEL' && view && view.el.contains(g) ? g : null;
+  }
+  function quickArm(g) {
+    quickClose(null);
+    quick = { gear: g, open: false, menu: null, grow: false };
+    timers.quick = setTimeout(function () { timers.quick = 0; quickOpen(); }, QUICK_MS);
+  }
+  function quickOpen() {
+    if (!quick || quick.open || !view || !root) return;
+    var T = QJZ.templates, h = '';
+    GROUPS.forEach(function (g) {
+      g[1].forEach(function (id) {
+        h += '<div class="qitem' + (id === cur ? ' on' : '') + '" data-qlay="' + id + '" role="menuitem">' +
+          '<span class="lth">' + (T && T.thumb ? T.thumb(id) : '') + '</span><small>' + NAMES[id] + '</small></div>';
+      });
+    });
+    var m = document.createElement('div');
+    m.className = 'qmenu';
+    m.setAttribute('role', 'menu');
+    m.setAttribute('aria-label', '切換版型');
+    m.innerHTML = '<div class="qhead">滑到版型上放開</div><div class="qgrid">' + h + '</div>';
+    if (getComputedStyle(root).position === 'static') root.style.position = 'relative';   // the menu's box: the layouts' own
+    root.appendChild(m);
+    quick.open = true;
+    quick.menu = m;
+    view.el.classList.add('quicking');
+    placeQuick();
+    sync(false, true);
+  }
+  // By the ⚙: under it, its right edge on the ⚙'s (inside the page's left edge). U10: off the capsule on the side away
+  // from its dock, centred on it, the window taller when it needs to be.
+  function placeQuick() {
+    var m = quick.menu, mw = m.offsetWidth, mh = m.offsetHeight, x, y;
+    if (view.name === 'U10' && view.hover) {
+      var bottom = dockOf() !== 'top', isl = view.hover.getBoundingClientRect(), need = Math.ceil(isl.height + 6 + mh + 5);
+      view.el.style.height = '';
+      quick.grow = false;
+      if (need > view.el.offsetHeight) { view.el.style.height = need + 'px'; quick.grow = true; }
+      var er = view.el.getBoundingClientRect();
+      isl = view.hover.getBoundingClientRect();
+      x = Math.max(er.left, Math.min(er.right - mw, isl.left + isl.width / 2 - mw / 2));
+      y = bottom ? isl.top - 6 - mh : isl.bottom + 6;
+    } else {
+      var g = quick.gear.getBoundingClientRect();
+      x = Math.max(view.el.getBoundingClientRect().left, g.right - mw);
+      y = g.bottom + 6;
+    }
+    var rr = root.getBoundingClientRect(), vr = view.el.getBoundingClientRect();
+    m.style.left = Math.round(x - rr.left) + 'px';
+    m.style.top = Math.round(Math.max(vr.top, y) - rr.top) + 'px';
+  }
+  function quickOver(t) {
+    var it = t && t.closest ? t.closest('[data-qlay]') : null;
+    if (it && !quick.menu.contains(it)) it = null;
+    Array.prototype.forEach.call(quick.menu.querySelectorAll('.qitem.hot'), function (n) { if (n !== it) n.classList.remove('hot'); });
+    if (it) it.classList.add('hot');
+  }
+  // pick: the layout to show (let go on it), or null
+  function quickClose(pick) {
+    clearTimeout(timers.quick);
+    timers.quick = 0;
+    var q = quick;
+    quick = null;
+    if (!q || !q.open) return;
+    if (q.menu) q.menu.remove();
+    if (view) {
+      view.el.classList.remove('quicking');
+      if (q.grow) view.el.style.height = '';
+    }
+    if (pick && pick !== cur && ALL.indexOf(pick) >= 0 && pick !== 'PANEL') { show(pick); return; }
+    if (!view) return;
+    // the hover the menu kept: gone after the usual delay unless the pointer is back on it
+    if (view.hover && view.hover.classList.contains('hover') && !timers.hover && !(q.last && view.hover.contains(q.last))) {
+      timers.hover = setTimeout(function () { timers.hover = 0; setHover(false); }, hoverOutMs(view.name));
+    }
+    sync(false, true);
+  }
+  function onQuickKey(e) { if (quick && quick.open && (e.key === 'Escape' || e.key === 'Esc')) { e.preventDefault(); quickClose(null); } }
+
   // ---- pointer ----
   function inRoot(t) { return root && t && t.nodeType === 1 && root.contains(t); }
   // [data-nodrag]: a panel's scrolling area (its scrollbar must stay a scrollbar). [data-hold]: the countdown's long press.
@@ -1705,6 +1809,7 @@ QJZ.layouts = (function () {
     if (dragging) endDrag();   // a new press: whatever drag there was is over
     dragged = false;
     swallow = null;
+    quickSwallow = false;
     // A run of presses (detail 1, 2, …) that began on an answer: the later ones do nothing (answer).
     if (e.detail <= 1) answerRun = !!(e.target && e.target.closest && e.target.closest('[data-answer]'));
     else if (answerRun) return;
@@ -1712,6 +1817,8 @@ QJZ.layouts = (function () {
     if (e.target && e.target.closest && e.target.closest('.bar .tb')) e.preventDefault();
     // the long-press controls (and a pomodoro button while idle) take no focus either: Space or Enter must not press them
     if (e.target && e.target.closest && e.target.closest('[data-act=drink],[data-act=pomo]')) e.preventDefault();
+    var qg = quickGear(e.target);   // 1.1.9: a press on a ⚙ may become the quick layout menu
+    if (qg) { e.preventDefault(); quickArm(qg); return; }
     var ht = e.target && e.target.closest ? holdTarget(e.target) : null;
     if (ht && inRoot(ht.el)) { e.preventDefault(); holdStart(ht); return; }   // no drag, no text selection, no focus
     if (!inRoot(e.target) || isButton(e.target)) return;
@@ -1719,6 +1826,11 @@ QJZ.layouts = (function () {
     e.preventDefault();   // no text selection / native drag; click and dblclick still fire
   }
   function onMove(e) {
+    if (quick) {
+      if (!(e.buttons & 1)) quickClose(null);   // released where the page did not hear it
+      else if (!quick.open) { if (!quick.gear.contains(e.target)) quickClose(null); }   // slid off the ⚙ before it opened
+      else { quick.last = e.target; quickOver(e.target); }
+    }
     if (hold && (!(e.buttons & 1) || !hold.ring.contains(e.target))) holdEnd(false);   // slid off its ring, or released elsewhere
     if (dragging && !(e.buttons & 1)) { endDrag(); return; }   // the button is up: no dragEnd is coming
     if (!drag) return;
@@ -1749,6 +1861,11 @@ QJZ.layouts = (function () {
   }
   function onUp(e) {
     drag = null;
+    if (quick) {
+      var it = quick.open && e && e.target && e.target.closest ? e.target.closest('[data-qlay]') : null;
+      if (quick.open) { quickSwallow = true; quick.last = e && e.target; }
+      quickClose(it && quick && quick.menu && quick.menu.contains(it) ? it.getAttribute('data-qlay') : null);
+    }
     if (hold) holdEnd(!!(e && e.target && hold.ring.contains(e.target)));
     if (dragging) endDrag();
   }
@@ -1757,6 +1874,7 @@ QJZ.layouts = (function () {
     send('contextMenu', {});
   }
   function onClick(e) {
+    if (quickSwallow) { quickSwallow = false; return; }   // 1.1.9: the release of the quick menu
     if (!view || !inRoot(e.target)) return;
     if (swallow) {   // the click of a long press that fired (1.1.3): it did its part
       var sw = swallow;
@@ -1841,6 +1959,7 @@ QJZ.layouts = (function () {
   // view (with its ⚙, 1.1.6 item 2), M3 its ⚙; either way the hit rects follow.
   function setHover(on) {
     if (!view || !view.hover || view.hover.classList.contains('hover') === on) return;
+    if (!on && quick && quick.open) return;   // 1.1.9: the quick menu keeps its ⚙
     var isl = view.name === 'U10' ? view.hover : null, from = isl ? capLook(isl) : null;
     if (isl) capStop(isl);
     view.hover.classList.toggle('hover', on);
@@ -1882,6 +2001,7 @@ QJZ.layouts = (function () {
     if (!view || view.name !== 'U10' || !view.hover) return;
     var running = capRunning(view.hover);
     if (!running) view.hover.classList.remove('morph');
+    if (!running && quick && quick.open) placeQuick();   // 1.1.9: the capsule changed size under the quick menu
     sync(false);
     if (running && window.requestAnimationFrame) capRaf = window.requestAnimationFrame(capTick);
   }
@@ -1971,6 +2091,7 @@ QJZ.layouts = (function () {
       document.addEventListener('mousemove', onMove, true);
       document.addEventListener('mouseup', onUp, true);
       document.addEventListener('contextmenu', onContext);
+      document.addEventListener('keydown', onQuickKey, true);
       window.addEventListener('resize', function () { sync(false, true); });
       watchDpr();
       if (document.fonts) {
@@ -1995,6 +2116,7 @@ QJZ.layouts = (function () {
       root.innerHTML = '';
     }
     for (var k in timers) { clearTimeout(timers[k]); clearInterval(timers[k]); timers[k] = 0; }
+    quick = null; quickSwallow = false;
     if (capRaf && window.cancelAnimationFrame) window.cancelAnimationFrame(capRaf);
     capRaf = 0;
     try { window.sessionStorage.removeItem(SHOWN_KEY); } catch (e) {}
@@ -2007,8 +2129,9 @@ QJZ.layouts = (function () {
   }
 
   return {
-    show: show, current: current, shownLayout: shownLayout, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
+    show: show, current: current, shownLayout: shownLayout, returnTo: returnTo, start: start, say: say, openPanel: openPanel, closePanel: closePanel, _reset: reset,
     zoomTip: zoomTip,
+    _quick: function () { if (timers.quick) { clearTimeout(timers.quick); timers.quick = 0; quickOpen(); } return !!(quick && quick.open); },   // tests: the hold is long enough now
     _bands: { flush: flushBands, pending: function () { return bandJobs.length; }, clear: function () { cancelBands(); bandCache = {}; } },
     dragging: function () { return dragging; },
     _brain: function () { return brain; },   // tests only (Ruling R3, like _reset and _bands): the pet's Brain
@@ -2016,7 +2139,7 @@ QJZ.layouts = (function () {
     util: {
       hms: hms, left: left, clockText: clockText, statusKey: statusKey, STATUS: STATUS,
       isMain: isMain, backTarget: backTarget, lastLayout: lastLayout, itemAt: itemAt, cardAt: cardAt, nextRot: nextRot, CARD_MS: CARD_MS, ITEM_MS: ITEM_MS, rateText: rateText, remainPhrase: remainPhrase, m3Sub: m3Sub,
-      DBL_MS: DBL_MS, CAP_MS: CAP_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, STAND_TIP: STAND_TIP, hoverOutMs: hoverOutMs,
+      DBL_MS: DBL_MS, CAP_MS: CAP_MS, QUICK_MS: QUICK_MS, HOLD_MS: HOLD_MS, HOLD_SHOW_MS: HOLD_SHOW_MS, TIP_MS: TIP_MS, STAND_TIP: STAND_TIP, hoverOutMs: hoverOutMs,
       heartsText: heartsText, model: model, subRect: subRect, outer: outer, layoutBox: layoutBox, discRects: discRects,
       DISC_BANDS: DISC_BANDS, measureBands: measureBands, bandRects: bandRects, bandStats: function () { return bandStats; },
       PETONLY_VB: PETONLY_VB, PET_HIT: PET_HIT, PET_HIT_TALL: PET_HIT_TALL, petHit: petHit, bandKey: bandKey, vbPoint: vbPoint,

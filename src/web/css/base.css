@@ -112,3 +112,17 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .odo .d:nth-last-child(1) .s{transition:none}
 .odo .d:nth-last-child(2) .s{transition-duration:.3s}
 .odo .c{display:inline-block;height:var(--cell)}
+
+/* 1.1.9: the layout sketches (templates.js thumb): theme colours, so they follow 深色模式 */
+.lthumb{display:block;width:100%;height:auto;aspect-ratio:64/40;overflow:visible}
+.lthumb .th-l{stroke:var(--line);stroke-width:1.6}
+.lthumb .th-f{fill:var(--bg)}
+.lthumb .th-y{fill:var(--bar)}
+.lthumb .th-a{fill:var(--money)}
+.lthumb .th-s{fill:#BFE6FF}
+.lthumb .th-e{fill:var(--line)}
+.lthumb .th-l2{fill:var(--sub);opacity:.55}
+.lthumb .th-d{fill:#3D2C24;stroke:var(--line);stroke-width:1}
+.lthumb .th-scr{fill:none;stroke:var(--sub);stroke-width:1.2;stroke-dasharray:3 2;opacity:.7}
+.lthumb .th-r1,.lthumb .th-r2,.lthumb .th-r3{fill:var(--bg);stroke-width:2.6}
+.lthumb .th-r1{stroke:#2E86DE}.lthumb .th-r2{stroke:#1E9E5A}.lthumb .th-r3{stroke:#E8503A}

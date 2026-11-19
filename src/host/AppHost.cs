@@ -90,7 +90,7 @@ using Microsoft.Web.WebView2.Core;
 // actions drink (記一杯水) and pomodoro do not show a hidden window (ShowRescue.MenuShows).
 public class AppHost
 {
-    public const string Version = "1.1.8";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
+    public const string Version = "1.1.9";   // also the exe's version block (AssemblyInfo.cs) and the page's 關於
     const string Origin = "https://app.qjz/";
     const int MaxCssSize = 4096;     // largest page size accepted from setLayout, CSS px
     const int MaxHitRects = 64;
