@@ -3742,13 +3742,15 @@
     eq(n, 8, 'every layout once');
     QJZ.layouts.MAIN.concat(['M3']).forEach(function (id) { ok(QJZ.layouts.NAMES[id], id + ' has a name'); });
   });
-  test('layouts DOM: 1.1.3 item 3: 設定 → 畫面 names the layout in use, 「N 名稱」', function () {
+  // 1.1.9 review c1: the 「現在的版型」 line is gone; the card of the layout in use, named 「N 名稱」, is marked
+  test('layouts DOM: 1.1.3 item 3 / 1.1.9 c1: 設定 → 畫面 marks the layout in use, 「N 名稱」, with no 現在的版型 line', function () {
     [['U1', '1 經典直式'], ['U3', '2 遊戲畫面'], ['U12', '3 健康儀表板'], ['U10', '6 頂端小膠囊'], ['M3', '7 迷你浮窗'], ['U7', '8 桌面寵物']].forEach(function (c) {
       var e = mk(at(12, 10, 0), { first: c[0] });
       e.menu('settings');
       $(e, '[data-tab=display]').click();
-      eq(text(e, '[data-o=layoutName]'), c[1], c[0]);
-      ok(drawn($(e, '[data-o=layoutName]')), c[0] + ': shown');
+      eq([$(e, '[data-lay].on').getAttribute('title'), text(e, '[data-lay].on .lnum') + ' ' + text(e, '[data-lay].on small')], [c[1], c[1]], c[0]);
+      ok(drawn($(e, '[data-lay].on')), c[0] + ': shown');
+      ok(!$(e, '[data-o=layoutName]') && $(e, '.pscroll').textContent.indexOf('現在的版型') < 0, c[0] + ': no 現在的版型 line');
       done();
     });
   });

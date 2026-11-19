@@ -378,11 +378,11 @@ QJZ.panels = (function () {
     },
     // No start-layout picker and no topmost switches (simplification #12): the app opens in the layout used last, and
     // 永遠在最上層 is the menu's 版型 ▶ item, kept per layout. Two switches only (1.1 #12): 相容模式 and 省電模式.
-    // 1.1.3 item 3: it names the layout in use as the menu does, 「N 名稱」 (QJZ.layouts.NAMES). 1.1.9: every layout as a
-    // card (a sketch, QJZ.templates.thumb, and its name) by category, the one in use marked, as the pet picker; a click
-    // switches to it (the panel closes onto it: layouts.returnTo).
+    // 1.1.9: every layout as a card (a sketch, QJZ.templates.thumb, and its name 「N 名稱」) by category, the one in use
+    // marked, as the pet picker; a click switches to it (the panel closes onto it: layouts.returnTo). Review c1: the
+    // 「現在的版型」 line of 1.1.3 item 3 is gone, the marked card says it.
     layout: function () {
-      return '<div class="lnow">現在的版型<b data-o="layoutName"></b></div>' + layCards() +
+      return layCards() +
         hint('點一下就換成那個版型（設定會關起來）。在任何版型上按住 ⚙ 不放，也會跳出版型選單，滑到想要的版型放開就換。') +
         hint('下次開啟會用你最後用的版型；要不要永遠在最上層，在右鍵選單 →「版型」裡切換（每個版型各自記住）。') +
         '<div class="card">' + line(row('深色模式', tgl('dark', '深色模式')) + hint('視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。')) + '</div>' +
@@ -696,7 +696,6 @@ QJZ.panels = (function () {
       // 版型
       var L = QJZ.layouts;
       var shownL = L && L.shownLayout ? L.shownLayout() : null;
-      out(c, 'layoutName', L && L.NAMES && shownL ? L.NAMES[shownL] || '' : '');
       qa(c, '[data-lay]').forEach(function (b) {
         var on = b.getAttribute('data-lay') === shownL;
         if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
