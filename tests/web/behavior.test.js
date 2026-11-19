@@ -101,14 +101,14 @@
     for (var i = 0; i < 200; i++) ok(B.pickIdle({ energy: 30 }, B.rng(i), 'before', 15) !== 'slack', 'never before work');
   });
   function day(n, h, m) { return new Date(2026, 10, 12 + n, h, m || 0, 0, 0).getTime(); }
-  test('behavior 1.1.8: slackDay is the same all day and about 3 days in 10', function () {
+  test('behavior 1.1.8: slackDay is the same all day and about half the days (review: 一半一半)', function () {
     var yes = 0;
     for (var n = 0; n < 1000; n++) {
       var d = B.slackDay(day(n, 0, 1));
       eq(B.slackDay(day(n, 12)), d); eq(B.slackDay(day(n, 23, 59)), d);
       if (d) yes++;
     }
-    ok(yes > 240 && yes < 360, yes + ' of 1000 days');
+    ok(yes > 440 && yes < 560, yes + ' of 1000 days');
   });
   test('behavior 1.1.8: the last 30 minutes are slack on a slack day, else the sprint', function () {
     eq([B.base('working', 20, 0, true), B.base('working', 20, 0, false), B.base('working', 40, 0, true), B.base('lunch', 20, 0, true)],

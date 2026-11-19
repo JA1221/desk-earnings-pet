@@ -103,19 +103,24 @@ QJZ.pets.props = (function () {
         `<ellipse cx="0" cy="-7" rx="8" ry="2.3" fill="#8B5A3C" ${ol(ctx, 1.6)}/><ellipse cx="-.6" cy="-7.2" rx="4.4" ry="1.1" fill="#F2DCC0"/>` +
         `<path d="M0,5.2 c-3,-2.2 -4,-3.6 -4,-5 a2,2 0 0 1 4,-.6 a2,2 0 0 1 4,.6 c0,1.4 -1,2.8 -4,5z" fill="#fff"/>`) };
     },
-    // 1.1.8 slack: a phone held up in both paws, tipped a little, its screen a feed (.feed flicks up now and then) and a
-    // heart (.like) that pops over its corner
+    // 1.1.8 slack (review: the face stays clear): a phone held sideways, low, between the two holding paws (rig.holdArm,
+    // which every skin has under its mouth), playing a video: sky, a hill, a ball that bounces (.ball), the progress bar
+    // filling (.prog); a heart (.like) pops over its corner. The right paw swipes across it now and then (rig.js 'phone').
     phone: function (ctx) {
-      var flat = ctx.mode === 'flat', body = flat ? '#4A5160' : '#3B3F4A', scr = flat ? '#DDF0FF' : '#CDEBFF';
-      var feed = `<rect x="-4.3" y="-6.6" width="8.6" height="5" rx=".8" fill="#FFC857"/>` +
-        `<path class="keep" d="M-4.3,.4 h8.6 M-4.3,2.4 h5.6" stroke="#8FA6BC" stroke-width="1.1" stroke-linecap="round"/>` +
-        `<rect x="-4.3" y="4" width="8.6" height="4.4" rx=".8" fill="#FF8FA3"/>`;
+      var g = QJZ.pets.rig.phoneAt(ctx.rig), cx = g.cx, cy = g.cy;
+      var w = n(g.w), h = g.h, x0 = n(-w / 2), y0 = -h / 2;
+      var flat = ctx.mode === 'flat', body = flat ? '#4A5160' : '#3B3F4A';
+      var sx = n(x0 + 1.6), sw = n(w - 3.2), sy = y0 + 1.5, sh = h - 3;
+      var screen = `<rect x="${sx}" y="${sy}" width="${sw}" height="${sh}" rx="1" fill="#8FD3FF"/>` +
+        `<path d="M${sx},${n(sy + sh)} v-3 q${n(sw * 0.3)},-3.4 ${n(sw * 0.55)},-1 q${n(sw * 0.25)},2 ${n(sw * 0.45)},-.6 v3.6 z" fill="#7BD389"/>` +
+        `<circle cx="${n(sx + sw * 0.5)}" cy="${n(sy + 2.6)}" r="1.4" fill="#FFC857"/>` +
+        anim('ball', `<circle cx="${n(sx + sw * 0.32)}" cy="${n(sy + sh - 3.6)}" r="1.5" fill="#FF6B57"/>`) +
+        `<rect x="${n(sx + 1)}" y="${n(sy + sh - 1.2)}" width="${n(sw - 2)}" height=".7" rx=".35" fill="#fff" opacity=".8"/>` +
+        `<g transform="translate(${n(sx + 1)} 0)">` + anim('prog', `<rect x="0" y="${n(sy + sh - 1.2)}" width="${n(sw - 2)}" height=".7" rx=".35" fill="#FF3B3B"/>`) + `</g>`;
       var heart = `<path d="M0,2.6 c-2.4,-1.7 -3.2,-2.9 -3.2,-4 a1.6,1.6 0 0 1 3.2,-.5 a1.6,1.6 0 0 1 3.2,.5 c0,1.1 -.8,2.3 -3.2,4z" fill="#FF5A7A" ${ol(ctx, 1.1)}/>`;
-      return { held: at(ctx.rig.hold, `<g transform="translate(0 -5) rotate(-10) scale(1.25)">` +
-        `<rect x="-7" y="-11" width="14" height="22" rx="2.6" fill="${body}" ${ol(ctx, 2)}/>` +
-        `<rect x="-5.6" y="-8.8" width="11.2" height="17.2" rx="1.2" fill="${scr}"/>` +
-        anim('feed', feed) + `<rect x="-2" y="-10.2" width="4" height=".9" rx=".45" fill="#6B7280"/>` +
-        `<g transform="translate(6.5 -11.5)">` + anim('like', heart) + `</g></g>`) };
+      return { held: `<g transform="translate(${n(cx)} ${n(cy)}) rotate(-3)">` +
+        `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="2.4" fill="${body}" ${ol(ctx, 1.8)}/>` + screen +
+        `<g transform="translate(${n(-x0 - 1)} ${n(y0 - 1.5)})">` + anim('like', heart) + `</g></g>` };
     },
     // rice ball with nori, held for lunch
     onigiri: function (ctx) {

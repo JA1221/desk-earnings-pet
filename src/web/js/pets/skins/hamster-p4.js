@@ -57,7 +57,7 @@
           fire: [[56, 154, 1], [180, 154, 1]], bento: [152, 149, 0.92],
           paw: paw, pawL: PAW_L, pawR: PAW_R,
           up: { paws: [[64, 124, -60], [172, 124, 60]] },
-          holdArm: { paws: [[110, 143, 25], [126, 143, -25]] },
+          holdArm: { paws: [[110, 143, 25], [126, 143, -25]] }, phone: { dy: 3.5 },   // 1.1.8: its mouth sits low: the phone below it
           scratch: { paw: [69, 115, -55] },
           pack: { lift: 8,
             desk: { bag: [178, 141, 0.86], wave: [66, 112, -45], rest: [168, 124, -25] } },

@@ -40,6 +40,7 @@ QJZ.pets = QJZ.pets || {};
 //   sipGlass: [x,y,scale] (optional) the glass while sipping, its straw in the mouth (default: under the tiny o mouth)
 //   glassArm: {paws, arms?, w} (optional, default holdArm) the paws (and cat limbs) that hold the glass
 //   bang:    [x,y]  (optional, default qm) the ! of the knock marks;  phones: the headphones (props.js headphones)
+//   phone:   {dy} (optional, 1.1.8) moves the slack phone (and its paws) down dy from under holdArm, for a low mouth
 // The hello arm, glass, sipGlass, glassArm, bang and phones are per skin; a skin without them gets the defaults above.
 //   line: [colour, width], mode: 'sticker'|'flat'|'crayon'
 //   inkClip: 'url(#id)'      (optional) a clip that keeps only what lies outside the body: then a skin can put the
@@ -55,7 +56,7 @@ QJZ.pets = QJZ.pets || {};
 // paws that hold the held prop (compose puts them in the OVER slot with it, in the moving .held group). under: the
 // outline, behind the body, of an arm whose fur is in the front layer; the avatar has no front layer, so compose
 // leaves it out there (an outline alone would show as a dark arm).
-// Modes: type | rest | up | hold | scratch, and wave (the desk backpack: wave with one paw, pat the bag with the other);
+// Modes: type | rest | up | hold | scratch, phone (1.1.8: hold, the right paw swipes), and wave (the desk backpack: wave with one paw, pat the bag with the other);
 // 1.1: hello (wave with the left paw, the right one rests on the keys), glass (both paws hold the water glass:
 // glassArm) and cup (wave with the left paw, the right one holds the glass). GRIP: the modes that hold the held prop.
 QJZ.pets.rig = (function () {
@@ -126,7 +127,20 @@ QJZ.pets.rig = (function () {
     return (h.arms ? front(rig, h.arms[i][0], h.arms[i][1], h.w) : '') + rig.paw(p[0], p[1], p[2]);
   }
 
-  var GRIP = { hold: 1, cup: 1, glass: 1 };
+  var GRIP = { hold: 1, cup: 1, glass: 1, phone: 1 };
+  // 1.1.8 slack: the phone held sideways under the face, from the skin's holdArm (which every skin has under its mouth):
+  // {cx, cy, w, h} and the two paws at its ends, a little below its middle, so they grip the ends and leave the screen
+  // between them; a cat's limbs reach them (holdArm.arms, their tips moved as far as the paws).
+  function phoneAt(rig) {
+    var h = rig.holdArm, p = h.paws, dx = p[1][0] - p[0][0], cx = (p[0][0] + p[1][0]) / 2, py = (p[0][1] + p[1][1]) / 2;
+    var g = { cx: cx, cy: py - 2 + (rig.phone && rig.phone.dy || 0), w: dx + 16, h: 13 }, ex = g.w / 2 - 1.5, y = g.cy + 3.5;
+    g.paws = [[n(cx - ex), n(y), p[0][2]], [n(cx + ex), n(y), p[1][2]]];
+    g.arms = h.arms ? h.arms.map(function (a, i) {
+      var q = g.paws[i];
+      return [a[0], [n(a[1][0] + q[0] - p[i][0]), n(a[1][1] + q[1] - p[i][1])]];
+    }) : null;
+    return g;
+  }
 
   function arms(rig, mode) {
     switch (mode) {
@@ -134,6 +148,12 @@ QJZ.pets.rig = (function () {
       case 'hello': return hello(rig, { front: rig.pawR });
       case 'cup': return hello(rig, { grip: grip(rig, 1) });
       case 'glass': return { grip: grip(rig, 0) + grip(rig, 1) };
+      case 'phone': {   // 1.1.8 slack: both paws hold the phone at its ends (phoneAt); the right one (.swipe) swipes across it
+        var hp = phoneAt(rig), aw = rig.holdArm.w, l = hp.arms ? front(rig, hp.arms[0][0], hp.arms[0][1], aw) : '', r = hp.arms ? front(rig, hp.arms[1][0], hp.arms[1][1], aw) : '';
+        var q1 = hp.paws[1];
+        return { grip: l + rig.paw(hp.paws[0][0], hp.paws[0][1], hp.paws[0][2]) +
+          `<g class="swipe" style="transform-origin:${q1[0]}px ${q1[1]}px">` + r + rig.paw(q1[0], q1[1], q1[2]) + '</g>' };
+      }
       case 'up': {
         var u = rig.up, o = {};
         if (u.paws) {   // paws only: they wiggle in place (origin = the paw), so they never leave the head outline
@@ -183,5 +203,5 @@ QJZ.pets.rig = (function () {
     }
   }
 
-  return { grow: grow, front: front, taper: taper, arms: arms, GRIP: GRIP };
+  return { grow: grow, front: front, taper: taper, arms: arms, GRIP: GRIP, phoneAt: phoneAt };
 })();

@@ -8,7 +8,7 @@ window.QJZ = window.QJZ || {};
 //   pickIdle(m, rng, status, hour) -> an idle action or null: while working one of stretch|yawn|coffee|stare|scratch
 //       (yawn x3 when energy < 40) or now and then slack (1.1.8 滑手機摸魚: weight SLACK_W, about 1 in 10; SLACK_W_LAZY,
 //       about 1 in 3, while lazy: energy < 40 or 14:00–16:00); before work doze now and then (RULING-3); otherwise null.
-//   slackDay(ms) -> true on about 3 days in 10 (SLACK_DAY), by the local date alone (the same all day, across restarts):
+//   slackDay(ms) -> true on about half the days (SLACK_DAY; review: 一半一半), by the local date alone (the same all day, across restarts):
 //       that day the last 30 minutes are slack, scrolling the phone till 下班, instead of the sprint.
 //   Poker: poke(nowMs) -> 'petted' | 'angry' (5 pokes within 2 s -> angry for 4 s).
 //   Brain: the running pet. update(nowMs, info) -> the state to show, where
@@ -36,7 +36,7 @@ QJZ.behavior = (function () {
   var IDLES = ['stretch', 'yawn', 'coffee', 'stare', 'scratch', 'slack'];
   var CELEBRATE_SEC = 8, SPRINT_MIN = 30, LUNCH_EAT_MIN = 10;
   var IDLE_EVERY = [20000, 60000], IDLE_FOR = [3000, 5000], DOZE_FOR = [8000, 15000], DOZE_CHANCE = 0.4;
-  var SLACK_FOR = [8000, 15000], SLACK_W = 0.55, SLACK_W_LAZY = 3, SLACK_DAY = 0.3;
+  var SLACK_FOR = [8000, 15000], SLACK_W = 0.55, SLACK_W_LAZY = 3, SLACK_DAY = 0.5;
   var SAVER_IDLE_EVERY = [60000, 180000];
   var GAP_MS = 5000, PET_MS = 2000;
   var POKE_WINDOW = 2000, POKE_COUNT = 5, ANGRY_MS = 4000;

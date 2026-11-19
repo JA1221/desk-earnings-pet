@@ -123,7 +123,7 @@ QJZ.pets.common = (function () {
   // twice the CPU of the others that way). Around a still subtree it is drawn once and reused while its parent moves.
   // ANIMATED: every class pets.css animates (tests check that no filter is ever above a moving element).
   var ANIMATED = ['armL', 'armR', 'bang', 'blink', 'bod', 'breath', 'cf', 'chew', 'cloud', 'code', 'coin', 'coinspin', 'crumb',
-    'csp', 'dot0', 'dot1', 'dot2', 'drip', 'eyes-alt', 'eyes-open', 'feed', 'flame', 'fly', 'head', 'held', 'hrt', 'knk', 'knock', 'leaves', 'like',
+    'csp', 'dot0', 'dot1', 'dot2', 'drip', 'eyes-alt', 'eyes-open', 'flame', 'fly', 'head', 'held', 'hrt', 'knk', 'knock', 'leaves', 'like', 'ball', 'prog', 'swipe',
     'legs', 'limp', 'look', 'lvl', 'mouth-a', 'mouth-b', 'note', 'pawL', 'pawR', 'pose-a', 'pose-b', 'puff', 'qm', 'scr', 'smk',
     'snot', 'spk', 'squish', 'steam', 'steam2', 'swing', 'tail', 'tear', 'tw', 'vein', 'zz'];
   var MOVING = new RegExp('(?:^|\\s)(?:' + ANIMATED.join('|') + ')(?:\\s|$)');
