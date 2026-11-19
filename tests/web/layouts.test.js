@@ -4638,7 +4638,7 @@
       var m = qmenu(e);
       ok(m && drawn(m), name + ': the menu');
       eq(Array.prototype.map.call(m.querySelectorAll('[data-qlay]'), function (n) { return n.getAttribute('data-qlay'); }), ORDER, name + ': every layout, by category');
-      eq(Array.prototype.map.call(m.querySelectorAll('[data-qlay] small'), function (n) { return n.textContent; }), ORDER.map(function (id) { return U.NAMES ? U.NAMES[id] : QJZ.layouts.NAMES[id]; }), name + ': the names');
+      eq(Array.prototype.map.call(m.querySelectorAll('[data-qlay]'), function (n) { return n.querySelector('.lnum').textContent + ' ' + n.querySelector('small').textContent; }), ORDER.map(function (id) { return QJZ.layouts.NAMES[id]; }), name + ': the number on the sketch, the name under it');
       ok(m.querySelectorAll('[data-qlay] svg.lthumb').length === 8, name + ': a sketch each');
       eq(Array.prototype.map.call(m.querySelectorAll('.qitem.on'), function (n) { return n.getAttribute('data-qlay'); }), [name], name + ': the one in use marked');
       // the window holds it and it takes clicks
@@ -4727,6 +4727,8 @@
     eq(Array.prototype.map.call(e.root.querySelectorAll('[data-lay].on'), function (n) { return n.getAttribute('data-lay'); }), ['U3'], 'the one in use');
     eq($(e, '[data-lay=U3]').getAttribute('aria-pressed'), 'true');
     ok(Array.prototype.every.call(cards, function (c) { return c.querySelector('svg.lthumb') && drawn(c); }), 'a sketch each');
+    eq(Array.prototype.map.call(cards, function (c) { return c.querySelector('.lnum').textContent + ' ' + c.querySelector('small').textContent; }), ORDER.map(function (id) { return QJZ.layouts.NAMES[id]; }), 'the number on the sketch, the name under it');
+    ok(Array.prototype.every.call(cards, function (c) { var s = c.querySelector('small'); return s.scrollWidth <= s.clientWidth + 1 && s.getClientRects().length === 1; }), 'every name on one line, whole');
     var pane = $(e, '.pscroll').getBoundingClientRect();
     ok(Array.prototype.every.call(cards, function (c) { var r = c.getBoundingClientRect(); return r.right <= pane.right + 0.5 && r.left >= pane.left - 0.5; }), 'none wider than the panel');
     $(e, '[data-lay=U12]').click();

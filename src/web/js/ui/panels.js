@@ -320,8 +320,8 @@ QJZ.panels = (function () {
     L.GROUPS.forEach(function (g) {
       h += '<div class="kind"><span class="lbl">' + esc(g[0]) + '</span><div class="lgrid">';
       g[1].forEach(function (id) {
-        h += '<button type="button" class="lcard" data-lay="' + esc(id) + '" title="' + esc(L.NAMES[id]) + '" aria-pressed="false">' +
-          '<span class="lth">' + T.thumb(id) + '</span><small>' + esc(L.NAMES[id]) + '</small></button>';
+        h += '<button type="button" class="lcard" data-lay="' + esc(id) + '" title="' + esc(L.NAMES[id]) + '" aria-label="' + esc(L.NAMES[id]) + '" aria-pressed="false">' +
+          T.layCard(id, L.NAMES[id]) + '</button>';
       });
       h += '</div></div>';
     });

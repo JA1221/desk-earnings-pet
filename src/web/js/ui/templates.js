@@ -284,7 +284,14 @@ QJZ.templates = (function () {
   function thumb(name) {
     return TH[name] ? '<svg class="lthumb" viewBox="0 0 64 40" aria-hidden="true" focusable="false">' + TH[name] + '</svg>' : '';
   }
+  // a layout's card face: the sketch with its number on a dot at the corner, and the name under it (the number off the
+  // name, so the longest name, 5 characters, fits a narrow card on one line). full: QJZ.layouts.NAMES[name], 「N 名稱」.
+  function layCard(name, full) {
+    var sp = String(full || '').indexOf(' '), num = sp > 0 ? full.slice(0, sp) : '', label = sp > 0 ? full.slice(sp + 1) : String(full || '');
+    return '<span class="lth">' + (num ? '<i class="lnum">' + num + '</i>' : '') + thumb(name) + '</span><small>' + label + '</small>';
+  }
   TEMPLATES.parts = { BAR: BAR, MONEY: MONEY, PILL: PILL, feedBtn: feedBtn };
   TEMPLATES.thumb = thumb;
+  TEMPLATES.layCard = layCard;
   return TEMPLATES;
 })();

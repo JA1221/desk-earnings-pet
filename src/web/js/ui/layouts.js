@@ -1732,8 +1732,8 @@ QJZ.layouts = (function () {
     var T = QJZ.templates, h = '';
     GROUPS.forEach(function (g) {
       g[1].forEach(function (id) {
-        h += '<div class="qitem' + (id === cur ? ' on' : '') + '" data-qlay="' + id + '" role="menuitem">' +
-          '<span class="lth">' + (T && T.thumb ? T.thumb(id) : '') + '</span><small>' + NAMES[id] + '</small></div>';
+        h += '<div class="qitem' + (id === cur ? ' on' : '') + '" data-qlay="' + id + '" role="menuitem" aria-label="' + NAMES[id] + '">' +
+          (T && T.layCard ? T.layCard(id, NAMES[id]) : '<small>' + NAMES[id] + '</small>') + '</div>';
       });
     });
     var m = document.createElement('div');

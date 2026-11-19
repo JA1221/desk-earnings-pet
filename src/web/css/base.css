@@ -126,3 +126,6 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .lthumb .th-scr{fill:none;stroke:var(--sub);stroke-width:1.2;stroke-dasharray:3 2;opacity:.7}
 .lthumb .th-r1,.lthumb .th-r2,.lthumb .th-r3{fill:var(--bg);stroke-width:2.6}
 .lthumb .th-r1{stroke:#2E86DE}.lthumb .th-r2{stroke:#1E9E5A}.lthumb .th-r3{stroke:#E8503A}
+.lth{position:relative}
+.lth .lnum{position:absolute;left:-6px;top:-7px;min-width:16px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:99px;background:#3D2C24;color:#FFF8EC;box-shadow:0 0 0 1.5px var(--bg);
+  font:800 10px/16px var(--font);font-style:normal;text-align:center}
