@@ -16,7 +16,7 @@ $url = ([Uri](Join-Path $root 'tests\web\run.html')).AbsoluteUri
 $edgeArgs = @('--headless=new', '--disable-gpu', '--no-first-run', '--disable-sync', '--disable-background-networking', '--disable-component-update',
     "--user-data-dir=`"$profileDir`"", '--virtual-time-budget=5000', '--dump-dom', "`"$url`"")
 $proc = Start-Process -PassThru -FilePath $edge -ArgumentList $edgeArgs -RedirectStandardOutput $outFile -RedirectStandardError ($outFile + '.err') -WindowStyle Hidden
-if (-not $proc.WaitForExit(120000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }   # the run takes ~50 s; room under load
+if (-not $proc.WaitForExit(240000)) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }   # the run takes 50-90 s; room under load
 Start-Sleep -Milliseconds 300
 # stop leftover Edge processes that use our dedicated profile (crashpad handler etc.)
 Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like ('*' + $profileDir + '*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
