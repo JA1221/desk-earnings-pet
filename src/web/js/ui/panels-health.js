@@ -26,7 +26,7 @@ QJZ.panelsHealth = (function () {
   var CUPS = ['今天已喝', '杯'];
   var BTN = { drink: 'drink', up: 'ok' };   // the preview's buttons, coloured as QJZ.promptView colours them
   // 「現在提醒我一次」's hint: it can be pressed; both switches off (or not answered yet); water only and the goal reached.
-  var REMIND = { ok: '關掉設定後就會跳出來。', off: '起來動和喝水都關著，打開一個才能試。', full: '今天的水已經喝滿了，喝水提醒明天再來。' };
+  var REMIND = { ok: '關掉設定就會跳出來。', off: '先打開一個提醒。', full: '今天水喝滿了，明天再提醒。' };
 
   function icon(name) { return QJZ.icons.svg(name); }
   function valueAt(health, path) { return path.split('.').reduce(function (o, k) { return o[k]; }, health); }
@@ -47,14 +47,14 @@ QJZ.panelsHealth = (function () {
   function section() {
     return '<div class="card">' +
         K.line('<span class="ttl">' + icon('stand') + '休息提醒</span>') +
-        K.line(K.row('起來動', K.tgl('sit', '起來動')) + K.hint('坐好久了，寵物會跳起來揮手叫你。')) +
-        K.line(K.row('喝水', K.tgl('water', '喝水')) + K.hint('寵物會捧著水杯提醒你喝水。')) +
-        K.line(num('every') + K.hint('按「等一下」會晚一點再提醒；番茄鐘的休息也算一次起身。') + K.hint('', 'standGoal')) +
-        K.line(num('water.goal') + K.hint('喝滿目標寵物會很開心。')) +
+        K.line(K.row('起來動', K.tgl('sit', '起來動'))) +
+        K.line(K.row('喝水', K.tgl('water', '喝水'))) +
+        K.line(num('every') + K.hint('', 'standGoal')) +
+        K.line(num('water.goal')) +
         K.line('<button type="button" class="btn sm remind" data-remind>現在提醒我一次</button>' + K.hint('', 'remindHint'), ' data-o="remindLine"') +
       '</div><div class="card">' +
-        K.line(K.row('<span class="ttl">' + icon('tom') + '番茄鐘</span>', '<span class="aside">從右鍵或 🍅 按鈕開始</span>')) +
-        K.line(num('pomodoro.focus') + K.hint('專心時寵物戴上耳機、不聊天，提醒會等到休息時再說。')) +
+        K.line(K.row('<span class="ttl">' + icon('tom') + '番茄鐘</span>', '<span class="aside">按 🍅 開始</span>')) +
+        K.line(num('pomodoro.focus') + K.hint('專心時寵物不聊天，提醒延到休息。')) +
       '</div>' +
       K.disclosure('adv', '進階', K.line(num('pomodoro.short')) + K.line(num('pomodoro.long')) +
         K.line(num('pomodoro.longEvery') + K.hint('', 'roundGoal')) + K.line(num('cups')));
@@ -65,8 +65,8 @@ QJZ.panelsHealth = (function () {
     K.tglOn(c, 'water', h.asked && h.water.on);
     Object.keys(NUMS).forEach(function (k) { showNum(c, k, valueAt(h, k), R[k][0], R[k][1]); });
     showNum(c, 'cups', cups(), 0, Infinity);
-    K.out(c, 'standGoal', '起來動目標：每天 ' + QJZ.settings.standGoal(s) + ' 次（工時 ÷ 間隔，自動算）');
-    K.out(c, 'roundGoal', '每天目標就是一輪：' + QJZ.settings.tomatoGoal(s) + ' 顆。');
+    K.out(c, 'standGoal', '每天目標 ' + QJZ.settings.standGoal(s) + ' 次（番茄鐘的休息也算）');
+    K.out(c, 'roundGoal', '每天目標一輪 ' + QJZ.settings.tomatoGoal(s) + ' 顆');
     var a = QJZ.reminders.ask(h, cups()), can = a.sit || a.water, rb = K.q(c, '[data-remind]');
     if (rb && rb.disabled === can) rb.disabled = !can;
     K.out(c, 'remindHint', can ? REMIND.ok : h.asked && h.water.on && !h.sit.on ? REMIND.full : REMIND.off);

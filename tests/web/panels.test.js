@@ -616,8 +616,7 @@
       ok(visible($(e, '[data-sec=about]')));
       eq(text(e, '[data-o=version]'), '版本 t', 'the version the host sent with init');
       ok(text(e, '[data-sec=about]').indexOf('不會上傳') >= 0, 'the data stays on this PC');
-      ok(text(e, '[data-sec=about]').indexOf('漫遊設定檔') >= 0 && text(e, '[data-sec=about]').indexOf('%AppData%\\錢進中') >= 0,
-        'with the roaming exception, as in the guide');
+      ok(text(e, '[data-sec=about]').indexOf('公司電腦的例外見使用說明') >= 0, 'the roaming exception: in the guide (1.1.10 item 3)');
       var g = $(e, '[data-disc=guide]'), l = $(e, '[data-disc=lic]');
       eq([g.tagName, g.getAttribute('aria-expanded'), l.getAttribute('aria-expanded')], ['BUTTON', 'false', 'false'], 'two closed disclosure buttons');
       ok(g.textContent.indexOf('使用說明') >= 0 && l.textContent.indexOf('第三方授權') >= 0 && g.textContent.indexOf('點開') >= 0, g.textContent);
@@ -747,7 +746,7 @@
     e.menu('settings');
     $(e, '[data-tab=display]').click();
     ok(text(e, '[data-sec=layout]').indexOf('相容模式（不透明背景）') >= 0);
-    ok(text(e, '[data-sec=layout]').indexOf('視窗周圍出現黑框時請開啟') >= 0);
+    ok(text(e, '[data-sec=layout]').indexOf('視窗周圍有黑框時打開') >= 0);
     var t = $(e, '[data-tgl=opaque]');
     eq([t.getAttribute('aria-checked'), t.disabled], ['false', false]);
     t.click();
@@ -766,7 +765,7 @@
     eq([t.getAttribute('aria-checked'), t.disabled], ['true', true], 'on, and cannot be turned off');
     t.click();
     eq(QJZ.app.state.settings.display.opaque, false, 'the saved setting is untouched');
-    ok(text(f, '[data-sec=layout]').indexOf('自動開啟') >= 0, 'says why');
+    ok(text(f, '[data-sec=layout]').indexOf('無法透明，已自動打開') >= 0, 'says why');
     ok(root.classList.contains('opaque'));
     done();
     ok(!root.classList.contains('opaque'));
@@ -789,15 +788,13 @@
     function lbl(sel) { return row(sel).querySelector('.lbl').textContent; }
     eq([lbl('[data-tgl=sit]'), lbl('[data-tgl=water]'), lbl('[data-num=every]'), lbl('[data-num="water.goal"]'), lbl('[data-num="pomodoro.focus"]')],
       ['起來動', '喝水', '每隔', '一天幾杯', '專心']);
-    eq(row('[data-tgl=sit]').querySelector('.hint').textContent, '坐好久了，寵物會跳起來揮手叫你。', 'no cup (Ruling C8)');
-    eq(row('[data-tgl=water]').querySelector('.hint').textContent, '寵物會捧著水杯提醒你喝水。');
-    eq(row('[data-num=every]').querySelector('.hint').textContent, '按「等一下」會晚一點再提醒；番茄鐘的休息也算一次起身。');
-    eq(row('[data-num="water.goal"]').querySelector('.hint').textContent, '喝滿目標寵物會很開心。');
-    eq(row('[data-num="pomodoro.focus"]').querySelector('.hint').textContent, '專心時寵物戴上耳機、不聊天，提醒會等到休息時再說。');
-    ok(text(e, '[data-pane=health]').indexOf('從右鍵或 🍅 按鈕開始') >= 0);
+    // 1.1.10 item 3: a label that says it all has no small print
+    eq([row('[data-tgl=sit]').querySelector('.hint'), row('[data-tgl=water]').querySelector('.hint'), row('[data-num="water.goal"]').querySelector('.hint')], [null, null, null]);
+    eq(row('[data-num="pomodoro.focus"]').querySelector('.hint').textContent, '專心時寵物不聊天，提醒延到休息。');
+    ok(text(e, '[data-pane=health]').indexOf('按 🍅 開始') >= 0);
     eq($$(e, '[data-num] [data-o]').filter(visible).map(function (b) { return b.textContent; }), ['50', '8', '25'], 'the defaults');
     eq($$(e, '[data-num] b + span').filter(visible).map(function (b) { return b.textContent; }), ['分鐘', '杯', '分鐘'], 'units');
-    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 9 次（工時 ÷ 間隔，自動算）', '8 h / 50 min');
+    eq(text(e, '[data-o=standGoal]'), '每天目標 9 次（番茄鐘的休息也算）', '8 h / 50 min');
 
     // switches
     eq([$(e, '[data-tgl=sit]').getAttribute('aria-checked'), $(e, '[data-tgl=water]').getAttribute('aria-checked')], ['false', 'false']);
@@ -812,7 +809,7 @@
     function hs() { return QJZ.app.state.settings.health; }
     plus('every');
     eq(hs().every, 55, 'every 5');
-    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 8 次（工時 ÷ 間隔，自動算）', 'follows: 480 / 55');
+    eq(text(e, '[data-o=standGoal]'), '每天目標 8 次（番茄鐘的休息也算）', 'follows: 480 / 55');
     QJZ.app.saveSettings({ health: { every: 120 } });
     plus('every');
     eq(hs().every, 120, '＋ at 120 stays 120');
@@ -824,7 +821,7 @@
     minus('every');
     eq(hs().every, 5, '− at 5 stays 5');
     ok($(e, '[data-num=every] [data-dir="-"]').disabled);
-    eq(text(e, '[data-o=standGoal]'), '起來動目標：每天 96 次（工時 ÷ 間隔，自動算）', '480 / 5');
+    eq(text(e, '[data-o=standGoal]'), '每天目標 96 次（番茄鐘的休息也算）', '480 / 5');
     plus('every');
     eq([hs().every, text(e, '[data-o="num.every"]')], [10, '10']);
     minus('water.goal');
@@ -843,12 +840,12 @@
       ['短休息', '長休息', '每幾顆番茄長休息一次', '今天已喝']);
     eq(['pomodoro.short', 'pomodoro.long', 'pomodoro.longEvery', 'cups'].map(function (k) { return text(e, '[data-o="num.' + k + '"]'); }),
       ['5', '15', '4', '0']);
-    eq(row('[data-num="pomodoro.longEvery"]').querySelector('[data-o=roundGoal]').textContent, '每天目標就是一輪：4 顆。');
+    eq(row('[data-num="pomodoro.longEvery"]').querySelector('[data-o=roundGoal]').textContent, '每天目標一輪 4 顆');
     plus('pomodoro.long');
     plus('pomodoro.longEvery');
     minus('pomodoro.short');
     eq([hs().pomodoro.long, hs().pomodoro.longEvery, hs().pomodoro.short], [20, 5, 4]);
-    eq(text(e, '[data-o=roundGoal]'), '每天目標就是一輪：5 顆。');
+    eq(text(e, '[data-o=roundGoal]'), '每天目標一輪 5 顆');
 
     // 今天已喝: a correction of today's cups, never below 0
     function cups() { return QJZ.health.of(QJZ.app.state.today).cups; }
@@ -886,7 +883,7 @@
     ok(visible(btn), 'shown');
     eq(btn.closest('.card').querySelector('.ttl').textContent, '休息提醒', 'in the 休息提醒 card');
     eq([btn.tagName, btn.textContent, btn.disabled], ['BUTTON', '現在提醒我一次', false]);
-    eq(text(e, '[data-o=remindHint]'), '關掉設定後就會跳出來。');
+    eq(text(e, '[data-o=remindHint]'), '關掉設定就會跳出來。');
     btn.click();
     eq(QJZ.care.state.r.forced, true, 'asked for');
     eq(QJZ.care.state.prompt, null, '設定 holds it');
@@ -903,13 +900,13 @@
     f.menu('settings');
     $(f, '[data-tab=health]').click();
     btn = $(f, '[data-remind]');
-    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '起來動和喝水都關著，打開一個才能試。'], 'both switches off');
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '先打開一個提醒。'], 'both switches off');
     btn.click();
     eq(QJZ.care.state.r.forced, false, 'and it does nothing');
     $(f, '[data-tgl=water]').click();
-    eq([btn.disabled, text(f, '[data-o=remindHint]')], [false, '關掉設定後就會跳出來。'], 'one switch on');
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [false, '關掉設定就會跳出來。'], 'one switch on');
     QJZ.care.setCups(8);
-    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '今天的水已經喝滿了，喝水提醒明天再來。'], 'water only and the goal reached');
+    eq([btn.disabled, text(f, '[data-o=remindHint]')], [true, '今天水喝滿了，明天再提醒。'], 'water only and the goal reached');
     done();
 
     var g = mk(at(12, 10, 0), { care: true, settings: READY });   // a 1.0 user who has not answered
@@ -928,7 +925,7 @@
     eq($$(e, '[data-sec=layout] .card [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['dark', 'opaque', 'powerSaver']);
     eq($$(e, '[data-sec=layout] .card .row .lbl').map(function (l) { return l.textContent; }), ['深色模式', '相容模式（不透明背景）', '省電模式']);
     eq($$(e, '[data-sec=layout] .card [data-f], [data-sec=layout] .card [data-seg], [data-sec=layout] .card [data-num]').length, 0, 'nothing else');
-    eq($(e, '[data-tgl=powerSaver]').closest('.line').querySelector('.hint').textContent, '金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。');
+    eq($(e, '[data-tgl=powerSaver]').closest('.line').querySelector('.hint').textContent, '少一點動畫，筆電建議打開。');
     ok(text(e, '[data-pane=display]').replace(text(e, '[data-pane=display] .lays'), '').indexOf('膠囊') < 0, 'no capsule position (§4.9 #12; 1.1.9: only the layout card 6 頂端小膠囊)');
     var ps = $(e, '[data-tgl=powerSaver]');
     eq(ps.getAttribute('aria-checked'), 'false', 'off by default');
@@ -1047,7 +1044,7 @@
     $(e, '[data-tab=display]').click();
     eq([$(e, '[data-seg=layoutStart]'), $(e, '[data-tgl^="top."]')], [null, null]);
     eq($$(e, '[data-sec=layout] [data-tgl]').map(function (t) { return t.getAttribute('data-tgl'); }), ['dark', 'opaque', 'powerSaver']);
-    ok(text(e, '[data-sec=layout]').indexOf('最後用的版型') >= 0 && text(e, '[data-sec=layout]').indexOf('右鍵選單') >= 0, 'says where they went');
+    ok(text(e, '[data-sec=layout]').indexOf('右鍵選單 →「版型」') >= 0, 'says where 永遠在最上層 went');
 
     $(e, '[data-tab=display]').click();
     commit($(e, '[data-f=milestone]'), '0');
@@ -1431,7 +1428,7 @@
     eq(QJZ.app.state.today.startMs, at(12, 8, 37));
     e.menu('settings');
     $(e, '[data-tab=time]').click();
-    ok(text(e, '[data-o=endHint]').indexOf('今天 08:37 開始，17:37 就可以下班') === 0, text(e, '[data-o=endHint]'));
+    ok(text(e, '[data-o=endHint]').indexOf('今天 17:37 可以下班') === 0, text(e, '[data-o=endHint]'));
     $(e, '[data-tab=time]').click();
     ok(text(e, '[data-o=todayStart]').indexOf('08:37') >= 0, text(e, '[data-o=todayStart]'));
     done();
@@ -1445,7 +1442,7 @@
     $(e, '[data-tab=display]').click();
     var t = $(e, '[data-tgl=dark]');
     eq(t.getAttribute('aria-checked'), 'false');
-    eq(t.closest('.line').querySelector('.hint').textContent, '視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。');
+    eq(t.closest('.line').querySelector('.hint'), null, 'the label says it (1.1.10 item 3)');
     t.click();
     eq([QJZ.app.state.settings.display.dark, t.getAttribute('aria-checked'), root.classList.contains('dark')], [true, 'true', true]);
     eq(savedSettings(e).display, { opaque: false, powerSaver: false, dark: true });

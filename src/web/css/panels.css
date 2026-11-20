@@ -284,9 +284,11 @@
 .panel .linkbtn:focus-visible{outline:3px solid var(--money);outline-offset:2px;border-radius:4px}
 
 /* 1.1.9: 畫面's layout cards (panels.js layCards), as the pet picker: a sketch and the name, the one in use marked */
-.panel .lays{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
+.panel .lays{display:grid;grid-template-columns:repeat(4,minmax(0,84px));column-gap:6px;row-gap:8px;margin:6px 0 4px}
+.panel .lays .kind{display:grid;grid-template-columns:subgrid;grid-column:span var(--n,4);min-width:0;align-content:start}
+.panel .lays .kind .lbl{grid-column:1/-1}
 .panel .lays .kind .lbl{font-size:12px}
-.panel .lgrid{display:grid;grid-template-columns:repeat(4,minmax(0,84px));gap:6px;margin-top:4px}
+.panel .lgrid{display:grid;grid-template-columns:subgrid;grid-column:1/-1;gap:6px;margin-top:4px}
 .panel .lcard{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;padding:5px 3px 4px;border:2px solid transparent;border-radius:10px;background:none;cursor:pointer;color:var(--text)}
 .panel .lcard .lth{display:block;width:100%;max-width:64px;padding:3px;border-radius:7px;background:var(--bg);border:2px solid var(--line);box-shadow:2px 2px 0 var(--shadow)}
 .panel .lcard small{font-size:10.5px;font-weight:700;color:var(--sub);white-space:nowrap;max-width:100%;letter-spacing:-.02em}

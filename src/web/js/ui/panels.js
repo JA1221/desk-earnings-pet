@@ -318,7 +318,8 @@ QJZ.panels = (function () {
     if (!L || !L.GROUPS || !T || !T.thumb) return '';
     var h = '<div class="lays">';
     L.GROUPS.forEach(function (g) {
-      h += '<div class="kind"><span class="lbl">' + esc(g[0]) + '</span><div class="lgrid">';
+      // 1.1.10: each category spans as many of the 4 columns as it has layouts, so 小巧類 (3) and 桌面類 (1) share a row
+      h += '<div class="kind" style="--n:' + g[1].length + '"><span class="lbl">' + esc(g[0]) + '</span><div class="lgrid">';
       g[1].forEach(function (id) {
         h += '<button type="button" class="lcard" data-lay="' + esc(id) + '" title="' + esc(L.NAMES[id]) + '" aria-label="' + esc(L.NAMES[id]) + '" aria-pressed="false">' +
           T.layCard(id, L.NAMES[id]) + '</button>';
@@ -336,7 +337,7 @@ QJZ.panels = (function () {
   var SECTIONS = {
     salary: function () {
       return '<div class="card">' + SALARY_ROWS + '</div>' +
-        hint('薪資只存在這台電腦裡，不會上傳。');
+        '';
     },
     hours: function () {
       return '<div class="card">' +
@@ -347,15 +348,15 @@ QJZ.panels = (function () {
           err('fixed') + hint('', 'fixedHours'), ' data-only="fixed"') +
         line(row('午休時間', '<span class="times">' + textIn('lunchStart', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休開始"') +
           '<span>–</span>' + textIn('lunchEnd', 'tm', ' inputmode="numeric" maxlength="5" aria-label="午休結束"') + '</span>') +
-          err('lunch') + hint('午休不算錢，狀態會顯示「午休中」。')) +
+          err('lunch') + hint('午休不算錢。')) +
         '</div>' + hint('', 'endHint');
     },
     // what changes today, at the top of 薪水和時間
     today: function () {
       return '<div class="card">' +
-        line(row('今天休假', tgl('offDay', '今天休假')) + hint('打開後，今天不算錢（已經開始算的也歸零），狀態顯示「休假日」；關掉就恢復。')) +
+        line(row('今天休假', tgl('offDay', '今天休假')) + hint('今天不算錢，關掉就恢復。')) +
         line(row('<span data-o="endedAt"></span>', '<button type="button" class="btn sm" data-pa="resume">繼續上班</button>') +
-          hint('按錯「下班」了？按「繼續上班」就接著算，中間的時間也照算。'), ' data-o="resumeLine"') +
+          hint('按錯「下班」？按「繼續上班」，中間也照算。'), ' data-o="resumeLine"') +
         line('<label class="lbl">調整今天的起算時間</label><div class="adj">' +
           textIn('startAt', 'tm', ' inputmode="numeric" maxlength="5" aria-label="今天的起算時間"') +
           '<button type="button" class="btn sm" data-pa="applyStart">套用</button></div>' + err('startAt') + hint('', 'todayStart')) +
@@ -366,7 +367,7 @@ QJZ.panels = (function () {
       [1, 2, 3, 4, 5, 6, 0].forEach(function (d) { days += '<button type="button" data-wd="' + d + '">' + WD.charAt(d) + '</button>'; });
       return '<div class="card">' +
         line(row('開始算錢', seg('startMode', [['auto', '自動'], ['manual', '手動']])) + hint('', 'modeHint'), ' data-only="flex"') +
-        line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始，但可以手動開始上班。')) +
+        line('<span class="lbl">工作日</span><div class="days">' + days + '</div>' + hint('沒勾的日子不會自動開始。')) +
         '</div>';
     },
     pet: function () {
@@ -383,52 +384,51 @@ QJZ.panels = (function () {
     // 「現在的版型」 line of 1.1.3 item 3 is gone, the marked card says it.
     layout: function () {
       return layCards() +
-        hint('點一下就換成那個版型（設定會關起來）。在任何版型上按住 ⚙ 不放，也會跳出版型選單，滑到想要的版型放開就換。') +
-        hint('下次開啟會用你最後用的版型；要不要永遠在最上層，在右鍵選單 →「版型」裡切換（每個版型各自記住）。') +
-        '<div class="card">' + line(row('深色模式', tgl('dark', '深色模式')) + hint('視窗、設定和紀錄換成深色；寵物的顏色不變。不會跟著 Windows 切換。')) + '</div>' +
+        hint('點一下就換；在 ⚙ 上按住也能快速切換。') + hint('要永遠在最上層：右鍵選單 →「版型」。') +
+        '<div class="card">' + line(row('深色模式', tgl('dark', '深色模式'))) + '</div>' +
         '<div class="card">' + line(row('相容模式（不透明背景）', tgl('opaque', '相容模式（不透明背景）')) +
-          hint('視窗周圍出現黑框時請開啟。') + hint('', 'opaqueNote')) +
-          line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('金額每秒跳 4 次、少一點動畫，比較省電；筆電建議打開。')) + '</div>';
+          hint('視窗周圍有黑框時打開。') + hint('', 'opaqueNote')) +
+          line(row('省電模式', tgl('powerSaver', '省電模式')) + hint('少一點動畫，筆電建議打開。')) + '</div>';
     },
     // 1.1.5 縮放比例
     zoom: function () {
       var r = QJZ.settings.ZOOM, opts = '';
       for (var p = r[0]; p <= r[1]; p += r[2]) opts += '<option value="' + p + '">' + p + '%</option>';
       return '<div class="card">' + line(row('縮放比例', '<select class="zoom" data-f="zoom" aria-label="縮放比例">' + opts + '</select>') +
-        hint('所有版型和設定視窗一起放大或縮小。也可以在錢進中上按住 Ctrl 轉滑鼠滾輪，或按 Ctrl ＋ / Ctrl − 調整，Ctrl 0 回到 100%。')) + '</div>';
+        hint('也可以按住 Ctrl 轉滾輪調整。')) + '</div>';
     },
     health: function () { return QJZ.panelsHealth.section(); },
     boost: function () {
       return '<div class="card">' +
         line('<label class="lbl">里程碑金額</label>' + moneyIn('milestone', '') + err('milestone') +
-          hint('每賺滿這個金額就慶祝一次，還會得到一個零食。')) +
+          hint('每賺滿一次就慶祝，送一個零食。')) +
         '</div><div class="card">' +
-        line('<span class="lbl">換算物品</span>' + hint('「可以買幾杯珍奶」會輪流顯示這些東西。') +
+        line('<span class="lbl">換算物品</span>' + hint('「可以買」會輪流顯示這些。') +
           '<div class="items" data-items></div>' +
           '<button type="button" class="btn sm ghost add" data-pa="addItem">＋ 新增物品</button>') +
         '</div>';
     },
     sound: function () {
       return '<div class="card">' +
-        line(row('音效', tgl('sound', '音效')) + hint('金幣叮、寵物叫聲、下班小樂句。預設關閉，不會吵到別人。')) +
+        line(row('音效', tgl('sound', '音效')) + hint('金幣、叫聲、下班音樂。')) +
         line(row('音量', '<span class="vol"><input type="range" min="0" max="100" step="5" data-f="volume" aria-label="音量"><b data-o="volume"></b></span>')) +
         '</div>';
     },
     autostart: function () {
       return '<div class="card">' +
         line(row('登入 Windows 後自動開啟', tgl('autostart', '開機自動啟動')) +
-          hint('只寫入目前使用者的開機項目，不需要系統管理員權限。')) +
+          '') +
         '</div>';
     },
     privacy: function () {
       return '<div class="card">' +
         line(row('分享螢幕、錄影、截圖時隱形', tgl('capture', '分享螢幕、錄影、截圖時隱形')) +
-          hint('自己的螢幕照樣看得到；較舊的 Windows 10 上會拍到一塊黑框。')) +
+          hint('自己看得到；舊版 Windows 10 會拍到黑框。')) +
         line('<label class="lbl">快速隱藏快捷鍵</label><div class="hkrow">' +
           textIn('hotkey', 'hk', ' readonly aria-label="快速隱藏快捷鍵"') +
           '<button type="button" class="btn sm ghost" data-pa="hkDefault">還原 ' + DEFAULT_HOTKEY + '</button></div>' + err('hotkey') +
           '<div class="warn" data-o="hkFail" hidden><b data-o="hkFailText"></b><small data-o="hkFailSub"></small></div>' +
-          hint('按一下隱藏，再按一下恢復；視窗被其他視窗蓋住時，第一下先把它移到最前面。要換的話，點上面的框，再按下新的組合鍵（要有 Ctrl 或 Alt）。')) +
+          hint('按一下隱藏，再按一下恢復。點框可換組合鍵。')) +
         '</div>';
     },
     about: function () {
@@ -441,9 +441,8 @@ QJZ.panels = (function () {
             '<button type="button" class="btn sm go" data-pa="installUpdate" hidden>更新</button></span></span>') +
           '<div class="upd" data-o="updLine" hidden><span data-o="updText"></span>' +
           '<button type="button" class="linkbtn" data-pa="openUpdate" hidden></button></div>' +
-          hint('上班時一秒一秒顯示今天賺了多少錢的桌面小寵物。') + hint('平常不連網；按「檢查更新」才會向 GitHub 查一次最新版本，按「更新」才會下載新版，不會送出你的資料。')) +
-        line(hint('薪資和紀錄只存在這台電腦裡，錢進中不會上傳。例外：如果公司把 Windows 設定成「漫遊設定檔」，' +
-          '或把 AppData 資料夾重新導向到公司的伺服器，%AppData%\\錢進中（包含薪資）會跟著其他個人設定一起存到公司的伺服器上。不確定的話，請問公司 IT。')) +
+          hint('只有按「檢查更新」才會連網。')) +
+        line(hint('薪資和紀錄只存在這台電腦，不會上傳（公司電腦的例外見使用說明）。')) +
         '</div>' + disclosure('guide', '使用說明', '<pre class="lic guide" data-doc="' + GUIDE + '" data-fail="' + GUIDE_FAIL + '"></pre>') +
         disclosure('lic', '第三方授權', lic);
     }
@@ -673,22 +672,22 @@ QJZ.panels = (function () {
       segOn(c, 'workMode', s.workMode);
       qa(c, '[data-only=flex]').forEach(function (n) { show(n, !fixed); });
       show(q(c, '[data-only=fixed]'), fixed);
-      out(c, 'workModeHint', fixed ? '工作日一開電腦，就從上班時間開始算，晚一點到也一樣；下班時間到就停。' : '');
+      out(c, 'workModeHint', fixed ? '從上班時間算到下班時間，晚到也一樣。' : '');
       out(c, 'fixedHours', '每天 ' + hoursText(hrs) + ' 小時（自動算）');
       out(c, 'hours', String(s.hoursPerDay));
       var begun = t && isNum(t.startMs);
-      out(c, 'endHint', begun ? '今天 ' + hmOf(t.startMs) + ' 開始，' + hmOf(QJZ.earn.endAtMs(t.startMs, t.day, hrs, s.lunch)) + ' 就可以下班。' :
-        fixed ? '工作日 ' + s.fixed.start + ' 開始算，' + s.fixed.end + ' 下班。' : '每天上滿 ' + s.hoursPerDay + ' 小時（午休不算）就可以下班。');
+      out(c, 'endHint', begun ? '今天 ' + hmOf(QJZ.earn.endAtMs(t.startMs, t.day, hrs, s.lunch)) + ' 可以下班。' :
+        fixed ? '' : '上滿 ' + s.hoursPerDay + ' 小時（午休不算）可以下班。');
       // 起算
       segOn(c, 'startMode', s.startMode);
-      out(c, 'modeHint', s.startMode === 'auto' ? '每天第一次登入或解鎖 Windows 時自動開始。' : '每天要自己按「開始上班」（右鍵選單）。');
+      out(c, 'modeHint', s.startMode === 'auto' ? '登入或解鎖 Windows 時開始。' : '要自己按「開始上班」（右鍵選單）。');
       qa(c, '[data-wd]').forEach(function (b) { b.classList.toggle('on', s.workDays.indexOf(+b.getAttribute('data-wd')) >= 0); });
       tglOn(c, 'offDay', t && t.offDay);
       var ended = begun && !t.offDay && isNum(t.endMs);
       show(node(c, 'resumeLine'), ended);
       if (ended) out(c, 'endedAt', '今天 ' + hmOf(t.endMs) + ' 已下班');
-      out(c, 'todayStart', begun ? '今天從 ' + hmOf(t.startMs) + ' 開始計算' + (t.adjusted ? '（調整過）' : t.startSource === 'manual' ? '（手動）' : t.startSource === 'fixed' ? '（固定）' : '（自動）') + '。' :
-        '今天還沒開始。填時間按「套用」，就從那時開始算。');
+      out(c, 'todayStart', begun ? '今天 ' + hmOf(t.startMs) + ' 起算' + (t.adjusted ? '（調整過）' : t.startSource === 'manual' ? '（手動）' : t.startSource === 'fixed' ? '（固定）' : '（自動）') :
+        '還沒開始。填時間按「套用」就從那時算。');
       // 寵物
       skinsOn(c, petId(s));
       // 健康
@@ -704,7 +703,7 @@ QJZ.panels = (function () {
       var forced = !!st().forceOpaque, op = q(c, '[data-tgl=opaque]');
       tglOn(c, 'opaque', s.display.opaque || forced);
       if (op && op.disabled !== forced) op.disabled = forced;
-      out(c, 'opaqueNote', forced ? '這台電腦目前無法顯示透明背景，已自動開啟。' : '');
+      out(c, 'opaqueNote', forced ? '這台電腦無法透明，已自動打開。' : '');
       tglOn(c, 'powerSaver', s.display.powerSaver);
       tglOn(c, 'dark', s.display.dark);
       // 音效 / 開機 / 隱私

@@ -225,7 +225,7 @@
     ok(shown($('[data-f=fixedStart]')) && shown($('[data-f=fixedEnd]')) && shown($('[data-wd="1"]')), '上班 / 下班, 工作日 still');
     eq([$('[data-f=fixedStart]').value, $('[data-f=fixedEnd]').value], ['08:00', '17:30']);
     eq($('[data-o=fixedHours]').textContent, '每天 8.5 小時（自動算）');
-    ok($('[data-o=todayStart]').textContent.indexOf('08:00 開始計算（固定）') >= 0, $('[data-o=todayStart]').textContent);
+    ok($('[data-o=todayStart]').textContent.indexOf('08:00 起算（固定）') >= 0, $('[data-o=todayStart]').textContent);
     ok($('[data-o=endHint]').textContent.indexOf('17:30') >= 0, $('[data-o=endHint]').textContent);
     commit($('[data-f=fixedEnd]'), '07:00');
     eq($('[data-err=fixed]').textContent, '下班要晚於上班');
