@@ -4743,4 +4743,118 @@
     eq([QJZ.layouts.current(), QJZ.app.state.settings.layout.mini], ['M3', true], '7 迷你浮窗');
     done();
   });
+  // ================= 1.1.10 =================
+  // Item 1: U3's amount did not mask: its HUD is pointer-events:none and the money box did not take the pointer back,
+  // so a click there went through to the pet. The tests had clicked the element itself; these ask the page what is
+  // under the pointer (elementFromPoint), as a real click finds it.
+  var L10 = ['U1', 'U3', 'U12', 'U13', 'U5B', 'U10', 'M3', 'U7'];
+  var HOVER10 = { U7: '.u7 .dpet', U10: '.isl', M3: '.m3' };
+  function underPointer(c) {
+    c.scrollIntoView({ block: 'center', inline: 'center' });   // elementFromPoint finds nothing off the viewport
+    var r = c.getBoundingClientRect(), out = [];
+    [[.5, .5], [.25, .5], [.75, .5]].forEach(function (f) {
+      var t = document.elementFromPoint(r.left + r.width * f[0], r.top + r.height * f[1]);
+      if (!t || !(t === c || c.contains(t))) out.push(f[0] + ' → ' + (t ? t.tagName.toLowerCase() + '.' + String(t.getAttribute('class') || '') : 'none'));
+    });
+    return out;
+  }
+  function realClick(c) {
+    c.scrollIntoView({ block: 'center', inline: 'center' });
+    var r = c.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, t = document.elementFromPoint(x, y);
+    mouse(t, 'mousedown', x, y, { detail: 1 });
+    mouse(t, 'mouseup', x, y, { buttons: 0, detail: 1 });
+    mouse(t, 'click', x, y, { buttons: 0, detail: 1 });
+  }
+  test('layouts DOM: 1.1.10 item 1: in every layout, the amount and every button are what the pointer finds on them', function () {
+    L10.forEach(function (name) {
+      var e = shown(mk(at(12, 10, 0, 0), { first: name, care: true }));
+      if (HOVER10[name]) hoverOn($(e, HOVER10[name]));
+      var n = 0;
+      Array.prototype.forEach.call(e.root.querySelectorAll('[data-mask],[data-act],[data-buy],[data-hold]'), function (c) {
+        if (!drawn(c) || getComputedStyle(c).visibility === 'hidden') return;
+        n++;
+        var bad = underPointer(c);
+        ok(!bad.length, name + ': ' + c.tagName.toLowerCase() + '.' + c.className + ' ' + (c.getAttribute('data-act') || '') + ': ' + bad.join(', '));
+      });
+      ok(n >= 2, name + ': controls checked: ' + n);
+      done();
+    });
+  });
+  test('layouts DOM: 1.1.10 item 1: a real click on the amount masks it in every layout, and again shows it', function () {
+    L10.forEach(function (name) {
+      var e = shown(mk(at(12, 10, 0, 0), { first: name, care: true }));
+      if (HOVER10[name]) hoverOn($(e, HOVER10[name]));
+      // the amount as it shows (U10 open: its full amount, the folded one is hidden), as the pointer finds it
+      var t = Array.prototype.filter.call(e.root.querySelectorAll('[data-mask]'), function (c) {
+        return drawn(c) && getComputedStyle(c).visibility !== 'hidden' && !underPointer(c).length;
+      })[0];
+      ok(t, name + ': an amount to click');
+      realClick(t);
+      eq([QJZ.app.state.settings.privacy.maskMoney, $(e, '.lay').classList.contains('masked')], [true, true], name + ': masked');
+      e.tick(at(12, 10, 0, 3));
+      realClick(t);
+      eq(QJZ.app.state.settings.privacy.maskMoney, false, name + ': shown again');
+      done();
+    });
+  });
+  // Item 2: the mask going on takes down what already shows an amount: the pet's line, a banner, a "+0.xx"
+  test('layouts DOM: 1.1.10 item 2: masking takes down the line the pet is saying, the banners and the "+0.xx" now showing', function () {
+    var e = shown(mk(at(12, 10, 0, 0), { first: 'U1', care: true }));
+    QJZ.layouts.say('今天已經賺了 NT$ 1,234.56！');
+    var b = $(e, '[data-bubble]');
+    ok(b.classList.contains('show'), 'said');
+    var fx = $(e, '[data-fx]');
+    QJZ.fx.banner(fx, 'NT$ 100 達成！');
+    QJZ.fx.plus($(e, '[data-plus]'), '+0.08');
+    ok(e.root.querySelector('.banner') && e.root.querySelector('.plus'), 'a banner and a "+0.xx"');
+    clickOn($(e, '.u1 .money'));
+    eq(QJZ.app.state.settings.privacy.maskMoney, true);
+    ok(!b.classList.contains('show') && !/\d/.test(b.textContent), 'the line is gone: ' + b.textContent);
+    ok(!e.root.querySelector('.banner') && !e.root.querySelector('.plus'), 'the banner and the "+0.xx" are gone');
+    // showing the amount again takes nothing down
+    clickOn($(e, '.u1 .money'));
+    eq(QJZ.app.state.settings.privacy.maskMoney, false);
+    QJZ.layouts.say('吱！');
+    e.tick(at(12, 10, 0, 1));
+    ok(b.classList.contains('show'), 'unmasked: a line stays');
+    done();
+    // a layout that starts masked says nothing it should not and loses nothing
+    var f = shown(mk(at(12, 10, 0, 0), { first: 'U3', care: true, settings: { privacy: { maskMoney: true } } }));
+    QJZ.layouts.say('吱！');
+    f.tick(at(12, 10, 0, 1));
+    ok($(f, '[data-bubble]').classList.contains('show'), 'masked from the start: a plain line stays');
+    done();
+  });
+  // Item 2: across every switch the mask holds (the menu, 7 迷你浮窗, the quick menu, 設定 → 畫面), at once and after
+  test('layouts DOM: 1.1.10 item 2: masked, every way to switch layouts keeps it masked, from the first frame', function () {
+    var e = shown(mk(at(12, 10, 0, 0), { first: 'U1', care: true, settings: { privacy: { maskMoney: true } } }));
+    function check(tag) {
+      ok($(e, '.lay').classList.contains('masked'), tag + ': masked');
+      eq(shownMoney(e), null, tag + ': no money on screen');
+    }
+    L10.forEach(function (name, i) {
+      e.menu(name === 'M3' ? 'mini' : 'layout:' + name);
+      check('menu → ' + name);
+      e.tick(at(12, 10, 1, i));
+      check('menu → ' + name + ', a second on');
+      if (name === 'M3') e.menu('mini');
+    });
+    // the quick menu
+    e.menu('layout:U1');
+    var g = Array.prototype.filter.call(e.root.querySelectorAll('[data-act=settings]'), drawn)[0], r = g.getBoundingClientRect();
+    mouse(g, 'mousedown', r.left + 5, r.top + 5, { detail: 1 });
+    QJZ.layouts._quick();
+    var it = e.root.querySelector('.qmenu [data-qlay=U3]'), p = it.getBoundingClientRect();
+    mouse(it, 'mousemove', p.left + 5, p.top + 5);
+    mouse(it, 'mouseup', p.left + 5, p.top + 5, { buttons: 0, detail: 1 });
+    eq(QJZ.layouts.current(), 'U3');
+    check('quick → U3');
+    // 設定 → 畫面's card
+    e.menu('settings');
+    $(e, '[data-tab=display]').click();
+    $(e, '[data-lay=U12]').click();
+    eq(QJZ.layouts.current(), 'U12');
+    check('card → U12');
+    done();
+  });
 })();

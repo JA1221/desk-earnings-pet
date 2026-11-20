@@ -614,6 +614,7 @@ QJZ.layouts = (function () {
     }
     var masked = m.masked && view.name !== 'PANEL';   // 設定 and 紀錄 are opened on purpose: never masked
     if (view.cache.masked !== masked) {
+      if (masked && view.cache.masked === false) hideSaid(view);   // 1.1.10: what was said before it is not left up
       view.cache.masked = masked;
       view.el.classList.toggle('masked', masked);
       all(view.el, '.mslot > *').forEach(function (n) {   // the side not seen is not read out either (review M-2)
@@ -1271,6 +1272,16 @@ QJZ.layouts = (function () {
   }
 
   // ================= reactions =================
+  // 1.1.10: the mask just went on: the pet's line in its bubble (it may name an amount; the next ones will not), the
+  // banners and the "+0.xx" floats now showing go at once.
+  function hideSaid(v) {
+    if (v.bubble && v.bubble.classList.contains('show') && v === view) {
+      stopSay();
+      v.bubble.classList.remove('show');
+      v.bubble.textContent = '';
+    }
+    all(v.el, '.banner,.plus').forEach(function (n) { n.remove(); });
+  }
   function stopSay() {
     clearInterval(timers.type); clearTimeout(timers.say);
     timers.type = timers.say = 0;
