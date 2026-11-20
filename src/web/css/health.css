@@ -14,7 +14,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
 .lay.p-foc .status{--st-bg:#FFC2B3;--st-dot:#E8503A}
 .lay.p-brk .status{--st-bg:#BFE6FF;--st-dot:#3FA3D6}
 .lay.p-foc .status .pi-foc,.lay.p-brk .status .pi-brk{display:inline-block}
-.lay.p-foc :is(.status i,.mtop .dot),.lay.p-brk :is(.status i,.mtop .dot){animation:none}
+.lay:is(.p-foc,.p-brk) :is(.status i,.mtop .dot)::after{animation:none;content:none}
 .u5b.p-foc .mtop .dot{background:#E8503A}
 .u5b.p-brk .mtop .dot{background:#3FA3D6}
 
@@ -270,7 +270,7 @@ svg.ic{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.22em;fle
    .pomo1 and .bigring. Nothing loops (§5.9): the rings and the capsule change at most once a second (layouts.js on
    the app's second), the status dot and the progress stripes stand still, a ring that glows for a prompt pulses a
    few times and then just glows, and a prompt knocks once on show and on each re-wave (promptview). =========== */
-:is(.u12,.u13) .status i{animation:none}
+:is(.u12,.u13) .status i::after{animation:none;content:none}
 :is(.u12,.u13) .fill::before{animation:none;will-change:auto}
 @keyframes ringhot{0%,100%{box-shadow:var(--rs),0 0 0 0 var(--glow)}55%{box-shadow:var(--rs),0 0 0 9px transparent}}
 html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* reduced motion: the glow, without the pulse */

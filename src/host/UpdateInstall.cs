@@ -15,8 +15,10 @@ using System.Text.RegularExpressions;
 //   github.com / release-assets.githubusercontent.com / objects.githubusercontent.com only (AllowedUri); TLS 1.2, timeouts,
 //   no cookies or credentials. The body streams to %LocalAppData%\錢進中\update\<name>.part and stops past size; then its
 //   length must be size, its SHA-256 the digest and its first bytes MZ. Any failure deletes the file (null: 更新失敗).
-//   The swap (Swap, release build only): the running exe is renamed to <exe>.old (Windows allows that), the checked file
-//   moved to the exe's path (a failure renames .old back). The host then quits as usual (the page saves) and starts the
+//   The swap (Swap, release build only): the checked file is first moved beside the exe as <exe>.new (1.1.11: an exe on
+//   another drive than %LocalAppData% makes that move a copy, which a power cut can stop half way; the running exe is
+//   still untouched then), its length checked; then the running exe is renamed to <exe>.old (Windows allows that) and
+//   <exe>.new renamed to the exe's path, two renames in one folder (a failure renames .old back). The host then quits as usual (the page saves) and starts the
 //   new exe with WaitArg <pid>: it waits for this process to end (WaitForOldMs at most) before its single-instance
 //   check (Program.Main), and every start deletes <exe>.old (CleanOld, best effort). %AppData% is never touched.
 // The request (Get) is injectable: Download takes it, so tests never go online.
@@ -67,6 +69,7 @@ public static class UpdateInstall
     public const int ReadTimeoutMs = 30000;  // each read: a stalled download fails, a slow one goes on
     public const string Folder = "update";   // under %LocalAppData%\錢進中
     public const string OldSuffix = ".old";
+    public const string NewSuffix = ".new";   // 1.1.11: the checked file, staged beside the exe
     public const string WaitArg = "--after-update";
     public const int WaitForOldMs = 10000;
     const string DownloadBase = UpdateCheck.ReleasesUrl + "/download/v";
@@ -273,12 +276,26 @@ public static class UpdateInstall
 
     // ---- the swap ----
 
-    // Puts the checked file newFile in place of the running exe: exe -> exe.old, newFile -> exe; when the second move
-    // fails, exe.old goes back. move is File.Move (injectable for tests). True when the new exe is in place.
+    // Puts the checked file newFile in place of the running exe: newFile -> exe.new (beside the exe: a copy when it is on
+    // another drive, checked for its whole length), exe -> exe.old, exe.new -> exe; when the last move fails, exe.old goes
+    // back. move is File.Move (injectable for tests). True when the new exe is in place.
     public static bool Swap(string exe, string newFile, Action<string, string> move, Action<string> log)
     {
         if (log == null) log = delegate { };
-        string old = exe + OldSuffix;
+        string old = exe + OldSuffix, staged = exe + NewSuffix;
+        try
+        {
+            long length = new FileInfo(newFile).Length;
+            if (File.Exists(staged)) File.Delete(staged);   // a .new an earlier try left
+            move(newFile, staged);
+            if (!File.Exists(staged) || new FileInfo(staged).Length != length) throw new IOException("the staged exe is not whole");
+        }
+        catch (Exception ex)
+        {
+            log("update: putting the new exe beside the old one: " + ex.Message);
+            DeleteQuietly(staged);
+            return false;
+        }
         try
         {
             if (File.Exists(old)) File.Delete(old);   // a .old an earlier start could not delete
@@ -287,16 +304,18 @@ public static class UpdateInstall
         catch (Exception ex)
         {
             log("update: renaming the exe: " + ex.Message);
+            DeleteQuietly(staged);
             return false;
         }
         try
         {
-            move(newFile, exe);
+            move(staged, exe);
             return true;
         }
         catch (Exception ex)
         {
             log("update: moving the new exe in: " + ex.Message);
+            DeleteQuietly(staged);
             Restore(exe, move, log);
             return false;
         }
@@ -321,9 +340,11 @@ public static class UpdateInstall
         }
     }
 
-    // Every start: exe.old goes, if it is there and can go. True when none is left.
+    // Every start: exe.old goes, if it is there and can go (and a staged exe.new a stopped swap left). True when no .old
+    // is left.
     public static bool CleanOld(string exe)
     {
+        DeleteQuietly(exe + NewSuffix);
         try
         {
             string old = exe + OldSuffix;

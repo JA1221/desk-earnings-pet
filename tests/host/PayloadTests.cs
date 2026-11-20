@@ -21,6 +21,7 @@ public static class PayloadTests
                 for (int i = 0; i < nameThenText.Length; i += 2)
                 {
                     ZipArchiveEntry e = zip.CreateEntry(nameThenText[i]);
+                    e.LastWriteTime = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);   // the same bytes on every call (now: two calls across a 2 s step differed)
                     if (nameThenText[i + 1] == null) continue;   // directory entry
                     byte[] b = Encoding.UTF8.GetBytes(nameThenText[i + 1]);
                     using (Stream s = e.Open()) s.Write(b, 0, b.Length);

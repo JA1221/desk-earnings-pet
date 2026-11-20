@@ -131,6 +131,20 @@
     eq(s.today.startMs, at(12, 8, 30));
     QJZ.app._reset();
   });
+  // 1.1.11: a lock or suspend the page only gets after midnight's 04:00 rollover (the PC went to sleep before the page
+  // took it in) belongs to the day it happened on: that day closes with it (the early-leave question), and the new day
+  // is not marked locked by it
+  test('app: a lock that arrives after the rollover goes on its own day, not the new one', function () {
+    var e = mk(at(11, 14, 0));
+    init(e, { history: hist([rec('2026-11-11', 540, {})]) });
+    e.clock.ms = at(12, 8, 0);
+    e.bridge.emit({ type: 'session', kind: 'suspend', ms: at(11, 15, 0) });
+    var s = QJZ.app.state;
+    eq(s.pendingQuestion, { day: '2026-11-11', lockMs: at(11, 15, 0) }, 'yesterday closes at its lock');
+    eq(s.history.days['2026-11-11'].lastLockMs, at(11, 15, 0));
+    eq([s.today.day, s.today.lastLockMs], ['2026-11-12', null], 'the new day untouched');
+    QJZ.app._reset();
+  });
   test('app: a second init loses and duplicates nothing', function () {
     var e = mk(at(12, 10, 0));
     var text = hist([rec('2026-11-10', 540, {}), rec('2026-11-11', 540, { lastLockMs: at(11, 15, 0) })]);

@@ -85,7 +85,8 @@ QJZ.app = (function () {
 
   // ---- persistence ----
   function markSettings() { dirtySettings = true; schedule(); }
-  function markHistory() { dirtyHistory = true; schedule(); }
+  // state.historyRev (1.1.11): counts the changes to the history, so a sum over it can be kept until the next one
+  function markHistory() { dirtyHistory = true; state.historyRev = (state.historyRev || 0) + 1; schedule(); }
   function schedule() {
     if (!state.ready || saveTimer) return;
     saveTimer = setTimeout(flush, SAVE_DELAY);
@@ -339,10 +340,17 @@ QJZ.app = (function () {
     else if (msg.kind === 'unlock' || msg.kind === 'logon') locked = false;
     if (!state.ready) return;
     var ms = typeof msg.ms === 'number' ? msg.ms : nowMs();
-    checkRollover(nowMs());
     if (msg.kind === 'lock' || msg.kind === 'suspend') {
-      updateToday(QJZ.day.onLock(state.today, ms));
-    } else if (msg.kind === 'resume' && locked) {
+      // 1.1.11: on the day it happened, before the rollover closes that day (a lock taken in only after 04:00, the PC
+      // asleep meanwhile); one from a day already closed leaves the new day alone
+      var on = QJZ.time.dayKey(ms), put = on === state.today.day;
+      if (put) updateToday(QJZ.day.onLock(state.today, ms));
+      checkRollover(nowMs());
+      if (!put && on === state.today.day) updateToday(QJZ.day.onLock(state.today, ms));
+      return;
+    }
+    checkRollover(nowMs());
+    if (msg.kind === 'resume' && locked) {
       // waking up to the lock screen is not arriving: the unlock that follows is
     } else if (msg.kind === 'logon' || msg.kind === 'unlock' || msg.kind === 'resume') {
       var before = state.today.startMs;

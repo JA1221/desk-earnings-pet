@@ -317,6 +317,39 @@ public static class UpdateInstallTests
             Assert.Eq("new", File.ReadAllText(exe), "the new exe at the old name");
             Assert.Eq("old", File.ReadAllText(exe + ".old"), "the running one is .old");
             Assert.True(!File.Exists(nw), "moved, not copied");
+            Assert.True(!File.Exists(exe + ".new"), "no .new left");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    // 1.1.11: the new exe reaches the exe's folder (a copy, from another drive) before the running exe is touched; the
+    // last step is a rename within that folder. A staged copy that is not whole stops the swap with the exe untouched.
+    public static void Test_SwapStagesBesideTheExeFirst()
+    {
+        string dir = TempDir();
+        try
+        {
+            string exe = Path.Combine(dir, "a.exe"), nw = Path.Combine(dir, "new.part");
+            File.WriteAllText(exe, "old");
+            File.WriteAllText(nw, "new");
+            File.WriteAllText(exe + ".new", "stale");
+            List<string> moves = new List<string>();
+            Action<string, string> rec = delegate(string from, string to) { moves.Add(Path.GetFileName(from) + ">" + Path.GetFileName(to)); File.Move(from, to); };
+            Assert.True(UpdateInstall.Swap(exe, nw, rec, null), "swapped");
+            Assert.Eq("new.part>a.exe.new|a.exe>a.exe.old|a.exe.new>a.exe", string.Join("|", moves.ToArray()), "staged, then the two renames");
+            Assert.Eq("new", File.ReadAllText(exe), "in place");
+
+            File.WriteAllText(nw, "newer");
+            Action<string, string> cut = delegate(string from, string to) { File.WriteAllText(to, "ne"); };   // a copy stopped half way
+            List<string> log = new List<string>();
+            Assert.True(!UpdateInstall.Swap(exe, nw, cut, delegate(string s) { log.Add(s); }), "not whole: failed");
+            Assert.Eq("new", File.ReadAllText(exe), "the exe untouched");
+            Assert.True(!File.Exists(exe + ".new"), "the part copy deleted");
+            Assert.Eq(1, log.Count, "logged");
+
+            File.WriteAllText(exe + ".new", "left");
+            UpdateInstall.CleanOld(exe);
+            Assert.True(!File.Exists(exe + ".new"), "a start deletes a left .new");
         }
         finally { Directory.Delete(dir, true); }
     }

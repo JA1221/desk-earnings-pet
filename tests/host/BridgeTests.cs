@@ -19,6 +19,16 @@ public static class BridgeTests
         Assert.Eq(true, d["on"], "bool");
     }
 
+    // 1.1.11: a message over JavaScriptSerializer's default 2 MB (init with years of history; a big saveHistory) goes
+    // through both ways
+    public static void Test_BigMessagesPass()
+    {
+        string big = new string('x', 3 * 1024 * 1024) + "\"\\";
+        Dictionary<string, object> d = Bridge.Parse(Bridge.BuildMessage("init", new { history = big }));
+        Assert.True(d != null, "parsed");
+        Assert.Eq(big, d["history"], "whole");
+    }
+
     public static void Test_BuildMessage_MergesPayload()
     {
         Dictionary<string, object> d = Bridge.Parse(Bridge.BuildMessage("session", new { kind = "lock", ms = 5L }));

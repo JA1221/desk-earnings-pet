@@ -70,6 +70,10 @@
     eq(U.normHM('25:00'), null);
     eq(U.checkLunch('13:00', '12:00'), { ok: false, error: '午休結束要晚於開始' });
     eq(U.checkLunch('', '13:00'), { ok: false, error: '請輸入時間' });
+    // 1.1.11: with 固定 on, a lunch that takes all of 上班–下班 is refused (it left no hours: the pay per second was wrong)
+    eq(U.checkLunch('09:00', '10:00', { start: '09:00', end: '10:00' }), { ok: false, error: '扣掉午休就沒有上班時間了' });
+    eq(U.checkLunch('09:00', '09:30', { start: '09:00', end: '10:00' }), { ok: true, start: '09:00', end: '09:30' });
+    eq(U.checkLunch('09:00', '10:00', null), { ok: true, start: '09:00', end: '10:00' }, 'not 固定: lunch alone');
     eq(U.toggleDay([1, 2, 3, 4, 5], 6), [1, 2, 3, 4, 5, 6]);
     eq(U.toggleDay([1, 2, 3, 4, 5], 1), [2, 3, 4, 5]);
     eq(U.toggleDay([], 0), [0]);

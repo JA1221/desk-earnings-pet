@@ -12,7 +12,9 @@ using Microsoft.Web.WebView2.Core;
 public class Bridge
 {
     public const int MaxQueued = 200;
-    static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+    // 1.1.11: no 2 MB cap (JavaScriptSerializer's default MaxJsonLength): init carries the whole history, and a
+    // saveHistory over it was dropped without a word
+    static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
     readonly Action<string> post;
     readonly Action<string, Exception> onError;
     readonly List<string> queue = new List<string>();

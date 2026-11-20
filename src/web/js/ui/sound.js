@@ -5,11 +5,17 @@ window.QJZ = window.QJZ || {};
 QJZ.sound = (function () {
   var IDLE_MS = 5000;
   var enabled = false, volume = 0.6, ctx = null, master = null, unlockBound = false, idleTimer = 0;
+  var ran = false;   // 1.1.11: the context has run once (the page's gesture counts from then on: no click needed)
 
   function quiet(p) { if (p && p.catch) p.catch(function () {}); }
+  function seen() { if (ctx && ctx.state === 'running') ran = true; }
   function resume() {
     try {
-      if (ctx && ctx.state === 'suspended' && ctx.resume) quiet(ctx.resume());
+      if (ctx && ctx.state === 'suspended' && ctx.resume) {
+        var p = ctx.resume();
+        if (p && p.then) quiet(p.then(seen));
+      }
+      seen();
     } catch (e) {}
   }
   function sleep() {
@@ -24,8 +30,9 @@ QJZ.sound = (function () {
     idleTimer = setTimeout(sleep, IDLE_MS);
   }
   // A context created outside a user gesture starts suspended; a click lets it run (then it sleeps again when idle).
+  // 1.1.11: only until it has run once: after that every click woke the audio device for IDLE_MS, no sound played.
   function onPointer() {
-    if (!enabled || !ctx) return;
+    if (!enabled || !ctx || ran) return;
     resume();
     armIdle();
   }
@@ -104,6 +111,6 @@ QJZ.sound = (function () {
     isEnabled: function () { return enabled; }, getVolume: function () { return volume; }, IDLE_MS: IDLE_MS,
     // tests: run the pending idle timeout now (true if there was one); forget the context
     _idle: function () { if (!idleTimer) return false; sleep(); return true; },
-    _reset: function () { sleep(); ctx = master = null; enabled = false; }
+    _reset: function () { sleep(); ctx = master = null; enabled = false; ran = false; }
   };
 })();

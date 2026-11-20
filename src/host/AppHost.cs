@@ -640,11 +640,19 @@ public class AppHost
     }
 
     // A new DPI or new display settings (review M-4): the zoom fitted again where the window is now, unless a drag is on
-    // (its drop does it) or the app is closing.
+    // (its drop does it) or the app is closing. 1.1.11: with the same zoom the window is still looked at (a lower
+    // resolution, a moved or resized taskbar, a monitor gone): U10 back to its dock, any other window moved in only when
+    // less than half of it is left on a work area (ScreenFit.Clamp; nothing is saved, as for any fit).
     void RefitZoom()
     {
         if (quitting || window.IsDisposed || window.Moving) return;
-        try { ApplyZoom(); }
+        try
+        {
+            if (ApplyZoom() || layout == null || layoutCss.Width < 1) return;
+            if (layout == "U10") { DockCapsule(window.Bounds); return; }
+            Rectangle at = ScreenFit.Clamp(window.Bounds, WindowPlacer.WorkAreas());
+            if (at.Location != window.Location) window.Location = at.Location;
+        }
         catch (Exception ex) { ErrorLog.Write("refit zoom", ex); }
     }
 
@@ -1095,7 +1103,7 @@ public class AppHost
                     updateBusy = false;
                     if (!updateAgain) return;
                     updateAgain = false;   // pressed again meanwhile (the page had its unknown): this request's answer
-                    if (!quitting) AnswerUpdate(work.Result);
+                    if (!quitting) AnswerUpdate(work.Status == TaskStatus.RanToCompletion ? work.Result : UpdateCheck.Unknown());
                 }, null);
             }, TaskScheduler.Default);
             r = await UpdateCheck.Within(work, UpdateCheck.WaitMs);

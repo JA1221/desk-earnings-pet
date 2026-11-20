@@ -22,7 +22,7 @@ html,body{font-family:var(--font);color:var(--text)}
 html.paused *,html.paused *::before,html.paused *::after{animation-play-state:paused!important}
 /* 省電模式 (settings.display.powerSaver; QJZ.app sets html.saver): no decorative loop outside the pet. These are the
    atoms' (the status pulse, the progress stripes); layouts.css stops the layouts' own. */
-html.saver .status i{animation:none}
+html.saver .status i::after{animation:none;will-change:auto}
 html.saver .fill::before{animation:none;will-change:auto}
 /* 相容模式 (settings.display.opaque, or the host's init.forceOpaque when it cannot make the window transparent):
    the whole page is painted, no transparent pixel is left (the hit rects stay as they are) */
@@ -42,8 +42,13 @@ html.opaque,html.opaque body{background:#FFF8EC}
 .bar .tb.on{transform:translate(1px,1px);box-shadow:none;background:#FFB627}
 .clock{font-size:24px;font-weight:700}
 .status{display:inline-flex;align-items:center;gap:7px;background:var(--st-bg);border:2.5px solid var(--line);border-radius:99px;padding:4px 13px 4px 9px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
-.status i{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(30,158,90,.6)}100%{box-shadow:0 0 0 7px rgba(30,158,90,0)}}
+.status i{width:9px;height:9px;border-radius:50%;background:var(--st-dot)}
+/* The pulse (1.1.11): a ring as wide as the dot, under it, that grows to 7 px around it and fades. It animated
+   box-shadow before, which repaints on the main thread every frame, all day; scale and opacity are the compositor's. */
+:is(.status i,.mtop .dot){position:relative;z-index:0}
+:is(.status i,.mtop .dot)::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:50%;background:rgba(30,158,90,.6);
+  animation:pulse 1.3s infinite;will-change:transform,opacity}
+@keyframes pulse{0%{transform:scale(1);opacity:1}100%{transform:scale(2.556);opacity:0}}   /* (9 + 2 x 7 px) / 9 px */
 .pill{display:inline-flex;align-items:center;gap:6px;background:#fff;border:2.5px solid var(--line);border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;box-shadow:2px 2px 0 var(--shadow);white-space:nowrap}
 .fx{position:absolute;inset:0;pointer-events:none}
 .money-box,[data-plus]{position:relative}   /* [data-plus]: the amount the "+0.xx" goes up from (1.1.2) */

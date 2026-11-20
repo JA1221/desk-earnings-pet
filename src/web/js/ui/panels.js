@@ -133,10 +133,14 @@ QJZ.panels = (function () {
     if (isNaN(m) || m >= 24 * 60) return null;
     return pad(Math.floor(m / 60)) + ':' + pad(m % 60);
   }
-  function checkLunch(start, end) {
+  // fixed (1.1.11): 固定's 上班 / 下班 when 固定 is on: the new lunch must leave some work in them, as checkFixed asks
+  // (else the hours fell back to hoursPerDay and the pay per second was spread over hours that are not there)
+  function checkLunch(start, end, fixed) {
     var a = normHM(start), b = normHM(end);
     if (a === null || b === null) return { ok: false, error: '請輸入時間' };
     if (QJZ.time.parseHM(b) <= QJZ.time.parseHM(a)) return { ok: false, error: '午休結束要晚於開始' };
+    if (fixed && !(QJZ.settings.hours({ workMode: 'fixed', fixed: fixed, lunch: { start: a, end: b }, hoursPerDay: 0 }) > 0))
+      return { ok: false, error: '扣掉午休就沒有上班時間了' };
     return { ok: true, start: a, end: b };
   }
   // 固定's 上班 / 下班 (1.1.7): both times, the end after the start, and some work left once lunch is taken out.
@@ -1049,7 +1053,7 @@ QJZ.panels = (function () {
         if (r.ok) { save({ salary: { amount: r.value } }); el.value = amountInputText(r.value); }
         break;
       case 'lunchStart': case 'lunchEnd':
-        r = checkLunch(q(c, '[data-f=lunchStart]').value, q(c, '[data-f=lunchEnd]').value);
+        r = checkLunch(q(c, '[data-f=lunchStart]').value, q(c, '[data-f=lunchEnd]').value, s.workMode === 'fixed' ? s.fixed : null);
         setErr(c, 'lunch', r.ok ? '' : r.error);
         if (r.ok) {
           save({ lunch: { start: r.start, end: r.end } });

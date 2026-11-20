@@ -4905,4 +4905,30 @@
     });
     ok(!fails.length, '\n  ' + fails.join('\n  '));
   });
+
+  // 1.1.11 (review): 本月累計's closed days are summed once per change of the history (QJZ.app's historyRev), not
+  // every second; a change to a past day shows at once
+  test('layouts DOM: 1.1.11: 本月累計 follows a change to the history, summed only then', function () {
+    var e = shown(mk(at(12, 14, 10, 0), { first: 'U1', care: true }));
+    function month() { return $(e, '[data-b=month]').textContent; }
+    // the month's closed days, as shown: the month less today's amount
+    function closed() { return Math.round((parseFloat(month().replace(/,/g, '')) - QJZ.app.state.snap.earned) * 100) / 100; }
+    var a = closed();
+    var d = QJZ.history.closeDay(QJZ.day.manualStart(QJZ.day.empty('2026-11-03'), at(3, 9, 0)), QJZ.app.state.settings);
+    d.earned = 1000;
+    QJZ.app.state.history.days['2026-11-03'] = d;
+    var calls = 0, orig = QJZ.history.monthTotal;
+    QJZ.history.monthTotal = function () { calls++; return orig.apply(null, arguments); };
+    try {
+      e.tick(at(12, 14, 10, 1));
+      e.tick(at(12, 14, 10, 2));
+      eq(calls, 0, 'not summed again while nothing changed');
+      eq(closed(), a, '(a change made behind QJZ.app is not seen)');
+      QJZ.app.setHealth('2026-11-03', { cups: 1 });   // QJZ.app changes the history
+      e.tick(at(12, 14, 10, 3));
+      eq(calls, 1, 'summed once');
+      ok(Math.abs(closed() - a - 1000) < 0.02, 'the past day counts: ' + a + ' -> ' + closed());
+    } finally { QJZ.history.monthTotal = orig; }
+    done();
+  });
 })();

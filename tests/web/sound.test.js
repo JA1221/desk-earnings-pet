@@ -32,9 +32,9 @@ test('sound: the AudioContext suspends after 5 s idle and resumes on play', func
     ok(QJZ.sound.meow());
     eq(ctx.state, 'running', 'woken to play');
     eq(QJZ.sound._idle(), true);
+    eq(ctx.state, 'suspended', 'asleep');
     document.dispatchEvent(new Event('pointerdown'));
-    eq(ctx.state, 'running', 'a click wakes it (autoplay unlock)');
-    eq(QJZ.sound._idle(), true, '...and it sleeps again');
+    eq(ctx.state, 'suspended', '1.1.11: it has run once: a click no longer wakes it, no sound plays');
     ok(QJZ.sound.squeak());
     QJZ.sound.setEnabled(false);
     eq(ctx.state, 'suspended', 'switched off: asleep at once');
@@ -42,6 +42,34 @@ test('sound: the AudioContext suspends after 5 s idle and resumes on play', func
     document.dispatchEvent(new Event('pointerdown'));
     eq(ctx.state, 'suspended', 'a click does not wake a switched-off sound');
     eq(made.length, 1, 'one context only');
+  } finally {
+    QJZ.sound.setEnabled(false);
+    QJZ.sound._reset();
+    window.AudioContext = orig;
+  }
+});
+// 1.1.11: a context made outside a gesture (sound on at start-up) starts suspended: the first click unlocks it, once
+test('sound: a click unlocks a context that has never run, once', function () {
+  function noop() {}
+  var made = [];
+  function Fake() { this.state = 'suspended'; this.currentTime = 0; this.destination = {}; this.n = 0; made.push(this); }
+  Fake.prototype.createGain = function () { return { gain: { value: 1 }, connect: noop }; };
+  Fake.prototype.suspend = function () { this.state = 'suspended'; return Promise.resolve(); };
+  Fake.prototype.resume = function () { this.n++; if (this.allow) this.state = 'running'; return Promise.resolve(); };
+  var orig = window.AudioContext;
+  window.AudioContext = Fake;
+  QJZ.sound._reset();
+  try {
+    QJZ.sound.setEnabled(true);
+    var ctx = made[0];
+    eq(ctx.state, 'suspended', 'no gesture yet: refused');
+    ctx.allow = true;   // the user clicks
+    document.dispatchEvent(new Event('pointerdown'));
+    eq(ctx.state, 'running', 'the click unlocks it');
+    QJZ.sound._idle();
+    var n = ctx.n;
+    document.dispatchEvent(new Event('pointerdown'));
+    eq([ctx.state, ctx.n], ['suspended', n], 'later clicks leave it asleep');
   } finally {
     QJZ.sound.setEnabled(false);
     QJZ.sound._reset();

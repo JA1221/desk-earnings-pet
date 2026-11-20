@@ -28,7 +28,7 @@
 .mmoney small{font-size:13px;color:var(--cur)}
 .lay button{font-family:inherit;color:var(--text);cursor:pointer}
 .mtop{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sub);white-space:nowrap}
-.mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);animation:pulse 1.3s infinite;flex:none}
+.mtop .dot{width:9px;height:9px;border-radius:50%;background:var(--st-dot);flex:none}   /* (its pulse: base.css) */
 .meta2{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--sub);margin-top:6px}
 
 /* feed button: snack count + 餵食 (greyed when there is nothing to feed) */
@@ -41,9 +41,9 @@
 .s-lunch{--st-bg:#FFE08A;--st-dot:#FFB627}
 .s-done{--st-bg:#FFC857;--st-dot:#FF8A3D}
 .s-ended,.s-before,.s-off{--st-bg:#F1E6D6;--st-dot:#9A6E52}
-.lay:not(.s-working) :is(.status i,.mtop .dot){animation:none}
+.lay:not(.s-working) :is(.status i,.mtop .dot)::after{animation:none;content:none}
 /* 省電模式 (html.saver, base.css): the layouts' own decorative loops stop too (U5-B's dot, U3's coin) */
-html.saver :is(.mtop .dot,.u3 .coin){animation:none}
+html.saver .mtop .dot::after,html.saver .u3 .coin{animation:none;will-change:auto}
 
 /* ---------- U1 經典直式 ---------- */
 .u1{width:340px}

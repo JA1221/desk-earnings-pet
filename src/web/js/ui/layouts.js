@@ -364,6 +364,17 @@ QJZ.layouts = (function () {
     };
   }
 
+  // 本月累計 without today: the month's closed days, summed again only when the history changed (QJZ.app's historyRev)
+  // or the day did (1.1.11: it went over every day ever kept, each second). QJZ.history.monthTotal adds today's amount.
+  var monthCache = { h: null, rev: -1, day: '', sum: 0 };
+  function monthClosed(st, today) {
+    var c = monthCache, rev = st.historyRev || 0;
+    if (c.h !== st.history || c.rev !== rev || c.day !== today.day) {
+      c.h = st.history; c.rev = rev; c.day = today.day;
+      c.sum = QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, 0);
+    }
+    return c.sum;
+  }
   // Everything a layout displays, from the app state at wall-clock time ms and care's state cs (QJZ.care.state).
   function model(st, ms, cs) {
     var s = st.settings, snap = st.snap, today = st.today;
@@ -376,7 +387,7 @@ QJZ.layouts = (function () {
     var v = vitals(st, pct);
     var snacks = st.snacks > 0 ? st.snacks : 0;
     var masked = !!(s.privacy && s.privacy.maskMoney);
-    var clock = clockText(ms), monthReal = money(QJZ.history.monthTotal(st.history, today.day.slice(0, 7), today, snap.earned));
+    var clock = clockText(ms), monthReal = money(monthClosed(st, today) + (typeof snap.earned === 'number' && isFinite(snap.earned) ? snap.earned : 0));
     var card = cardAt(s.items, ms, buyRot);
     // the money texts as they read shown or masked (1.1.4 item 6: the other state's is each one's ghost, data-ghost)
     function moneyTexts(mk) {
@@ -2137,6 +2148,7 @@ QJZ.layouts = (function () {
     answerRun = false; held = null; hold = null; swallow = null; buyRot = null; inPlace = null; plusCents = plusAt = null;
     brain = null; bubbleRank = 0; chatAt = null; lastTick = null; dragged = false; dragAt = 0; hoverUntil = 0;
     lunchCache = { key: null, s: null }; focusPoked = null; cupPlus = false; drawnView = '';
+    monthCache = { h: null, rev: -1, day: '', sum: 0 };
     cancelBands();
   }
 
