@@ -2106,8 +2106,9 @@ QJZ.layouts = (function () {
       window.addEventListener('resize', function () { sync(false, true); });
       watchDpr();
       if (document.fonts) {
-        // Fredoka changes text metrics: start loading it now (the page loads hidden, before init) and re-measure.
-        try { document.fonts.load('700 16px Fredoka'); } catch (e) {}
+        // Fredoka (and its even digits, QJZ Num) change text metrics: start loading them now (the page loads hidden,
+        // before init) and re-measure.
+        try { document.fonts.load('700 16px "QJZ Num", Fredoka', '0'); document.fonts.load('600 16px "QJZ Num"', '0'); } catch (e) {}
         document.fonts.addEventListener('loadingdone', function () { sync(false); });
       }
     }

@@ -88,5 +88,16 @@ window.addEventListener('error', function (e) {
 <script src="promptview.test.js"></script>
 <script src="zoom-update.test.js"></script>
 <script src="hours.test.js"></script>
-<script>runAllTests();</script>
+<!-- 1.1.11: the tests measure with the page's own fonts, Fredoka and its even digits (QJZ Num), not a fallback: they
+     run once it has loaded (a missing src/web/fonts, build.ps1 copies it, is a failure, not a silent fallback) -->
+<script>
+  (function () {
+    var go = false;
+    function run(okFont) { if (go) return; go = true; if (!okFont) scriptErrors.push('Fredoka or QJZ Num did not load (src/web/fonts: run build.ps1)'); runAllTests(); }
+    var faces = ['700 16px Fredoka'].concat([400, 500, 600, 700].map(function (w) { return w + ' 16px "QJZ Num"'; }));
+    Promise.all(faces.map(function (f) { return document.fonts.load(f, '0'); }))
+      .then(function (ls) { run(ls.every(function (l) { return l.length > 0; })); }, function () { run(false); });
+    setTimeout(function () { run(false); }, 3000);
+  })();
+</script>
 </body></html>

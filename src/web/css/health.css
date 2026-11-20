@@ -301,7 +301,7 @@ html.calm :is(.gauge3.hot .rg,.u13.prompting .bigring){animation:none}   /* redu
 .u10.prompting .isl > .iv:not(.iv-r){display:none}   /* (also over the countdown of a break) */
 .u10.prompting .isl > .iv-r{display:flex}
 .isl .gd{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--st-bg);flex:none}
-.isl .im{font-family:"Fredoka",var(--font);font-weight:700;font-size:16px;line-height:1.2;color:#FFC857;font-variant-numeric:tabular-nums}
+.isl .im{font-family:var(--font);font-weight:700;font-size:16px;line-height:1.2;color:#FFC857;font-variant-numeric:tabular-nums}
 .isl .im.sm{font-size:13px}
 .isl .iv-x .im{font-size:30px;line-height:1.05}
 .u10.p-foc .isl .iv-f .im:not(.sm){color:#FF9A85}

@@ -4857,4 +4857,52 @@
     check('card → U12');
     done();
   });
+  // ================= 1.1.11 =================
+  // Item 1: as the amount and the times tick, nothing moves sideways and no window grows or shrinks. Fredoka has no
+  // tabular figures (no tnum: font-variant-numeric:tabular-nums did nothing), its 1 is two thirds as wide as its 2, so
+  // every text with digits in it changed width each second, and what sat beside it (or the window that fits it) went.
+  test('layouts DOM: 1.1.11 item 1: ticking (the amount, the clock, the countdowns), nothing moves sideways and the window keeps its size', function () {
+    var HOV = { U7: '.u7 .dpet', M3: '.m3' };
+    function boxes(e) {
+      var out = [];
+      Array.prototype.forEach.call(e.root.querySelectorAll('*'), function (n) {
+        if (n.closest('[data-fx],[data-fxwin],.bubble,.banner,.plus,[data-pet],svg,.odo .s,[data-fill]')) return;
+        var r = n.getBoundingClientRect();
+        out.push([n, Math.round(r.left * 100) / 100, Math.round(r.width * 100) / 100]);
+      });
+      return out;
+    }
+    var fails = [];
+    [false, true].forEach(function (mask) {
+      L10.forEach(function (name) {
+        var e = shown(mk(at(12, 14, 10, 0), { first: name, care: true, settings: { privacy: { maskMoney: mask }, items: [{ name: '珍奶', price: 65, icon: '🧋' }] } }));
+        if (HOV[name]) hoverOn($(e, HOV[name]));
+        // the texts' shape, every digit as 0: a tick that changes more than digits (the card's turn, 可以買's item) is not
+        // a digit's width at work, and is left out
+        var shape = function () { return e.root.textContent.replace(/\d/g, '0'); };
+        var base = boxes(e), size = sizeOf(e).join('x'), bad = {}, form = shape(), n = 0;
+        // 20 s apart and up to 9 s in (U3's card stays on 可以買: it turns every CARD_MS), every digit of each time turns
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].forEach(function (k) {
+          e.tick(at(12, 14, 10, 0) + k * 2 * QJZ.layouts.util.CARD_MS + (k * 1237) % 9000);
+          if (HOV[name]) hoverOn($(e, HOV[name]));
+          if (shape() !== form) return;
+          n++;
+          if (sizeOf(e).join('x') !== size) bad.size = size + ' -> ' + sizeOf(e).join('x');
+          boxes(e).forEach(function (b, j) {
+            var a = base[j];
+            if (!a || a[0] !== b[0]) return;
+            if (Math.abs(a[1] - b[1]) > 0.05 || Math.abs(a[2] - b[2]) > 0.05) {
+              var key = b[0].tagName.toLowerCase() + '.' + String(b[0].getAttribute('class') || '') + (b[0].getAttribute('data-b') ? '[' + b[0].getAttribute('data-b') + ']' : '');
+              bad[key] = 'x ' + a[1] + '→' + b[1] + ' w ' + a[2] + '→' + b[2] + ' "' + b[0].textContent.slice(0, 24) + '"';
+            }
+          });
+        });
+        var keys = Object.keys(bad);
+        if (n < 12) fails.push(name + (mask ? ' masked' : '') + ': ticks compared: ' + n);
+        if (keys.length) fails.push(name + (mask ? ' masked' : '') + ': ' + keys.slice(0, 6).map(function (k) { return k + ' ' + bad[k]; }).join(' | '));
+        done();
+      });
+    });
+    ok(!fails.length, '\n  ' + fails.join('\n  '));
+  });
 })();

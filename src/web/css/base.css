@@ -5,9 +5,17 @@
   font-weight: 300 700;
   font-stretch: 75% 125%;
 }
+/* 1.1.11 item 1: Fredoka's digits are not all as wide (no tabular figures: tabular-nums did nothing), so a time or an
+   amount changed width every second and what was beside it moved. 'QJZ Num' (tools/make-num-font.py) is Fredoka's 0-9,
+   each as wide as the widest, one static font per weight; first in --font and only for the digits (unicode-range: the
+   space, and so the line's metrics, stay Fredoka's). */
+@font-face{font-family:'QJZ Num';src:url('../fonts/QJZNum-400.ttf') format('truetype');font-weight:400;unicode-range:U+0030-0039}
+@font-face{font-family:'QJZ Num';src:url('../fonts/QJZNum-500.ttf') format('truetype');font-weight:500;unicode-range:U+0030-0039}
+@font-face{font-family:'QJZ Num';src:url('../fonts/QJZNum-600.ttf') format('truetype');font-weight:600;unicode-range:U+0030-0039}
+@font-face{font-family:'QJZ Num';src:url('../fonts/QJZNum-700.ttf') format('truetype');font-weight:700;unicode-range:U+0030-0039}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#FFF8EC;--line:#3D2C24;--shadow:#3D2C24;--sline:#3D2C24;--text:#3D2C24;--sub:#9A6E52;--bar:#FFC857;--money:#FF8A3D;--cur:#FFC857;--st-bg:#8EE3B0;--st-dot:#1E9E5A;
-  --f1:#FFC857;--f2:#FFB627;--plus:#1E9E5A;--heart:#FF5C7C;--bolt:#FFD93D;--font:"Fredoka","Microsoft JhengHei UI",sans-serif}
+  --f1:#FFC857;--f2:#FFB627;--plus:#1E9E5A;--heart:#FF5C7C;--bolt:#FFD93D;--font:"QJZ Num","Fredoka","Microsoft JhengHei UI",sans-serif}
 html,body{font-family:var(--font);color:var(--text)}
 
 /* animations pause when the window is hidden / locked (host sends visibility:false) */
