@@ -27,6 +27,7 @@ public static class UpdateCheckTests
         Assert.True(UpdateCheck.Newer("v1.2.0", "1.1.5"), "minor");
         Assert.True(UpdateCheck.Newer("v1.10.0", "1.9.9"), "numeric, not text");
         Assert.True(UpdateCheck.Newer("v1.1.10", "1.1.9") && !UpdateCheck.Newer("v1.1.9", "1.1.10"), "1.1.10 after 1.1.9 (the first two-digit patch)");
+        Assert.True(UpdateCheck.Newer("v1.1.11", "1.1.10") && !UpdateCheck.Newer("v1.1.10", "1.1.11"), "1.1.11 after 1.1.10");
         Assert.True(UpdateCheck.Newer("v2.0.0", "1.99.99"), "major");
         Assert.True(!UpdateCheck.Newer("v1.1.5", "1.1.5"), "same");
         Assert.True(!UpdateCheck.Newer("v1.1.4", "1.1.5"), "older");
